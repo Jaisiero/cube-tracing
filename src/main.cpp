@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm>
 
 #include <daxa/daxa.hpp>
 #include <daxa/utils/pipeline_manager.hpp>
@@ -8,6 +9,9 @@
 #include <shared.hpp>
 
 #include "shaders/shared.inl"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace tests
 {
@@ -21,8 +25,13 @@ namespace tests
             daxa::PipelineManager pipeline_manager = {};
             std::shared_ptr<daxa::ComputePipeline> comp_pipeline = {};
             daxa::TlasId tlas = {};
-            daxa::BlasId blas = {};
             daxa::BlasId proc_blas = {};
+            daxa::BufferId mat_buffer = {};
+            u32 mat_buffer_size = sizeof(daxa_f32mat4x4) * 2;
+            daxa::BufferId instance_buffer = {};
+            u32 max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
+            u32 current_instance_count = 0;
+            std::array<INSTANCE, MAX_INSTANCES> instances = {};
 
             App() : AppWindow<App>("ray query test") {}
 
@@ -31,9 +40,30 @@ namespace tests
                 if (device.is_valid())
                 {
                     device.destroy_tlas(tlas);
-                    device.destroy_blas(blas);
+                    // device.destroy_blas(blas);
                     device.destroy_blas(proc_blas);
+                    device.destroy_buffer(mat_buffer);
+                    device.destroy_buffer(instance_buffer);
                 }
+            }
+
+            daxa_f32mat4x4 glm_mat4_to_daxa_f32mat4x4(glm::mat4 const & mat)
+            {
+                return daxa_f32mat4x4{
+                    {mat[0][0], mat[0][1], mat[0][2], mat[0][3]},
+                    {mat[1][0], mat[1][1], mat[1][2], mat[1][3]},
+                    {mat[2][0], mat[2][1], mat[2][2], mat[2][3]},
+                    {mat[3][0], mat[3][1], mat[3][2], mat[3][3]},
+                };
+            }
+
+            daxa_rowmaj_f32mat3x4 daxa_f32mat4x4_to_daxa_rowmaj_f32mat3x4(daxa_f32mat4x4 const & mat)
+            {
+                return daxa_rowmaj_f32mat3x4{
+                    {mat.x.x, mat.x.y, mat.x.z, mat.x.w},
+                    {mat.y.x, mat.y.y, mat.y.z, mat.y.w},
+                    {mat.z.x, mat.z.y, mat.z.z, mat.z.w}
+                };
             }
 
             void initialize()
@@ -62,81 +92,15 @@ namespace tests
                     .image_usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
                 });
 
-                /// Vertices:
-                auto vertices = std::array{
-                    std::array{0.25f, 0.75f, 0.5f},
-                    std::array{0.5f, 0.25f, 0.5f},
-                    std::array{0.75f, 0.75f, 0.5f},
-                };
-                auto vertex_buffer = device.create_buffer({
-                    .size = sizeof(decltype(vertices)),
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = "vertex buffer",
+                mat_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = mat_buffer_size,
+                    .name = ("mat_buffer"),
                 });
-                defer { device.destroy_buffer(vertex_buffer); };
-                *device.get_host_address_as<decltype(vertices)>(vertex_buffer).value() = vertices;
-                /// Indices:
-                auto indices = std::array{0, 1, 2};
-                auto index_buffer = device.create_buffer({
-                    .size = sizeof(decltype(indices)),
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = "index buffer",
-                });
-                defer { device.destroy_buffer(index_buffer); };
-                *device.get_host_address_as<decltype(indices)>(index_buffer).value() = indices;
-                /// Transforms:
-                auto transform_buffer = device.create_buffer({
-                    .size = sizeof(daxa_rowmaj_f32mat3x4),
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = "transform buffer",
-                });
-                defer { device.destroy_buffer(transform_buffer); };
-                *device.get_host_address_as<daxa_rowmaj_f32mat3x4>(transform_buffer).value() = daxa_rowmaj_f32mat3x4{
-                    {1, 0, 0, 0},
-                    {0, 1, 0, 0},
-                    {0, 0, 1, 0},
-                };
-                /// Triangle Geometry Info:
-                auto geometries = std::array{
-                    daxa::BlasTriangleGeometryInfo{
-                        .vertex_format = daxa::Format::R32G32B32_SFLOAT,                            // Is also default
-                        .vertex_data = {}, // Ignored in get_acceleration_structure_build_sizes.    // Is also default
-                        .vertex_stride = sizeof(daxa_f32vec3),                                      // Is also default
-                        .max_vertex = static_cast<u32>(vertices.size() - 1),
-                        .index_type = daxa::IndexType::uint32,                                      // Is also default
-                        .index_data = {},     // Ignored in get_acceleration_structure_build_sizes. // Is also default
-                        .transform_data = {}, // Ignored in get_acceleration_structure_build_sizes. // Is also default
-                        .count = 1,
-                        // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                        .flags = 0x1,                                    // Is also default
-                    }};
-                /// Create Triangle Blas:
-                /// TODO(Raytracing): create aabb data, buffers, BlasAabbGeometryInfo and blas for it.
-                auto blas_build_info = daxa::BlasBuildInfo{
-                    .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_TRACE,       // Is also default
-                    .dst_blas = {}, // Ignored in get_acceleration_structure_build_sizes.       // Is also default
-                    .geometries = geometries,
-                    .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
-                };
-                daxa::AccelerationStructureBuildSizesInfo build_size_info = device.get_blas_build_sizes(blas_build_info);
-                auto blas_scratch_buffer = device.create_buffer({
-                    .size = build_size_info.build_scratch_size,
-                    .name = "blas build scratch buffer",
-                });
-                defer { device.destroy_buffer(blas_scratch_buffer); };
-                this->blas = device.create_blas({
-                    .size = build_size_info.acceleration_structure_size,
-                    .name = "test blas",
-                });
-                /// Fill the remaining fields of the build info:
-                auto & tri_geom = geometries[0];
-                tri_geom.vertex_data = device.get_device_address(vertex_buffer).value();
-                tri_geom.index_data = device.get_device_address(index_buffer).value();
-                tri_geom.transform_data = device.get_device_address(transform_buffer).value();
-                blas_build_info.dst_blas = blas;
-                blas_build_info.scratch_data = device.get_device_address(blas_scratch_buffer).value();
 
-
+                instance_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_instance_buffer_size,
+                    .name = ("instance_buffer"),
+                });
                 
 // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
 // GeometryType of each element of pGeometries must be the same
@@ -176,61 +140,75 @@ namespace tests
                 });
                 defer { device.destroy_buffer(proc_blas_scratch_buffer); };
                 this->proc_blas = device.create_blas({
-                    .size = build_size_info.acceleration_structure_size,
+                    .size = proc_build_size_info.acceleration_structure_size,
                     .name = "test procedural blas",
                 });
                 proc_blas_build_info.dst_blas = proc_blas;
                 proc_blas_build_info.scratch_data = device.get_device_address(proc_blas_scratch_buffer).value();
 
+                
+                current_instance_count = 0;
 
+                instances[current_instance_count++] = INSTANCE{
+                    .transform = {
+                        {1, 0, 0, -0.25f},
+                        {0, 1, 0, -0.25f},
+                        {0, 0, 1, -0.5f},
+                        {0, 0, 0, 1},
+                    },
+                    .color = {1, 0, 0},
+                };
 
+                instances[current_instance_count++] = INSTANCE{
+                    .transform = {
+                        {1, 0, 0, 0.25f},
+                        {0, 1, 0, 0.25f},
+                        {0, 0, 1, -0.5f},
+                        {0, 0, 0, 1},
+                    },
+                    .color = {0, 1, 0},
+                };
 
-                /// create blas instances for tlas:
-                /// TODO(Raytracing): add instance of blas for aabb.
-                auto blas_instances_buffer = device.create_buffer({
-                    .size = sizeof(daxa_BlasInstanceData) * 2,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = "blas instances array buffer",
-                });
-                defer { device.destroy_buffer(blas_instances_buffer); };
-
+                current_instance_count = 0;
 
                 auto blas_instance_array = std::array{
                     daxa_BlasInstanceData{
-                        .transform = {
-                            {1, 0, 0, 0.15f},
-                            {0, 1, 0, -0.15f},
-                            {0, 0, 1, 0.25f},
-                        },
-                        .instance_custom_index = 0, // Is also default
+                        .transform = 
+                            daxa_f32mat4x4_to_daxa_rowmaj_f32mat3x4(instances[current_instance_count].transform),
+                        .instance_custom_index = current_instance_count++, // Is also default
                         .mask = 0xFF,
                         .instance_shader_binding_table_record_offset = {}, // Is also default
                         .flags = {},                                       // Is also default
-                        .blas_device_address = device.get_device_address(blas).value(),
+                        .blas_device_address = device.get_device_address(proc_blas).value(),
                     },
                     daxa_BlasInstanceData{
-                        .transform = {
-                            {1, 0, 0, 0.25f},
-                            {0, 1, 0, 0.25f},
-                            {0, 0, 1, 0.5f},
-                        },
-                        .instance_custom_index = 1, // Is also default
+                        .transform = 
+                            daxa_f32mat4x4_to_daxa_rowmaj_f32mat3x4(instances[current_instance_count].transform),
+                        .instance_custom_index = current_instance_count++, // Is also default
                         .mask = 0xFF,
                         .instance_shader_binding_table_record_offset = {}, // Is also default
                         .flags = {},                                       // Is also default
                         .blas_device_address = device.get_device_address(proc_blas).value(),
                     }
                 };
+                
+                // current instance count in this scene is 2 right now
+                /// create blas instances for tlas:
+                auto blas_instances_buffer = device.create_buffer({
+                    .size = sizeof(daxa_BlasInstanceData) * current_instance_count,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = "blas instances array buffer",
+                });
+                defer { device.destroy_buffer(blas_instances_buffer); };
                 std::memcpy(device.get_host_address_as<daxa_BlasInstanceData>(blas_instances_buffer).value(), 
                     blas_instance_array.data(), 
                     blas_instance_array.size() * sizeof(daxa_BlasInstanceData));
 
 
-                /// TODO(Raytracing): add instance of blas for aabb.
                 auto blas_instances = std::array{
                     daxa::TlasInstanceInfo{
                         .data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
-                        .count = 2,
+                        .count = current_instance_count,
                         .is_data_array_of_pointers = false, // Buffer contains flat array of instances, not an array of pointers to instances.
                         // .flags = daxa::GeometryFlagBits::OPAQUE,
                         .flags = 0x1,
@@ -263,7 +241,7 @@ namespace tests
                 {
                     auto recorder = device.create_command_recorder({});
                     recorder.build_acceleration_structures({
-                        .blas_build_infos = std::array{blas_build_info, proc_blas_build_info},
+                        .blas_build_infos = std::array{proc_blas_build_info},
                     });
                     recorder.pipeline_barrier({
                         .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
@@ -342,6 +320,60 @@ namespace tests
                     .name = ("recorder (clearcolor)"),
                 });
 
+                auto mat_staging_buffer = device.create_buffer({
+                    .size = mat_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("mat_staging_buffer"),
+                });
+                defer { device.destroy_buffer(mat_staging_buffer); };
+
+                Camera camera = {
+                    .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(glm::vec3{0, 0, 2.5}, glm::vec3{0, 0, 0}, glm::vec3{0, 1, 0}))),
+                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), 1.0f, 0.001f, 1000.0f))),
+                };
+
+                auto * buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(mat_staging_buffer).value();
+                std::memcpy(buffer_ptr, 
+                    &camera,
+                    mat_buffer_size);
+
+                u32 instance_buffer_size = std::min(max_instance_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE)));
+
+
+                auto instance_staging_buffer = device.create_buffer({
+                    .size = instance_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("instance_staging_buffer"),
+                });
+                defer { device.destroy_buffer(instance_staging_buffer); };
+
+                buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(instance_staging_buffer).value();
+                std::memcpy(buffer_ptr, 
+                    &instances,
+                    instance_buffer_size);
+
+                recorder.pipeline_barrier({
+                    .src_access = daxa::AccessConsts::HOST_WRITE,
+                    .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                });
+
+                recorder.copy_buffer_to_buffer({
+                    .src_buffer = mat_staging_buffer,
+                    .dst_buffer = mat_buffer,
+                    .size = mat_buffer_size,
+                });
+
+                recorder.copy_buffer_to_buffer({
+                    .src_buffer = instance_staging_buffer,
+                    .dst_buffer = instance_buffer,
+                    .size = instance_buffer_size,
+                });
+
+                recorder.pipeline_barrier({
+                    .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                    .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                });
+
                 recorder.pipeline_barrier_image_transition({
                     .dst_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
                     .src_layout = daxa::ImageLayout::UNDEFINED,
@@ -356,6 +388,8 @@ namespace tests
                     .size = {width, height},
                     .tlas = tlas,
                     .swapchain = swapchain_image.default_view(),
+                    .camera_buffer = this->device.get_device_address(mat_buffer).value(),
+                    .instance_buffer = this->device.get_device_address(instance_buffer).value(),
                 });
                 daxa::u32 block_count_x = (width + 8 - 1) / 8;
                 daxa::u32 block_count_y = (height + 8 - 1) / 8;
