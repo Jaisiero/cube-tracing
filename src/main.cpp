@@ -107,7 +107,8 @@ namespace tests
                         .index_data = {},     // Ignored in get_acceleration_structure_build_sizes. // Is also default
                         .transform_data = {}, // Ignored in get_acceleration_structure_build_sizes. // Is also default
                         .count = 1,
-                        .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+                        // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+                        .flags = 0x1,                                    // Is also default
                     }};
                 /// Create Triangle Blas:
                 /// TODO(Raytracing): create aabb data, buffers, BlasAabbGeometryInfo and blas for it.
@@ -158,7 +159,8 @@ namespace tests
                         .data = device.get_device_address(aabb_buffer).value(),
                         .stride = sizeof(daxa_f32mat3x2),
                         .count = 1,
-                        .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+                        // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+                        .flags = 0x1,                                    // Is also default
                     }};
                 /// Create Procedural Blas:
                 auto proc_blas_build_info = daxa::BlasBuildInfo{
@@ -230,7 +232,8 @@ namespace tests
                         .data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
                         .count = 2,
                         .is_data_array_of_pointers = false, // Buffer contains flat array of instances, not an array of pointers to instances.
-                        .flags = daxa::GeometryFlagBits::OPAQUE,
+                        // .flags = daxa::GeometryFlagBits::OPAQUE,
+                        .flags = 0x1,
                     }
                 };
                 auto tlas_build_info = daxa::TlasBuildInfo{
@@ -372,13 +375,13 @@ namespace tests
 
                 device.submit_commands({
                     .command_lists = std::array{executalbe_commands},
-                    .wait_binary_semaphores = std::array{swapchain.get_acquire_semaphore()},
-                    .signal_binary_semaphores = std::array{swapchain.get_present_semaphore()},
-                    .signal_timeline_semaphores = std::array{std::pair{swapchain.get_gpu_timeline_semaphore(), swapchain.get_cpu_timeline_value()}},
+                    .wait_binary_semaphores = std::array{swapchain.current_acquire_semaphore()},
+                    .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
+                    .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
                 });
 
                 device.present_frame({
-                    .wait_binary_semaphores = std::array{swapchain.get_present_semaphore()},
+                    .wait_binary_semaphores = std::array{swapchain.current_present_semaphore()},
                     .swapchain = swapchain,
                 });
 
