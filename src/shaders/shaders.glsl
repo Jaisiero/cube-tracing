@@ -7,19 +7,6 @@
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
-struct Aabb
-{
-  vec3 minimum;
-  vec3 maximum;
-};
-
-struct Ray
-{
-  vec3 origin;
-  vec3 direction;
-};
-
-
 // Ray-AABB intersection
 float hit_aabb(const Aabb aabb, const Ray r)
 {
@@ -73,7 +60,44 @@ vec4 fromLinear(vec4 linearRGB)
     return mix(higher, lower, cutoff);
 }
 
-const vec3 LIGHT_POSITION = vec3(0.0, 0.0, 1.0);
+const vec3 LIGHT_POSITION = vec3(5.0, 10.0, 5.0);
+
+
+vec3 get_half_extent(int level_index)
+{
+    switch(level_index)
+    {
+        case 0:
+            return vec3(LEVEL_0_HALF_EXTENT);
+        case 1:
+            return vec3(LEVEL_1_HALF_EXTENT);
+        default:
+            return vec3(LEVEL_0_HALF_EXTENT);
+    }
+}
+
+void set_instance_level(uint instance_id, int level_index)
+{
+    deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index;
+}
+
+void set_instance_distance(uint instance_id, float t)
+{
+    deref(p.instance_distance_buffer).instance_distances[instance_id].distance = t;
+}
+
+void check_instance_level(float t, float LOD_distance, uint instance_id, int level_index) {
+
+    if(t < 0.0f) return;
+
+    if(t >= LOD_distance) {
+        set_instance_level(instance_id, max(0, level_index - 1));
+    }
+    else if(t < (LOD_distance - (get_half_extent(level_index).x * min(1, pow(2, level_index))) - 0.0001f)) {
+        set_instance_level(instance_id, min(level_index + 1, MAX_LEVELS -1));
+    }
+    set_instance_distance(instance_id, t);
+}
 
 layout(local_size_x = 8, local_size_y = 8) in;
 void main()
@@ -85,7 +109,7 @@ void main()
     }
 
     uint cull_mask = 0xff;
-    float t_min = 0.0f;
+    float t_min = 0.0001f;
     float t_max = 1000.0f;
     
     uvec2 launch_size = gl_NumWorkGroups.xy * 8;
@@ -106,26 +130,29 @@ void main()
     ray.origin = origin.xyz;
     ray.direction = direction.xyz;
 
-    float t = 0.0f;
+    float t = -1.0f;
 
     rayQueryEXT ray_query;
     rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
-                        gl_RayFlagsOpaqueEXT,
+                        // gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
+                        gl_RayFlagsTerminateOnFirstHitEXT,
                         cull_mask, ray.origin, t_min, ray.direction, t_max);
-
+                        
     while(rayQueryProceedEXT(ray_query)) {
         uint type = rayQueryGetIntersectionTypeEXT(ray_query, false);
         if(type ==
             gl_RayQueryCandidateIntersectionAABBEXT) {
             rayQueryGenerateIntersectionEXT(ray_query, t);
+            rayQueryTerminateEXT(ray_query);
         }
     }
 
     vec3 out_colour = vec3(0.0, 0.0, 0.0);
-    uint type = rayQueryGetIntersectionTypeEXT(ray_query, true);
+    uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
 
-    if(type ==
+    if(type_commited ==
         gl_RayQueryCommittedIntersectionGeneratedEXT)
+    // if(rayQueryGetIntersectionCandidateAABBOpaqueEXT(ray_query))
     {
 
         // get instance id
@@ -136,35 +163,24 @@ void main()
 
         mat4 transform = deref(p.instance_buffer).instances[instance_id].transform;
 
+        transform = transpose(transform);
+
+
         uint primitive_index = deref(p.instance_buffer).instances[instance_id].first_primitive_index;
-        // mat4 inv_transform = inverse(transform);
-        uint level_index = deref(p.instance_buffer).instances[instance_id].level_index;
+        int level_index = deref(p.instance_buffer).instances[instance_id].level_index;
 
         // Get center position from transform
         vec3 aabb_center = vec3(0, 0, 0);
 
         int primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
 
+        uint actual_primitive_index = primitive_index+primitive_id;
+
         // Get primitive center position from transform
-        aabb_center = deref(p.primitives_buffer).primitives[primitive_index+primitive_id].center;
+        aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
+        
 
-        deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index;
-
-        vec3 half_extent = vec3(0);
-        if(level_index == 1)
-        {
-            half_extent = vec3(LEVEL_1_HALF_EXTENT);
-            if(t >= LOD_distance) {
-                deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index - 1;
-            }
-        }
-        else
-        {
-            half_extent = vec3(LEVEL_0_HALF_EXTENT);
-            if(t < LOD_distance) {
-                deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index + 1;
-            }
-        }
+        vec3 half_extent = get_half_extent(level_index);
 
         // Get aabb from center_pos and transform
         Aabb aabb;
@@ -172,15 +188,20 @@ void main()
         aabb.maximum =  aabb_center + half_extent;
         aabb.minimum = (transform * vec4(aabb.minimum, 1)).xyz;
         aabb.maximum = (transform * vec4(aabb.maximum, 1)).xyz;
+
+        // DEBUGGING
+        deref(p.aabb_buffer).aabbs[actual_primitive_index].aabb = aabb;
         
         t = hit_aabb(aabb, ray);
+
+        check_instance_level(t, LOD_distance, instance_id, level_index);
 
         vec3 world_pos = ray.origin + ray.direction * t;
 
         
         vec3 center_pos = (transform * vec4(aabb_center, 1)).xyz;
         // Computing the normal at hit position
-        vec3 world_nrm = normalize(-center_pos);
+        vec3 world_nrm = normalize(world_pos-center_pos);
 
 // Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
         // Computing the normal for a cube
@@ -194,8 +215,10 @@ void main()
 
         // Vector toward the light
         vec3  L;
+        // float light_intensity = 1000.0;
         float light_intensity = 1000.0;
-        float light_distance  = 100.0;
+        // float light_distance  = 100.0;
+        float light_distance  = 10.0;
         uint lightType      = 0;
         // Point light
         if(lightType == 0)
@@ -222,7 +245,6 @@ void main()
         }
         // Apply the normal to the color
         out_colour = vec3(light_intensity * attenuation * (diffuse + specular));
-
     }
 
     imageStore(daxa_image2D(p.swapchain), index, vec4(out_colour,1));

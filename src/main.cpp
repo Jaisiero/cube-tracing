@@ -19,6 +19,14 @@ namespace tests
     {
         struct App : AppWindow<App>
         {
+            const u32 INSTANCE_COUNT = 2;
+            const f32 SPEED = 0.1f;
+
+            glm::vec3 camera_pos = {0, 0, 2.5};
+            glm::vec3 camera_center = {0, 0, 0};
+            glm::vec3 camera_up = {0, 1, 0};
+
+
             daxa::Instance daxa_ctx = {};
             daxa::Device device = {};
             daxa::Swapchain swapchain = {};
@@ -35,10 +43,15 @@ namespace tests
             u32 max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
 
             daxa::BufferId primitive_buffer = {};
+            // TODO: Debugging
+            daxa::BufferId gpu_aabb_buffer = {};
             u32 max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
 
             daxa::BufferId instance_level_buffer = {};
             u32 max_instance_level_buffer_size = sizeof(INSTANCE_LEVEL) * MAX_INSTANCES;
+
+            daxa::BufferId instance_distance_buffer = {};
+            u32 max_instance_distance_buffer_size = sizeof(INSTANCE_DISTANCE) * MAX_INSTANCES;
             // BUFFERS
             
             // CPU DATA
@@ -48,10 +61,13 @@ namespace tests
             u32 current_primitive_count = 0;
             std::vector<PRIMITIVE> primitives = {};
             std::vector<INSTANCE_LEVEL> instance_levels = {};
+            // TODO: Debugging
+            std::vector<INSTANCE_DISTANCE> instance_distances = {};
+            std::vector<PRIMITIVE_AABB> aabb = {};
+            // TODO: Debugging
             // CPU DATA
 
             // TODO: HACK to get around the fact we are harcoding the number of instances for now
-            const u32 INSTANCE_COUNT = 2;
             std::vector<daxa_f32mat4x4> transforms = {};
             std::vector<daxa_f32vec3> colors = {};
             // TODO: HACK to get around the fact we are harcoding the number of primitives for now
@@ -71,6 +87,8 @@ namespace tests
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
                     device.destroy_buffer(instance_level_buffer);
+                    device.destroy_buffer(instance_distance_buffer);
+                    device.destroy_buffer(gpu_aabb_buffer);
                 }
             }
 
@@ -128,9 +146,12 @@ namespace tests
 
                 daxa_u32 primitive_count = 0;
                 for(u32 i = 0; i < instance_count; i++) {
-                    if(instance_levels[i].level_index != instances[i].level_index) {
+                    if(instance_levels[i].level_index != instances[i].level_index && 
+                        instances[i].level_index < MAX_LEVELS) {
                         some_level_changed = true;
                         primitive_count += get_primitive_count_by_level(instance_levels[i].level_index);
+                    } else {
+                        primitive_count += instances[i].primitive_count;
                     }
                 }
 
@@ -386,6 +407,18 @@ namespace tests
                     .name = ("instance_level_buffer"),
                 });
                 
+                // TODO: Debugging
+                instance_distance_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_instance_distance_buffer_size,
+                    .name = ("instance_distance_buffer"),
+                });
+
+                gpu_aabb_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_primitive_buffer_size,
+                    .name = ("gpu_aabb_buffer"),
+                });
+                // TODO: Debugging
+                
                 // TODO: This could be load from a file
                 {
                     // TODO: Give center + half extent
@@ -401,6 +434,8 @@ namespace tests
 
 
                     instance_levels.resize(INSTANCE_COUNT);
+
+                    instance_distances.resize(INSTANCE_COUNT);
 
                     for(u32 i = 0; i < INSTANCE_COUNT; i++) {
                         instance_levels[i] = INSTANCE_LEVEL{
@@ -537,12 +572,17 @@ namespace tests
                 });
                 defer { device.destroy_buffer(mat_staging_buffer); };
                 
-                // Copy camera to buffer
+                daxa::u32 width = device.info_image(swapchain_image).value().size.x;
+                daxa::u32 height = device.info_image(swapchain_image).value().size.y;
+
                 Camera camera = {
-                    .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(glm::vec3{0, 0, 2.5}, glm::vec3{0, 0, 0}, glm::vec3{0, 1, 0}))),
-                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), 1.0f, 0.001f, 1000.0f))),
+                    .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(camera_pos, camera_center, camera_up))),
+                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), (width/(f32)height), 0.001f, 1000.0f))),
                     .LOD_distance = 5.0f,
                 };
+
+                // NOTE: Vulkan has inverted y axis in NDC
+                camera.inv_proj.y.y *= -1;
 
                 auto * buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(mat_staging_buffer).value();
                 std::memcpy(buffer_ptr, 
@@ -617,8 +657,8 @@ namespace tests
                 });
 
                 recorder.set_pipeline(*comp_pipeline);
-                daxa::u32 width = device.info_image(swapchain_image).value().size.x;
-                daxa::u32 height = device.info_image(swapchain_image).value().size.y;
+                // daxa::u32 width = device.info_image(swapchain_image).value().size.x;
+                // daxa::u32 height = device.info_image(swapchain_image).value().size.y;
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
                     .tlas = tlas,
@@ -627,6 +667,8 @@ namespace tests
                     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
                     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
                     .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
+                    .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
+                    .aabb_buffer = this->device.get_device_address(gpu_aabb_buffer).value(),
                 });
                 daxa::u32 block_count_x = (width + 8 - 1) / 8;
                 daxa::u32 block_count_y = (height + 8 - 1) / 8;
@@ -669,14 +711,36 @@ namespace tests
                     instance_levels.resize(current_instance_count);
                 }
 
+                if(aabb.size() < current_primitive_count) {
+                    aabb.resize(current_primitive_count);
+                }
+
                 u32 instance_level_buffer_size = std::min(max_instance_level_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE_LEVEL)));
                 // Some Device to Host copy here
                 auto instance_level_staging_buffer = device.create_buffer({
                     .size = instance_level_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("instance_staging_buffer"),
+                    .name = ("instance_level_staging_buffer"),
                 });
                 defer { device.destroy_buffer(instance_level_staging_buffer); };
+
+                // u32 instance_distance_buffer_size = std::min(max_instance_distance_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE_DISTANCE)));
+                // // Some Device to Host copy here
+                // auto instance_distance_staging_buffer = device.create_buffer({
+                //     .size = instance_distance_buffer_size,
+                //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                //     .name = ("instance_distance_staging_buffer"),
+                // });
+                // defer { device.destroy_buffer(instance_distance_staging_buffer); };
+
+                // u32 aabb_buffer_size = std::min(max_primitive_buffer_size, static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE_AABB)));
+                // // Some Device to Host copy here
+                // auto aabb_staging_buffer = device.create_buffer({
+                //     .size = aabb_buffer_size,
+                //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                //     .name = ("aabb_staging_buffer"),
+                // });
+                // defer { device.destroy_buffer(aabb_staging_buffer); };
 
                 /// Record build commands:
                 auto exec_cmds = [&]()
@@ -687,16 +751,33 @@ namespace tests
                         .dst_access = daxa::AccessConsts::TRANSFER_READ,
                     });
 
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::HOST_WRITE,
-                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                    });
-
                     recorder.copy_buffer_to_buffer({
                         .src_buffer = instance_level_buffer,
                         .dst_buffer = instance_level_staging_buffer,
                         .size = instance_level_buffer_size,
                     });
+
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                        .dst_access = daxa::AccessConsts::HOST_READ,
+                    });
+
+                    // recorder.copy_buffer_to_buffer({
+                    //     .src_buffer = instance_distance_buffer,
+                    //     .dst_buffer = instance_distance_staging_buffer,
+                    //     .size = instance_distance_buffer_size,
+                    // });
+
+                    // recorder.pipeline_barrier({
+                    //     .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                    //     .dst_access = daxa::AccessConsts::HOST_READ,
+                    // });
+
+                    // recorder.copy_buffer_to_buffer({
+                    //     .src_buffer = gpu_aabb_buffer,
+                    //     .dst_buffer = aabb_staging_buffer,
+                    //     .size = aabb_buffer_size,
+                    // });
 
                     recorder.pipeline_barrier({
                         .src_access = daxa::AccessConsts::TRANSFER_WRITE,
@@ -734,11 +815,111 @@ namespace tests
                     instance_level_buffer_ptr,
                     instance_level_buffer_size);
 
+                // auto * instance_distance_buffer_ptr = device.get_host_address_as<INSTANCE_DISTANCE>(instance_distance_staging_buffer).value();
+                // std::memcpy(instance_distances.data(), 
+                //     instance_distance_buffer_ptr,
+                //     instance_distance_buffer_size);
+                    
+                // auto * aabb_buffer_ptr = device.get_host_address_as<INSTANCE_DISTANCE>(aabb_staging_buffer).value();
+                // std::memcpy(aabb.data(), 
+                //     aabb_buffer_ptr,
+                //     aabb_buffer_size);
+
+
+                // print out the levels & distances
+                // for(u32 i = 0; i < current_instance_count; i++) {
+                //     if(instance_levels[i].level_index != instances[i].level_index) {
+                //         std::cout << "instance " << i << " level changed from " << instances[i].level_index << " to " << instance_levels[i].level_index << std::endl;
+                //     }
+                //     if(instance_distances[i].distance >= 0.0f) {
+                //         std::cout << "instance " << i << " distance " << instance_distances[i].distance << std::endl;
+                //     }
+                // }
+
+                // for(u32 i = 0; i < current_primitive_count; i++) {
+                //     std::cout << "primitive " << i << " minimum " << aabb[i].aabb.minimum.x << " " << aabb[i].aabb.minimum.y << " " << aabb[i].aabb.minimum.z 
+                //         << " maximum " << aabb[i].aabb.maximum.x << " " << aabb[i].aabb.maximum.y << " " << aabb[i].aabb.maximum.z << std::endl;
+                // }
+
             }
 
             void on_mouse_move(f32 /*unused*/, f32 /*unused*/) {}
             void on_mouse_button(i32 /*unused*/, i32 /*unused*/) {}
-            void on_key(i32 /*unused*/, i32 /*unused*/) {}
+            void on_key(i32 key, i32 action) {
+                
+                switch(key) {
+                    case GLFW_KEY_W:
+                    case GLFW_KEY_UP:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_pos.z -= SPEED;
+                            camera_center.z -= SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_S:
+                    case GLFW_KEY_DOWN:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_pos.z += SPEED;
+                            camera_center.z += SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_A:
+                    case GLFW_KEY_LEFT:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_pos.x -= SPEED;
+                            camera_center.x -= SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_D:
+                    case GLFW_KEY_RIGHT:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_pos.x += SPEED;
+                            camera_center.x += SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_X:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_pos.y -= SPEED;
+                            camera_center.y -= SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_SPACE:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_pos.y += SPEED;
+                            camera_center.y += SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_PAGE_UP:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_center.y -= SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_PAGE_DOWN:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_center.y += SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_Q:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_center.x -= SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_E:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            camera_center.x += SPEED;
+                        }
+                        break;
+                    case GLFW_KEY_R:
+                        if(action == GLFW_PRESS) {
+                            camera_pos = {0, 0, 2.5};
+                            camera_center = {0, 0, 0};
+                            camera_up = {0, 1, 0};
+                        }
+                        break;
+                    default:
+                        break;
+                };
+
+            }
 
             void on_resize(u32 sx, u32 sy)
             {
