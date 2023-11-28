@@ -25,7 +25,7 @@ namespace tests
             daxa::PipelineManager pipeline_manager = {};
             std::shared_ptr<daxa::ComputePipeline> comp_pipeline = {};
             daxa::TlasId tlas = {};
-            daxa::BlasId proc_blas = {};
+            std::vector<daxa::BlasId> proc_blas = {};
 
             // BUFFERS
             daxa::BufferId mat_buffer = {};
@@ -50,10 +50,12 @@ namespace tests
             std::vector<INSTANCE_LEVEL> instance_levels = {};
             // CPU DATA
 
+            // TODO: HACK to get around the fact we are harcoding the number of instances for now
+            const u32 INSTANCE_COUNT = 2;
+            std::vector<daxa_f32mat4x4> transforms = {};
+            std::vector<daxa_f32vec3> colors = {};
             // TODO: HACK to get around the fact we are harcoding the number of primitives for now
-            const u32 LEVEL_0_PRIMITIVE_COUNT = 1;
             std::array<daxa_f32mat3x2, 1> min_max_level0 = {};
-            const u32 LEVEL_1_PRIMITIVE_COUNT = 2;
             std::array<daxa_f32mat3x2, 2> min_max_level1 = {};
 
             App() : AppWindow<App>("ray query test") {}
@@ -63,8 +65,9 @@ namespace tests
                 if (device.is_valid())
                 {
                     device.destroy_tlas(tlas);
-                    // device.destroy_blas(blas);
-                    device.destroy_blas(proc_blas);
+                    // device.destroy_blas(proc_blas);
+                    for(auto blas : proc_blas)
+                        device.destroy_blas(blas);
                     device.destroy_buffer(mat_buffer);
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
@@ -91,113 +94,152 @@ namespace tests
                 };
             }
 
-            void build_tlas() {
+            u32 get_primitive_count_by_level(u32 level_index) {
+                switch (level_index)
+                {
+                case 0:
+                    return min_max_level0.size();
+                    break;
+                case 1:
+                    return min_max_level1.size();
+                    break;
+                default:
+                    return 0;
+                    break;
+                }
+            }
+
+            constexpr daxa_f32mat3x2 * get_min_max_by_level(u32 level_index) {
+                switch (level_index)
+                {
+                case 0:
+                    return min_max_level0.data();
+                    break;
+                case 1:
+                    return min_max_level1.data();
+                    break;
+                default:
+                    return nullptr;
+                    break;
+                }
+            }
+
+            daxa_Bool8 build_tlas(u32 instance_count) {
+                daxa_Bool8 some_level_changed = false;
+                daxa_u32 primitive_count = 0;
+                for(u32 i = 0; i < instance_count; i++) {
+                    if(instance_levels[i].level_index != instances[i].level_index) {
+                        some_level_changed = true;
+                        primitive_count += get_primitive_count_by_level(instance_levels[i].level_index);
+                    }
+                }
+
+                if(!some_level_changed) {
+                    return true;
+                }
+
+                u32 aabb_buffer_size = primitive_count * sizeof(daxa_f32mat3x2);
+
                 // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
-// GeometryType of each element of pGeometries must be the same
+                // GeometryType of each element of pGeometries must be the same
                 auto aabb_buffer = device.create_buffer({
-                    .size = sizeof(decltype(min_max_level0)),
+                    .size = aabb_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = "aabb buffer",
                 });
                 defer { device.destroy_buffer(aabb_buffer); };
-                *device.get_host_address_as<decltype(min_max_level0)>(aabb_buffer).value() = min_max_level0;
-                /// Procedural Geometry Info:
-                auto proc_geometries = std::array{
-                    daxa::BlasAabbGeometryInfo{
-                        .data = device.get_device_address(aabb_buffer).value(),
-                        .stride = sizeof(daxa_f32mat3x2),
-                        .count = 1,
-                        // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                        .flags = 0x1,                                    // Is also default
-                    }};
-                /// Create Procedural Blas:
-                auto proc_blas_build_info = daxa::BlasBuildInfo{
-                    .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_TRACE,       // Is also default
-                    .dst_blas = {}, // Ignored in get_acceleration_structure_build_sizes.       // Is also default
-                    .geometries = proc_geometries,
-                    .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
-                };
-                daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(proc_blas_build_info);
-                auto proc_blas_scratch_buffer = device.create_buffer({
-                    .size = proc_build_size_info.build_scratch_size,
-                    .name = "proc blas build scratch buffer",
-                });
-                defer { device.destroy_buffer(proc_blas_scratch_buffer); };
-                this->proc_blas = device.create_blas({
-                    .size = proc_build_size_info.acceleration_structure_size,
-                    .name = "test procedural blas",
-                });
-                proc_blas_build_info.dst_blas = proc_blas;
-                proc_blas_build_info.scratch_data = device.get_device_address(proc_blas_scratch_buffer).value();
 
-                
-                current_instance_count = 0;
                 current_primitive_count = 0;
 
-                instances[current_instance_count] = INSTANCE{
-                    .transform = {
-                        {1, 0, 0, -0.5f},
-                        {0, 1, 0, -0.5f},
-                        {0, 0, 1, -0.5f},
-                        {0, 0, 0, 1},
+                for(u32 i = 0; i < instance_count; i++) {
+                    instances[i].transform = {
+                        transforms[i],
                     },
-                    .color = {1, 0, 0},
-                    .first_primitive_index = current_primitive_count,
-                    .primitive_count = LEVEL_0_PRIMITIVE_COUNT,
-                    .level_index = 0
-                };
-                current_primitive_count += instances[current_instance_count].primitive_count;
-                current_instance_count++;
+                    instances[i].primitive_count = get_primitive_count_by_level(instance_levels[i].level_index);
+                    instances[i].first_primitive_index = current_primitive_count;
+                    instances[i].level_index = instance_levels[i].level_index;
+                    instances[i].color = colors[i];
 
-                // push primitives
-                primitives.push_back(PRIMITIVE{
-                    .center = daxa_f32vec3(0, 0, 0),
-                });
-
-                instances[current_instance_count] = INSTANCE{
-                    .transform = {
-                        {1, 0, 0, 0.5f},
-                        {0, 1, 0, 0.5f},
-                        {0, 0, 1, -0.5f},
-                        {0, 0, 0, 1},
-                    },
-                    .color = {0, 1, 0},
-                    .first_primitive_index = current_primitive_count,
-                    .primitive_count = LEVEL_0_PRIMITIVE_COUNT,
-                    .level_index = 0
-                };
-                current_primitive_count += instances[current_instance_count].primitive_count;
-                current_instance_count++;
-                
-                // push primitives
-                primitives.push_back(PRIMITIVE{
-                    .center = daxa_f32vec3(0, 0, 0),
-                });
-
-                instance_levels.resize(current_instance_count);
-
-                current_instance_count = 0;
-
-                auto blas_instance_array = std::array{
-                    daxa_BlasInstanceData{
-                        .transform = 
-                            daxa_f32mat4x4_to_daxa_rowmaj_f32mat3x4(instances[current_instance_count].transform),
-                        .instance_custom_index = current_instance_count++, // Is also default
-                        .mask = 0xFF,
-                        .instance_shader_binding_table_record_offset = {}, // Is also default
-                        .flags = {},                                       // Is also default
-                        .blas_device_address = device.get_device_address(proc_blas).value(),
-                    },
-                    daxa_BlasInstanceData{
-                        .transform = 
-                            daxa_f32mat4x4_to_daxa_rowmaj_f32mat3x4(instances[current_instance_count].transform),
-                        .instance_custom_index = current_instance_count++, // Is also default
-                        .mask = 0xFF,
-                        .instance_shader_binding_table_record_offset = {}, // Is also default
-                        .flags = {},                                       // Is also default
-                        .blas_device_address = device.get_device_address(proc_blas).value(),
+                    if(instances[i].primitive_count == 0) {
+                        return false;
                     }
-                };
+
+                    std::memcpy((device.get_host_address_as<daxa_f32mat3x2>(aabb_buffer).value() + current_primitive_count),
+                        get_min_max_by_level(instances[i].level_index), 
+                        instances[i].primitive_count * sizeof(daxa_f32mat3x2));
+                    current_primitive_count += instances[i].primitive_count;
+                }
+
+                
+                std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
+                blas_build_infos.reserve(instance_count);
+
+                std::vector<daxa_BlasInstanceData> blas_instance_array = {};
+                blas_instance_array.reserve(instance_count);
+
+                this->current_instance_count = 0;
+
+                for(u32 i = 0; i < instance_count; i++) {
+                    
+                    /// Procedural Geometry Info:
+                    auto proc_geometries = std::array{
+                        daxa::BlasAabbGeometryInfo{
+                            .data = device.get_device_address(aabb_buffer).value() + (instances[i].first_primitive_index * sizeof(daxa_f32mat3x2)),
+                            .stride = sizeof(daxa_f32mat3x2),
+                            .count = instances[i].primitive_count,
+                            // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+                            .flags = 0x1,                                    // Is also default
+                        }
+                    };
+
+                    /// Create Procedural Blas:
+                    blas_build_infos.push_back(daxa::BlasBuildInfo{
+                        .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_TRACE,       // Is also default
+                        .dst_blas = {}, // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+                        .geometries = proc_geometries,
+                        .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
+                    });
+
+                    daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
+
+                    auto proc_blas_scratch_buffer = device.create_buffer({
+                        .size = proc_build_size_info.build_scratch_size,
+                        .name = "proc blas build scratch buffer",
+                    });
+                    defer { device.destroy_buffer(proc_blas_scratch_buffer); };
+
+                    this->proc_blas.push_back(device.create_blas({
+                        .size = proc_build_size_info.acceleration_structure_size,
+                        .name = "test procedural blas",
+                    }));
+                    blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = this->proc_blas.at(this->proc_blas.size() - 1);
+                    blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = device.get_device_address(proc_blas_scratch_buffer).value();
+                    
+                    // push primitives
+                    auto min_max = get_min_max_by_level(instances[i].level_index);
+                    for(u32 j = 0; j < instances[i].primitive_count; j++) {
+                        
+                        primitives.push_back(PRIMITIVE{
+                            .center = daxa_f32vec3(
+                                (min_max[j].y.x + min_max[j].x.x) / 2.0f,
+                                (min_max[j].y.y + min_max[j].x.y) / 2.0f,
+                                (min_max[j].y.z + min_max[j].x.z) / 2.0f
+                            ),
+                        });
+                    }
+
+                    blas_instance_array.push_back(daxa_BlasInstanceData{
+                        .transform = 
+                            daxa_f32mat4x4_to_daxa_rowmaj_f32mat3x4(instances[i].transform),
+                        .instance_custom_index = i, // Is also default
+                        .mask = 0xFF,
+                        .instance_shader_binding_table_record_offset = {}, // Is also default
+                        .flags = {},                                       // Is also default
+                        .blas_device_address = device.get_device_address(this->proc_blas.at(this->proc_blas.size() - 1)).value(),
+                    });
+
+                    ++current_instance_count;
+                }
                 
                 // current instance count in this scene is 2 right now
                 /// create blas instances for tlas:
@@ -248,7 +290,7 @@ namespace tests
                 {
                     auto recorder = device.create_command_recorder({});
                     recorder.build_acceleration_structures({
-                        .blas_build_infos = std::array{proc_blas_build_info},
+                        .blas_build_infos = blas_build_infos,
                     });
                     recorder.pipeline_barrier({
                         .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
@@ -267,6 +309,8 @@ namespace tests
                 /// NOTE:
                 /// No need to wait idle here.
                 /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
+
+                return true;
             }
 
             void initialize()
@@ -315,6 +359,7 @@ namespace tests
                     .name = ("instance_level_buffer"),
                 });
                 
+                // TODO: Give center + half extent
                 /// aabb data:
                 min_max_level0 = std::array{
                     daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0.25f, 0.25f, 0.25f})
@@ -325,8 +370,70 @@ namespace tests
                     daxa_f32mat3x2({0.15f, 0.15f, 0.15f}, {0.25f, 0.25f, 0.25f})
                 };
 
+
+                instance_levels.resize(INSTANCE_COUNT);
+
+                for(u32 i = 0; i < INSTANCE_COUNT; i++) {
+                    instance_levels[i] = INSTANCE_LEVEL{
+                        .level_index = 0
+                    };
+                }
+                
+                transforms.reserve(INSTANCE_COUNT);
+                colors.reserve(INSTANCE_COUNT);
+
+                transforms.push_back(daxa_f32mat4x4{
+                    {1, 0, 0, -0.5f},
+                    {0, 1, 0, -0.5f},
+                    {0, 0, 1, -0.5f},
+                    {0, 0, 0, 1},
+                });
+
+                colors.push_back(daxa_f32vec3{
+                    .x = 1,
+                    .y = 0,
+                    .z = 0,
+                });
+
+                transforms.push_back(daxa_f32mat4x4{
+                    {1, 0, 0, 0.5f},
+                    {0, 1, 0, 0.5f},
+                    {0, 0, 1, -0.5f},
+                    {0, 0, 0, 1},
+                });
+
+                colors.push_back(daxa_f32vec3{
+                    .x = 0,
+                    .y = 1,
+                    .z = 0,
+                });
+                
+
+                for(u32 i = 0; i < INSTANCE_COUNT; i++) {
+                    instances[i] = INSTANCE{
+                        .transform = {
+                            {1, 0, 0, 0},
+                            {0, 1, 0, 0},
+                            {0, 0, 1, 0},
+                            {0, 0, 0, 1},
+                        },
+                        .color = {1, 1, 1},
+                        .first_primitive_index = 0,
+                        .primitive_count = 0,
+                        .level_index = MAX_LEVELS - 1
+                    };
+                }
+
+
+                proc_blas.reserve(INSTANCE_COUNT);
+
+
+
                 // call build tlas
-                build_tlas();
+                if(!build_tlas(INSTANCE_COUNT)) {
+                    std::cout << "Failed to build tlas" << std::endl;
+                    abort();
+                }
                 
 
                 pipeline_manager = daxa::PipelineManager{daxa::PipelineManagerInfo{
