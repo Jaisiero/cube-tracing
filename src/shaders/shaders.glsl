@@ -96,6 +96,7 @@ void main()
 
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
+    daxa_f32 LOD_distance = deref(p.camera_buffer).LOD_distance;
 
     vec4 origin = inv_view * vec4(0,0,0,1);
 	vec4 target = inv_proj * vec4(d.x, d.y, 1, 1) ;
@@ -134,21 +135,46 @@ void main()
         out_colour = deref(p.instance_buffer).instances[instance_id].color;
 
         mat4 transform = deref(p.instance_buffer).instances[instance_id].transform;
+
+        uint primitive_index = deref(p.instance_buffer).instances[instance_id].first_primitive_index;
         // mat4 inv_transform = inverse(transform);
+        uint level_index = deref(p.instance_buffer).instances[instance_id].level_index;
 
         // Get center position from transform
         vec3 aabb_center = vec3(0, 0, 0);
 
+        int primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
+
+        // Get primitive center position from transform
+        aabb_center = deref(p.primitives_buffer).primitives[primitive_index+primitive_id].center;
+
+        vec3 half_extent = vec3(0);
+        if(level_index == 1)
+        {
+            half_extent = vec3(LEVEL_1_HALF_EXTENT);
+            if(t >= LOD_distance) {
+                deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index - 1;
+            }
+        }
+        else
+        {
+            half_extent = vec3(LEVEL_0_HALF_EXTENT);
+            if(t < LOD_distance) {
+                deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index + 1;
+            }
+        }
+
         // Get aabb from center_pos and transform
         Aabb aabb;
-        aabb.minimum = aabb_center - vec3(0.15, 0.15, 0.15);
-        aabb.maximum =  aabb_center + vec3(0.15, 0.15, 0.15);
+        aabb.minimum = aabb_center - half_extent;
+        aabb.maximum =  aabb_center + half_extent;
         aabb.minimum = (transform * vec4(aabb.minimum, 1)).xyz;
         aabb.maximum = (transform * vec4(aabb.maximum, 1)).xyz;
         
         t = hit_aabb(aabb, ray);
 
         vec3 world_pos = ray.origin + ray.direction * t;
+
         
         vec3 center_pos = (transform * vec4(aabb_center, 1)).xyz;
         // Computing the normal at hit position

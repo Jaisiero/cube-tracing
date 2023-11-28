@@ -26,12 +26,35 @@ namespace tests
             std::shared_ptr<daxa::ComputePipeline> comp_pipeline = {};
             daxa::TlasId tlas = {};
             daxa::BlasId proc_blas = {};
+
+            // BUFFERS
             daxa::BufferId mat_buffer = {};
-            u32 mat_buffer_size = sizeof(daxa_f32mat4x4) * 2;
+            u32 mat_buffer_size = sizeof(Camera);
+
             daxa::BufferId instance_buffer = {};
             u32 max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
+
+            daxa::BufferId primitive_buffer = {};
+            u32 max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
+
+            daxa::BufferId instance_level_buffer = {};
+            u32 max_instance_level_buffer_size = sizeof(INSTANCE_LEVEL) * MAX_INSTANCES;
+            // BUFFERS
+            
+            // CPU DATA
             u32 current_instance_count = 0;
             std::array<INSTANCE, MAX_INSTANCES> instances = {};
+
+            u32 current_primitive_count = 0;
+            std::vector<PRIMITIVE> primitives = {};
+            std::vector<INSTANCE_LEVEL> instance_levels = {};
+            // CPU DATA
+
+            // TODO: HACK to get around the fact we are harcoding the number of primitives for now
+            const u32 LEVEL_0_PRIMITIVE_COUNT = 1;
+            std::array<daxa_f32mat3x2, 1> min_max_level0 = {};
+            const u32 LEVEL_1_PRIMITIVE_COUNT = 2;
+            std::array<daxa_f32mat3x2, 2> min_max_level1 = {};
 
             App() : AppWindow<App>("ray query test") {}
 
@@ -44,6 +67,8 @@ namespace tests
                     device.destroy_blas(proc_blas);
                     device.destroy_buffer(mat_buffer);
                     device.destroy_buffer(instance_buffer);
+                    device.destroy_buffer(primitive_buffer);
+                    device.destroy_buffer(instance_level_buffer);
                 }
             }
 
@@ -66,57 +91,16 @@ namespace tests
                 };
             }
 
-            void initialize()
-            {
-                daxa_ctx = daxa::create_instance({});
-                device = daxa_ctx.create_device({
-                    .selector = [](daxa::DeviceProperties const & prop) -> i32
-                    {
-                        auto value = daxa::default_device_score(prop);
-                        return prop.ray_tracing_properties.has_value() ? value : -1;
-                    },
-                    .flags = daxa::DeviceFlagBits::RAY_TRACING,
-                });
-                std::cout << "Choosen Device: " << device.properties().device_name << std::endl;
-                swapchain = device.create_swapchain({
-                    .native_window = get_native_handle(),
-                    .native_window_platform = get_native_platform(),
-                    .surface_format_selector = [](daxa::Format format) -> i32
-                    {
-                        if (format == daxa::Format::B8G8R8A8_UNORM)
-                        {
-                            return 1000;
-                        }
-                        return 1;
-                    },
-                    .image_usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
-                });
-
-                mat_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = mat_buffer_size,
-                    .name = ("mat_buffer"),
-                });
-
-                instance_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_instance_buffer_size,
-                    .name = ("instance_buffer"),
-                });
-                
-// https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
+            void build_tlas() {
+                // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
 // GeometryType of each element of pGeometries must be the same
-                
-                /// aabb data:
-                auto min_max = std::array{
-                    std::array{-0.15f, -0.15f, -0.15f},
-                    std::array{0.15f, 0.15f, 0.15f},
-                };
                 auto aabb_buffer = device.create_buffer({
-                    .size = sizeof(decltype(min_max)),
+                    .size = sizeof(decltype(min_max_level0)),
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = "aabb buffer",
                 });
                 defer { device.destroy_buffer(aabb_buffer); };
-                *device.get_host_address_as<decltype(min_max)>(aabb_buffer).value() = min_max;
+                *device.get_host_address_as<decltype(min_max_level0)>(aabb_buffer).value() = min_max_level0;
                 /// Procedural Geometry Info:
                 auto proc_geometries = std::array{
                     daxa::BlasAabbGeometryInfo{
@@ -148,26 +132,49 @@ namespace tests
 
                 
                 current_instance_count = 0;
+                current_primitive_count = 0;
 
-                instances[current_instance_count++] = INSTANCE{
+                instances[current_instance_count] = INSTANCE{
                     .transform = {
-                        {1, 0, 0, -0.25f},
-                        {0, 1, 0, -0.25f},
+                        {1, 0, 0, -0.5f},
+                        {0, 1, 0, -0.5f},
                         {0, 0, 1, -0.5f},
                         {0, 0, 0, 1},
                     },
                     .color = {1, 0, 0},
+                    .first_primitive_index = current_primitive_count,
+                    .primitive_count = LEVEL_0_PRIMITIVE_COUNT,
+                    .level_index = 0
                 };
+                current_primitive_count += instances[current_instance_count].primitive_count;
+                current_instance_count++;
 
-                instances[current_instance_count++] = INSTANCE{
+                // push primitives
+                primitives.push_back(PRIMITIVE{
+                    .center = daxa_f32vec3(0, 0, 0),
+                });
+
+                instances[current_instance_count] = INSTANCE{
                     .transform = {
-                        {1, 0, 0, 0.25f},
-                        {0, 1, 0, 0.25f},
+                        {1, 0, 0, 0.5f},
+                        {0, 1, 0, 0.5f},
                         {0, 0, 1, -0.5f},
                         {0, 0, 0, 1},
                     },
                     .color = {0, 1, 0},
+                    .first_primitive_index = current_primitive_count,
+                    .primitive_count = LEVEL_0_PRIMITIVE_COUNT,
+                    .level_index = 0
                 };
+                current_primitive_count += instances[current_instance_count].primitive_count;
+                current_instance_count++;
+                
+                // push primitives
+                primitives.push_back(PRIMITIVE{
+                    .center = daxa_f32vec3(0, 0, 0),
+                });
+
+                instance_levels.resize(current_instance_count);
 
                 current_instance_count = 0;
 
@@ -260,6 +267,67 @@ namespace tests
                 /// NOTE:
                 /// No need to wait idle here.
                 /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
+            }
+
+            void initialize()
+            {
+                daxa_ctx = daxa::create_instance({});
+                device = daxa_ctx.create_device({
+                    .selector = [](daxa::DeviceProperties const & prop) -> i32
+                    {
+                        auto value = daxa::default_device_score(prop);
+                        return prop.ray_tracing_properties.has_value() ? value : -1;
+                    },
+                    .flags = daxa::DeviceFlagBits::RAY_TRACING,
+                });
+                std::cout << "Choosen Device: " << device.properties().device_name << std::endl;
+                swapchain = device.create_swapchain({
+                    .native_window = get_native_handle(),
+                    .native_window_platform = get_native_platform(),
+                    .surface_format_selector = [](daxa::Format format) -> i32
+                    {
+                        if (format == daxa::Format::B8G8R8A8_UNORM)
+                        {
+                            return 1000;
+                        }
+                        return 1;
+                    },
+                    .image_usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
+                });
+
+                mat_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = mat_buffer_size,
+                    .name = ("mat_buffer"),
+                });
+
+                instance_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_instance_buffer_size,
+                    .name = ("instance_buffer"),
+                });
+
+                primitive_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_primitive_buffer_size,
+                    .name = ("primitive_buffer"),
+                });
+                
+                instance_level_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_instance_level_buffer_size,
+                    .name = ("instance_level_buffer"),
+                });
+                
+                /// aabb data:
+                min_max_level0 = std::array{
+                    daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0.25f, 0.25f, 0.25f})
+                };
+                
+                min_max_level1 = std::array{
+                    daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {-0.15f, -0.15f, -0.15f}),
+                    daxa_f32mat3x2({0.15f, 0.15f, 0.15f}, {0.25f, 0.25f, 0.25f})
+                };
+
+                // call build tlas
+                build_tlas();
+                
 
                 pipeline_manager = daxa::PipelineManager{daxa::PipelineManagerInfo{
                     .device = device,
@@ -299,6 +367,7 @@ namespace tests
                 if (!minimized)
                 {
                     draw();
+                    download_gpu_info();
                 }
                 else
                 {
@@ -326,10 +395,12 @@ namespace tests
                     .name = ("mat_staging_buffer"),
                 });
                 defer { device.destroy_buffer(mat_staging_buffer); };
-
+                
+                // Copy camera to buffer
                 Camera camera = {
                     .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(glm::vec3{0, 0, 2.5}, glm::vec3{0, 0, 0}, glm::vec3{0, 1, 0}))),
                     .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), 1.0f, 0.001f, 1000.0f))),
+                    .LOD_distance = 5.0f,
                 };
 
                 auto * buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(mat_staging_buffer).value();
@@ -337,6 +408,7 @@ namespace tests
                     &camera,
                     mat_buffer_size);
 
+                // Copy instances to buffer
                 u32 instance_buffer_size = std::min(max_instance_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE)));
 
 
@@ -347,10 +419,26 @@ namespace tests
                 });
                 defer { device.destroy_buffer(instance_staging_buffer); };
 
-                buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(instance_staging_buffer).value();
-                std::memcpy(buffer_ptr, 
+                auto * instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
+                std::memcpy(instance_buffer_ptr, 
                     &instances,
                     instance_buffer_size);
+
+                // Copy primitives to buffer
+                u32 primitive_buffer_size = std::min(max_primitive_buffer_size, static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE)));
+
+
+                auto primitive_staging_buffer = device.create_buffer({
+                    .size = primitive_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("primitive_staging_buffer"),
+                });
+                defer { device.destroy_buffer(primitive_staging_buffer); };
+
+                auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
+                std::memcpy(primitive_buffer_ptr, 
+                    primitives.data(),
+                    primitive_buffer_size);
 
                 recorder.pipeline_barrier({
                     .src_access = daxa::AccessConsts::HOST_WRITE,
@@ -367,6 +455,12 @@ namespace tests
                     .src_buffer = instance_staging_buffer,
                     .dst_buffer = instance_buffer,
                     .size = instance_buffer_size,
+                });
+
+                recorder.copy_buffer_to_buffer({
+                    .src_buffer = primitive_staging_buffer,
+                    .dst_buffer = primitive_buffer,
+                    .size = primitive_buffer_size,
                 });
 
                 recorder.pipeline_barrier({
@@ -390,6 +484,8 @@ namespace tests
                     .swapchain = swapchain_image.default_view(),
                     .camera_buffer = this->device.get_device_address(mat_buffer).value(),
                     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
+                    .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
+                    .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
                 });
                 daxa::u32 block_count_x = (width + 8 - 1) / 8;
                 daxa::u32 block_count_y = (height + 8 - 1) / 8;
@@ -420,6 +516,83 @@ namespace tests
                 });
 
                 device.collect_garbage();
+            }
+
+            void download_gpu_info() {
+
+                if(current_instance_count == 0) {
+                    return;
+                }
+
+                if(current_instance_count != instance_levels.size()) {
+                    instance_levels.resize(current_instance_count);
+                }
+
+                u32 instance_level_buffer_size = std::min(max_instance_level_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE_LEVEL)));
+                // Some Device to Host copy here
+                auto instance_level_staging_buffer = device.create_buffer({
+                    .size = instance_level_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("instance_staging_buffer"),
+                });
+                defer { device.destroy_buffer(instance_level_staging_buffer); };
+
+                /// Record build commands:
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::HOST_WRITE,
+                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                    });
+
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::HOST_WRITE,
+                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                    });
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = instance_level_buffer,
+                        .dst_buffer = instance_level_staging_buffer,
+                        .size = instance_level_buffer_size,
+                    });
+
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                        .dst_access = daxa::AccessConsts::HOST_READ,
+                    });
+                    return recorder.complete_current_commands();
+                }();
+
+                // WAIT FOR COMMANDS TO FINISH
+                {
+                    // device.submit_commands({
+                    //     .command_lists = std::array{exec_cmds},
+                    //     // .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
+                    //     // .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
+                    // });
+
+                    // device.wait_idle();
+                    daxa::TimelineSemaphore gpu_timeline = device.create_timeline_semaphore({
+                        .name = "timeline semaphpore",
+                    });
+
+                    usize cpu_timeline = 0;
+
+                    device.submit_commands({
+                        .command_lists = std::array{exec_cmds},
+                        .signal_timeline_semaphores = std::array{std::pair{gpu_timeline, cpu_timeline}}
+                    });
+
+                    gpu_timeline.wait_for_value(cpu_timeline);
+                }
+
+                /// NOTE: this must wait for the commands to finish
+                auto * instance_level_buffer_ptr = device.get_host_address_as<INSTANCE_LEVEL>(instance_level_staging_buffer).value();
+                std::memcpy(instance_levels.data(), 
+                    instance_level_buffer_ptr,
+                    instance_level_buffer_size);
+
             }
 
             void on_mouse_move(f32 /*unused*/, f32 /*unused*/) {}
