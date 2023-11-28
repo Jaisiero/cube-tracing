@@ -9,7 +9,7 @@
 #define MAX_PRIMITIVES 100000
 
 #define LEVEL_0_HALF_EXTENT 0.25
-#define LEVEL_1_HALF_EXTENT 0.05
+#define LEVEL_1_HALF_EXTENT 0.125
 
 struct Camera { 
     daxa_f32mat4x4 inv_view;

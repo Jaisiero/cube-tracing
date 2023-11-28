@@ -65,7 +65,6 @@ namespace tests
                 if (device.is_valid())
                 {
                     device.destroy_tlas(tlas);
-                    // device.destroy_blas(proc_blas);
                     for(auto blas : proc_blas)
                         device.destroy_blas(blas);
                     device.destroy_buffer(mat_buffer);
@@ -126,6 +125,7 @@ namespace tests
 
             daxa_Bool8 build_tlas(u32 instance_count) {
                 daxa_Bool8 some_level_changed = false;
+
                 daxa_u32 primitive_count = 0;
                 for(u32 i = 0; i < instance_count; i++) {
                     if(instance_levels[i].level_index != instances[i].level_index) {
@@ -137,6 +137,24 @@ namespace tests
                 if(!some_level_changed) {
                     return true;
                 }
+
+                if(primitive_count == 0) {
+                    std::cout << "primitive count is 0" << std::endl;
+                    return false;
+                }
+
+                this->current_instance_count = 0;
+
+                this->primitives.clear();
+                this->primitives.reserve(primitive_count);
+                
+                if(this->tlas != daxa::TlasId{})
+                    device.destroy_tlas(tlas);
+                for(auto blas : this->proc_blas)
+                    device.destroy_blas(blas);
+
+                this->proc_blas.clear();
+                this->proc_blas.reserve(instance_count);
 
                 u32 aabb_buffer_size = primitive_count * sizeof(daxa_f32mat3x2);
 
@@ -161,6 +179,7 @@ namespace tests
                     instances[i].color = colors[i];
 
                     if(instances[i].primitive_count == 0) {
+                        std::cout << "primitive count is 0 for instance " << i << std::endl;
                         return false;
                     }
 
@@ -177,7 +196,7 @@ namespace tests
                 std::vector<daxa_BlasInstanceData> blas_instance_array = {};
                 blas_instance_array.reserve(instance_count);
 
-                this->current_instance_count = 0;
+                u32 current_instance_index = 0;
 
                 for(u32 i = 0; i < instance_count; i++) {
                     
@@ -238,13 +257,21 @@ namespace tests
                         .blas_device_address = device.get_device_address(this->proc_blas.at(this->proc_blas.size() - 1)).value(),
                     });
 
-                    ++current_instance_count;
+                    ++current_instance_index;
                 }
+
+
+                if(current_instance_index != instance_count) {
+                    std::cout << "current_instance_index != instance_count" << std::endl;
+                    return false;
+                }
+
+                this->current_instance_count = instance_count;
                 
                 // current instance count in this scene is 2 right now
                 /// create blas instances for tlas:
                 auto blas_instances_buffer = device.create_buffer({
-                    .size = sizeof(daxa_BlasInstanceData) * current_instance_count,
+                    .size = sizeof(daxa_BlasInstanceData) * instance_count,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = "blas instances array buffer",
                 });
@@ -359,73 +386,75 @@ namespace tests
                     .name = ("instance_level_buffer"),
                 });
                 
-                // TODO: Give center + half extent
-                /// aabb data:
-                min_max_level0 = std::array{
-                    daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0.25f, 0.25f, 0.25f})
-                };
-                
-                min_max_level1 = std::array{
-                    daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {-0.15f, -0.15f, -0.15f}),
-                    daxa_f32mat3x2({0.15f, 0.15f, 0.15f}, {0.25f, 0.25f, 0.25f})
-                };
-
-
-                instance_levels.resize(INSTANCE_COUNT);
-
-                for(u32 i = 0; i < INSTANCE_COUNT; i++) {
-                    instance_levels[i] = INSTANCE_LEVEL{
-                        .level_index = 0
+                // TODO: This could be load from a file
+                {
+                    // TODO: Give center + half extent
+                    /// aabb data:
+                    min_max_level0 = std::array{
+                        daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0.25f, 0.25f, 0.25f})
                     };
-                }
-                
-                transforms.reserve(INSTANCE_COUNT);
-                colors.reserve(INSTANCE_COUNT);
-
-                transforms.push_back(daxa_f32mat4x4{
-                    {1, 0, 0, -0.5f},
-                    {0, 1, 0, -0.5f},
-                    {0, 0, 1, -0.5f},
-                    {0, 0, 0, 1},
-                });
-
-                colors.push_back(daxa_f32vec3{
-                    .x = 1,
-                    .y = 0,
-                    .z = 0,
-                });
-
-                transforms.push_back(daxa_f32mat4x4{
-                    {1, 0, 0, 0.5f},
-                    {0, 1, 0, 0.5f},
-                    {0, 0, 1, -0.5f},
-                    {0, 0, 0, 1},
-                });
-
-                colors.push_back(daxa_f32vec3{
-                    .x = 0,
-                    .y = 1,
-                    .z = 0,
-                });
-                
-
-                for(u32 i = 0; i < INSTANCE_COUNT; i++) {
-                    instances[i] = INSTANCE{
-                        .transform = {
-                            {1, 0, 0, 0},
-                            {0, 1, 0, 0},
-                            {0, 0, 1, 0},
-                            {0, 0, 0, 1},
-                        },
-                        .color = {1, 1, 1},
-                        .first_primitive_index = 0,
-                        .primitive_count = 0,
-                        .level_index = MAX_LEVELS - 1
+                    
+                    min_max_level1 = std::array{
+                        daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0, 0, 0}),
+                        daxa_f32mat3x2({0, 0, 0}, {0.25f, 0.25f, 0.25f})
                     };
+
+
+                    instance_levels.resize(INSTANCE_COUNT);
+
+                    for(u32 i = 0; i < INSTANCE_COUNT; i++) {
+                        instance_levels[i] = INSTANCE_LEVEL{
+                            .level_index = 0,
+                        };
+                    }
+                    
+                    transforms.reserve(INSTANCE_COUNT);
+                    colors.reserve(INSTANCE_COUNT);
+
+                    transforms.push_back(daxa_f32mat4x4{
+                        {1, 0, 0, -0.5f},
+                        {0, 1, 0, -0.5f},
+                        {0, 0, 1, -0.5f},
+                        {0, 0, 0, 1},
+                    });
+
+                    colors.push_back(daxa_f32vec3{
+                        .x = 1,
+                        .y = 0,
+                        .z = 0,
+                    });
+
+                    transforms.push_back(daxa_f32mat4x4{
+                        {1, 0, 0, 0.5f},
+                        {0, 1, 0, 0.5f},
+                        {0, 0, 1, -0.5f},
+                        {0, 0, 0, 1},
+                    });
+
+                    colors.push_back(daxa_f32vec3{
+                        .x = 0,
+                        .y = 1,
+                        .z = 0,
+                    });
+                    
+
+                    for(u32 i = 0; i < INSTANCE_COUNT; i++) {
+                        instances[i] = INSTANCE{
+                            .transform = {
+                                {1, 0, 0, 0},
+                                {0, 1, 0, 0},
+                                {0, 0, 1, 0},
+                                {0, 0, 0, 1},
+                            },
+                            .color = {1, 1, 1},
+                            .first_primitive_index = 0,
+                            .primitive_count = 0,
+                            .level_index = MAX_LEVELS - 1,
+                        };
+                    }
+
+                    proc_blas.reserve(INSTANCE_COUNT);
                 }
-
-
-                proc_blas.reserve(INSTANCE_COUNT);
 
 
 
@@ -475,6 +504,11 @@ namespace tests
                 {
                     draw();
                     download_gpu_info();
+                    // call build tlas
+                    if(!build_tlas(INSTANCE_COUNT)) {
+                        std::cout << "Failed to build tlas" << std::endl;
+                        abort();
+                    }
                 }
                 else
                 {
@@ -673,25 +707,25 @@ namespace tests
 
                 // WAIT FOR COMMANDS TO FINISH
                 {
-                    // device.submit_commands({
-                    //     .command_lists = std::array{exec_cmds},
-                    //     // .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
-                    //     // .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
-                    // });
-
-                    // device.wait_idle();
-                    daxa::TimelineSemaphore gpu_timeline = device.create_timeline_semaphore({
-                        .name = "timeline semaphpore",
-                    });
-
-                    usize cpu_timeline = 0;
-
                     device.submit_commands({
                         .command_lists = std::array{exec_cmds},
-                        .signal_timeline_semaphores = std::array{std::pair{gpu_timeline, cpu_timeline}}
+                        // .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
+                        // .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
                     });
 
-                    gpu_timeline.wait_for_value(cpu_timeline);
+                    device.wait_idle();
+                    // daxa::TimelineSemaphore gpu_timeline = device.create_timeline_semaphore({
+                    //     .name = "timeline semaphpore",
+                    // });
+
+                    // usize cpu_timeline = 0;
+
+                    // device.submit_commands({
+                    //     .command_lists = std::array{exec_cmds},
+                    //     .signal_timeline_semaphores = std::array{std::pair{gpu_timeline, cpu_timeline}}
+                    // });
+
+                    // gpu_timeline.wait_for_value(cpu_timeline);
                 }
 
                 /// NOTE: this must wait for the commands to finish

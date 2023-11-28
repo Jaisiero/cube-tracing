@@ -148,6 +148,8 @@ void main()
         // Get primitive center position from transform
         aabb_center = deref(p.primitives_buffer).primitives[primitive_index+primitive_id].center;
 
+        deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index;
+
         vec3 half_extent = vec3(0);
         if(level_index == 1)
         {
