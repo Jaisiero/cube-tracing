@@ -217,26 +217,38 @@ namespace tests
                 std::vector<daxa_BlasInstanceData> blas_instance_array = {};
                 blas_instance_array.reserve(instance_count);
 
+                // TODO: As much geometry as instances for now
+                std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
+                aabb_geometries.resize(instance_count);
+
+
                 u32 current_instance_index = 0;
 
                 for(u32 i = 0; i < instance_count; i++) {
                     
                     /// Procedural Geometry Info:
-                    auto proc_geometries = std::array{
-                        daxa::BlasAabbGeometryInfo{
-                            .data = device.get_device_address(aabb_buffer).value() + (instances[i].first_primitive_index * sizeof(daxa_f32mat3x2)),
-                            .stride = sizeof(daxa_f32mat3x2),
-                            .count = instances[i].primitive_count,
-                            // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                            .flags = 0x1,                                    // Is also default
-                        }
-                    };
+                    // auto proc_geometries = std::array{
+                    //     daxa::BlasAabbGeometryInfo{
+                    //         .data = device.get_device_address(aabb_buffer).value() + (instances[i].first_primitive_index * sizeof(daxa_f32mat3x2)),
+                    //         .stride = sizeof(daxa_f32mat3x2),
+                    //         .count = instances[i].primitive_count,
+                    //         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+                    //         .flags = 0x1,                                    // Is also default
+                    //     }
+                    // };
+                    aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
+                        .data = device.get_device_address(aabb_buffer).value() + (instances[i].first_primitive_index * sizeof(daxa_f32mat3x2)),
+                        .stride = sizeof(daxa_f32mat3x2),
+                        .count = instances[i].primitive_count,
+                        // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+                        .flags = 0x1,                                    // Is also default
+                    });
 
                     /// Create Procedural Blas:
                     blas_build_infos.push_back(daxa::BlasBuildInfo{
                         .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_TRACE,       // Is also default
                         .dst_blas = {}, // Ignored in get_acceleration_structure_build_sizes.       // Is also default
-                        .geometries = proc_geometries,
+                        .geometries = aabb_geometries.at(i),
                         .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
                     });
 
