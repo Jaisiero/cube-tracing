@@ -93,10 +93,11 @@ void check_instance_level(float t, float LOD_distance, uint instance_id, int lev
     if(t >= LOD_distance) {
         set_instance_level(instance_id, max(0, level_index - 1));
     }
-    else if(t < (LOD_distance - (get_half_extent(level_index).x * min(1, pow(2, level_index))) - 0.0001f)) {
+    // TODO: Case every primitive is attach to the same instance we should have a better way to handle this, like having instance extents
+    else if(t < (LOD_distance - (get_half_extent(level_index).x * min(1, pow(2, level_index)) * 2) - 0.0001f)) {
         set_instance_level(instance_id, min(level_index + 1, MAX_LEVELS -1));
     }
-    set_instance_distance(instance_id, t);
+    // set_instance_distance(instance_id, t);
 }
 
 layout(local_size_x = 8, local_size_y = 8) in;
