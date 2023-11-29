@@ -63,42 +63,42 @@ vec4 fromLinear(vec4 linearRGB)
 const vec3 LIGHT_POSITION = vec3(5.0, 10.0, 5.0);
 
 
-vec3 get_half_extent(int level_index)
-{
-    switch(level_index)
-    {
-        case 0:
-            return vec3(LEVEL_0_HALF_EXTENT);
-        case 1:
-            return vec3(LEVEL_1_HALF_EXTENT);
-        default:
-            return vec3(LEVEL_0_HALF_EXTENT);
-    }
-}
+// vec3 get_half_extent(int level_index)
+// {
+//     switch(level_index)
+//     {
+//         case 0:
+//             return vec3(LEVEL_0_HALF_EXTENT);
+//         case 1:
+//             return vec3(LEVEL_1_HALF_EXTENT);
+//         default:
+//             return vec3(LEVEL_0_HALF_EXTENT);
+//     }
+// }
 
-void set_instance_level(uint instance_id, int level_index)
-{
-    deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index;
-}
+// void set_instance_level(uint instance_id, int level_index)
+// {
+//     deref(p.instance_level_buffer).instance_levels[instance_id].level_index = level_index;
+// }
 
-void set_instance_distance(uint instance_id, float t)
-{
-    deref(p.instance_distance_buffer).instance_distances[instance_id].distance = t;
-}
+// void set_instance_distance(uint instance_id, float t)
+// {
+//     deref(p.instance_distance_buffer).instance_distances[instance_id].distance = t;
+// }
 
-void check_instance_level(float t, float LOD_distance, uint instance_id, int level_index) {
+// void check_instance_level(float t, float LOD_distance, uint instance_id, int level_index) {
 
-    if(t < 0.0f) return;
+//     if(t < 0.0f) return;
 
-    if(t >= LOD_distance) {
-        set_instance_level(instance_id, max(0, level_index - 1));
-    }
-    // TODO: Case every primitive is attach to the same instance we should have a better way to handle this, like having instance extents
-    else if(t < (LOD_distance - (get_half_extent(level_index).x * min(1, pow(2, level_index)) * 2) - 0.0001f)) {
-        set_instance_level(instance_id, min(level_index + 1, MAX_LEVELS -1));
-    }
-    // set_instance_distance(instance_id, t);
-}
+//     if(t >= LOD_distance) {
+//         set_instance_level(instance_id, max(0, level_index - 1));
+//     }
+//     // TODO: Case every primitive is attach to the same instance we should have a better way to handle this, like having instance extents
+//     else if(t < (LOD_distance - (get_half_extent(level_index).x * min(1, pow(2, level_index)) * 2) - 0.0001f)) {
+//         set_instance_level(instance_id, min(level_index + 1, MAX_LEVELS -1));
+//     }
+//     // set_instance_distance(instance_id, t);
+// }
 
 layout(local_size_x = 8, local_size_y = 8) in;
 void main()
@@ -121,7 +121,7 @@ void main()
 
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
-    daxa_f32 LOD_distance = deref(p.camera_buffer).LOD_distance;
+    // daxa_f32 LOD_distance = deref(p.camera_buffer).LOD_distance;
 
     vec4 origin = inv_view * vec4(0,0,0,1);
 	vec4 target = inv_proj * vec4(d.x, d.y, 1, 1) ;
@@ -168,7 +168,7 @@ void main()
 
 
         uint primitive_index = deref(p.instance_buffer).instances[instance_id].first_primitive_index;
-        int level_index = deref(p.instance_buffer).instances[instance_id].level_index;
+        // int level_index = deref(p.instance_buffer).instances[instance_id].level_index;
 
         // Get center position from transform
         vec3 aabb_center = vec3(0, 0, 0);
@@ -181,7 +181,9 @@ void main()
         aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
         
 
-        vec3 half_extent = get_half_extent(level_index);
+        // vec3 half_extent = get_half_extent(level_index);
+
+        vec3 half_extent = vec3(LEVEL_1_HALF_EXTENT);
 
         // Get aabb from center_pos and transform
         Aabb aabb;
@@ -190,12 +192,12 @@ void main()
         aabb.minimum = (transform * vec4(aabb.minimum, 1)).xyz;
         aabb.maximum = (transform * vec4(aabb.maximum, 1)).xyz;
 
-        // DEBUGGING
-        deref(p.aabb_buffer).aabbs[actual_primitive_index].aabb = aabb;
+        // // DEBUGGING
+        // deref(p.aabb_buffer).aabbs[actual_primitive_index].aabb = aabb;
         
         t = hit_aabb(aabb, ray);
 
-        check_instance_level(t, LOD_distance, instance_id, level_index);
+        // check_instance_level(t, LOD_distance, instance_id, level_index);
 
         vec3 world_pos = ray.origin + ray.direction * t;
 

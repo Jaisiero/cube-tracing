@@ -43,16 +43,7 @@ namespace tests
             u32 max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
 
             daxa::BufferId primitive_buffer = {};
-            // TODO: Debugging
-            daxa::BufferId gpu_aabb_buffer = {};
             u32 max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
-
-            daxa::BufferId instance_level_buffer = {};
-            u32 max_instance_level_buffer_size = sizeof(INSTANCE_LEVEL) * MAX_INSTANCES;
-
-            daxa::BufferId instance_distance_buffer = {};
-            u32 max_instance_distance_buffer_size = sizeof(INSTANCE_DISTANCE) * MAX_INSTANCES;
-            // BUFFERS
             
             // CPU DATA
             u32 current_instance_count = 0;
@@ -60,18 +51,12 @@ namespace tests
 
             u32 current_primitive_count = 0;
             std::vector<PRIMITIVE> primitives = {};
-            std::vector<INSTANCE_LEVEL> instance_levels = {};
-            // TODO: Debugging
-            std::vector<INSTANCE_DISTANCE> instance_distances = {};
-            std::vector<PRIMITIVE_AABB> aabb = {};
-            // TODO: Debugging
-            // CPU DATA
 
             // TODO: HACK to get around the fact we are harcoding the number of instances for now
             std::vector<daxa_f32mat4x4> transforms = {};
             std::vector<daxa_f32vec3> colors = {};
             // TODO: HACK to get around the fact we are harcoding the number of primitives for now
-            std::array<daxa_f32mat3x2, 1> min_max_level0 = {};
+            // std::array<daxa_f32mat3x2, 1> min_max_level0 = {};
             std::array<daxa_f32mat3x2, 2> min_max_level1 = {};
 
             App() : AppWindow<App>("ray query test") {}
@@ -86,9 +71,6 @@ namespace tests
                     device.destroy_buffer(mat_buffer);
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
-                    device.destroy_buffer(instance_level_buffer);
-                    device.destroy_buffer(instance_distance_buffer);
-                    device.destroy_buffer(gpu_aabb_buffer);
                 }
             }
 
@@ -114,9 +96,6 @@ namespace tests
             u32 get_primitive_count_by_level(u32 level_index) {
                 switch (level_index)
                 {
-                case 0:
-                    return min_max_level0.size();
-                    break;
                 case 1:
                     return min_max_level1.size();
                     break;
@@ -129,9 +108,6 @@ namespace tests
             constexpr daxa_f32mat3x2 * get_min_max_by_level(u32 level_index) {
                 switch (level_index)
                 {
-                case 0:
-                    return min_max_level0.data();
-                    break;
                 case 1:
                     return min_max_level1.data();
                     break;
@@ -146,17 +122,7 @@ namespace tests
 
                 daxa_u32 primitive_count = 0;
                 for(u32 i = 0; i < instance_count; i++) {
-                    if(instance_levels[i].level_index != instances[i].level_index && 
-                        instances[i].level_index < MAX_LEVELS) {
-                        some_level_changed = true;
-                        primitive_count += get_primitive_count_by_level(instance_levels[i].level_index);
-                    } else {
-                        primitive_count += instances[i].primitive_count;
-                    }
-                }
-
-                if(!some_level_changed) {
-                    return true;
+                    primitive_count += get_primitive_count_by_level(1);
                 }
 
                 if(primitive_count == 0) {
@@ -194,9 +160,8 @@ namespace tests
                     instances[i].transform = {
                         transforms[i],
                     },
-                    instances[i].primitive_count = get_primitive_count_by_level(instance_levels[i].level_index);
+                    instances[i].primitive_count = get_primitive_count_by_level(1);
                     instances[i].first_primitive_index = current_primitive_count;
-                    instances[i].level_index = instance_levels[i].level_index;
                     instances[i].color = colors[i];
 
                     if(instances[i].primitive_count == 0) {
@@ -205,7 +170,7 @@ namespace tests
                     }
 
                     std::memcpy((device.get_host_address_as<daxa_f32mat3x2>(aabb_buffer).value() + current_primitive_count),
-                        get_min_max_by_level(instances[i].level_index), 
+                        get_min_max_by_level(1), 
                         instances[i].primitive_count * sizeof(daxa_f32mat3x2));
                     current_primitive_count += instances[i].primitive_count;
                 }
@@ -225,17 +190,7 @@ namespace tests
                 u32 current_instance_index = 0;
 
                 for(u32 i = 0; i < instance_count; i++) {
-                    
-                    /// Procedural Geometry Info:
-                    // auto proc_geometries = std::array{
-                    //     daxa::BlasAabbGeometryInfo{
-                    //         .data = device.get_device_address(aabb_buffer).value() + (instances[i].first_primitive_index * sizeof(daxa_f32mat3x2)),
-                    //         .stride = sizeof(daxa_f32mat3x2),
-                    //         .count = instances[i].primitive_count,
-                    //         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                    //         .flags = 0x1,                                    // Is also default
-                    //     }
-                    // };
+
                     aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
                         .data = device.get_device_address(aabb_buffer).value() + (instances[i].first_primitive_index * sizeof(daxa_f32mat3x2)),
                         .stride = sizeof(daxa_f32mat3x2),
@@ -268,7 +223,7 @@ namespace tests
                     blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = device.get_device_address(proc_blas_scratch_buffer).value();
                     
                     // push primitives
-                    auto min_max = get_min_max_by_level(instances[i].level_index);
+                    auto min_max = get_min_max_by_level(1);
                     for(u32 j = 0; j < instances[i].primitive_count; j++) {
                         
                         primitives.push_back(PRIMITIVE{
@@ -414,46 +369,18 @@ namespace tests
                     .name = ("primitive_buffer"),
                 });
                 
-                instance_level_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_instance_level_buffer_size,
-                    .name = ("instance_level_buffer"),
-                });
-                
-                // TODO: Debugging
-                instance_distance_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_instance_distance_buffer_size,
-                    .name = ("instance_distance_buffer"),
-                });
-
-                gpu_aabb_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_primitive_buffer_size,
-                    .name = ("gpu_aabb_buffer"),
-                });
-                // TODO: Debugging
-                
                 // TODO: This could be load from a file
                 {
                     // TODO: Give center + half extent
                     /// aabb data:
-                    min_max_level0 = std::array{
-                        daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0.25f, 0.25f, 0.25f})
-                    };
+                    // min_max_level0 = std::array{
+                    //     daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0.25f, 0.25f, 0.25f})
+                    // };
                     
                     min_max_level1 = std::array{
                         daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0, 0, 0}),
                         daxa_f32mat3x2({0, 0, 0}, {0.25f, 0.25f, 0.25f})
                     };
-
-
-                    instance_levels.resize(INSTANCE_COUNT);
-
-                    instance_distances.resize(INSTANCE_COUNT);
-
-                    for(u32 i = 0; i < INSTANCE_COUNT; i++) {
-                        instance_levels[i] = INSTANCE_LEVEL{
-                            .level_index = 0,
-                        };
-                    }
                     
                     transforms.reserve(INSTANCE_COUNT);
                     colors.reserve(INSTANCE_COUNT);
@@ -495,8 +422,7 @@ namespace tests
                             },
                             .color = {1, 1, 1},
                             .first_primitive_index = 0,
-                            .primitive_count = 0,
-                            .level_index = MAX_LEVELS - 1,
+                            .primitive_count = 0
                         };
                     }
 
@@ -550,12 +476,12 @@ namespace tests
                 if (!minimized)
                 {
                     draw();
-                    download_gpu_info();
+                    // download_gpu_info();
                     // call build tlas
-                    if(!build_tlas(INSTANCE_COUNT)) {
-                        std::cout << "Failed to build tlas" << std::endl;
-                        abort();
-                    }
+                    // if(!build_tlas(INSTANCE_COUNT)) {
+                    //     std::cout << "Failed to build tlas" << std::endl;
+                    //     abort();
+                    // }
                 }
                 else
                 {
@@ -590,7 +516,7 @@ namespace tests
                 Camera camera = {
                     .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(camera_pos, camera_center, camera_up))),
                     .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), (width/(f32)height), 0.001f, 1000.0f))),
-                    .LOD_distance = 5.0f,
+                    // .LOD_distance = 5.0f,
                 };
 
                 // NOTE: Vulkan has inverted y axis in NDC
@@ -678,9 +604,9 @@ namespace tests
                     .camera_buffer = this->device.get_device_address(mat_buffer).value(),
                     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
                     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
-                    .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
-                    .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
-                    .aabb_buffer = this->device.get_device_address(gpu_aabb_buffer).value(),
+                    // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
+                    // .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
+                    // .aabb_buffer = this->device.get_device_address(gpu_aabb_buffer).value(),
                 });
                 daxa::u32 block_count_x = (width + 8 - 1) / 8;
                 daxa::u32 block_count_y = (height + 8 - 1) / 8;
@@ -713,147 +639,129 @@ namespace tests
                 device.collect_garbage();
             }
 
-            void download_gpu_info() {
+            // void download_gpu_info() {
 
-                if(current_instance_count == 0) {
-                    return;
-                }
+            //     if(current_instance_count == 0) {
+            //         return;
+            //     }
 
-                if(current_instance_count != instance_levels.size()) {
-                    instance_levels.resize(current_instance_count);
-                }
+            //     if(current_instance_count != instance_levels.size()) {
+            //         instance_levels.resize(current_instance_count);
+            //     }
 
-                if(aabb.size() < current_primitive_count) {
-                    aabb.resize(current_primitive_count);
-                }
+            //     if(aabb.size() < current_primitive_count) {
+            //         aabb.resize(current_primitive_count);
+            //     }
 
-                u32 instance_level_buffer_size = std::min(max_instance_level_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE_LEVEL)));
-                // Some Device to Host copy here
-                auto instance_level_staging_buffer = device.create_buffer({
-                    .size = instance_level_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("instance_level_staging_buffer"),
-                });
-                defer { device.destroy_buffer(instance_level_staging_buffer); };
+            //     u32 instance_level_buffer_size = std::min(max_instance_level_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE_LEVEL)));
+            //     // Some Device to Host copy here
+            //     auto instance_level_staging_buffer = device.create_buffer({
+            //         .size = instance_level_buffer_size,
+            //         .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            //         .name = ("instance_level_staging_buffer"),
+            //     });
+            //     defer { device.destroy_buffer(instance_level_staging_buffer); };
 
-                // u32 instance_distance_buffer_size = std::min(max_instance_distance_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE_DISTANCE)));
-                // // Some Device to Host copy here
-                // auto instance_distance_staging_buffer = device.create_buffer({
-                //     .size = instance_distance_buffer_size,
-                //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                //     .name = ("instance_distance_staging_buffer"),
-                // });
-                // defer { device.destroy_buffer(instance_distance_staging_buffer); };
+            //     /// Record build commands:
+            //     auto exec_cmds = [&]()
+            //     {
+            //         auto recorder = device.create_command_recorder({});
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::HOST_WRITE,
+            //             .dst_access = daxa::AccessConsts::TRANSFER_READ,
+            //         });
 
-                // u32 aabb_buffer_size = std::min(max_primitive_buffer_size, static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE_AABB)));
-                // // Some Device to Host copy here
-                // auto aabb_staging_buffer = device.create_buffer({
-                //     .size = aabb_buffer_size,
-                //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                //     .name = ("aabb_staging_buffer"),
-                // });
-                // defer { device.destroy_buffer(aabb_staging_buffer); };
+            //         recorder.copy_buffer_to_buffer({
+            //             .src_buffer = instance_level_buffer,
+            //             .dst_buffer = instance_level_staging_buffer,
+            //             .size = instance_level_buffer_size,
+            //         });
 
-                /// Record build commands:
-                auto exec_cmds = [&]()
-                {
-                    auto recorder = device.create_command_recorder({});
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::HOST_WRITE,
-                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                    });
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+            //             .dst_access = daxa::AccessConsts::HOST_READ,
+            //         });
 
-                    recorder.copy_buffer_to_buffer({
-                        .src_buffer = instance_level_buffer,
-                        .dst_buffer = instance_level_staging_buffer,
-                        .size = instance_level_buffer_size,
-                    });
+            //         // recorder.copy_buffer_to_buffer({
+            //         //     .src_buffer = instance_distance_buffer,
+            //         //     .dst_buffer = instance_distance_staging_buffer,
+            //         //     .size = instance_distance_buffer_size,
+            //         // });
 
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                        .dst_access = daxa::AccessConsts::HOST_READ,
-                    });
+            //         // recorder.pipeline_barrier({
+            //         //     .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+            //         //     .dst_access = daxa::AccessConsts::HOST_READ,
+            //         // });
 
-                    // recorder.copy_buffer_to_buffer({
-                    //     .src_buffer = instance_distance_buffer,
-                    //     .dst_buffer = instance_distance_staging_buffer,
-                    //     .size = instance_distance_buffer_size,
-                    // });
+            //         // recorder.copy_buffer_to_buffer({
+            //         //     .src_buffer = gpu_aabb_buffer,
+            //         //     .dst_buffer = aabb_staging_buffer,
+            //         //     .size = aabb_buffer_size,
+            //         // });
 
-                    // recorder.pipeline_barrier({
-                    //     .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                    //     .dst_access = daxa::AccessConsts::HOST_READ,
-                    // });
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+            //             .dst_access = daxa::AccessConsts::HOST_READ,
+            //         });
+            //         return recorder.complete_current_commands();
+            //     }();
 
-                    // recorder.copy_buffer_to_buffer({
-                    //     .src_buffer = gpu_aabb_buffer,
-                    //     .dst_buffer = aabb_staging_buffer,
-                    //     .size = aabb_buffer_size,
-                    // });
+            //     // WAIT FOR COMMANDS TO FINISH
+            //     {
+            //         device.submit_commands({
+            //             .command_lists = std::array{exec_cmds},
+            //             // .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
+            //             // .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
+            //         });
 
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                        .dst_access = daxa::AccessConsts::HOST_READ,
-                    });
-                    return recorder.complete_current_commands();
-                }();
+            //         device.wait_idle();
+            //         // daxa::TimelineSemaphore gpu_timeline = device.create_timeline_semaphore({
+            //         //     .name = "timeline semaphpore",
+            //         // });
 
-                // WAIT FOR COMMANDS TO FINISH
-                {
-                    device.submit_commands({
-                        .command_lists = std::array{exec_cmds},
-                        // .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
-                        // .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
-                    });
+            //         // usize cpu_timeline = 0;
 
-                    device.wait_idle();
-                    // daxa::TimelineSemaphore gpu_timeline = device.create_timeline_semaphore({
-                    //     .name = "timeline semaphpore",
-                    // });
+            //         // device.submit_commands({
+            //         //     .command_lists = std::array{exec_cmds},
+            //         //     .signal_timeline_semaphores = std::array{std::pair{gpu_timeline, cpu_timeline}}
+            //         // });
 
-                    // usize cpu_timeline = 0;
+            //         // gpu_timeline.wait_for_value(cpu_timeline);
+            //     }
 
-                    // device.submit_commands({
-                    //     .command_lists = std::array{exec_cmds},
-                    //     .signal_timeline_semaphores = std::array{std::pair{gpu_timeline, cpu_timeline}}
-                    // });
+            //     /// NOTE: this must wait for the commands to finish
+            //     auto * instance_level_buffer_ptr = device.get_host_address_as<INSTANCE_LEVEL>(instance_level_staging_buffer).value();
+            //     std::memcpy(instance_levels.data(), 
+            //         instance_level_buffer_ptr,
+            //         instance_level_buffer_size);
 
-                    // gpu_timeline.wait_for_value(cpu_timeline);
-                }
-
-                /// NOTE: this must wait for the commands to finish
-                auto * instance_level_buffer_ptr = device.get_host_address_as<INSTANCE_LEVEL>(instance_level_staging_buffer).value();
-                std::memcpy(instance_levels.data(), 
-                    instance_level_buffer_ptr,
-                    instance_level_buffer_size);
-
-                // auto * instance_distance_buffer_ptr = device.get_host_address_as<INSTANCE_DISTANCE>(instance_distance_staging_buffer).value();
-                // std::memcpy(instance_distances.data(), 
-                //     instance_distance_buffer_ptr,
-                //     instance_distance_buffer_size);
+            //     // auto * instance_distance_buffer_ptr = device.get_host_address_as<INSTANCE_DISTANCE>(instance_distance_staging_buffer).value();
+            //     // std::memcpy(instance_distances.data(), 
+            //     //     instance_distance_buffer_ptr,
+            //     //     instance_distance_buffer_size);
                     
-                // auto * aabb_buffer_ptr = device.get_host_address_as<INSTANCE_DISTANCE>(aabb_staging_buffer).value();
-                // std::memcpy(aabb.data(), 
-                //     aabb_buffer_ptr,
-                //     aabb_buffer_size);
+            //     // auto * aabb_buffer_ptr = device.get_host_address_as<INSTANCE_DISTANCE>(aabb_staging_buffer).value();
+            //     // std::memcpy(aabb.data(), 
+            //     //     aabb_buffer_ptr,
+            //     //     aabb_buffer_size);
 
 
-                // print out the levels & distances
-                // for(u32 i = 0; i < current_instance_count; i++) {
-                //     if(instance_levels[i].level_index != instances[i].level_index) {
-                //         std::cout << "instance " << i << " level changed from " << instances[i].level_index << " to " << instance_levels[i].level_index << std::endl;
-                //     }
-                //     if(instance_distances[i].distance >= 0.0f) {
-                //         std::cout << "instance " << i << " distance " << instance_distances[i].distance << std::endl;
-                //     }
-                // }
+            //     // print out the levels & distances
+            //     // for(u32 i = 0; i < current_instance_count; i++) {
+            //     //     if(instance_levels[i].level_index != instances[i].level_index) {
+            //     //         std::cout << "instance " << i << " level changed from " << instances[i].level_index << " to " << instance_levels[i].level_index << std::endl;
+            //     //     }
+            //     //     if(instance_distances[i].distance >= 0.0f) {
+            //     //         std::cout << "instance " << i << " distance " << instance_distances[i].distance << std::endl;
+            //     //     }
+            //     // }
 
-                // for(u32 i = 0; i < current_primitive_count; i++) {
-                //     std::cout << "primitive " << i << " minimum " << aabb[i].aabb.minimum.x << " " << aabb[i].aabb.minimum.y << " " << aabb[i].aabb.minimum.z 
-                //         << " maximum " << aabb[i].aabb.maximum.x << " " << aabb[i].aabb.maximum.y << " " << aabb[i].aabb.maximum.z << std::endl;
-                // }
+            //     // for(u32 i = 0; i < current_primitive_count; i++) {
+            //     //     std::cout << "primitive " << i << " minimum " << aabb[i].aabb.minimum.x << " " << aabb[i].aabb.minimum.y << " " << aabb[i].aabb.minimum.z 
+            //     //         << " maximum " << aabb[i].aabb.maximum.x << " " << aabb[i].aabb.maximum.y << " " << aabb[i].aabb.maximum.z << std::endl;
+            //     // }
 
-            }
+            // }
 
             void on_mouse_move(f32 /*unused*/, f32 /*unused*/) {}
             void on_mouse_button(i32 /*unused*/, i32 /*unused*/) {}
