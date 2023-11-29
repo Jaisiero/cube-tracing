@@ -216,7 +216,7 @@ void main()
         // Vector toward the light
         vec3  L;
         // float light_intensity = 1000.0;
-        float light_intensity = 1000.0;
+        float light_intensity = 100.0;
         // float light_distance  = 100.0;
         float light_distance  = 10.0;
         uint lightType      = 0;
