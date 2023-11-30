@@ -1,9 +1,12 @@
 #define DAXA_RAY_TRACING 1
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
+// TODO: Debugging
+#extension GL_EXT_debug_printf : enable
 #include <daxa/daxa.inl>
 
 #include "shared.inl"
+#include "prng.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
@@ -105,12 +108,6 @@ vec3 background_color(vec3 dir)
     vec3 unit_dir = normalize(dir);
     float t = 0.5 * (unit_dir.y + 1.0);
     return mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), t);
-}
-
-
-float random(vec2 uv)
-{
-    return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
 vec3 ray_color(Ray ray)
@@ -279,11 +276,18 @@ void main()
     // 1 sample per pixel
     out_colour = ray_color(ray);
 #else
+
+    LCG lcg;
+    uint frame_number = deref(p.camera_buffer).frame_number;
+    uint seedX = index.x;
+    uint seedY = index.y;
+
+    initLCG(lcg, frame_number, seedX, seedY);
+
     for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
     {
         // Some random sampling for anti-aliasing
-        vec2 df = d + 
-            (vec2(random(pixel_center), random(pixel_center)) / vec2(launch_size));
+        vec2 df = d + vec2(randomInRangeLCG(lcg, 0.0f, SAMPLE_OFFSET), randomInRangeLCG(lcg, 0.0f, SAMPLE_OFFSET));
 
         vec4 origin = inv_view * vec4(0,0,0,1);
         vec4 target = inv_proj * vec4(df.x, df.y, 1, 1) ;

@@ -11,7 +11,8 @@
 // #define LEVEL_0_HALF_EXTENT 0.25
 #define LEVEL_1_HALF_EXTENT 0.125
 
-#define SAMPLES_PER_PIXEL 5
+#define SAMPLES_PER_PIXEL 10
+#define SAMPLE_OFFSET 0.001 // Multi sample offset
 
 
 struct Aabb
@@ -31,6 +32,7 @@ struct Camera {
     daxa_f32mat4x4 inv_view;
     daxa_f32mat4x4 inv_proj;
     // daxa_f32 LOD_distance;
+    daxa_u32 frame_number;
 };
 DAXA_DECL_BUFFER_PTR(Camera)
 

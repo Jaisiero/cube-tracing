@@ -26,6 +26,8 @@ namespace tests
             glm::vec3 camera_center = {0, 0, 0};
             glm::vec3 camera_up = {0, 1, 0};
 
+            u32 current_frame = 0;
+
 
             daxa::Instance daxa_ctx = {};
             daxa::Device device = {};
@@ -516,7 +518,7 @@ namespace tests
                 Camera camera = {
                     .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(camera_pos, camera_center, camera_up))),
                     .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), (width/(f32)height), 0.001f, 1000.0f))),
-                    // .LOD_distance = 5.0f,
+                    .frame_number = current_frame++,
                 };
 
                 // NOTE: Vulkan has inverted y axis in NDC
