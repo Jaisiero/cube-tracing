@@ -11,6 +11,8 @@
 // #define LEVEL_0_HALF_EXTENT 0.25
 #define LEVEL_1_HALF_EXTENT 0.125
 
+#define SAMPLES_PER_PIXEL 5
+
 
 struct Aabb
 {

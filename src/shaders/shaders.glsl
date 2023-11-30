@@ -100,38 +100,27 @@ const vec3 LIGHT_POSITION = vec3(5.0, 10.0, 5.0);
 //     // set_instance_distance(instance_id, t);
 // }
 
-layout(local_size_x = 8, local_size_y = 8) in;
-void main()
+vec3 background_color(vec3 dir)
 {
-    const ivec2 index = ivec2(gl_GlobalInvocationID.xy);
-    if (index.x >= p.size.x || index.y >= p.size.y)
-    {
-        return;
-    }
+    vec3 unit_dir = normalize(dir);
+    float t = 0.5 * (unit_dir.y + 1.0);
+    return mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), t);
+}
 
+
+float random(vec2 uv)
+{
+    return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+vec3 ray_color(Ray ray)
+{
+    float t = -1.0f;
     uint cull_mask = 0xff;
     float t_min = 0.0001f;
     float t_max = 1000.0f;
-    
-    uvec2 launch_size = gl_NumWorkGroups.xy * 8;
 
-	const vec2 pixel_center = vec2(index) + vec2(0.5);
-	const vec2 inv_UV = pixel_center/vec2(launch_size);
-	vec2 d = inv_UV * 2.0 - 1.0;
-
-    daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
-    daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
-    // daxa_f32 LOD_distance = deref(p.camera_buffer).LOD_distance;
-
-    vec4 origin = inv_view * vec4(0,0,0,1);
-	vec4 target = inv_proj * vec4(d.x, d.y, 1, 1) ;
-	vec4 direction = inv_view * vec4(normalize(target.xyz), 0) ;
-
-    Ray ray;
-    ray.origin = origin.xyz;
-    ray.direction = direction.xyz;
-
-    float t = -1.0f;
+    vec3 out_colour = vec3(0.0, 0.0, 0.0);
 
     rayQueryEXT ray_query;
     rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
@@ -148,12 +137,10 @@ void main()
         }
     }
 
-    vec3 out_colour = vec3(0.0, 0.0, 0.0);
     uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
 
     if(type_commited ==
         gl_RayQueryCommittedIntersectionGeneratedEXT)
-    // if(rayQueryGetIntersectionCandidateAABBOpaqueEXT(ray_query))
     {
 
         // get instance id
@@ -248,7 +235,71 @@ void main()
         }
         // Apply the normal to the color
         out_colour = vec3(light_intensity * attenuation * (diffuse + specular));
+    } else {
+        out_colour = background_color(ray.direction);
     }
 
+    return out_colour;
+}
+
+layout(local_size_x = 8, local_size_y = 8) in;
+void main()
+{
+    const ivec2 index = ivec2(gl_GlobalInvocationID.xy);
+    if (index.x >= p.size.x || index.y >= p.size.y)
+    {
+        return;
+    }
+    uvec2 launch_size = gl_NumWorkGroups.xy * 8;
+
+    // Color output
+    vec3 out_colour = vec3(0.0, 0.0, 0.0);
+
+    // Ray setup
+    Ray ray;
+
+    // Camera setup
+    daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
+    daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
+    // daxa_f32 LOD_distance = deref(p.camera_buffer).LOD_distance;
+
+    const vec2 pixel_center = vec2(index) + vec2(0.5);
+    const vec2 inv_UV = pixel_center / vec2(launch_size);
+    vec2 d = inv_UV * 2.0 - 1.0;
+
+#if SAMPLES_PER_PIXEL == 1
+
+    vec4 origin = inv_view * vec4(0,0,0,1);
+	vec4 target = inv_proj * vec4(d.x, d.y, 1, 1) ;
+	vec4 direction = inv_view * vec4(normalize(target.xyz), 0) ;
+    
+    ray.origin = origin.xyz;
+    ray.direction = direction.xyz;
+
+    // 1 sample per pixel
+    out_colour = ray_color(ray);
+#else
+    for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
+    {
+        // Some random sampling for anti-aliasing
+        vec2 df = d + 
+            (vec2(random(pixel_center), random(pixel_center)) / vec2(launch_size));
+
+        vec4 origin = inv_view * vec4(0,0,0,1);
+        vec4 target = inv_proj * vec4(df.x, df.y, 1, 1) ;
+        vec4 direction = inv_view * vec4(normalize(target.xyz), 0) ;
+        
+        ray.origin = origin.xyz;
+        ray.direction = direction.xyz;
+
+        vec3 partial_out_colour = ray_color(ray);
+
+        out_colour += partial_out_colour / SAMPLES_PER_PIXEL;
+    }
+    clamp(out_colour, 0.0, 0.999);
+
+#endif
+
+    
     imageStore(daxa_image2D(p.swapchain), index, vec4(out_colour,1));
 }
