@@ -103,6 +103,11 @@ const vec3 LIGHT_POSITION = vec3(5.0, 10.0, 5.0);
 //     // set_instance_distance(instance_id, t);
 // }
 
+vec4 linear_to_gamma(vec4 linearRGB)
+{
+    return pow(linearRGB, vec4(1.0/2.2));
+}
+
 vec3 background_color(vec3 dir)
 {
     vec3 unit_dir = normalize(dir);
@@ -130,7 +135,7 @@ vec3 ray_color(Ray ray, int depth)
     // Vector toward the light
     vec3  L;
     // float light_intensity = 1000.0;
-    float light_intensity = 10.0;
+    float light_intensity = 100.0;
     // float light_distance  = 100.0;
     float light_distance  = 10.0;
     uint lightType      = 0;
@@ -161,7 +166,7 @@ vec3 ray_color(Ray ray, int depth)
             int instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
 
             // get instance colour
-            out_colour = deref(p.instance_buffer).instances[instance_id].color;
+            vec3 geometry_color = deref(p.instance_buffer).instances[instance_id].color;
 
             mat4 transform = deref(p.instance_buffer).instances[instance_id].transform;
 
@@ -230,21 +235,20 @@ vec3 ray_color(Ray ray, int depth)
             }
 
             // Diffuse
-            vec3  diffuse     = compute_diffuse(out_colour, vec3(0.5, 0.5, 0.5), L, world_nrm);
+            vec3 diffuse = compute_diffuse(geometry_color, vec3(0.1), L, world_nrm);
             vec3 specular = vec3(0.0, 0.0, 0.0);
             // Specular
 
             if(dot(world_nrm, L) > 0)
             {
-                specular    = compute_specular(vec3(0.1, 0.1, 0.1), 4, ray.direction, L, world_nrm);
+                specular = compute_specular(vec3(0.1), 4, ray.direction, L, world_nrm);
             }
 
             // Apply the normal to the color
             out_colour += vec3(light_intensity * attenuation * (diffuse + specular));
             
-
-            // New ray from hit position and random direction
-            vec3 random_hemisphere_nrm = random_on_hemisphere(world_nrm);
+            // New ray from hit position and random direction  (lambertian reflection)
+            vec3 random_hemisphere_nrm = world_nrm + random_unit_vector();
             ray = Ray((world_pos + DELTA_RAY * random_hemisphere_nrm) , random_hemisphere_nrm);
         } else {
             // No hit
@@ -323,6 +327,8 @@ void main()
 
 #endif
 
-    
+    // NOTE: We are not using gamma correction because we suspect that swapchain is already in sRGB    
+    // imageStore(daxa_image2D(p.swapchain), index, fromLinear(vec4(out_colour,1)));
+    // imageStore(daxa_image2D(p.swapchain), index, linear_to_ gamma(vec4(out_colour,1)));
     imageStore(daxa_image2D(p.swapchain), index, vec4(out_colour,1));
 }

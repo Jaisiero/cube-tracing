@@ -390,7 +390,7 @@ namespace tests
                     transforms.push_back(daxa_f32mat4x4{
                         {1, 0, 0, -0.5f},
                         {0, 1, 0, -0.5f},
-                        {0, 0, 1, -0.5f},
+                        {0, 0, 1, -1.0f},
                         {0, 0, 0, 1},
                     });
 

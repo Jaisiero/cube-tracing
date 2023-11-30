@@ -11,7 +11,7 @@
 // #define LEVEL_0_HALF_EXTENT 0.25
 #define LEVEL_1_HALF_EXTENT 0.125
 
-#define SAMPLES_PER_PIXEL 10
+#define SAMPLES_PER_PIXEL 5
 #define SAMPLE_OFFSET 0.001 // Multi sample offset
 #define MAX_DEPTH 2
 #define DELTA_RAY 0.001
