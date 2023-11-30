@@ -110,131 +110,150 @@ vec3 background_color(vec3 dir)
     return mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), t);
 }
 
-vec3 ray_color(Ray ray)
+
+vec3 ray_color(Ray ray, int depth)
 {
+    vec3 out_colour = vec3(0.0, 0.0, 0.0);
+    if(depth <= 0) return out_colour;
+
+    // Ray query setup
     float t = -1.0f;
     uint cull_mask = 0xff;
     float t_min = 0.0001f;
     float t_max = 1000.0f;
-
-    vec3 out_colour = vec3(0.0, 0.0, 0.0);
-
     rayQueryEXT ray_query;
-    rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
-                        // gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
-                        gl_RayFlagsTerminateOnFirstHitEXT,
-                        cull_mask, ray.origin, t_min, ray.direction, t_max);
-                        
-    while(rayQueryProceedEXT(ray_query)) {
-        uint type = rayQueryGetIntersectionTypeEXT(ray_query, false);
-        if(type ==
-            gl_RayQueryCandidateIntersectionAABBEXT) {
-            rayQueryGenerateIntersectionEXT(ray_query, t);
-            rayQueryTerminateEXT(ray_query);
+
+    int initial_depth = depth;
+    
+    // light setup
+    float attenuation = 1.0;
+    // Vector toward the light
+    vec3  L;
+    // float light_intensity = 1000.0;
+    float light_intensity = 10.0;
+    // float light_distance  = 100.0;
+    float light_distance  = 10.0;
+    uint lightType      = 0;
+
+    for(int i = 0; i < MAX_DEPTH; i++) {
+
+        rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
+                            // gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
+                            gl_RayFlagsTerminateOnFirstHitEXT,
+                            cull_mask, ray.origin, t_min, ray.direction, t_max);
+                            
+        while(rayQueryProceedEXT(ray_query)) {
+            uint type = rayQueryGetIntersectionTypeEXT(ray_query, false);
+            if(type ==
+                gl_RayQueryCandidateIntersectionAABBEXT) {
+                rayQueryGenerateIntersectionEXT(ray_query, t);
+                rayQueryTerminateEXT(ray_query);
+            }
         }
-    }
 
-    uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
+        uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
 
-    if(type_commited ==
-        gl_RayQueryCommittedIntersectionGeneratedEXT)
-    {
-
-        // get instance id
-        int instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
-
-        // get instance colour
-        out_colour = deref(p.instance_buffer).instances[instance_id].color;
-
-        mat4 transform = deref(p.instance_buffer).instances[instance_id].transform;
-
-        transform = transpose(transform);
-
-
-        uint primitive_index = deref(p.instance_buffer).instances[instance_id].first_primitive_index;
-        // int level_index = deref(p.instance_buffer).instances[instance_id].level_index;
-
-        // Get center position from transform
-        vec3 aabb_center = vec3(0, 0, 0);
-
-        int primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
-
-        uint actual_primitive_index = primitive_index+primitive_id;
-
-        // Get primitive center position from transform
-        aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
-        
-
-        // vec3 half_extent = get_half_extent(level_index);
-
-        vec3 half_extent = vec3(LEVEL_1_HALF_EXTENT);
-
-        // Get aabb from center_pos and transform
-        Aabb aabb;
-        aabb.minimum = aabb_center - half_extent;
-        aabb.maximum =  aabb_center + half_extent;
-        aabb.minimum = (transform * vec4(aabb.minimum, 1)).xyz;
-        aabb.maximum = (transform * vec4(aabb.maximum, 1)).xyz;
-
-        // // DEBUGGING
-        // deref(p.aabb_buffer).aabbs[actual_primitive_index].aabb = aabb;
-        
-        t = hit_aabb(aabb, ray);
-
-        // check_instance_level(t, LOD_distance, instance_id, level_index);
-
-        vec3 world_pos = ray.origin + ray.direction * t;
-
-        
-        vec3 center_pos = (transform * vec4(aabb_center, 1)).xyz;
-        // Computing the normal at hit position
-        vec3 world_nrm = normalize(world_pos-center_pos);
-
-// Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
-        // Computing the normal for a cube
+        if(type_commited ==
+            gl_RayQueryCommittedIntersectionGeneratedEXT)
         {
-            vec3  absN = abs(world_nrm);
-            float maxC = max(max(absN.x, absN.y), absN.z);
-            world_nrm   = (maxC == absN.x) ? vec3(sign(world_nrm.x), 0, 0) :
-                        (maxC == absN.y) ? vec3(0, sign(world_nrm.y), 0) :
-                                            vec3(0, 0, sign(world_nrm.z));
-        }
 
-        // Vector toward the light
-        vec3  L;
-        // float light_intensity = 1000.0;
-        float light_intensity = 100.0;
-        // float light_distance  = 100.0;
-        float light_distance  = 10.0;
-        uint lightType      = 0;
-        // Point light
-        if(lightType == 0)
-        {
-            vec3 lDir      = LIGHT_POSITION - world_pos;
-            light_distance  = length(lDir);
-            light_intensity = light_intensity / (light_distance * light_distance);
-            L              = normalize(lDir);
-        }
-        else  // Directional light
-        {
-            L = normalize(LIGHT_POSITION);
-        }
+            // get instance id
+            int instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
 
-        // Diffuse
-        vec3  diffuse     = compute_diffuse(out_colour, vec3(0.5, 0.5, 0.5), L, world_nrm);
-        vec3 specular = vec3(0.0, 0.0, 0.0);
-        float attenuation = 1.0;
-        // Specular
+            // get instance colour
+            out_colour = deref(p.instance_buffer).instances[instance_id].color;
 
-        if(dot(world_nrm, L) > 0)
-        {
-            specular    = compute_specular(vec3(0.1, 0.1, 0.1), 4, ray.direction, L, world_nrm);
+            mat4 transform = deref(p.instance_buffer).instances[instance_id].transform;
+
+            transform = transpose(transform);
+            mat4 inv_transform = inverse(transform);
+
+
+            uint primitive_index = deref(p.instance_buffer).instances[instance_id].first_primitive_index;
+            // int level_index = deref(p.instance_buffer).instances[instance_id].level_index;
+
+            // Get center position from transform
+            vec3 aabb_center = vec3(0, 0, 0);
+
+            int primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
+
+            uint actual_primitive_index = primitive_index+primitive_id;
+
+            // Get primitive center position from transform
+            aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
+            
+
+            // vec3 half_extent = get_half_extent(level_index);
+
+            vec3 half_extent = vec3(LEVEL_1_HALF_EXTENT);
+
+            // Get aabb from center_pos and transform
+            Aabb aabb;
+            aabb.minimum = aabb_center - half_extent;
+            aabb.maximum =  aabb_center + half_extent;
+            aabb.minimum = (transform * vec4(aabb.minimum, 1)).xyz;
+            aabb.maximum = (transform * vec4(aabb.maximum, 1)).xyz;
+            
+            t = hit_aabb(aabb, ray);
+
+            // hit point in world space
+            vec3 world_pos = ray.origin + ray.direction * t;
+            
+            // Get center position of the aabb in world space
+            vec3 center_pos = (transform * vec4(aabb_center, 1)).xyz;
+
+            // Computing the normal at hit position
+            vec3 world_nrm = normalize(world_pos-center_pos);
+
+
+    // Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
+            // Computing the normal for a cube
+            {
+                vec3  absN = abs(world_nrm);
+                float maxC = max(max(absN.x, absN.y), absN.z);
+                world_nrm   = (maxC == absN.x) ? vec3(sign(world_nrm.x), 0, 0) :
+                            (maxC == absN.y) ? vec3(0, sign(world_nrm.y), 0) :
+                                                vec3(0, 0, sign(world_nrm.z));
+            }
+
+            // Point light
+            if(lightType == 0)
+            {
+                vec3 lDir      = LIGHT_POSITION - world_pos;
+                light_distance  = length(lDir);
+                light_intensity = light_intensity / (light_distance * light_distance);
+                L              = normalize(lDir);
+            }
+            else  // Directional light
+            {
+                L = normalize(LIGHT_POSITION);
+            }
+
+            // Diffuse
+            vec3  diffuse     = compute_diffuse(out_colour, vec3(0.5, 0.5, 0.5), L, world_nrm);
+            vec3 specular = vec3(0.0, 0.0, 0.0);
+            // Specular
+
+            if(dot(world_nrm, L) > 0)
+            {
+                specular    = compute_specular(vec3(0.1, 0.1, 0.1), 4, ray.direction, L, world_nrm);
+            }
+
+            // Apply the normal to the color
+            out_colour += vec3(light_intensity * attenuation * (diffuse + specular));
+            
+
+            // New ray from hit position and random direction
+            vec3 random_hemisphere_nrm = random_on_hemisphere(world_nrm);
+            ray = Ray((world_pos + DELTA_RAY * random_hemisphere_nrm) , random_hemisphere_nrm);
+        } else {
+            // No hit
+            // if out_colour is (0,0,0) then we are in the background primary ray otherwise we are in a shadow ray
+            attenuation = out_colour == vec3(0.0, 0.0, 0.0) ? 1.0 : 0.3;
+            out_colour += background_color(ray.direction) * attenuation;
+            return out_colour;
         }
-        // Apply the normal to the color
-        out_colour = vec3(light_intensity * attenuation * (diffuse + specular));
-    } else {
-        out_colour = background_color(ray.direction);
-    }
+    };
 
     return out_colour;
 }
@@ -274,7 +293,7 @@ void main()
     ray.direction = direction.xyz;
 
     // 1 sample per pixel
-    out_colour = ray_color(ray);
+    out_colour = ray_color(ray, 1);
 #else
 
     LCG lcg;
@@ -282,21 +301,21 @@ void main()
     uint seedX = index.x;
     uint seedY = index.y;
 
+    vec4 origin = inv_view * vec4(0,0,0,1);
+
     initLCG(lcg, frame_number, seedX, seedY);
 
     for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
     {
         // Some random sampling for anti-aliasing
         vec2 df = d + vec2(randomInRangeLCG(lcg, 0.0f, SAMPLE_OFFSET), randomInRangeLCG(lcg, 0.0f, SAMPLE_OFFSET));
-
-        vec4 origin = inv_view * vec4(0,0,0,1);
         vec4 target = inv_proj * vec4(df.x, df.y, 1, 1) ;
         vec4 direction = inv_view * vec4(normalize(target.xyz), 0) ;
         
         ray.origin = origin.xyz;
         ray.direction = direction.xyz;
 
-        vec3 partial_out_colour = ray_color(ray);
+        vec3 partial_out_colour = ray_color(ray, MAX_DEPTH);
 
         out_colour += partial_out_colour / SAMPLES_PER_PIXEL;
     }

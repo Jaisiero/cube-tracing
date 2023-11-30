@@ -13,6 +13,8 @@
 
 #define SAMPLES_PER_PIXEL 10
 #define SAMPLE_OFFSET 0.001 // Multi sample offset
+#define MAX_DEPTH 2
+#define DELTA_RAY 0.001
 
 
 struct Aabb
