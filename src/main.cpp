@@ -127,6 +127,56 @@ namespace tests
                 }
             }
 
+            void change_random_material_primitives() {
+                if(primitives.size() == 0) {
+                    return;
+                }
+
+                // Change every primitive material
+                for(u32 i = 0; i < primitives.size(); i++) {
+                    primitives[i].material_index = random_uint(0, MATERIAL_COUNT - 1);
+                }
+
+                // push primitives to buffer
+                auto primitive_staging_buffer = device.create_buffer({
+                    .size = max_primitive_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = "primitive staging buffer",
+                });
+                defer { device.destroy_buffer(primitive_staging_buffer); };
+
+                auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
+                std::memcpy(primitive_buffer_ptr, 
+                    primitives.data(),
+                    max_primitive_buffer_size);
+
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
+
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::HOST_WRITE,
+                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                    });
+                    
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = primitive_staging_buffer,
+                        .dst_buffer = primitive_buffer,
+                        .size = max_primitive_buffer_size,
+                    });
+                    
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                        .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                    });
+
+                    return recorder.complete_current_commands();
+                }();
+                device.submit_commands({.command_lists = std::array{exec_cmds}});
+
+                
+            }
+
             daxa_Bool8 build_tlas(u32 instance_count) {
                 daxa_Bool8 some_level_changed = false;
 
@@ -874,6 +924,16 @@ namespace tests
                             camera_pos = {0, 0, 2.5};
                             camera_center = {0, 0, 0};
                             camera_up = {0, 1, 0};
+                        }
+                        break;
+                    case GLFW_KEY_ESCAPE:
+                        if(action == GLFW_PRESS) {
+                            glfwSetWindowShouldClose(glfw_window_ptr, GLFW_TRUE);
+                        }
+                        break;
+                    case GLFW_KEY_M:
+                        if(action == GLFW_PRESS) {
+                            change_random_material_primitives();
                         }
                         break;
                     default:
