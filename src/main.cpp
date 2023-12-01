@@ -9,6 +9,7 @@
 #include <shared.hpp>
 
 #include "shaders/shared.inl"
+#include "random.hpp"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -20,6 +21,7 @@ namespace tests
         struct App : AppWindow<App>
         {
             const u32 INSTANCE_COUNT = 2;
+            const u32 MATERIAL_COUNT = 50;
             const f32 SPEED = 0.1f;
 
             glm::vec3 camera_pos = {0, 0, 2.5};
@@ -38,14 +40,17 @@ namespace tests
             std::vector<daxa::BlasId> proc_blas = {};
 
             // BUFFERS
-            daxa::BufferId mat_buffer = {};
-            u32 mat_buffer_size = sizeof(Camera);
+            daxa::BufferId cam_buffer = {};
+            u32 cam_buffer_size = sizeof(Camera);
 
             daxa::BufferId instance_buffer = {};
             u32 max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
 
             daxa::BufferId primitive_buffer = {};
             u32 max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
+
+            daxa::BufferId material_buffer = {};
+            u32 max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
             
             // CPU DATA
             u32 current_instance_count = 0;
@@ -54,9 +59,11 @@ namespace tests
             u32 current_primitive_count = 0;
             std::vector<PRIMITIVE> primitives = {};
 
+            u32 current_material_count = 0;
+            std::vector<MATERIAL> materials = {};
+
             // TODO: HACK to get around the fact we are harcoding the number of instances for now
             std::vector<daxa_f32mat4x4> transforms = {};
-            std::vector<daxa_f32vec3> colors = {};
             // TODO: HACK to get around the fact we are harcoding the number of primitives for now
             // std::array<daxa_f32mat3x2, 1> min_max_level0 = {};
             std::array<daxa_f32mat3x2, 2> min_max_level1 = {};
@@ -70,9 +77,10 @@ namespace tests
                     device.destroy_tlas(tlas);
                     for(auto blas : proc_blas)
                         device.destroy_blas(blas);
-                    device.destroy_buffer(mat_buffer);
+                    device.destroy_buffer(cam_buffer);
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
+                    device.destroy_buffer(material_buffer);
                 }
             }
 
@@ -164,7 +172,6 @@ namespace tests
                     },
                     instances[i].primitive_count = get_primitive_count_by_level(1);
                     instances[i].first_primitive_index = current_primitive_count;
-                    instances[i].color = colors[i];
 
                     if(instances[i].primitive_count == 0) {
                         std::cout << "primitive count is 0 for instance " << i << std::endl;
@@ -234,6 +241,7 @@ namespace tests
                                 (min_max[j].y.y + min_max[j].x.y) / 2.0f,
                                 (min_max[j].y.z + min_max[j].x.z) / 2.0f
                             ),
+                            .material_index = random_uint(0, MATERIAL_COUNT - 1),
                         });
                     }
 
@@ -356,9 +364,9 @@ namespace tests
                     .image_usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
                 });
 
-                mat_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = mat_buffer_size,
-                    .name = ("mat_buffer"),
+                cam_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = cam_buffer_size,
+                    .name = ("cam_buffer"),
                 });
 
                 instance_buffer = device.create_buffer(daxa::BufferInfo{
@@ -369,6 +377,11 @@ namespace tests
                 primitive_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_primitive_buffer_size,
                     .name = ("primitive_buffer"),
+                });
+
+                material_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_material_buffer_size,
+                    .name = ("material_buffer"),
                 });
                 
                 // TODO: This could be load from a file
@@ -385,19 +398,12 @@ namespace tests
                     };
                     
                     transforms.reserve(INSTANCE_COUNT);
-                    colors.reserve(INSTANCE_COUNT);
 
                     transforms.push_back(daxa_f32mat4x4{
                         {1, 0, 0, -0.5f},
                         {0, 1, 0, -0.5f},
                         {0, 0, 1, -1.0f},
                         {0, 0, 0, 1},
-                    });
-
-                    colors.push_back(daxa_f32vec3{
-                        .x = 1,
-                        .y = 0,
-                        .z = 0,
                     });
 
                     transforms.push_back(daxa_f32mat4x4{
@@ -407,11 +413,24 @@ namespace tests
                         {0, 0, 0, 1},
                     });
 
-                    colors.push_back(daxa_f32vec3{
-                        .x = 0,
-                        .y = 1,
-                        .z = 0,
-                    });
+                    current_material_count = MATERIAL_COUNT;
+
+                    materials.reserve(current_material_count);
+
+                    for(u32 i = 0; i < current_material_count; i++) {
+                        materials.push_back(MATERIAL{
+                            .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .transmittance = {0.0f, 0.0f, 0.0f},
+                            .emission = {0.0f, 0.0f, 0.0f},
+                            .shininess = random_float(0.0, 10.0),
+                            .ior = 1.0f,
+                            .dissolve = 1.0f,
+                            .illum = random_int(2, 10),
+                            .textureId = -1,
+                        });
+                    }
                     
 
                     for(u32 i = 0; i < INSTANCE_COUNT; i++) {
@@ -422,7 +441,6 @@ namespace tests
                                 {0, 0, 1, 0},
                                 {0, 0, 0, 1},
                             },
-                            .color = {1, 1, 1},
                             .first_primitive_index = 0,
                             .primitive_count = 0
                         };
@@ -505,12 +523,12 @@ namespace tests
                     .name = ("recorder (clearcolor)"),
                 });
 
-                auto mat_staging_buffer = device.create_buffer({
-                    .size = mat_buffer_size,
+                auto cam_staging_buffer = device.create_buffer({
+                    .size = cam_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("mat_staging_buffer"),
+                    .name = ("cam_staging_buffer"),
                 });
-                defer { device.destroy_buffer(mat_staging_buffer); };
+                defer { device.destroy_buffer(cam_staging_buffer); };
                 
                 daxa::u32 width = device.info_image(swapchain_image).value().size.x;
                 daxa::u32 height = device.info_image(swapchain_image).value().size.y;
@@ -524,10 +542,10 @@ namespace tests
                 // NOTE: Vulkan has inverted y axis in NDC
                 camera.inv_proj.y.y *= -1;
 
-                auto * buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(mat_staging_buffer).value();
+                auto * buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(cam_staging_buffer).value();
                 std::memcpy(buffer_ptr, 
                     &camera,
-                    mat_buffer_size);
+                    cam_buffer_size);
 
                 // Copy instances to buffer
                 u32 instance_buffer_size = std::min(max_instance_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE)));
@@ -561,15 +579,29 @@ namespace tests
                     primitives.data(),
                     primitive_buffer_size);
 
+                daxa_u32 material_buffer_size = std::min(max_material_buffer_size, static_cast<u32>(current_material_count * sizeof(MATERIAL)));
+
+                auto material_staging_buffer = device.create_buffer({
+                    .size = material_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("material_staging_buffer"),
+                });
+                defer { device.destroy_buffer(material_staging_buffer); };
+
+                auto * material_buffer_ptr = device.get_host_address_as<PRIMITIVE>(material_staging_buffer).value();
+                std::memcpy(material_buffer_ptr, 
+                    materials.data(),
+                    material_buffer_size);
+
                 recorder.pipeline_barrier({
                     .src_access = daxa::AccessConsts::HOST_WRITE,
                     .dst_access = daxa::AccessConsts::TRANSFER_READ,
                 });
 
                 recorder.copy_buffer_to_buffer({
-                    .src_buffer = mat_staging_buffer,
-                    .dst_buffer = mat_buffer,
-                    .size = mat_buffer_size,
+                    .src_buffer = cam_staging_buffer,
+                    .dst_buffer = cam_buffer,
+                    .size = cam_buffer_size,
                 });
 
                 recorder.copy_buffer_to_buffer({
@@ -582,6 +614,12 @@ namespace tests
                     .src_buffer = primitive_staging_buffer,
                     .dst_buffer = primitive_buffer,
                     .size = primitive_buffer_size,
+                });
+
+                recorder.copy_buffer_to_buffer({
+                    .src_buffer = material_staging_buffer,
+                    .dst_buffer = material_buffer,
+                    .size = material_buffer_size,
                 });
 
                 recorder.pipeline_barrier({
@@ -603,9 +641,10 @@ namespace tests
                     .size = {width, height},
                     .tlas = tlas,
                     .swapchain = swapchain_image.default_view(),
-                    .camera_buffer = this->device.get_device_address(mat_buffer).value(),
+                    .camera_buffer = this->device.get_device_address(cam_buffer).value(),
                     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
                     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
+                    .materials_buffer = this->device.get_device_address(material_buffer).value(),
                     // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
                     // .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
                     // .aabb_buffer = this->device.get_device_address(gpu_aabb_buffer).value(),

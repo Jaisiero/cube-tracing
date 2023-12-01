@@ -24,24 +24,24 @@ float hit_aabb(const Aabb aabb, const Ray r)
 }
 
 // Credit: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing__before/shaders/wavefront.glsl
-vec3 compute_diffuse(vec3 ambient_color, vec3 mat_diffuse, vec3 light_dir, vec3 normal)
+vec3 compute_diffuse(MATERIAL mat, vec3 light_dir, vec3 normal)
 {
   // Lambertian
   float dot_nl = max(dot(normal, light_dir), 0.0);
-  vec3  c     = mat_diffuse * dot_nl;
-//   if(mat.illum >= 1)
-    c += ambient_color;
+  vec3  c     = mat.diffuse * dot_nl;
+  if(mat.illum >= 1)
+    c += mat.ambient;
   return c;
 }
 
-vec3 compute_specular(vec3 specular_color, float shininess, vec3 viewDir, vec3 lightDir, vec3 normal)
+vec3 compute_specular(MATERIAL mat, vec3 viewDir, vec3 lightDir, vec3 normal)
 {
-//   if(mat.illum < 2)
-//     return vec3(0);
+  if(mat.illum < 2)
+    return vec3(0);
 
   // Compute specular only if not in shadow
   const float kPi        = 3.14159265;
-  const float kShininess = max(shininess, 4.0);
+  const float kShininess = max(mat.shininess, 4.0);
 
   // Specular
   const float kEnergyConservation = (2.0 + kShininess) / (2.0 * kPi);
@@ -49,7 +49,7 @@ vec3 compute_specular(vec3 specular_color, float shininess, vec3 viewDir, vec3 l
   vec3        R                   = reflect(-lightDir, normal);
   float       specular            = kEnergyConservation * pow(max(dot(V, R), 0.0), kShininess);
 
-  return vec3(specular_color * specular);
+  return vec3(mat.specular * specular);
 }
 
 
@@ -165,9 +165,6 @@ vec3 ray_color(Ray ray, int depth)
             // get instance id
             int instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
 
-            // get instance colour
-            vec3 geometry_color = deref(p.instance_buffer).instances[instance_id].color;
-
             mat4 transform = deref(p.instance_buffer).instances[instance_id].transform;
 
             transform = transpose(transform);
@@ -180,13 +177,20 @@ vec3 ray_color(Ray ray, int depth)
             // Get center position from transform
             vec3 aabb_center = vec3(0, 0, 0);
 
+            // Get primitive id
             int primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
 
-            uint actual_primitive_index = primitive_index+primitive_id;
+            // Get actual primitive index from offset and primitive id
+            uint actual_primitive_index = primitive_index + primitive_id;
 
             // Get primitive center position from transform
             aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
+
+            // get primitive material index
+            daxa_u32 material_index = deref(p.primitives_buffer).primitives[actual_primitive_index].material_index;
             
+            // get material
+            MATERIAL mat = deref(p.materials_buffer).materials[material_index];
 
             // vec3 half_extent = get_half_extent(level_index);
 
@@ -235,13 +239,13 @@ vec3 ray_color(Ray ray, int depth)
             }
 
             // Diffuse
-            vec3 diffuse = compute_diffuse(geometry_color, vec3(0.1), L, world_nrm);
+            vec3 diffuse = compute_diffuse(mat, L, world_nrm);
             vec3 specular = vec3(0.0, 0.0, 0.0);
             // Specular
 
             if(dot(world_nrm, L) > 0)
             {
-                specular = compute_specular(vec3(0.1), 4, ray.direction, L, world_nrm);
+                specular = compute_specular(mat, ray.direction, L, world_nrm);
             }
 
             // Apply the normal to the color
