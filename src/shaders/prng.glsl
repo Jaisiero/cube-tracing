@@ -88,20 +88,20 @@ daxa_f32vec3 reflection(daxa_f32vec3 v, daxa_f32vec3 n) {
 
 
 
-daxa_f32vec3 get_scatter_normal(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG lcg) {
-    daxa_f32vec3 scatter_direction;
+daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG lcg, out daxa_f32vec3 scatter_direction) {
     switch (m.type)
     {
     case TEXTURE_TYPE_METAL:
-        // return reflect(direction, world_nrm) + m.roughness * random_in_unit_sphere(lcg);
-        scatter_direction = reflection(direction, world_nrm);
-        break;
+        daxa_f32vec3 reflected = reflection(direction, world_nrm);
+        scatter_direction = reflected + min(m.roughness, 1.0) * random_unit_vector(lcg);
+        return dot(scatter_direction, world_nrm) > 0.0f;
     case TEXTURE_TYPE_LAMBERTIAN:
     default:
         scatter_direction = world_nrm + random_unit_vector(lcg);
         // Catch degenerate scatter direction
         if (normal_near_zero(scatter_direction))
             scatter_direction = world_nrm;
+        return true;
     }
-    return scatter_direction;
+    return false;
 }

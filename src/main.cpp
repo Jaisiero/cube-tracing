@@ -535,6 +535,7 @@ namespace tests
                             .transmittance = {0.0f, 0.0f, 0.0f},
                             .emission = {0.0f, 0.0f, 0.0f},
                             .shininess = random_float(0.0, 10.0),
+                            .roughness = random_float(0.0, 1.0),
                             .ior = 1.0f,
                             .dissolve = 1.0f,
                             .illum = random_int(0, 4),

@@ -91,6 +91,7 @@ struct MATERIAL
     daxa_f32vec3  transmittance;
     daxa_f32vec3  emission;
     daxa_f32 shininess;
+    daxa_f32 roughness;
     daxa_f32 ior;       // index of refraction
     daxa_f32 dissolve;  // 1 == opaque; 0 == fully transparent
     daxa_i32   illum;     // illumination model (see http://www.fileformat.info/format/material/)

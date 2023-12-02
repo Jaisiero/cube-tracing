@@ -132,7 +132,12 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
     // Attenuation based on specular
     attenuation *= mat.specular;
 
-    vec3 scatter_direction = get_scatter_normal(mat, ray.direction, world_nrm, lcg);
+    vec3 scatter_direction;
+    
+    if(scatter(mat, ray.direction, world_nrm, lcg, scatter_direction) == false) {
+        // No scatter
+        return false;
+    }
 
     ray = Ray((world_pos + (DELTA_RAY * scatter_direction)) , scatter_direction);
 
