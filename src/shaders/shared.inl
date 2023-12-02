@@ -12,12 +12,14 @@
 // #define LEVEL_0_HALF_EXTENT 0.25
 // #define LEVEL_1_HALF_EXTENT 0.125
 
-#define HALF_EXTENT 0.125
+#define HALF_EXTENT 0.125f
+#define VOXEL_COUNT_BY_AXIS 8 // 2^3
+#define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
 #define SAMPLES_PER_PIXEL 5
 #define SAMPLE_OFFSET 0.001 // Multi sample offset
 #define MAX_DEPTH 5
-#define DELTA_RAY 0.01
+#define DELTA_RAY 0.00001   // Delta ray offset for shadow rays
 // #define DELTA_RAY 0.001
 // #define DELTA_RAY 0.0001
 // #define DELTA_RAY 0.00001

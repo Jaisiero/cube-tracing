@@ -31,7 +31,7 @@ float hit_aabb(const Aabb aabb, const Ray r)
 // float light_distance  = 10.0;
 // uint light_type      = 0;  // 0: point light, 1: directional light
 
-daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int primitive_id, inout vec3 attenuation, inout vec3 out_colour, light_info light, LCG lcg) {
+daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int primitive_id, inout vec3 attenuation, inout vec3 out_color, light_info light, LCG lcg) {
 
     // float t_hit = -1.0f;
     vec3  L;
@@ -73,8 +73,9 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
     // TODO: Check if we can remove this
     if(t_hit < 0.0f) {
         // No hit
-        // attenuation = out_colour == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01); 
-        out_colour += background_color(ray.direction) * attenuation;
+        // attenuation = out_color == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01); 
+        out_color += background_color(ray.direction) * attenuation;
+        // out_color = vec3(0.0, 0.0, 0.0);
         return false;
     }
 
@@ -126,7 +127,7 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
     }
 
     // Apply the normal to the color
-    out_colour += vec3(light.intensity * attenuation * (diffuse + specular));
+    out_color += vec3(light.intensity * attenuation * (diffuse + specular));
 
 
     // Attenuation based on specular
@@ -135,6 +136,7 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
     vec3 scatter_direction;
     
     if(scatter(mat, ray.direction, world_nrm, lcg, scatter_direction) == false) {
+        // out_color = vec3(0.0, 0.0, 0.0);
         // No scatter
         return false;
     }
@@ -146,8 +148,8 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
 
 vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
 {
-    vec3 out_colour = vec3(0.0, 0.0, 0.0);
-    if(depth <= 0) return out_colour;
+    vec3 out_color = vec3(0.0, 0.0, 0.0);
+    if(depth <= 0) return out_color;
 
     // Ray query setup
     float t = 0.0f;
@@ -181,9 +183,9 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
         t_hit = -1.0f;
 
         rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
-                            // gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
+                            gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
                             // gl_RayFlagsTerminateOnFirstHitEXT,
-                            gl_RayFlagsOpaqueEXT,
+                            // gl_RayFlagsOpaqueEXT,
                             cull_mask, ray.origin, t_min, ray.direction, t_max);
                             
         while(rayQueryProceedEXT(ray_query)) {
@@ -219,11 +221,11 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
             // Get primitive id
             primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
 
-            if(ray_color_hit(ray, t_hit, instance_id, primitive_id, attenuation, out_colour, light, lcg) == false) {
+            if(ray_color_hit(ray, t_hit, instance_id, primitive_id, attenuation, out_color, light, lcg) == false) {
                 // No hit
-                // attenuation = out_colour == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01); 
-                // out_colour += background_color(ray.direction) * attenuation;
-                return out_colour;
+                // attenuation = out_color == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01); 
+                // out_color += background_color(ray.direction) * attenuation;
+                return out_color;
             }
             
             // if(i == 1) {
@@ -233,14 +235,14 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
 
         } else {
             // No hit
-            // if out_colour is (0,0,0) then we are in the background primary ray otherwise we are in a shadow ray
-            attenuation = out_colour == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01);
-            out_colour += background_color(ray.direction) * attenuation;
-            return out_colour;
+            // if out_color is (0,0,0) then we are in the background primary ray otherwise we are in a shadow ray
+            attenuation = out_color == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01);
+            out_color += background_color(ray.direction) * attenuation;
+            return out_color;
         }
     };
 
-    return out_colour;
+    return out_color;
 }
 
 layout(local_size_x = 8, local_size_y = 8) in;
@@ -254,7 +256,7 @@ void main()
     uvec2 launch_size = gl_NumWorkGroups.xy * 8;
 
     // Color output
-    vec3 out_colour = vec3(0.0, 0.0, 0.0);
+    vec3 out_color = vec3(0.0, 0.0, 0.0);
 
     // Ray setup
     Ray ray;
@@ -289,7 +291,7 @@ void main()
     ray.direction = direction.xyz;
 
     // 1 sample per pixel
-    out_colour = ray_color(ray, MAX_DEPTH, index, lcg);
+    out_color = ray_color(ray, MAX_DEPTH, index, lcg);
 #else
 
     // Multiple samples per pixel (anti-aliasing) 
@@ -304,16 +306,16 @@ void main()
         ray.origin = origin.xyz;
         ray.direction = direction.xyz;
 
-        vec3 partial_out_colour = ray_color(ray, MAX_DEPTH, index, lcg);
+        vec3 partial_out_color = ray_color(ray, MAX_DEPTH, index, lcg);
 
-        out_colour += partial_out_colour / SAMPLES_PER_PIXEL;
+        out_color += partial_out_color / SAMPLES_PER_PIXEL;
     }
-    clamp(out_colour, 0.0, 0.99999999);
+    clamp(out_color, 0.0, 0.99999999);
 
 #endif
 
     // NOTE: We are not using gamma correction because we suspect that swapchain is already in sRGB    
-    // imageStore(daxa_image2D(p.swapchain), index, fromLinear(vec4(out_colour,1)));
-    // imageStore(daxa_image2D(p.swapchain), index, linear_to_ gamma(vec4(out_colour,1)));
-    imageStore(daxa_image2D(p.swapchain), index, vec4(out_colour,1));
+    // imageStore(daxa_image2D(p.swapchain), index, fromLinear(vec4(out_color,1)));
+    // imageStore(daxa_image2D(p.swapchain), index, linear_to_ gamma(vec4(out_color,1)));
+    imageStore(daxa_image2D(p.swapchain), index, vec4(out_color,1));
 }

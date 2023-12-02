@@ -20,11 +20,11 @@ namespace tests
     {
         struct App : AppWindow<App>
         {
-            const f32 AXIS_DISPLACEMENT = 1.0f;
-            const u32 INSTANCE_X_AXIS_COUNT = 2;
-            const u32 INSTANCE_Z_AXIS_COUNT = 2;
+            const f32 AXIS_DISPLACEMENT = HALF_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
+            const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
+            const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
-            const u32 MATERIAL_COUNT = 200;
+            const u32 MATERIAL_COUNT = 1000;
             const f32 SPEED = 0.1f;
 
             glm::vec3 camera_pos = {0, 0, 2.5};
@@ -66,6 +66,7 @@ namespace tests
             std::array<INSTANCE, MAX_INSTANCES> instances = {};
 
             u32 current_primitive_count = 0;
+            u32 max_current_primitive_count = 0;
             std::vector<PRIMITIVE> primitives = {};
 
             u32 current_material_count = 0;
@@ -73,9 +74,9 @@ namespace tests
 
             // TODO: HACK to get around the fact we are harcoding the number of instances for now
             std::vector<daxa_f32mat4x4> transforms = {};
-            // TODO: HACK to get around the fact we are harcoding the number of primitives for now
-            // std::array<daxa_f32mat3x2, 1> min_max_level0 = {};
-            std::array<daxa_f32mat3x2, 2> min_max_level1 = {};
+            // // TODO: HACK to get around the fact we are harcoding the number of primitives for now
+            // // std::array<daxa_f32mat3x2, 1> min_max_level0 = {};
+            // std::array<daxa_f32mat3x2, 2> min_max_array = {};
 
             App() : AppWindow<App>("ray query test") {}
 
@@ -114,28 +115,44 @@ namespace tests
                 };
             }
 
-            u32 get_primitive_count_by_level(u32 level_index) {
-                switch (level_index)
-                {
-                case 1:
-                    return min_max_level1.size();
-                    break;
-                default:
-                    return 0;
-                    break;
-                }
-            }
+            // u32 get_primitive_count_by_level(u32 level_index) {
+            //     switch (level_index)
+            //     {
+            //     case 1:
+            //         return min_max_array.size();
+            //         break;
+            //     default:
+            //         return 0;
+            //         break;
+            //     }
+            // }
 
-            constexpr daxa_f32mat3x2 * get_min_max_by_level(u32 level_index) {
-                switch (level_index)
-                {
-                case 1:
-                    return min_max_level1.data();
-                    break;
-                default:
-                    return nullptr;
-                    break;
-                }
+            // constexpr daxa_f32mat3x2 * get_min_max_by_level(u32 level_index) {
+            //     switch (level_index)
+            //     {
+            //     case 1:
+            //         return min_max_array.data();
+            //         break;
+            //     default:
+            //         return nullptr;
+            //         break;
+            //     }
+            // }
+
+            // Generate min max by coord (x, y, z) where x, y, z are 0 to VOXEL_COUNT_BY_AXIS-1 where VOXEL_COUNT_BY_AXIS / 2 is the center at (0, 0, 0)
+            constexpr daxa_f32mat3x2 generate_min_max_by_coord(u32 x, u32 y, u32 z) const {
+                return daxa_f32mat3x2{
+                    {
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (x * HALF_EXTENT),
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (y * HALF_EXTENT),
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (z * HALF_EXTENT)
+                    },
+                    {
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((x + 1) * HALF_EXTENT),
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((y + 1) * HALF_EXTENT),
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((z + 1) * HALF_EXTENT)
+                    }
+                };
             }
 
             void change_random_material_primitives() {
@@ -195,20 +212,32 @@ namespace tests
             daxa_Bool8 build_tlas(u32 instance_count) {
                 daxa_Bool8 some_level_changed = false;
 
-                daxa_u32 primitive_count = 0;
-                for(u32 i = 0; i < instance_count; i++) {
-                    primitive_count += get_primitive_count_by_level(1);
+                if(instance_count == 0) {
+                    std::cout << "instance_count == 0" << std::endl;
+                    return false;
                 }
 
-                if(primitive_count == 0) {
-                    std::cout << "primitive count is 0" << std::endl;
+                // daxa_u32 primitive_count = 0;
+                // for(u32 i = 0; i < instance_count; i++) {
+                //     primitive_count += get_primitive_count_by_level(1);
+                // }
+
+                // if(primitive_count == 0) {
+                //     std::cout << "primitive count is 0" << std::endl;
+                //     return false;
+                // }
+
+                this->max_current_primitive_count = CHUNK_VOXEL_COUNT * instance_count / 2;
+
+                if(this->max_current_primitive_count > MAX_PRIMITIVES) {
+                    std::cout << "max_current_primitive_count > MAX_PRIMITIVES" << std::endl;
                     return false;
                 }
 
                 this->current_instance_count = 0;
 
                 this->primitives.clear();
-                this->primitives.reserve(primitive_count);
+                this->primitives.reserve(this->max_current_primitive_count);
                 
                 if(this->tlas != daxa::TlasId{})
                     device.destroy_tlas(tlas);
@@ -218,7 +247,7 @@ namespace tests
                 this->proc_blas.clear();
                 this->proc_blas.reserve(instance_count);
 
-                u32 aabb_buffer_size = primitive_count * sizeof(daxa_f32mat3x2);
+                u32 aabb_buffer_size = this->max_current_primitive_count * sizeof(daxa_f32mat3x2);
 
                 // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
                 // GeometryType of each element of pGeometries must be the same
@@ -230,12 +259,30 @@ namespace tests
                 defer { device.destroy_buffer(aabb_buffer); };
 
                 current_primitive_count = 0;
+                    
+                std::vector<daxa_f32mat3x2> min_max;
+                min_max.reserve(CHUNK_VOXEL_COUNT);
 
                 for(u32 i = 0; i < instance_count; i++) {
+                    min_max.clear();
+                    
+                    for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
+                        for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
+                            for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
+                                
+                                if(random_float(0.0, 1.0) > 0.7) {
+                                    min_max.push_back(generate_min_max_by_coord(x, y, z));
+                                }
+                            }
+                        }
+                    }
+
+                    u32 primitive_count_current_instance = min_max.size();
+
                     instances[i].transform = {
                         transforms[i],
                     },
-                    instances[i].primitive_count = get_primitive_count_by_level(1);
+                    instances[i].primitive_count = primitive_count_current_instance;
                     instances[i].first_primitive_index = current_primitive_count;
 
                     if(instances[i].primitive_count == 0) {
@@ -244,12 +291,29 @@ namespace tests
                     }
 
                     std::memcpy((device.get_host_address_as<daxa_f32mat3x2>(aabb_buffer).value() + current_primitive_count),
-                        get_min_max_by_level(1), 
+                        min_max.data(), 
                         instances[i].primitive_count * sizeof(daxa_f32mat3x2));
                     current_primitive_count += instances[i].primitive_count;
+
+                    
+                    
+                    // push primitives
+                    for(u32 j = 0; j < instances[i].primitive_count; j++) {
+                        
+                        primitives.push_back(PRIMITIVE{
+                            .center = daxa_f32vec3(
+                                (min_max[j].y.x + min_max[j].x.x) / 2.0f,
+                                (min_max[j].y.y + min_max[j].x.y) / 2.0f,
+                                (min_max[j].y.z + min_max[j].x.z) / 2.0f
+                            ),
+                            .material_index = random_uint(0, MATERIAL_COUNT - 1),
+                        });
+                    }
+
                 }
 
                 
+                // COMMENT FROM HERE
                 std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
                 blas_build_infos.reserve(instance_count);
 
@@ -295,20 +359,6 @@ namespace tests
                     }));
                     blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = this->proc_blas.at(this->proc_blas.size() - 1);
                     blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = device.get_device_address(proc_blas_scratch_buffer).value();
-                    
-                    // push primitives
-                    auto min_max = get_min_max_by_level(1);
-                    for(u32 j = 0; j < instances[i].primitive_count; j++) {
-                        
-                        primitives.push_back(PRIMITIVE{
-                            .center = daxa_f32vec3(
-                                (min_max[j].y.x + min_max[j].x.x) / 2.0f,
-                                (min_max[j].y.y + min_max[j].x.y) / 2.0f,
-                                (min_max[j].y.z + min_max[j].x.z) / 2.0f
-                            ),
-                            .material_index = random_uint(0, MATERIAL_COUNT - 1),
-                        });
-                    }
 
                     blas_instance_array.push_back(daxa_BlasInstanceData{
                         .transform = 
@@ -322,6 +372,7 @@ namespace tests
 
                     ++current_instance_index;
                 }
+                // COMMENT TO HERE
 
 
                 if(current_instance_index != instance_count) {
@@ -465,10 +516,20 @@ namespace tests
                     //     daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0.25f, 0.25f, 0.25f})
                     // };
                     
-                    min_max_level1 = std::array{
-                        daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0, 0, 0}),
-                        daxa_f32mat3x2({0, 0, 0}, {0.25f, 0.25f, 0.25f})
-                    };
+                    // min_max_array[0] = daxa_f32mat3x2({-HALF_EXTENT * 2, -HALF_EXTENT * 2, -HALF_EXTENT * 2}, {0, 0, 0});
+                    // min_max_array[1] = daxa_f32mat3x2({0, 0, 0}, {HALF_EXTENT * 2, HALF_EXTENT * 2, HALF_EXTENT * 2});
+
+
+                    // for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
+                    //     for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
+                    //         for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
+                    //             auto random_min_max = generate_min_max_by_coord(x, y, z);
+                    //             std::cout << "coord : [" << x << ", " << y << ", " << z << "]" << std::endl;
+                    //             std::cout << "  random min : (" << random_min_max.x.x << ", " << random_min_max.x.y << ", " << random_min_max.x.z << ")" << std::endl;
+                    //             std::cout << "  random max : (" << random_min_max.y.x << ", " << random_min_max.y.y << ", " << random_min_max.y.z << ")" << std::endl;
+                    //         }
+                    //     }
+                    // }
 
                     f32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
                     f32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
@@ -488,16 +549,16 @@ namespace tests
                     transforms.reserve(current_instance_count);
 
                     // Centered around 0, 0, 0 positioning instances like a mirror
-                    f32 x_axis_initial_position = (INSTANCE_X_AXIS_COUNT) * AXIS_DISPLACEMENT;
-                    f32 z_axis_initial_position = (INSTANCE_Z_AXIS_COUNT) * AXIS_DISPLACEMENT;
+                    f32 x_axis_initial_position = ((INSTANCE_X_AXIS_COUNT) * AXIS_DISPLACEMENT / 2);
+                    f32 z_axis_initial_position = ((INSTANCE_Z_AXIS_COUNT) * AXIS_DISPLACEMENT / 2);
 
 
                     for(i32 x = -INSTANCE_X_AXIS_COUNT; x < (i32)INSTANCE_X_AXIS_COUNT; x++) {
                         for(i32 z= -INSTANCE_Z_AXIS_COUNT; z < (i32)INSTANCE_Z_AXIS_COUNT; z++) {
                             transforms.push_back(daxa_f32mat4x4{
-                                {1, 0, 0, (x * 1.0f) - x_axis_initial_position},
+                                {1, 0, 0, (x * AXIS_DISPLACEMENT)},
                                 {0, 1, 0, 0},
-                                {0, 0, 1, (z * 1.0f) - z_axis_initial_position},
+                                {0, 0, 1, (z * AXIS_DISPLACEMENT)},
                                 {0, 0, 0, 1},
                             });
                         }
@@ -507,20 +568,6 @@ namespace tests
                         std::cout << "transforms.size() != current_instance_count" << std::endl;
                         abort();
                     }
-
-                    // transforms.push_back(daxa_f32mat4x4{
-                    //     {1, 0, 0, -0.5f},
-                    //     {0, 1, 0, -0.5f},
-                    //     {0, 0, 1, -1.0f},
-                    //     {0, 0, 0, 1},
-                    // });
-
-                    // transforms.push_back(daxa_f32mat4x4{
-                    //     {1, 0, 0, 0.5f},
-                    //     {0, 1, 0, 0.5f},
-                    //     {0, 0, 1, -0.5f},
-                    //     {0, 0, 0, 1},
-                    // });
 
                     current_material_count = MATERIAL_COUNT;
 
@@ -541,20 +588,6 @@ namespace tests
                             .illum = random_int(0, 4),
                             .textureId = -1,
                         });
-                    }
-                    
-
-                    for(u32 i = 0; i < current_instance_count; i++) {
-                        instances[i] = INSTANCE{
-                            .transform = {
-                                {1, 0, 0, 0},
-                                {0, 1, 0, 0},
-                                {0, 0, 1, 0},
-                                {0, 0, 0, 1},
-                            },
-                            .first_primitive_index = 0,
-                            .primitive_count = 0
-                        };
                     }
 
                     proc_blas.reserve(current_instance_count);
