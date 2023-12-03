@@ -139,7 +139,7 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
         return false;
     }
 
-    ray = Ray((world_pos + (DELTA_RAY * scatter_direction)) , scatter_direction);
+    ray = Ray((world_pos + (DELTA_RAY * world_nrm)) , scatter_direction);
 
     return true;
 }

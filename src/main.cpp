@@ -71,7 +71,7 @@ namespace tests
 
             u32 current_material_count = 0;
             std::vector<MATERIAL> materials = {};
-¡
+
             std::vector<daxa_f32mat4x4> transforms = {};
 
             App() : AppWindow<App>("ray query test") {}
@@ -551,7 +551,7 @@ namespace tests
 
                     for(u32 i = 0; i < current_material_count; i++) {
                         materials.push_back(MATERIAL{
-                            .type = random_uint(0, 1),
+                            .type = random_uint(0, 2),
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
@@ -559,7 +559,7 @@ namespace tests
                             .emission = {0.0f, 0.0f, 0.0f},
                             .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
-                            .ior = 1.0f,
+                            .ior = random_float(1.0, 2.65),
                             .dissolve = 1.0f,
                             .illum = random_int(2, 4),
                             .textureId = -1,

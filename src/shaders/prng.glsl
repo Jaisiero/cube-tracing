@@ -73,18 +73,18 @@ daxa_f32vec3 reflection(daxa_f32vec3 v, daxa_f32vec3 n) {
 }
 
 
-// daxa_f32 schlick(daxa_f32 cosine, daxa_f32 ref_idx) {
-//     daxa_f32 r0 = (1.0f - ref_idx) / (1.0f + ref_idx);
-//     r0 = r0 * r0;
-//     return r0 + (1.0f - r0) * pow((1.0f - cosine), 5.0f);
-// }
+daxa_f32 reflectance(daxa_f32 cosine, daxa_f32 ref_idx) {
+    daxa_f32 r0 = (1.0f - ref_idx) / (1.0f + ref_idx);
+    r0 = r0 * r0;
+    return r0 + (1.0f - r0) * pow((1.0f - cosine), 5.0f);
+}
 
-// daxa_f32vec3 refract(daxa_f32vec3 uv, daxa_f32vec3 n, daxa_f32 etai_over_etat) {
-//     daxa_f32 cos_theta = dot(-uv, n);
-//     daxa_f32vec3 r_out_parallel =  etai_over_etat * (uv + cos_theta*n);
-//     daxa_f32vec3 r_out_perp = -sqrt(1.0f - length_square(r_out_parallel)) * n;
-//     return r_out_parallel + r_out_perp;
-// }
+daxa_f32vec3 refraction(daxa_f32vec3 uv, daxa_f32vec3 n, daxa_f32 etai_over_etat) {
+    daxa_f32 cos_theta = min(dot(-uv, n), 1.0f);
+    daxa_f32vec3 r_out_perp =  etai_over_etat * (uv + cos_theta*n);
+    daxa_f32vec3 r_out_parallel = -sqrt(abs(1.0 - length_square(r_out_perp))) * n;
+    return r_out_parallel + r_out_perp;
+}
 
 
 
@@ -95,6 +95,23 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG
         daxa_f32vec3 reflected = reflection(direction, world_nrm);
         scatter_direction = reflected + min(m.roughness, 1.0) * random_unit_vector(lcg);
         return dot(scatter_direction, world_nrm) > 0.0f;
+    case TEXTURE_TYPE_DIELECTRIC:
+        daxa_f32 etai_over_etat = m.ior;
+        if (dot(direction, world_nrm) > 0.0f) {
+            world_nrm = -world_nrm;
+            etai_over_etat = 1.0f / etai_over_etat;
+        }
+
+        daxa_f32 cos_theta = min(dot(-direction, world_nrm), 1.0);
+        daxa_f32 sin_theta = sqrt(1.0 - cos_theta*cos_theta);
+
+        daxa_b32 cannot_refract = etai_over_etat * sin_theta > 1.0;
+
+        if (cannot_refract || reflectance(cos_theta, etai_over_etat) > randomInRangeLCG(lcg, 0.0f, 1.0f))
+            scatter_direction = reflection(direction, world_nrm);
+        else
+            scatter_direction = refraction(direction, world_nrm, etai_over_etat);
+        return true;
     case TEXTURE_TYPE_LAMBERTIAN:
     default:
         scatter_direction = world_nrm + random_unit_vector(lcg);
