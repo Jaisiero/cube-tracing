@@ -71,12 +71,8 @@ namespace tests
 
             u32 current_material_count = 0;
             std::vector<MATERIAL> materials = {};
-
-            // TODO: HACK to get around the fact we are harcoding the number of instances for now
+¡
             std::vector<daxa_f32mat4x4> transforms = {};
-            // // TODO: HACK to get around the fact we are harcoding the number of primitives for now
-            // // std::array<daxa_f32mat3x2, 1> min_max_level0 = {};
-            // std::array<daxa_f32mat3x2, 2> min_max_array = {};
 
             App() : AppWindow<App>("ray query test") {}
 
@@ -143,14 +139,14 @@ namespace tests
             constexpr daxa_f32mat3x2 generate_min_max_by_coord(u32 x, u32 y, u32 z) const {
                 return daxa_f32mat3x2{
                     {
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (x * HALF_EXTENT),
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (y * HALF_EXTENT),
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (z * HALF_EXTENT)
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (x * HALF_EXTENT) + AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (y * HALF_EXTENT) + AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (z * HALF_EXTENT) + AVOID_VOXEL_COLLAIDE
                     },
                     {
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((x + 1) * HALF_EXTENT),
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((y + 1) * HALF_EXTENT),
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((z + 1) * HALF_EXTENT)
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((x + 1) * HALF_EXTENT) - AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((y + 1) * HALF_EXTENT) - AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((z + 1) * HALF_EXTENT) - AVOID_VOXEL_COLLAIDE
                     }
                 };
             }
@@ -510,26 +506,6 @@ namespace tests
                 
                 // TODO: This could be load from a file
                 {
-                    // TODO: Give center + half extent
-                    /// aabb data:
-                    // min_max_level0 = std::array{
-                    //     daxa_f32mat3x2({-0.25f, -0.25f, -0.25f}, {0.25f, 0.25f, 0.25f})
-                    // };
-                    
-                    // min_max_array[0] = daxa_f32mat3x2({-HALF_EXTENT * 2, -HALF_EXTENT * 2, -HALF_EXTENT * 2}, {0, 0, 0});
-                    // min_max_array[1] = daxa_f32mat3x2({0, 0, 0}, {HALF_EXTENT * 2, HALF_EXTENT * 2, HALF_EXTENT * 2});
-
-
-                    // for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
-                    //     for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
-                    //         for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
-                    //             auto random_min_max = generate_min_max_by_coord(x, y, z);
-                    //             std::cout << "coord : [" << x << ", " << y << ", " << z << "]" << std::endl;
-                    //             std::cout << "  random min : (" << random_min_max.x.x << ", " << random_min_max.x.y << ", " << random_min_max.x.z << ")" << std::endl;
-                    //             std::cout << "  random max : (" << random_min_max.y.x << ", " << random_min_max.y.y << ", " << random_min_max.y.z << ")" << std::endl;
-                    //         }
-                    //     }
-                    // }
 
                     f32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
                     f32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
@@ -556,9 +532,9 @@ namespace tests
                     for(i32 x = -INSTANCE_X_AXIS_COUNT; x < (i32)INSTANCE_X_AXIS_COUNT; x++) {
                         for(i32 z= -INSTANCE_Z_AXIS_COUNT; z < (i32)INSTANCE_Z_AXIS_COUNT; z++) {
                             transforms.push_back(daxa_f32mat4x4{
-                                {1, 0, 0, (x * AXIS_DISPLACEMENT)},
+                                {1, 0, 0, (x * (AXIS_DISPLACEMENT))},
                                 {0, 1, 0, 0},
-                                {0, 0, 1, (z * AXIS_DISPLACEMENT)},
+                                {0, 0, 1, (z * (AXIS_DISPLACEMENT))},
                                 {0, 0, 0, 1},
                             });
                         }
@@ -581,11 +557,11 @@ namespace tests
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .transmittance = {0.0f, 0.0f, 0.0f},
                             .emission = {0.0f, 0.0f, 0.0f},
-                            .shininess = random_float(0.0, 10.0),
+                            .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
                             .ior = 1.0f,
                             .dissolve = 1.0f,
-                            .illum = random_int(0, 4),
+                            .illum = random_int(2, 4),
                             .textureId = -1,
                         });
                     }

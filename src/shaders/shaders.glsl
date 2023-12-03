@@ -1,8 +1,8 @@
 #define DAXA_RAY_TRACING 1
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
-// TODO: Debugging
-#extension GL_EXT_debug_printf : enable
+// NOTE: Debugging
+// #extension GL_EXT_debug_printf : enable
 #include <daxa/daxa.inl>
 
 #include "shared.inl"
@@ -58,7 +58,7 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
 
     // vec3 half_extent = get_half_extent(level_index);
 
-    vec3 half_extent = vec3(HALF_EXTENT);
+    vec3 half_extent = vec3(HALF_EXTENT - AVOID_VOXEL_COLLAIDE);
 
     // Get aabb from center_pos and transform
     Aabb aabb;
@@ -70,7 +70,6 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
     // Check if ray hits aabb
     t_hit = hit_aabb(aabb, ray);
 
-    // TODO: Check if we can remove this
     if(t_hit < 0.0f) {
         // No hit
         // attenuation = out_color == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01); 
@@ -91,8 +90,7 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
     vec3 world_nrm = normalize(world_pos-center_pos);
 
 
-    // TODO: This is kinda killing light reflection
-// Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
+    // Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
     //Computing the normal for a cube
     {
         vec3  absN = abs(world_nrm);
@@ -160,7 +158,7 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
     rayQueryEXT ray_query;
 
     // TODO: Configurable by buffer
-    const vec3 LIGHT_POSITION = vec3(0.0, 10.0, -5.0);
+    const vec3 LIGHT_POSITION = vec3(5.0, 10.0, 5.0);
     // Vector toward the light
     const float light_intensity = 100.0;
     const float light_distance  = 50.0;
@@ -223,8 +221,6 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
 
             if(ray_color_hit(ray, t_hit, instance_id, primitive_id, attenuation, out_color, light, lcg) == false) {
                 // No hit
-                // attenuation = out_color == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01); 
-                // out_color += background_color(ray.direction) * attenuation;
                 return out_color;
             }
             

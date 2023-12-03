@@ -17,9 +17,10 @@
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
 #define SAMPLES_PER_PIXEL 5
-#define SAMPLE_OFFSET 0.001 // Multi sample offset
+#define SAMPLE_OFFSET 0.0001 // Multi sample offset
 #define MAX_DEPTH 5
-#define DELTA_RAY 0.00001   // Delta ray offset for shadow rays
+#define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
+#define AVOID_VOXEL_COLLAIDE 0.0001f   // Delta ray offset for shadow rays
 // #define DELTA_RAY 0.001
 // #define DELTA_RAY 0.0001
 // #define DELTA_RAY 0.00001
