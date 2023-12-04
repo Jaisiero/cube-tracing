@@ -15,7 +15,8 @@ DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 float hit_aabb(const Aabb aabb, const Ray r)
 {
     // avoid division by 0
-    vec3 inv_dir = 1.0 / (r.direction + 1e-6);
+    vec3 inv_dir = 1.0 / (r.direction);
+
     vec3 tbot = inv_dir * (aabb.minimum - r.origin);
     vec3 ttop = inv_dir * (aabb.maximum - r.origin);
     vec3 tmin = min(ttop, tbot);
@@ -31,24 +32,14 @@ float hit_aabb(const Aabb aabb, const Ray r)
 // float light_distance  = 10.0;
 // uint light_type      = 0;  // 0: point light, 1: directional light
 
-daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int primitive_id, inout vec3 attenuation, inout vec3 out_color, light_info light, LCG lcg) {
-
-    // float t_hit = -1.0f;
-    vec3  L;
-
-    mat4 transform = deref(p.instance_buffer).instances[instance_id].transform;
-    transform = transpose(transform);
-
-    mat4 inv_transform = inverse(transform);
-
+daxa_b32 hit_color(inout Ray ray, inout hit_info hit, inout vec3 attenuation, inout vec3 out_color, light_info light, LCG lcg)
+{
+    vec3 L = vec3(0.0, 0.0, 0.0);
     // Get first primitive index from instance id
-    uint primitive_index = deref(p.instance_buffer).instances[instance_id].first_primitive_index;
+    uint primitive_index = deref(p.instance_buffer).instances[hit.instance_id].first_primitive_index;
 
     // Get actual primitive index from offset and primitive id
-    uint actual_primitive_index = primitive_index + primitive_id;
-
-    // Get center position from transform
-    vec3 aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
+    uint actual_primitive_index = primitive_index + hit.primitive_id;
 
     // get primitive material index
     daxa_u32 material_index = deref(p.primitives_buffer).primitives[actual_primitive_index].material_index;
@@ -56,7 +47,80 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
     // get material
     MATERIAL mat = deref(p.materials_buffer).materials[material_index];
 
-    // vec3 half_extent = get_half_extent(level_index);
+
+    // Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
+    //Computing the normal for a cube
+    {
+        vec3  absN = abs(hit.world_nrm);
+        float maxC = max(max(absN.x, absN.y), absN.z);
+        hit.world_nrm = (maxC == absN.x) ? vec3(sign(hit.world_nrm.x), 0, 0) :
+            (maxC == absN.y) ? vec3(0, sign(hit.world_nrm.y), 0) :
+            (maxC == absN.z) ? vec3(0, 0, sign(hit.world_nrm.z)) :
+                                hit.world_nrm;
+    }
+
+    // Point light
+    if(light.type == 0)
+    {
+        vec3 lDir      = light.position - hit.world_pos;
+        light.distance  = length(lDir);
+        light.intensity = light.intensity / (light.distance * light.distance);
+        L              = normalize(lDir);
+    }
+    else  // Directional light
+    {
+        L = normalize(light.position);
+    }
+
+    // Diffuse
+    vec3 diffuse = compute_diffuse(mat, L, hit.world_nrm);
+    vec3 specular = vec3(0.0, 0.0, 0.0);
+    // Specular
+
+    if(dot(hit.world_nrm, L) > 0)
+    {
+        specular = compute_specular(mat, ray.direction, L, hit.world_nrm);
+    }
+
+    //Apply the normal to the color
+    out_color += vec3(light.intensity * attenuation * (diffuse + specular));
+
+    // out_color += attenuation * mat.diffuse;
+
+
+    // Attenuation based on specular
+    attenuation *= 0.5;
+
+    vec3 scatter_direction;
+    
+    if(scatter(mat, ray.direction, hit.world_nrm, lcg, scatter_direction) == false) {
+        // out_color = vec3(0.0, 0.0, 0.0);
+        // No scatter
+        return false;
+    }
+
+    ray = Ray((hit.world_pos + (DELTA_RAY * hit.world_nrm)) , scatter_direction);
+
+    return true;
+}
+
+
+
+daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit) {
+
+    mat4 transform = deref(p.instance_buffer).instances[hit.instance_id].transform;
+    transform = transpose(transform);
+
+    mat4 inv_transform = inverse(transform);
+
+    // Get first primitive index from instance id
+    uint primitive_index = deref(p.instance_buffer).instances[hit.instance_id].first_primitive_index;
+
+    // Get actual primitive index from offset and primitive id
+    uint actual_primitive_index = primitive_index + hit.primitive_id;
+
+    // Get center position from transform
+    vec3 aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
 
     vec3 half_extent = vec3(HALF_EXTENT - AVOID_VOXEL_COLLAIDE);
 
@@ -68,78 +132,23 @@ daxa_b32 ray_color_hit(inout Ray ray, out float t_hit, int instance_id, int prim
     aabb.maximum = (transform * vec4(aabb.maximum, 1)).xyz;
 
     // Check if ray hits aabb
-    t_hit = hit_aabb(aabb, ray);
+    hit.distance = hit_aabb(aabb, ray);
 
-    if(t_hit < 0.0f) {
-        // No hit
-        // attenuation = out_color == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01); 
-        out_color += background_color(ray.direction) * attenuation;
-        // out_color = vec3(0.0, 0.0, 0.0);
+    if(hit.distance < 0.0f) {
+        // No hit, discard
         return false;
     }
 
     // hit point in world space
-    vec3 world_pos = ray.origin + ray.direction * t_hit;
+    hit.world_pos = ray.origin + ray.direction * hit.distance;
 
-    // t += t_hit;
+    // t += hit.distance;
     
     // Get center position of the aabb in world space
     vec3 center_pos = (transform * vec4(aabb_center, 1)).xyz;
 
     // Computing the normal at hit position
-    vec3 world_nrm = normalize(world_pos-center_pos);
-
-
-    // Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
-    //Computing the normal for a cube
-    {
-        vec3  absN = abs(world_nrm);
-        float maxC = max(max(absN.x, absN.y), absN.z);
-        world_nrm = (maxC == absN.x) ? vec3(sign(world_nrm.x), 0, 0) :
-            (maxC == absN.y) ? vec3(0, sign(world_nrm.y), 0) :
-            (maxC == absN.z) ? vec3(0, 0, sign(world_nrm.z)) :
-                                world_nrm;
-    }
-
-    // Point light
-    if(light.type == 0)
-    {
-        vec3 lDir      = light.position - world_pos;
-        light.distance  = length(lDir);
-        light.intensity = light.intensity / (light.distance * light.distance);
-        L              = normalize(lDir);
-    }
-    else  // Directional light
-    {
-        L = normalize(light.position);
-    }
-
-    // Diffuse
-    vec3 diffuse = compute_diffuse(mat, L, world_nrm);
-    vec3 specular = vec3(0.0, 0.0, 0.0);
-    // Specular
-
-    if(dot(world_nrm, L) > 0)
-    {
-        specular = compute_specular(mat, ray.direction, L, world_nrm);
-    }
-
-    // Apply the normal to the color
-    out_color += vec3(light.intensity * attenuation * (diffuse + specular));
-
-
-    // Attenuation based on specular
-    attenuation *= mat.specular;
-
-    vec3 scatter_direction;
-    
-    if(scatter(mat, ray.direction, world_nrm, lcg, scatter_direction) == false) {
-        // out_color = vec3(0.0, 0.0, 0.0);
-        // No scatter
-        return false;
-    }
-
-    ray = Ray((world_pos + (DELTA_RAY * world_nrm)) , scatter_direction);
+    hit.world_nrm = normalize(hit.world_pos-center_pos);
 
     return true;
 }
@@ -152,6 +161,7 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
     // Ray query setup
     float t = 0.0f;
     float t_hit = -1.0f;
+    hit_info hit;
     uint cull_mask = 0xff;
     float t_min = 0.0001f;
     float t_max = 1000.0f;
@@ -176,9 +186,13 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
     int instance_id = -1;
     int primitive_id = -1;
 
+    daxa_b32 found = false;
+
     for(int i = 0; i < depth; i++) {
 
         t_hit = -1.0f;
+
+        found = false;
 
         rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
                             gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
@@ -191,45 +205,31 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
             if(type ==
                 gl_RayQueryCandidateIntersectionAABBEXT) {
                 rayQueryGenerateIntersectionEXT(ray_query, t);
-                // rayQueryTerminateEXT(ray_query);
+                
+                uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
+
+                if(type_commited ==
+                    gl_RayQueryCommittedIntersectionGeneratedEXT)
+                {     
+                    
+                    // get instance id
+                    hit.instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
+
+                    // Get primitive id
+                    hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
+
+                    if(ray_box_intersection(ray, hit) == true) {
+                        if(hit_color(ray, hit, attenuation, out_color, light, lcg) == true) {
+                            found = true;
+                            break;
+                        }
+                    }
+                } 
             }
         }
+        rayQueryTerminateEXT(ray_query);
 
-        uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
-
-        if(type_commited ==
-            gl_RayQueryCommittedIntersectionGeneratedEXT)
-        {
-            
-            // t_hit = rayQueryGetIntersectionTEXT(ray_query, true);
-
-            // instance_id = -1;
-            // primitive_id = -1;
-
-            // Ray ray2 = ray;
-
-
-            // NOTE: Debugging
-            // write t_hit to hit_distance buffer element from index[x, y] in hit distance buffer
-            // deref(p.hit_distance_buffer).hit_distances[index.x + index.y * p.size.x].distance = t_hit;            
-            
-            // get instance id
-            instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
-
-            // Get primitive id
-            primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
-
-            if(ray_color_hit(ray, t_hit, instance_id, primitive_id, attenuation, out_color, light, lcg) == false) {
-                // No hit
-                return out_color;
-            }
-            
-            // if(i == 1) {
-            //     HIT_DISTANCE hit_distance = HIT_DISTANCE(t_hit, ray2.origin, ray2.direction, instance_id, primitive_id);
-            //     deref(p.hit_distance_buffer).hit_distances[index.x + index.y * p.size.x] = hit_distance;
-            // }
-
-        } else {
+        if(found == false) {
             // No hit
             // if out_color is (0,0,0) then we are in the background primary ray otherwise we are in a shadow ray
             attenuation = out_color == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01);
@@ -267,10 +267,10 @@ void main()
     vec2 d = inv_UV * 2.0 - 1.0;
     
     // DEBUGGING
-    deref(p.hit_distance_buffer).hit_distances[index.x + index.y * p.size.x].distance = -1.0f;
+    // deref(p.hit_distance_buffer).hit_distances[index.x + index.y * p.size.x].distance = -1.0f;
 
     LCG lcg;
-    daxa_u32 frame_number = deref(p.camera_buffer).frame_number;
+    daxa_u32 frame_number = deref(p.status_buffer).frame_number;
     daxa_u32 seedX = index.x;
     daxa_u32 seedY = index.y;
 
@@ -314,4 +314,57 @@ void main()
     // imageStore(daxa_image2D(p.swapchain), index, fromLinear(vec4(out_color,1)));
     // imageStore(daxa_image2D(p.swapchain), index, linear_to_ gamma(vec4(out_color,1)));
     imageStore(daxa_image2D(p.swapchain), index, vec4(out_color,1));
+
+
+    // DEBUGGING
+    daxa_b32 is_active = deref(p.status_buffer).is_active;
+    if(is_active == true) {
+        daxa_u32vec2 pixel = deref(p.status_buffer).pixel; 
+        if(index.x == pixel.x && index.y == pixel.y) {
+            
+            deref(p.status_output_buffer).instance_id = MAX_INSTANCES;
+            deref(p.status_output_buffer).primitive_id = MAX_PRIMITIVES;
+
+            // Ray query setup
+            uint cull_mask = 0xff;
+            float t_min = 0.0001f;
+            float t_max = 1000.0f;
+            hit_info hit;
+            rayQueryEXT ray_query; 
+
+            rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
+                            gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
+                            cull_mask, ray.origin, t_min, ray.direction, t_max);
+                            
+            while(rayQueryProceedEXT(ray_query)) {
+                uint type = rayQueryGetIntersectionTypeEXT(ray_query, false);
+                if(type ==
+                    gl_RayQueryCandidateIntersectionAABBEXT) {
+                    rayQueryGenerateIntersectionEXT(ray_query, hit.distance);
+                    
+                    uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
+
+                    if(type_commited ==
+                        gl_RayQueryCommittedIntersectionGeneratedEXT)
+                    {     
+                        
+                        // get instance id
+                        hit.instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
+
+                        // Get primitive id
+                        hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
+
+                        if(ray_box_intersection(ray, hit) == true) {
+                            // if hit write instance & primtive id to status_output_buffer
+                            deref(p.status_output_buffer).instance_id = hit.instance_id;
+                            deref(p.status_output_buffer).primitive_id = hit.primitive_id;
+                            deref(p.status_output_buffer).hit_distance = hit.distance;
+                            deref(p.status_output_buffer).hit_position = hit.world_pos;
+                            break;
+                        }
+                    } 
+                }
+            }
+        }
+    }
 }

@@ -16,11 +16,12 @@
 #define VOXEL_COUNT_BY_AXIS 8 // 2^3
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
-#define SAMPLES_PER_PIXEL 5
+#define SAMPLES_PER_PIXEL 10
 #define SAMPLE_OFFSET 0.0001 // Multi sample offset
-#define MAX_DEPTH 5
+#define MAX_DEPTH 2
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 0.0001f   // Delta ray offset for shadow rays
+// #define AVOID_VOXEL_COLLAIDE 0.025f   // Delta ray offset for shadow rays
 // #define DELTA_RAY 0.001
 // #define DELTA_RAY 0.0001
 // #define DELTA_RAY 0.00001
@@ -38,6 +39,15 @@ struct Ray
   daxa_f32vec3 direction;
 };
 
+struct hit_info
+{
+  daxa_f32 distance;
+  daxa_f32vec3 world_pos;
+  daxa_f32vec3 world_nrm;
+  daxa_i32 instance_id;
+  daxa_i32 primitive_id;
+};
+
 
 struct light_info
 {
@@ -51,9 +61,16 @@ struct Camera {
     daxa_f32mat4x4 inv_view;
     daxa_f32mat4x4 inv_proj;
     // daxa_f32 LOD_distance;
-    daxa_u32 frame_number;
 };
 DAXA_DECL_BUFFER_PTR(Camera)
+
+struct Status
+{
+    daxa_u32 frame_number;
+    daxa_u32vec2 pixel;
+    daxa_b32 is_active;
+};
+DAXA_DECL_BUFFER_PTR(Status)
 
 struct INSTANCE
 {
@@ -107,6 +124,16 @@ struct MATERIALS
 };
 DAXA_DECL_BUFFER_PTR(MATERIALS)
 
+
+struct STATUS_OUTPUT
+{
+    daxa_u32 instance_id;
+    daxa_u32 primitive_id;
+    daxa_f32 hit_distance;
+    daxa_f32vec3 hit_position;
+};
+DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
+
 // struct INSTANCE_LEVEL
 // {
 //     daxa_i32 level_index;
@@ -120,23 +147,23 @@ DAXA_DECL_BUFFER_PTR(MATERIALS)
 
 // NOTE: Debugging
 
-#define WIDTH_RES 3840
-#define HEIGHT_RES 2160
+// #define WIDTH_RES 3840
+// #define HEIGHT_RES 2160
 
-struct HIT_DISTANCE
-{
-    daxa_f32 distance;
-    daxa_f32vec3 position;
-    daxa_f32vec3 normal;
-    daxa_u32 instance_index;
-    daxa_u32 primitive_index;
-};
+// struct HIT_DISTANCE
+// {
+//     daxa_f32 distance;
+//     daxa_f32vec3 position;
+//     daxa_f32vec3 normal;
+//     daxa_u32 instance_index;
+//     daxa_u32 primitive_index;
+// };
 
-struct HIT_DISTANCES
-{
-    HIT_DISTANCE hit_distances[WIDTH_RES*HEIGHT_RES];
-};
-DAXA_DECL_BUFFER_PTR(HIT_DISTANCES)
+// struct HIT_DISTANCES
+// {
+//     HIT_DISTANCE hit_distances[WIDTH_RES*HEIGHT_RES];
+// };
+// DAXA_DECL_BUFFER_PTR(HIT_DISTANCES)
 
 // struct INSTANCE_DISTANCE
 // {
@@ -166,10 +193,12 @@ struct PushConstant
     daxa_TlasId tlas;
     daxa_ImageViewId swapchain;
     daxa_BufferPtr(Camera) camera_buffer;
+    daxa_BufferPtr(Status) status_buffer;
     daxa_BufferPtr(INSTANCES) instance_buffer;
     daxa_BufferPtr(PRIMITIVES) primitives_buffer;
     daxa_BufferPtr(MATERIALS) materials_buffer;
-    daxa_RWBufferPtr(HIT_DISTANCES) hit_distance_buffer;
+    daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer; 
+    // daxa_RWBufferPtr(HIT_DISTANCES) hit_distance_buffer;
     // daxa_RWBufferPtr(INSTANCE_LEVELS) instance_level_buffer;
     // daxa_RWBufferPtr(INSTANCE_DISTANCES) instance_distance_buffer;
     // daxa_RWBufferPtr(PRIMITIVE_AABBS) aabb_buffer;

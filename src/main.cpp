@@ -21,8 +21,8 @@ namespace tests
         struct App : AppWindow<App>
         {
             const f32 AXIS_DISPLACEMENT = HALF_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
-            const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
-            const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
+            const u32 INSTANCE_X_AXIS_COUNT = 1; // 2^2 (mirrored on both sides of the x axis)
+            const u32 INSTANCE_Z_AXIS_COUNT = 1; // 2^2 (mirrored on both sides of the z axis)
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
             const u32 MATERIAL_COUNT = 1000;
             const f32 SPEED = 0.1f;
@@ -31,7 +31,7 @@ namespace tests
             glm::vec3 camera_center = {0, 0, 0};
             glm::vec3 camera_up = {0, 1, 0};
 
-            u32 current_frame = 0;
+           Status status = {};
 
 
             daxa::Instance daxa_ctx = {};
@@ -46,6 +46,9 @@ namespace tests
             daxa::BufferId cam_buffer = {};
             u32 cam_buffer_size = sizeof(Camera);
 
+            daxa::BufferId status_buffer = {};
+            u32 status_buffer_size = sizeof(Status);
+
             daxa::BufferId instance_buffer = {};
             u32 max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
 
@@ -55,10 +58,13 @@ namespace tests
             daxa::BufferId material_buffer = {};
             u32 max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
 
+            daxa::BufferId status_output_buffer = {};
+            u32 max_status_output_buffer_size = sizeof(STATUS_OUTPUT);
+
             // DEBUGGING
-            daxa::BufferId hit_distance_buffer = {};
-            u32 max_hit_distance_buffer_size = sizeof(HIT_DISTANCE) * WIDTH_RES * HEIGHT_RES;
-            std::vector<HIT_DISTANCE> hit_distances = {};
+            // daxa::BufferId hit_distance_buffer = {};
+            // u32 max_hit_distance_buffer_size = sizeof(HIT_DISTANCE) * WIDTH_RES * HEIGHT_RES;
+            // std::vector<HIT_DISTANCE> hit_distances = {};
             // DEBUGGING
             
             // CPU DATA
@@ -87,8 +93,10 @@ namespace tests
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
                     device.destroy_buffer(material_buffer);
+                    device.destroy_buffer(status_buffer);
+                    device.destroy_buffer(status_output_buffer);
                     // DEBUGGING
-                    device.destroy_buffer(hit_distance_buffer);
+                    // device.destroy_buffer(hit_distance_buffer);
                 }
             }
 
@@ -266,7 +274,7 @@ namespace tests
                         for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                             for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
                                 
-                                if(random_float(0.0, 1.0) > 0.7) {
+                                if(random_float(0.0, 1.0) > 0.99) {
                                     min_max.push_back(generate_min_max_by_coord(x, y, z));
                                 }
                             }
@@ -481,6 +489,11 @@ namespace tests
                     .name = ("cam_buffer"),
                 });
 
+                status_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = status_buffer_size,
+                    .name = ("status_buffer"),
+                });
+
                 instance_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_instance_buffer_size,
                     .name = ("instance_buffer"),
@@ -496,13 +509,18 @@ namespace tests
                     .name = ("material_buffer"),
                 });
 
-                hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_hit_distance_buffer_size,
-                    .name = ("hit_distance_buffer"),
+                status_output_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_status_output_buffer_size,
+                    .name = ("status_output_buffer"),
                 });
 
+                // hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
+                //     .size = max_hit_distance_buffer_size,
+                //     .name = ("hit_distance_buffer"),
+                // });
+
                 // DEBUGGING
-                hit_distances.resize(WIDTH_RES * HEIGHT_RES);
+                // hit_distances.resize(WIDTH_RES * HEIGHT_RES);
                 
                 // TODO: This could be load from a file
                 {
@@ -616,7 +634,7 @@ namespace tests
                 if (!minimized)
                 {
                     draw();
-                    // download_gpu_info();
+                    download_gpu_info();
                     // call build tlas
                     // if(!build_tlas(INSTANCE_COUNT)) {
                     //     std::cout << "Failed to build tlas" << std::endl;
@@ -642,30 +660,44 @@ namespace tests
                 auto recorder = device.create_command_recorder({
                     .name = ("recorder (clearcolor)"),
                 });
-
-                auto cam_staging_buffer = device.create_buffer({
-                    .size = cam_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("cam_staging_buffer"),
-                });
-                defer { device.destroy_buffer(cam_staging_buffer); };
                 
                 daxa::u32 width = device.info_image(swapchain_image).value().size.x;
                 daxa::u32 height = device.info_image(swapchain_image).value().size.y;
 
                 Camera camera = {
                     .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(camera_pos, camera_center, camera_up))),
-                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), (width/(f32)height), 0.001f, 1000.0f))),
-                    .frame_number = current_frame++,
+                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), (width/(f32)height), 0.001f, 1000.0f)))
                 };
 
                 // NOTE: Vulkan has inverted y axis in NDC
                 camera.inv_proj.y.y *= -1;
+                
+                auto cam_staging_buffer = device.create_buffer({
+                    .size = cam_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("cam_staging_buffer"),
+                });
+                defer { device.destroy_buffer(cam_staging_buffer); };
 
                 auto * buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(cam_staging_buffer).value();
                 std::memcpy(buffer_ptr, 
                     &camera,
                     cam_buffer_size);
+
+                auto status_staging_buffer = device.create_buffer({
+                    .size = status_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("status_staging_buffer"),
+                });
+                defer { device.destroy_buffer(status_staging_buffer); };
+
+                auto * status_buffer_ptr = device.get_host_address_as<Status>(status_staging_buffer).value();
+                std::memcpy(status_buffer_ptr, 
+                    &status,
+                    status_buffer_size);
+
+                // Update/restore status
+                status.frame_number++;
 
                 // Copy instances to buffer
                 u32 instance_buffer_size = std::min(max_instance_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE)));
@@ -724,6 +756,14 @@ namespace tests
                     .size = cam_buffer_size,
                 });
 
+                recorder.copy_buffer_to_buffer(
+                    {
+                        .src_buffer = status_staging_buffer,
+                        .dst_buffer = status_buffer,
+                        .size = status_buffer_size,
+                    }
+                );
+
                 recorder.copy_buffer_to_buffer({
                     .src_buffer = instance_staging_buffer,
                     .dst_buffer = instance_buffer,
@@ -760,10 +800,12 @@ namespace tests
                     .tlas = tlas,
                     .swapchain = swapchain_image.default_view(),
                     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
+                    .status_buffer = this->device.get_device_address(status_buffer).value(),
                     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
                     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
-                    .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
+                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
                     // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
                     // .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
                     // .aabb_buffer = this->device.get_device_address(gpu_aabb_buffer).value(),
@@ -801,6 +843,10 @@ namespace tests
 
             void download_gpu_info() {
 
+                if(!status.is_active) {
+                    return;
+                }
+
                 // if(current_instance_count == 0) {
                 //     return;
                 // }
@@ -825,17 +871,25 @@ namespace tests
                 // daxa_u32 width = device.info_image(swapchain.current_image()).value().size.x;
                 // daxa_u32 height = device.info_image(swapchain.current_image()).value().size.y;
 
-                daxa_u32 width = swapchain.get_surface_extent().x;
-                daxa_u32 height = swapchain.get_surface_extent().y;
+                // daxa_u32 width = swapchain.get_surface_extent().x;
+                // daxa_u32 height = swapchain.get_surface_extent().y;
 
-                u32 hit_distance_buffer_size = std::min(max_hit_distance_buffer_size, static_cast<u32>(width * height * sizeof(HIT_DISTANCE)));
+                // u32 hit_distance_buffer_size = std::min(max_hit_distance_buffer_size, static_cast<u32>(width * height * sizeof(HIT_DISTANCE)));
+                // // Some Device to Host copy here
+                // auto hit_distance_staging_buffer = device.create_buffer({
+                //     .size = hit_distance_buffer_size,
+                //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                //     .name = ("hit_distance_staging_buffer"),
+                // });
+                // defer { device.destroy_buffer(hit_distance_staging_buffer); };
+
                 // Some Device to Host copy here
-                auto hit_distance_staging_buffer = device.create_buffer({
-                    .size = hit_distance_buffer_size,
+                auto status_output_staging_buffer = device.create_buffer({
+                    .size = max_status_output_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("hit_distance_staging_buffer"),
+                    .name = ("status_output_staging_buffer"),
                 });
-                defer { device.destroy_buffer(hit_distance_staging_buffer); };
+                defer { device.destroy_buffer(status_output_staging_buffer); };
 
                 /// Record build commands:
                 auto exec_cmds = [&]()
@@ -852,16 +906,11 @@ namespace tests
                     //     .size = instance_level_buffer_size,
                     // });
                     
-                    recorder.copy_buffer_to_buffer({
-                        .src_buffer = hit_distance_buffer,
-                        .dst_buffer = hit_distance_staging_buffer,
-                        .size = hit_distance_buffer_size,
-                    });
-
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                        .dst_access = daxa::AccessConsts::HOST_READ,
-                    });
+                    // recorder.copy_buffer_to_buffer({
+                    //     .src_buffer = hit_distance_buffer,
+                    //     .dst_buffer = hit_distance_staging_buffer,
+                    //     .size = hit_distance_buffer_size,
+                    // });
 
                     // recorder.copy_buffer_to_buffer({
                     //     .src_buffer = instance_distance_buffer,
@@ -869,16 +918,17 @@ namespace tests
                     //     .size = instance_distance_buffer_size,
                     // });
 
-                    // recorder.pipeline_barrier({
-                    //     .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                    //     .dst_access = daxa::AccessConsts::HOST_READ,
-                    // });
-
                     // recorder.copy_buffer_to_buffer({
                     //     .src_buffer = gpu_aabb_buffer,
                     //     .dst_buffer = aabb_staging_buffer,
                     //     .size = aabb_buffer_size,
                     // });
+                    
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = status_output_buffer,
+                        .dst_buffer = status_output_staging_buffer,
+                        .size = max_status_output_buffer_size,
+                    });
 
                     recorder.pipeline_barrier({
                         .src_access = daxa::AccessConsts::TRANSFER_WRITE,
@@ -910,11 +960,28 @@ namespace tests
                     // gpu_timeline.wait_for_value(cpu_timeline);
                 }
 
-                /// NOTE: this must wait for the commands to finish
-                auto * hit_distance_buffer_ptr = device.get_host_address_as<HIT_DISTANCE>(hit_distance_staging_buffer).value();
-                std::memcpy(hit_distances.data(), 
-                    hit_distance_buffer_ptr,
-                    hit_distance_buffer_size);
+                STATUS_OUTPUT status_output;
+
+
+                auto * status_buffer_ptr = device.get_host_address_as<Status>(status_output_staging_buffer).value();
+                std::memcpy(&status_output,
+                    status_buffer_ptr,
+                    max_status_output_buffer_size);
+
+
+                std::cout << "status pixel [" << status.pixel.x << ", " << status.pixel.y << "]" << std::endl;
+                std::cout << "status out instance index " << status_output.instance_id << " primitive index " << status_output.primitive_id 
+                    << " distance " << status_output.hit_distance << " position [" << status_output.hit_position.x << ", " << status_output.hit_position.y << ", " << status_output.hit_position.z << "]" << std::endl;
+                
+                
+                status.is_active = false;
+                status.pixel = {0, 0};
+
+                // /// NOTE: this must wait for the commands to finish
+                // auto * hit_distance_buffer_ptr = device.get_host_address_as<HIT_DISTANCE>(hit_distance_staging_buffer).value();
+                // std::memcpy(hit_distances.data(), 
+                //     hit_distance_buffer_ptr,
+                //     hit_distance_buffer_size);
                 // for(u32 i = 0; i < hit_distances.size(); i++) {
                 //     if(hit_distances[i].distance > 0.0f) {
                 //         // translate i to x, y, print distance, instance index, primitive index
@@ -976,7 +1043,20 @@ namespace tests
             }
 
             void on_mouse_move(f32 /*unused*/, f32 /*unused*/) {}
-            void on_mouse_button(i32 /*unused*/, i32 /*unused*/) {}
+            void on_mouse_button(i32 button, i32 action) {
+                // Click right button store the current mouse position
+                if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_1)
+                {
+                    double mouse_x, mouse_y;
+                    glfwGetCursorPos(glfw_window_ptr, &mouse_x, &mouse_y);
+
+                    status.pixel = {static_cast<daxa_u32>(mouse_x), static_cast<daxa_u32>(mouse_y)};
+                    status.is_active = true;
+
+                    // std::cout << "mouse_x: " << status.pixel.x << " mouse_y: " << status.pixel.y << std::endl;
+                }
+
+            }
             void on_key(i32 key, i32 action) {
                 
                 switch(key) {
