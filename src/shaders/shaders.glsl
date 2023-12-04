@@ -9,29 +9,11 @@
 #include "mat.glsl"
 #include "prng.glsl"
 
+#include "intersect.glsl"
+
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
-// Ray-AABB intersection
-float hit_aabb(const Aabb aabb, const Ray r)
-{
-    // avoid division by 0
-    vec3 inv_dir = 1.0 / (r.direction);
-
-    vec3 tbot = inv_dir * (aabb.minimum - r.origin);
-    vec3 ttop = inv_dir * (aabb.maximum - r.origin);
-    vec3 tmin = min(ttop, tbot);
-    vec3 tmax = max(ttop, tbot);
-    float t0 = max(tmin.x, max(tmin.y, tmin.z));
-    float t1 = min(tmax.x, min(tmax.y, tmax.z));
-    return t1 > max(t0, 0.0) ? t0 : -1.0;
-}
-
-// const vec3 LIGHT_POSITION = vec3(5.0, 10.0, -5.0);
-// Vector toward the light
-// float light_intensity = 100.0;
-// float light_distance  = 10.0;
-// uint light_type      = 0;  // 0: point light, 1: directional light
-
+// Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
 daxa_b32 hit_color(inout Ray ray, inout hit_info hit, inout vec3 attenuation, inout vec3 out_color, light_info light, LCG lcg)
 {
     vec3 L = vec3(0.0, 0.0, 0.0);
@@ -47,18 +29,6 @@ daxa_b32 hit_color(inout Ray ray, inout hit_info hit, inout vec3 attenuation, in
     // get material
     MATERIAL mat = deref(p.materials_buffer).materials[material_index];
 
-
-    // Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
-    //Computing the normal for a cube
-    {
-        vec3  absN = abs(hit.world_nrm);
-        float maxC = max(max(absN.x, absN.y), absN.z);
-        hit.world_nrm = (maxC == absN.x) ? vec3(sign(hit.world_nrm.x), 0, 0) :
-            (maxC == absN.y) ? vec3(0, sign(hit.world_nrm.y), 0) :
-            (maxC == absN.z) ? vec3(0, 0, sign(hit.world_nrm.z)) :
-                                hit.world_nrm;
-    }
-
     // Point light
     if(light.type == 0)
     {
@@ -73,23 +43,63 @@ daxa_b32 hit_color(inout Ray ray, inout hit_info hit, inout vec3 attenuation, in
     }
 
     // Diffuse
-    vec3 diffuse = compute_diffuse(mat, L, hit.world_nrm);
-    vec3 specular = vec3(0.0, 0.0, 0.0);
-    // Specular
+    vec3  diffuse     = compute_diffuse(mat, L, hit.world_nrm);
+    vec3  specular    = vec3(0);
 
-    if(dot(hit.world_nrm, L) > 0)
-    {
-        specular = compute_specular(mat, ray.direction, L, hit.world_nrm);
+    daxa_b32 is_shadowed = false;
+
+    if(dot(hit.world_nrm, L) > 0) {
+        float t_min   = 0.001;
+        float t_max   = light.distance;
+        float t       = 0.0;
+        vec3  origin = hit.world_pos;
+        vec3  ray_dir = L;
+        uint cull_mask = 0xff;
+        rayQueryEXT ray_query_shadow;
+        rayQueryInitializeEXT(ray_query_shadow, daxa_accelerationStructureEXT(p.tlas),
+                            // gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
+                            // gl_RayFlagsTerminateOnFirstHitEXT,
+                            gl_RayFlagsOpaqueEXT,
+                            cull_mask, 
+                            origin,
+                            t_min, 
+                            ray_dir, 
+                            t_max);
+                            
+        while(rayQueryProceedEXT(ray_query_shadow)) {
+            uint type = rayQueryGetIntersectionTypeEXT(ray_query_shadow, false);
+            if(type ==
+                gl_RayQueryCandidateIntersectionAABBEXT) {
+                rayQueryGenerateIntersectionEXT(ray_query_shadow, t);
+                
+                uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query_shadow, true);
+
+                if(type_commited ==
+                    gl_RayQueryCommittedIntersectionGeneratedEXT)
+                {     
+                   // set is_shadowed to true
+                     is_shadowed = true;
+                     break;
+                } 
+            }
+        }
+        rayQueryTerminateEXT(ray_query_shadow); 
+
+        if(is_shadowed)
+        {
+            attenuation *= 0.3;
+            // specular = background_color(ray.direction);
+        }
+        else
+        {
+            attenuation *= 1.0;
+            // Specular
+            specular = compute_specular(mat, ray.direction , L, hit.world_nrm);
+        }
     }
 
     //Apply the normal to the color
     out_color += vec3(light.intensity * attenuation * (diffuse + specular));
-
-    // out_color += attenuation * mat.diffuse;
-
-
-    // Attenuation based on specular
-    attenuation *= 0.5;
 
     vec3 scatter_direction;
     
@@ -104,6 +114,21 @@ daxa_b32 hit_color(inout Ray ray, inout hit_info hit, inout vec3 attenuation, in
     return true;
 }
 
+// TODO: Check if this is correct
+    
+//Computing the normal for a cube
+// Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
+daxa_f32vec3 transform_to_cube_normal(daxa_f32vec3 normal)
+{
+    vec3  abs_n = abs(normal);
+    float max_c = max(max(abs_n.x, abs_n.y), abs_n.z);
+    normal = (max_c == abs_n.x) ? vec3(sign(normal.x), 0, 0) :
+        (max_c == abs_n.y) ? vec3(0, sign(normal.y), 0) :
+        (max_c == abs_n.z) ? vec3(0, 0, sign(normal.z)) :
+                            normal;
+    return normal;
+}
+
 
 
 daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit) {
@@ -112,6 +137,7 @@ daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit) {
     transform = transpose(transform);
 
     mat4 inv_transform = inverse(transform);
+    mat4 inv_transform_t = transpose(inv_transform);
 
     // Get first primitive index from instance id
     uint primitive_index = deref(p.instance_buffer).instances[hit.instance_id].first_primitive_index;
@@ -125,30 +151,29 @@ daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit) {
     vec3 half_extent = vec3(HALF_EXTENT - AVOID_VOXEL_COLLAIDE);
 
     // Get aabb from center_pos and transform
-    Aabb aabb;
-    aabb.minimum = aabb_center - half_extent;
-    aabb.maximum =  aabb_center + half_extent;
-    aabb.minimum = (transform * vec4(aabb.minimum, 1)).xyz;
-    aabb.maximum = (transform * vec4(aabb.maximum, 1)).xyz;
+    // Aabb aabb;
+    // aabb.minimum = aabb_center - half_extent;
+    // aabb.maximum =  aabb_center + half_extent;
+    // aabb.minimum = (transform * vec4(aabb.minimum, 1)).xyz;
+    // aabb.maximum = (transform * vec4(aabb.maximum, 1)).xyz;
 
-    // Check if ray hits aabb
-    hit.distance = hit_aabb(aabb, ray);
+    Ray local_ray = Ray((inv_transform * vec4(ray.origin - half_extent * ray.direction, 1)).xyz, (inv_transform * vec4(ray.direction, 0)).xyz);
 
-    if(hit.distance < 0.0f) {
-        // No hit, discard
+    Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(transform));
+
+    daxa_b32 intersection = ourIntersectBox(box, local_ray, hit.distance, hit.world_nrm, false, safeInverse(ray.direction));
+
+    if(intersection == false) {
         return false;
     }
 
     // hit point in world space
     hit.world_pos = ray.origin + ray.direction * hit.distance;
 
-    // t += hit.distance;
-    
-    // Get center position of the aabb in world space
-    vec3 center_pos = (transform * vec4(aabb_center, 1)).xyz;
+    hit.primitive_center = hit.world_nrm;
 
-    // Computing the normal at hit position
-    hit.world_nrm = normalize(hit.world_pos-center_pos);
+    // normal in world space
+    hit.world_nrm = (inv_transform * vec4(hit.world_nrm, 0)).xyz;
 
     return true;
 }
@@ -168,7 +193,7 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
     rayQueryEXT ray_query;
 
     // TODO: Configurable by buffer
-    const vec3 LIGHT_POSITION = vec3(5.0, 10.0, 5.0);
+    const vec3 LIGHT_POSITION = vec3(1.0, 10.0, 5.0);
     // Vector toward the light
     const float light_intensity = 100.0;
     const float light_distance  = 50.0;
@@ -219,10 +244,14 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
                     hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
 
                     if(ray_box_intersection(ray, hit) == true) {
+                        
+                        vec3 tmp_color = hit.world_nrm * 0.5 + 0.5;
+
                         if(hit_color(ray, hit, attenuation, out_color, light, lcg) == true) {
                             found = true;
-                            break;
                         }
+                        out_color = tmp_color;
+                        break;
                     }
                 } 
             }
@@ -257,7 +286,7 @@ void main()
     // Ray setup
     Ray ray;
 
-    // Camera setup
+    // camera_viewsetup
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
     // daxa_f32 LOD_distance = deref(p.camera_buffer).LOD_distance;
@@ -329,12 +358,14 @@ void main()
             uint cull_mask = 0xff;
             float t_min = 0.0001f;
             float t_max = 1000.0f;
+            vec3 origin = ray.origin;
+            vec3 ray_dir = ray.direction;
             hit_info hit;
             rayQueryEXT ray_query; 
 
             rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
                             gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
-                            cull_mask, ray.origin, t_min, ray.direction, t_max);
+                            cull_mask, origin, t_min, ray_dir, t_max);
                             
             while(rayQueryProceedEXT(ray_query)) {
                 uint type = rayQueryGetIntersectionTypeEXT(ray_query, false);
@@ -360,6 +391,11 @@ void main()
                             deref(p.status_output_buffer).primitive_id = hit.primitive_id;
                             deref(p.status_output_buffer).hit_distance = hit.distance;
                             deref(p.status_output_buffer).hit_position = hit.world_pos;
+                            deref(p.status_output_buffer).hit_normal = hit.world_nrm;
+                            deref(p.status_output_buffer).origin = ray.origin;
+                            deref(p.status_output_buffer).direction = ray.direction;
+                            deref(p.status_output_buffer).primitive_center = hit.primitive_center;
+
                             break;
                         }
                     } 

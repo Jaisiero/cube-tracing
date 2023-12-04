@@ -9,10 +9,8 @@
 #include <shared.hpp>
 
 #include "shaders/shared.inl"
-#include "random.hpp"
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include "rng.h"
+#include "camera.h"
 
 namespace tests
 {
@@ -21,8 +19,8 @@ namespace tests
         struct App : AppWindow<App>
         {
             const f32 AXIS_DISPLACEMENT = HALF_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
-            const u32 INSTANCE_X_AXIS_COUNT = 1; // 2^2 (mirrored on both sides of the x axis)
-            const u32 INSTANCE_Z_AXIS_COUNT = 1; // 2^2 (mirrored on both sides of the z axis)
+            const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
+            const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
             const u32 MATERIAL_COUNT = 1000;
             const f32 SPEED = 0.1f;
@@ -32,6 +30,7 @@ namespace tests
             glm::vec3 camera_up = {0, 1, 0};
 
            Status status = {};
+           camera camera = {};
 
 
             daxa::Instance daxa_ctx = {};
@@ -44,7 +43,7 @@ namespace tests
 
             // BUFFERS
             daxa::BufferId cam_buffer = {};
-            u32 cam_buffer_size = sizeof(Camera);
+            u32 cam_buffer_size = sizeof(camera_view);
 
             daxa::BufferId status_buffer = {};
             u32 status_buffer_size = sizeof(Status);
@@ -664,7 +663,7 @@ namespace tests
                 daxa::u32 width = device.info_image(swapchain_image).value().size.x;
                 daxa::u32 height = device.info_image(swapchain_image).value().size.y;
 
-                Camera camera = {
+                camera_view camera = {
                     .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(camera_pos, camera_center, camera_up))),
                     .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), (width/(f32)height), 0.001f, 1000.0f)))
                 };
@@ -971,7 +970,12 @@ namespace tests
 
                 std::cout << "status pixel [" << status.pixel.x << ", " << status.pixel.y << "]" << std::endl;
                 std::cout << "status out instance index " << status_output.instance_id << " primitive index " << status_output.primitive_id 
-                    << " distance " << status_output.hit_distance << " position [" << status_output.hit_position.x << ", " << status_output.hit_position.y << ", " << status_output.hit_position.z << "]" << std::endl;
+                    << " distance " << status_output.hit_distance << " position [" << status_output.hit_position.x << ", " << status_output.hit_position.y << ", " << status_output.hit_position.z << "]" 
+                    << " normal [" << status_output.hit_normal.x << ", " << status_output.hit_normal.y << ", " << status_output.hit_normal.z << "]"
+                    << " origin [" << status_output.origin.x << ", " << status_output.origin.y << ", " << status_output.origin.z << "]"
+                    << " direction [" << status_output.direction.x << ", " << status_output.direction.y << ", " << status_output.direction.z << "]" 
+                    << " primitive center [" << status_output.primitive_center.x << ", " << status_output.primitive_center.y << ", " << status_output.primitive_center.z << "]"
+                    << std::endl;
                 
                 
                 status.is_active = false;

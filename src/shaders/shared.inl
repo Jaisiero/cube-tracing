@@ -16,9 +16,9 @@
 #define VOXEL_COUNT_BY_AXIS 8 // 2^3
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
-#define SAMPLES_PER_PIXEL 10
+#define SAMPLES_PER_PIXEL 1
 #define SAMPLE_OFFSET 0.0001 // Multi sample offset
-#define MAX_DEPTH 2
+#define MAX_DEPTH 1
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 0.0001f   // Delta ray offset for shadow rays
 // #define AVOID_VOXEL_COLLAIDE 0.025f   // Delta ray offset for shadow rays
@@ -46,6 +46,7 @@ struct hit_info
   daxa_f32vec3 world_nrm;
   daxa_i32 instance_id;
   daxa_i32 primitive_id;
+  daxa_f32vec3 primitive_center;
 };
 
 
@@ -57,12 +58,12 @@ struct light_info
   daxa_u32 type;  // 0: point light, 1: directional light
 };
 
-struct Camera { 
+struct camera_view{ 
     daxa_f32mat4x4 inv_view;
     daxa_f32mat4x4 inv_proj;
     // daxa_f32 LOD_distance;
 };
-DAXA_DECL_BUFFER_PTR(Camera)
+DAXA_DECL_BUFFER_PTR(camera_view)
 
 struct Status
 {
@@ -131,6 +132,10 @@ struct STATUS_OUTPUT
     daxa_u32 primitive_id;
     daxa_f32 hit_distance;
     daxa_f32vec3 hit_position;
+    daxa_f32vec3 hit_normal;
+    daxa_f32vec3 origin;
+    daxa_f32vec3 direction;
+    daxa_f32vec3 primitive_center;
 };
 DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
 
@@ -192,7 +197,7 @@ struct PushConstant
     daxa_u32vec2 size;
     daxa_TlasId tlas;
     daxa_ImageViewId swapchain;
-    daxa_BufferPtr(Camera) camera_buffer;
+    daxa_BufferPtr(camera_view) camera_buffer;
     daxa_BufferPtr(Status) status_buffer;
     daxa_BufferPtr(INSTANCES) instance_buffer;
     daxa_BufferPtr(PRIMITIVES) primitives_buffer;

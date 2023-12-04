@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef RANDOM_HPP
-#define RANDOM_HPP
+#ifndef RANDOM_H
+#define RANDOM_H
 
 #include <random>
 
@@ -25,4 +25,4 @@ inline int random_int(int min, int max) {
     return std::uniform_int_distribution<int>{min, max}(generator);
 }
 
-#endif // RANDOM_HPP
+#endif // RANDOM_H
