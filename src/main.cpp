@@ -23,11 +23,6 @@ namespace tests
             const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
             const u32 MATERIAL_COUNT = 1000;
-            const f32 SPEED = 0.1f;
-
-            glm::vec3 camera_pos = {0, 0, 2.5};
-            glm::vec3 camera_center = {0, 0, 0};
-            glm::vec3 camera_up = {0, 1, 0};
 
            Status status = {};
            camera camera = {};
@@ -118,30 +113,6 @@ namespace tests
                 };
             }
 
-            // u32 get_primitive_count_by_level(u32 level_index) {
-            //     switch (level_index)
-            //     {
-            //     case 1:
-            //         return min_max_array.size();
-            //         break;
-            //     default:
-            //         return 0;
-            //         break;
-            //     }
-            // }
-
-            // constexpr daxa_f32mat3x2 * get_min_max_by_level(u32 level_index) {
-            //     switch (level_index)
-            //     {
-            //     case 1:
-            //         return min_max_array.data();
-            //         break;
-            //     default:
-            //         return nullptr;
-            //         break;
-            //     }
-            // }
-
             // Generate min max by coord (x, y, z) where x, y, z are 0 to VOXEL_COUNT_BY_AXIS-1 where VOXEL_COUNT_BY_AXIS / 2 is the center at (0, 0, 0)
             constexpr daxa_f32mat3x2 generate_min_max_by_coord(u32 x, u32 y, u32 z) const {
                 return daxa_f32mat3x2{
@@ -219,16 +190,6 @@ namespace tests
                     std::cout << "instance_count == 0" << std::endl;
                     return false;
                 }
-
-                // daxa_u32 primitive_count = 0;
-                // for(u32 i = 0; i < instance_count; i++) {
-                //     primitive_count += get_primitive_count_by_level(1);
-                // }
-
-                // if(primitive_count == 0) {
-                //     std::cout << "primitive count is 0" << std::endl;
-                //     return false;
-                // }
 
                 this->max_current_primitive_count = CHUNK_VOXEL_COUNT * instance_count / 2;
 
@@ -593,6 +554,9 @@ namespace tests
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
+
+
+                reset_camera(camera);
                 
 
                 pipeline_manager = daxa::PipelineManager{daxa::PipelineManagerInfo{
@@ -663,13 +627,15 @@ namespace tests
                 daxa::u32 width = device.info_image(swapchain_image).value().size.x;
                 daxa::u32 height = device.info_image(swapchain_image).value().size.y;
 
-                camera_view camera = {
-                    .inv_view = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::lookAt(camera_pos, camera_center, camera_up))),
-                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(glm::inverse(glm::perspective(glm::radians(45.0f), (width/(f32)height), 0.001f, 1000.0f)))
+                set_camera_aspect(camera, width, height);
+
+                camera_view camera_view = {
+                    .inv_view = glm_mat4_to_daxa_f32mat4x4(get_inverse_view_matrix(camera)),
+                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(get_inverse_projection_matrix(camera))
                 };
 
                 // NOTE: Vulkan has inverted y axis in NDC
-                camera.inv_proj.y.y *= -1;
+                camera_view.inv_proj.y.y *= -1;
                 
                 auto cam_staging_buffer = device.create_buffer({
                     .size = cam_buffer_size,
@@ -680,7 +646,7 @@ namespace tests
 
                 auto * buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(cam_staging_buffer).value();
                 std::memcpy(buffer_ptr, 
-                    &camera,
+                    &camera_view,
                     cam_buffer_size);
 
                 auto status_staging_buffer = device.create_buffer({
@@ -1046,7 +1012,13 @@ namespace tests
 
             }
 
-            void on_mouse_move(f32 /*unused*/, f32 /*unused*/) {}
+            void on_mouse_move(f32 x, f32 y) {
+                // Input mouse movement to camera
+                // if (glfwGetMouseButton(glfw_window_ptr, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS)
+                // {
+                    set_camera_mouse_delta(camera, glm::vec2{x, y});
+                // }
+            }
             void on_mouse_button(i32 button, i32 action) {
                 // Click right button store the current mouse position
                 if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_1)
@@ -1058,6 +1030,16 @@ namespace tests
                     status.is_active = true;
 
                     // std::cout << "mouse_x: " << status.pixel.x << " mouse_y: " << status.pixel.y << std::endl;
+
+                    set_camera_mouse_pressed(camera, true);
+                    std::cout << "button pressed" << std::endl;
+                }
+
+                // Release right button
+                if (action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_1)
+                {
+                    set_camera_mouse_pressed(camera, false);
+                    std::cout << "button released" << std::endl;
                 }
 
             }
@@ -1067,68 +1049,60 @@ namespace tests
                     case GLFW_KEY_W:
                     case GLFW_KEY_UP:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_pos.z -= SPEED;
-                            camera_center.z -= SPEED;
+                            move_camera_forward(camera);
                         }
                         break;
                     case GLFW_KEY_S:
                     case GLFW_KEY_DOWN:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_pos.z += SPEED;
-                            camera_center.z += SPEED;
+                            move_camera_backward(camera);
                         }
                         break;
                     case GLFW_KEY_A:
                     case GLFW_KEY_LEFT:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_pos.x -= SPEED;
-                            camera_center.x -= SPEED;
+                            move_camera_left(camera);
                         }
                         break;
                     case GLFW_KEY_D:
                     case GLFW_KEY_RIGHT:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_pos.x += SPEED;
-                            camera_center.x += SPEED;
+                            move_camera_right(camera);
                         }
                         break;
                     case GLFW_KEY_X:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_pos.y -= SPEED;
-                            camera_center.y -= SPEED;
+                            move_camera_up(camera);
                         }
                         break;
                     case GLFW_KEY_SPACE:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_pos.y += SPEED;
-                            camera_center.y += SPEED;
+                            move_camera_down(camera);
                         }
                         break;
                     case GLFW_KEY_PAGE_UP:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_center.y -= SPEED;
+                            // camera.center.y -= SPEED;
                         }
                         break;
                     case GLFW_KEY_PAGE_DOWN:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_center.y += SPEED;
+                            // camera.center.y += SPEED;
                         }
                         break;
                     case GLFW_KEY_Q:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_center.x -= SPEED;
+                            // camera.center.x -= SPEED;
                         }
                         break;
                     case GLFW_KEY_E:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
-                            camera_center.x += SPEED;
+                            // camera.center.x += SPEED;
                         }
                         break;
                     case GLFW_KEY_R:
                         if(action == GLFW_PRESS) {
-                            camera_pos = {0, 0, 2.5};
-                            camera_center = {0, 0, 0};
-                            camera_up = {0, 1, 0};
+                            reset_camera(camera);
                         }
                         break;
                     case GLFW_KEY_ESCAPE:
