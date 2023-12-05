@@ -627,7 +627,7 @@ namespace tests
                 daxa::u32 width = device.info_image(swapchain_image).value().size.x;
                 daxa::u32 height = device.info_image(swapchain_image).value().size.y;
 
-                set_camera_aspect(camera, width, height);
+                camera_set_aspect(camera, width, height);
 
                 camera_view camera_view = {
                     .inv_view = glm_mat4_to_daxa_f32mat4x4(get_inverse_view_matrix(camera)),
@@ -1016,7 +1016,7 @@ namespace tests
                 // Input mouse movement to camera
                 // if (glfwGetMouseButton(glfw_window_ptr, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS)
                 // {
-                    set_camera_mouse_delta(camera, glm::vec2{x, y});
+                    camera_set_mouse_delta(camera, glm::vec2{x, y});
                 // }
             }
             void on_mouse_button(i32 button, i32 action) {
@@ -1031,14 +1031,14 @@ namespace tests
 
                     // std::cout << "mouse_x: " << status.pixel.x << " mouse_y: " << status.pixel.y << std::endl;
 
-                    set_camera_mouse_pressed(camera, true);
+                    camera_set_mouse_pressed(camera, true);
                     std::cout << "button pressed" << std::endl;
                 }
 
                 // Release right button
                 if (action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_1)
                 {
-                    set_camera_mouse_pressed(camera, false);
+                    camera_set_mouse_pressed(camera, false);
                     std::cout << "button released" << std::endl;
                 }
 
@@ -1113,6 +1113,13 @@ namespace tests
                     case GLFW_KEY_M:
                         if(action == GLFW_PRESS) {
                             change_random_material_primitives();
+                        }
+                        break;
+                    case GLFW_KEY_LEFT_SHIFT:
+                        if(action == GLFW_PRESS) {
+                            camera_speed_up(camera);
+                        } else if(action == GLFW_RELEASE) {
+                            camera_slow_down(camera);
                         }
                         break;
                     default:

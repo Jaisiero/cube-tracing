@@ -19,6 +19,7 @@ const float INIT_CAMERA_NEAR = 0.001f;
 const float INIT_CAMERA_FAR = 1000.0f;
 const f32 CAMERA_SPEED = 0.1f;
 const f32 MOUSE_SENSITIVITY = 0.005f;
+const f32 SPEED_UP_MULTIPLIER = 10.0f;
 
 // const glm::vec3 RIGHT_DIRECTION = {1.0f, 0.0f, 0.0f};
 
@@ -40,6 +41,7 @@ typedef struct camera {
     float speed;
     bool mouse_pressed;
     bool moved;
+    bool speed_up;
 } camera;
 
 
@@ -81,121 +83,129 @@ const glm::mat4 get_inverse_view_projection_matrix(const camera& cam) {
     return glm::inverse(get_view_projection_matrix(cam));
 }
 
-const glm::vec3 get_camera_direction(const camera& cam) {
+const glm::vec3 camera_get_direction(const camera& cam) {
     return cam.forward;
 }
 
-const glm::vec3 get_camera_right(const camera& cam) {
-    return glm::normalize(glm::cross(get_camera_direction(cam), cam.up));
+const glm::vec3 camera_get_right(const camera& cam) {
+    return glm::normalize(glm::cross(camera_get_direction(cam), cam.up));
 }
 
-const glm::vec3 get_camera_up(const camera& cam) {
-    return glm::normalize(glm::cross(get_camera_right(cam), get_camera_direction(cam)));
+const glm::vec3 camera_get_up(const camera& cam) {
+    return glm::normalize(glm::cross(camera_get_right(cam), camera_get_direction(cam)));
 }
 
-const glm::vec3& get_camera_position(const camera& cam) {
+const glm::vec3& camera_get_position(const camera& cam) {
     return cam.position;
 }
 
-const glm::vec3& get_camera_center(const camera& cam) {
+const glm::vec3& camera_get_center(const camera& cam) {
     return cam.center;
 }
 
-const glm::vec3& get_camera_up_vector(const camera& cam) {
+const glm::vec3& camera_get_up_vector(const camera& cam) {
     return cam.up;
 }
 
-const float& get_camera_fov(const camera& cam) {
+const float& camera_get_fov(const camera& cam) {
     return cam.fov;
 }
 
-const float get_camera_aspect(const camera& cam) {
+const float camera_get_aspect(const camera& cam) {
     return cam.width / cam.height;
 }
 
-const float& get_camera__near(const camera& cam) {
+const float& camera_get__near(const camera& cam) {
     return cam._near;
 }
 
-const float& get_camera_far(const camera& cam) {
+const float& camera_get_far(const camera& cam) {
     return cam._far;
 }
 
 void move_camera(camera& cam, const glm::vec3& direction) {
-    cam.position += direction * cam.speed;
+    cam.position += direction * cam.speed * (cam.speed_up ? SPEED_UP_MULTIPLIER : 1.0f);
     cam.moved = true;
 }
 
 void move_camera_forward(camera& cam) {
-    move_camera(cam,  get_camera_direction(cam));
+    move_camera(cam,  camera_get_direction(cam));
 }
 
 void move_camera_backward(camera& cam) {
-    move_camera(cam, -get_camera_direction(cam));
+    move_camera(cam, -camera_get_direction(cam));
 }
 
 void move_camera_right(camera& cam) {
-    move_camera(cam,  get_camera_right(cam));
+    move_camera(cam,  camera_get_right(cam));
 }
 
 void move_camera_left(camera& cam) {
-    move_camera(cam, -get_camera_right(cam));
+    move_camera(cam, -camera_get_right(cam));
 }
 
 void move_camera_up(camera& cam) {
-    move_camera(cam, get_camera_up(cam));
+    move_camera(cam, camera_get_up(cam));
 }
 
 void move_camera_down(camera& cam) {
-    move_camera(cam, -get_camera_up(cam));
+    move_camera(cam, -camera_get_up(cam));
 }
 
-void set_camera_position(camera& cam, const glm::vec3& position) {
+void camera_set_position(camera& cam, const glm::vec3& position) {
     cam.position = position;
 }
 
-void set_camera_center(camera& cam, const glm::vec3& center) {
+void camera_set_center(camera& cam, const glm::vec3& center) {
     cam.center = center;
 }
 
-void set_camera_up_vector(camera& cam, const glm::vec3& up) {
+void camera_set_up_vector(camera& cam, const glm::vec3& up) {
     cam.up = up;
 }
 
-void set_camera_fov(camera& cam, float fov) {
+void camera_set_fov(camera& cam, float fov) {
     cam.fov = fov;
 }
 
-void set_camera_aspect(camera& cam, unsigned int width, unsigned int height) {
+void camera_set_aspect(camera& cam, unsigned int width, unsigned int height) {
     cam.width = width;
     cam.height = height;
 }
 
-void set_camera_near(camera& cam, float near_plane) {
+void camera_set_near(camera& cam, float near_plane) {
     cam._near = near_plane;
 }
 
-void set_camera_far(camera& cam, float far_plane) {
+void camera_set_far(camera& cam, float far_plane) {
     cam._far = far_plane;
 }
 
-void set_camera_speed(camera& cam, float speed) {
+void camera_speed_up(camera& cam) {
+    cam.speed_up = true;
+}
+
+void camera_slow_down(camera& cam) {
+    cam.speed_up = false;
+}
+
+void camera_set_speed(camera& cam, float speed) {
     cam.speed = speed;
 }
 
-void set_camera_last_mouse_pos(camera& cam, const glm::vec2& last_mouse_pos) {
+void camera_set_last_mouse_pos(camera& cam, const glm::vec2& last_mouse_pos) {
     cam.last_mouse_pos = last_mouse_pos;
 }
 
-void set_camera_mouse_pressed(camera& cam, bool mouse_pressed) {
+void camera_set_mouse_pressed(camera& cam, bool mouse_pressed) {
     cam.mouse_pressed = mouse_pressed;
 }
 
-const glm::vec2& get_camera_last_mouse_pos(const camera& cam) {
+const glm::vec2& camera_get_last_mouse_pos(const camera& cam) {
     return cam.last_mouse_pos;
 }
 
-const bool& get_camera_mouse_pressed(const camera& cam) {
+const bool& camera_get_mouse_pressed(const camera& cam) {
     return cam.mouse_pressed;
 }
 
@@ -208,7 +218,7 @@ void rotate_camera(camera& cam, float currentX, float currentY)
     // check if last mouse position is set
     if (cam.last_mouse_pos.x == 0.0f && cam.last_mouse_pos.y == 0.0f)
     {
-        set_camera_last_mouse_pos(cam, glm::vec2(currentX, currentY));
+        camera_set_last_mouse_pos(cam, glm::vec2(currentX, currentY));
         return;
     }
 
@@ -217,7 +227,7 @@ void rotate_camera(camera& cam, float currentX, float currentY)
     float deltaY = (currentY - cam.last_mouse_pos.y);
 
 
-    set_camera_last_mouse_pos(cam, glm::vec2(currentX, currentY));
+    camera_set_last_mouse_pos(cam, glm::vec2(currentX, currentY));
 
 
     // Rotation
@@ -242,7 +252,7 @@ void rotate_camera_pitch(camera& cam, float pitch) {
     rotate_camera(cam, 0.0f, pitch);
 }
 
-void set_camera_mouse_delta(camera& cam, const glm::vec2& mouse_delta) {
+void camera_set_mouse_delta(camera& cam, const glm::vec2& mouse_delta) {
     if(cam.mouse_pressed) {
         rotate_camera(cam, mouse_delta.x, mouse_delta.y);
     }
