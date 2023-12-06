@@ -68,6 +68,21 @@ daxa_f32vec3 random_on_hemisphere(LCG lcg, daxa_f32vec3 normal) {
         return -on_unit_sphere;
 }
 
+daxa_f32vec3 random_in_unit_disk(LCG lcg) {
+    while (true) {
+        daxa_f32vec3 p = daxa_f32vec3(randomInRangeLCG(lcg, -1.0f, 1.0f), randomInRangeLCG(lcg, -1.0f, 1.0f), 0);
+        if (length_square(p) < 1)
+            return p;
+    }
+}
+
+daxa_f32vec3 defocus_disk_sample(daxa_f32vec3 origin, daxa_f32vec2 defocus_disk, LCG lcg) {
+    // Returns a random point in the camera defocus disk.
+    daxa_f32vec3 p = random_in_unit_disk(lcg);
+    return origin + (p.x * defocus_disk.x) + (p.y * defocus_disk.y);
+}
+
+
 
 daxa_f32vec3 reflection(daxa_f32vec3 v, daxa_f32vec3 n) {
     return v - 2*dot(v,n)*n;

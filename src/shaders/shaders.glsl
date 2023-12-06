@@ -134,8 +134,8 @@ daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit) {
     // Get center position from transform
     vec3 aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
 
-    // TODO: Check why is divided by 2
-    vec3 half_extent = vec3(HALF_EXTENT / 2 - AVOID_VOXEL_COLLAIDE);
+    // Voxels are centered around half extent
+    vec3 half_extent = vec3(VOXEL_EXTENT / 2 - AVOID_VOXEL_COLLAIDE);
 
     Ray local_ray = Ray((inv_transposed * vec4(ray.origin, 1)).xyz, (inv_transposed * vec4(ray.direction, 0)).xyz);
 
@@ -149,20 +149,11 @@ daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit) {
         return false;
     }
 
-    // TODO: This is because we are using a box with half extent divide by 2
+    // TODO: Why do we need to place the hit point a little bit further? It seems that if we don't do this we are still hitting the box from the inside
     // hit point in world space
-    hit.world_pos = ray.origin + ray.direction * hit.distance + (HALF_EXTENT / 2) * hit.world_nrm;
-
-    // hit point in object space
-    // vec3 obj_hit = local_ray.origin + local_ray.direction * hit.distance;
-
-    // obj_hit = (transposed * vec4(obj_hit, 1)).xyz;
-    
+    hit.world_pos = ray.origin + ray.direction * hit.distance + (VOXEL_EXTENT / 2) * hit.world_nrm;
 
     hit.primitive_center = aabb_center;
-
-    // normal in world space
-    // hit.world_nrm = (inv_transposed * vec4(hit.world_nrm, 0)).xyz;
 
     return true;
 }
@@ -233,7 +224,7 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
                     hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
 
                     if(ray_box_intersection(ray, hit) == true) {
-#if(DEBUG_NORMALS == 1)
+#if(DEBUG_NORMALS_ON == 1)
                         out_color = normal_to_color(hit.world_nrm);
                         return out_color;
 #endif                        
@@ -296,14 +287,22 @@ void main()
 
     initLCG(lcg, frame_number, seedX, seedY);
 
+    daxa_f32 defocus_angle = deref(p.camera_buffer).defocus_angle;
+    daxa_f32 focus_dist = deref(p.camera_buffer).focus_dist;
+
+    daxa_f32 defocus_radius = focus_dist * tan(radians(defocus_angle / 2));
+    daxa_f32vec2 defocus_disk = vec2(d.x * defocus_radius, 
+        d.y * defocus_radius);
+
     daxa_f32vec4 origin = inv_view * vec4(0,0,0,1);
+    ray.origin = (defocus_angle <= 0) ? origin.xyz : defocus_disk_sample(origin.xyz, defocus_disk, lcg);
+    // ray.origin = origin.xyz;
 
 #if SAMPLES_PER_PIXEL == 1
 
 	vec4 target = inv_proj * vec4(d.x, d.y, 1, 1) ;
 	vec4 direction = inv_view * vec4(normalize(target.xyz), 0) ;
-    
-    ray.origin = origin.xyz;
+
     ray.direction = direction.xyz;
 
     // 1 sample per pixel
@@ -319,7 +318,6 @@ void main()
         vec4 target = inv_proj * vec4(df.x, df.y, 1, 1) ;
         vec4 direction = inv_view * vec4(normalize(target.xyz), 0) ;
         
-        ray.origin = origin.xyz;
         ray.direction = direction.xyz;
 
         vec3 partial_out_color = ray_color(ray, MAX_DEPTH, index, lcg);
@@ -336,7 +334,7 @@ void main()
     imageStore(daxa_image2D(p.swapchain), index, vec4(out_color,1));
 
 
-    // DEBUGGING
+#if(PERFECT_PIXEL_ON == 1)
     daxa_b32 is_active = deref(p.status_buffer).is_active;
     if(is_active == true) {
         daxa_u32vec2 pixel = deref(p.status_buffer).pixel; 
@@ -394,4 +392,5 @@ void main()
             }
         }
     }
+#endif // PERFECT_PIXEL
 }

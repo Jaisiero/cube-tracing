@@ -9,12 +9,13 @@
 #define MAX_PRIMITIVES 100000
 #define MAX_MATERIALS 10000
 
-#define DEBUG_NORMALS 0
+#define DEBUG_NORMALS_ON 0
+#define PERFECT_PIXEL_ON 0
 
-// #define LEVEL_0_HALF_EXTENT 0.25
-// #define LEVEL_1_HALF_EXTENT 0.125
+// #define LEVEL_0_VOXEL_EXTENT 0.25
+// #define LEVEL_1_VOXEL_EXTENT 0.125
 
-#define HALF_EXTENT 0.125f
+#define VOXEL_EXTENT 0.125f
 #define VOXEL_COUNT_BY_AXIS 8 // 2^3
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
@@ -63,7 +64,8 @@ struct light_info
 struct camera_view{ 
     daxa_f32mat4x4 inv_view;
     daxa_f32mat4x4 inv_proj;
-    // daxa_f32 LOD_distance;
+    daxa_f32 defocus_angle;
+    daxa_f32 focus_dist;
 };
 DAXA_DECL_BUFFER_PTR(camera_view)
 

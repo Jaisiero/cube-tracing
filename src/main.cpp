@@ -18,7 +18,7 @@ namespace tests
     {
         struct App : AppWindow<App>
         {
-            const f32 AXIS_DISPLACEMENT = HALF_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
+            const f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
             const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
             const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
@@ -117,14 +117,14 @@ namespace tests
             constexpr daxa_f32mat3x2 generate_min_max_by_coord(u32 x, u32 y, u32 z) const {
                 return daxa_f32mat3x2{
                     {
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (x * HALF_EXTENT) + AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (y * HALF_EXTENT) + AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + (z * HALF_EXTENT) + AVOID_VOXEL_COLLAIDE
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + (x * VOXEL_EXTENT) + AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + (y * VOXEL_EXTENT) + AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + (z * VOXEL_EXTENT) + AVOID_VOXEL_COLLAIDE
                     },
                     {
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((x + 1) * HALF_EXTENT) - AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((y + 1) * HALF_EXTENT) - AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * HALF_EXTENT) + ((z + 1) * HALF_EXTENT) - AVOID_VOXEL_COLLAIDE
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + ((x + 1) * VOXEL_EXTENT) - AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + ((y + 1) * VOXEL_EXTENT) - AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + ((z + 1) * VOXEL_EXTENT) - AVOID_VOXEL_COLLAIDE
                     }
                 };
             }
@@ -557,6 +557,8 @@ namespace tests
 
 
                 reset_camera(camera);
+                camera_set_defocus_angle(camera, 0.5f);
+                camera_set_focus_dist(camera, 1.0f);
                 
 
                 pipeline_manager = daxa::PipelineManager{daxa::PipelineManagerInfo{
@@ -631,7 +633,9 @@ namespace tests
 
                 camera_view camera_view = {
                     .inv_view = glm_mat4_to_daxa_f32mat4x4(get_inverse_view_matrix(camera)),
-                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(get_inverse_projection_matrix(camera))
+                    .inv_proj = glm_mat4_to_daxa_f32mat4x4(get_inverse_projection_matrix(camera)),
+                    .defocus_angle = camera.defocus_angle,
+                    .focus_dist = camera.focus_dist,
                 };
 
                 // NOTE: Vulkan has inverted y axis in NDC
@@ -848,6 +852,7 @@ namespace tests
                 // });
                 // defer { device.destroy_buffer(hit_distance_staging_buffer); };
 
+#if(PERFECT_PIXEL_ON == 1)
                 // Some Device to Host copy here
                 auto status_output_staging_buffer = device.create_buffer({
                     .size = max_status_output_buffer_size,
@@ -942,6 +947,7 @@ namespace tests
                     << " direction [" << status_output.direction.x << ", " << status_output.direction.y << ", " << status_output.direction.z << "]" 
                     << " primitive center [" << status_output.primitive_center.x << ", " << status_output.primitive_center.y << ", " << status_output.primitive_center.z << "]"
                     << std::endl;
+#endif // PERFECT_PIXEL_ON
                 
                 
                 status.is_active = false;
@@ -967,7 +973,7 @@ namespace tests
                 //             if(first_primitive_index + hit_distances[i].primitive_index < current_primitive_count) {
                 //                 daxa_f32vec3 center = primitives[first_primitive_index + hit_distances[i].primitive_index].center;
                 //                 std::cout << "  primitive center [" << translation.x + center.x << ", " <<  translation.y + center.y << ", " << translation.z + center.z << "]" << std::endl;
-                //                 daxa_f32mat3x2 min_max = daxa_f32mat3x2({center.x - HALF_EXTENT, center.y - HALF_EXTENT, center.z - HALF_EXTENT}, {center.x + HALF_EXTENT, center.y + HALF_EXTENT, center.z + HALF_EXTENT});
+                //                 daxa_f32mat3x2 min_max = daxa_f32mat3x2({center.x - VOXEL_EXTENT, center.y - VOXEL_EXTENT, center.z - VOXEL_EXTENT}, {center.x + VOXEL_EXTENT, center.y + VOXEL_EXTENT, center.z + VOXEL_EXTENT});
                 //                 // std::cout << "primitive min [" << min_max.x.x << ", " << min_max.x.y << ", " << min_max.x.z << "]" << std::endl;
                 //                 // std::cout << "primitive max [" << min_max.y.x << ", " << min_max.y.y << ", " << min_max.y.z << "]" << std::endl;
                 //                 // print instance translation + primitive min + max

@@ -17,9 +17,11 @@ const float INIT_CAMERA_WIDTH = 800.0f;
 const float INIT_CAMERA_HEIGHT = 600.0f;
 const float INIT_CAMERA_NEAR = 0.001f;
 const float INIT_CAMERA_FAR = 1000.0f;
-const f32 CAMERA_SPEED = 0.1f;
-const f32 MOUSE_SENSITIVITY = 0.005f;
-const f32 SPEED_UP_MULTIPLIER = 10.0f;
+const float CAMERA_SPEED = 0.1f;
+const float MOUSE_SENSITIVITY = 0.005f;
+const float SPEED_UP_MULTIPLIER = 10.0f;
+const float CAMERA_DEF_FOCUS_ANGLE = 0.0f;
+const float CAMERA_DEF_FOCUS_DIST = 10.0f;
 
 // const glm::vec3 RIGHT_DIRECTION = {1.0f, 0.0f, 0.0f};
 
@@ -42,6 +44,8 @@ typedef struct camera {
     bool mouse_pressed;
     bool moved;
     bool speed_up;
+    float defocus_angle;
+    float focus_dist;
 } camera;
 
 
@@ -57,6 +61,10 @@ void reset_camera(camera& cam) {
     cam.speed = CAMERA_SPEED;
     cam.last_mouse_pos = glm::vec2(0, 0);
     cam.mouse_pressed = false;
+    cam.moved = false;
+    cam.speed_up = false;
+    cam.defocus_angle = CAMERA_DEF_FOCUS_ANGLE;
+    cam.focus_dist = CAMERA_DEF_FOCUS_DIST;
 }
 
 const glm::mat4 get_view_matrix(const camera& cam) {
@@ -122,6 +130,38 @@ const float& camera_get__near(const camera& cam) {
 const float& camera_get_far(const camera& cam) {
     return cam._far;
 }
+
+const float& camera_get_speed(const camera& cam) {
+    return cam.speed;
+}
+
+const bool& camera_get_moved(const camera& cam) {
+    return cam.moved;
+}
+
+const glm::vec2& camera_get_last_mouse_pos(const camera& cam) {
+    return cam.last_mouse_pos;
+}
+
+const bool& camera_get_mouse_pressed(const camera& cam) {
+    return cam.mouse_pressed;
+}
+
+const bool& camera_get_speed_up(const camera& cam) {
+    return cam.speed_up;
+}
+
+const float& camera_get_defocus_angle(const camera& cam) {
+    return cam.defocus_angle;
+}
+
+const float& camera_get_focus_dist(const camera& cam) {
+    return cam.focus_dist;
+}
+
+
+
+
 
 void move_camera(camera& cam, const glm::vec3& direction) {
     cam.position += direction * cam.speed * (cam.speed_up ? SPEED_UP_MULTIPLIER : 1.0f);
@@ -201,12 +241,12 @@ void camera_set_mouse_pressed(camera& cam, bool mouse_pressed) {
     cam.mouse_pressed = mouse_pressed;
 }
 
-const glm::vec2& camera_get_last_mouse_pos(const camera& cam) {
-    return cam.last_mouse_pos;
+void camera_set_defocus_angle(camera& cam, float defocus_angle) {
+    cam.defocus_angle = defocus_angle;
 }
 
-const bool& camera_get_mouse_pressed(const camera& cam) {
-    return cam.mouse_pressed;
+void camera_set_focus_dist(camera& cam, float focus_dist) {
+    cam.focus_dist = focus_dist;
 }
 
 // rotate camera around its center
