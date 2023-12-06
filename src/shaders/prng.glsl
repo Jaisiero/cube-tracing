@@ -1,6 +1,7 @@
 // prgn.glsl
 #include <daxa/daxa.inl>
 #include "shared.inl"
+#include "Box.glsl"
 
 // Credits: https://raytracing.github.io/books/RayTracingInOneWeekend.html#metal/modelinglightscatterandreflectance
 daxa_b32 normal_near_zero(daxa_f32vec3 v)
@@ -118,6 +119,7 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG
         // Catch degenerate scatter direction
         if (normal_near_zero(scatter_direction))
             scatter_direction = world_nrm;
+
         return true;
     }
     return false;

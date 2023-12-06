@@ -9,6 +9,8 @@
 #define MAX_PRIMITIVES 100000
 #define MAX_MATERIALS 10000
 
+#define DEBUG_NORMALS 0
+
 // #define LEVEL_0_HALF_EXTENT 0.25
 // #define LEVEL_1_HALF_EXTENT 0.125
 
@@ -16,9 +18,9 @@
 #define VOXEL_COUNT_BY_AXIS 8 // 2^3
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
-#define SAMPLES_PER_PIXEL 1
+#define SAMPLES_PER_PIXEL 5
 #define SAMPLE_OFFSET 0.0001 // Multi sample offset
-#define MAX_DEPTH 1
+#define MAX_DEPTH 5
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 0.0001f   // Delta ray offset for shadow rays
 // #define AVOID_VOXEL_COLLAIDE 0.025f   // Delta ray offset for shadow rays

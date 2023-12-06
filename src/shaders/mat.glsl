@@ -1,5 +1,6 @@
 // mat.glsl
 #include <daxa/daxa.inl>
+#include "shared.inl"
 
 
 // Credit: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing__before/shaders/wavefront.glsl
@@ -53,3 +54,11 @@ daxa_f32vec3 background_color(daxa_f32vec3 dir)
     daxa_f32 t = 0.5 * (unit_dir.y + 1.0);
     return mix(daxa_f32vec3(1.0, 1.0, 1.0), daxa_f32vec3(0.5, 0.7, 1.0), t);
 }
+
+
+#if(DEBUG_NORMALS == 1)
+daxa_f32vec3 normal_to_color(daxa_f32vec3 normal)
+{
+    return (normal + daxa_f32vec3(1.0)) * 0.5;
+}
+#endif

@@ -22,4 +22,20 @@ struct Box {
 float safeInverse(float x) { return (x == 0.0) ? 1e12 : (1.0 / x); }
 vec3 safeInverse(vec3 v) { return vec3(safeInverse(v.x), safeInverse(v.y), safeInverse(v.z)); }
 
+
+
+//Computing the normal for a cube
+// Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
+daxa_f32vec3 transform_to_cube_normal(daxa_f32vec3 normal)
+{
+    vec3  abs_n = abs(normal);
+    float max_c = max(max(abs_n.x, abs_n.y), abs_n.z);
+    normal = (max_c == abs_n.x) ? vec3(sign(normal.x), 0, 0) :
+        (max_c == abs_n.y) ? vec3(0, sign(normal.y), 0) :
+        (max_c == abs_n.z) ? vec3(0, 0, sign(normal.z)) :
+                            normal;
+    return normal;
+}
+
+
 #endif // BOX_GLSL

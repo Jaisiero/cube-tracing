@@ -234,7 +234,7 @@ namespace tests
                         for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                             for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
                                 
-                                if(random_float(0.0, 1.0) > 0.99) {
+                                if(random_float(0.0, 1.0) > 0.80) {
                                     min_max.push_back(generate_min_max_by_coord(x, y, z));
                                 }
                             }
