@@ -1026,29 +1026,61 @@ namespace tests
                 // }
             }
             void on_mouse_button(i32 button, i32 action) {
-                // Click right button store the current mouse position
-                if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_1)
-                {
-                    double mouse_x, mouse_y;
-                    glfwGetCursorPos(glfw_window_ptr, &mouse_x, &mouse_y);
 
-                    status.pixel = {static_cast<daxa_u32>(mouse_x), static_cast<daxa_u32>(mouse_y)};
-                    status.is_active = true;
+                if(button == GLFW_MOUSE_BUTTON_1) {
+                    // Click right button store the current mouse position
+                    if (action == GLFW_PRESS)
+                    {
+                        double mouse_x, mouse_y;
+                        glfwGetCursorPos(glfw_window_ptr, &mouse_x, &mouse_y);
 
-                    // std::cout << "mouse_x: " << status.pixel.x << " mouse_y: " << status.pixel.y << std::endl;
+                        status.pixel = {static_cast<daxa_u32>(mouse_x), static_cast<daxa_u32>(mouse_y)};
+                        status.is_active = true;
 
-                    camera_set_mouse_pressed(camera, true);
-                    std::cout << "button pressed" << std::endl;
-                }
-
-                // Release right button
-                if (action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_1)
-                {
-                    camera_set_mouse_pressed(camera, false);
-                    std::cout << "button released" << std::endl;
+                        camera_set_mouse_left_press(camera, true);
+                    }
+                    // Release right button
+                    else if (action == GLFW_RELEASE)
+                    {
+                        camera_set_mouse_left_press(camera, false);
+                    }
+                } else if(button == GLFW_MOUSE_BUTTON_MIDDLE) {
+                    if(action == GLFW_PRESS) {
+                        camera_set_mouse_middle_pressed(camera, true);
+                    } else if(action == GLFW_RELEASE) {
+                        camera_set_mouse_middle_pressed(camera, false);
+                    }
                 }
 
             }
+            
+            void on_scroll(f32 x, f32 y) {
+                // camera_set_focus_dist(camera, glm::vec2{x, y});
+                // std::cout << "scroll x: " << x << " scroll y: " << y << std::endl;
+                switch((u32)y) {
+                    case 1:{
+                        if(camera_get_shift_status(camera)) {
+                            camera_set_focus_dist(camera, camera.focus_dist + 0.1f);
+                        } else {
+                            camera_set_defocus_angle(camera, camera.defocus_angle + 0.1f);
+                        }
+                        break;
+                    }
+                    case -1:{
+                        if(camera_get_shift_status(camera)) {
+                            camera_set_focus_dist(camera, camera.focus_dist - 0.1f);
+                        } else {
+                            camera_set_defocus_angle(camera, camera.defocus_angle - 0.1f);
+                        }
+                        break;
+                    }
+                    default:
+                        break;
+                }   
+            }
+
+            
+
             void on_key(i32 key, i32 action) {
                 
                 switch(key) {
@@ -1123,9 +1155,9 @@ namespace tests
                         break;
                     case GLFW_KEY_LEFT_SHIFT:
                         if(action == GLFW_PRESS) {
-                            camera_speed_up(camera);
+                            camera_shift_pressed(camera);
                         } else if(action == GLFW_RELEASE) {
-                            camera_slow_down(camera);
+                            camera_shift_released(camera);
                         }
                         break;
                     default:

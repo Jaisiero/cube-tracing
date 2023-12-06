@@ -22,6 +22,10 @@ const float MOUSE_SENSITIVITY = 0.005f;
 const float SPEED_UP_MULTIPLIER = 10.0f;
 const float CAMERA_DEF_FOCUS_ANGLE = 0.0f;
 const float CAMERA_DEF_FOCUS_DIST = 10.0f;
+const float CAMERA_DEF_FOCUS_DIST_MIN = 0.0f;
+const float CAMERA_DEF_FOCUS_DIST_MAX = 100.0f;
+const float CAMERA_DEF_FOCUS_ANGLE_MIN = 0.0f;
+const float CAMERA_DEF_FOCUS_ANGLE_MAX = 5.0f;
 
 // const glm::vec3 RIGHT_DIRECTION = {1.0f, 0.0f, 0.0f};
 
@@ -41,9 +45,10 @@ typedef struct camera {
     // glm::mat4 inverse_view;
     glm::vec2 last_mouse_pos;
     float speed;
-    bool mouse_pressed;
+    bool mouse_left_press;
+    bool mouse_middle_pressed;
     bool moved;
-    bool speed_up;
+    bool shift_status;
     float defocus_angle;
     float focus_dist;
 } camera;
@@ -60,9 +65,10 @@ void reset_camera(camera& cam) {
     cam._far = INIT_CAMERA_FAR;
     cam.speed = CAMERA_SPEED;
     cam.last_mouse_pos = glm::vec2(0, 0);
-    cam.mouse_pressed = false;
+    cam.mouse_left_press = false;
+    cam.mouse_middle_pressed = false;
     cam.moved = false;
-    cam.speed_up = false;
+    cam.shift_status = false;
     cam.defocus_angle = CAMERA_DEF_FOCUS_ANGLE;
     cam.focus_dist = CAMERA_DEF_FOCUS_DIST;
 }
@@ -143,12 +149,16 @@ const glm::vec2& camera_get_last_mouse_pos(const camera& cam) {
     return cam.last_mouse_pos;
 }
 
-const bool& camera_get_mouse_pressed(const camera& cam) {
-    return cam.mouse_pressed;
+const bool& camera_get_mouse_left_press(const camera& cam) {
+    return cam.mouse_left_press;
 }
 
-const bool& camera_get_speed_up(const camera& cam) {
-    return cam.speed_up;
+const bool& camera_get_mouse_middle_pressed(const camera& cam) {
+    return cam.mouse_middle_pressed;
+}
+
+const bool& camera_get_shift_status(const camera& cam) {
+    return cam.shift_status;
 }
 
 const float& camera_get_defocus_angle(const camera& cam) {
@@ -164,7 +174,7 @@ const float& camera_get_focus_dist(const camera& cam) {
 
 
 void move_camera(camera& cam, const glm::vec3& direction) {
-    cam.position += direction * cam.speed * (cam.speed_up ? SPEED_UP_MULTIPLIER : 1.0f);
+    cam.position += direction * cam.speed * (cam.shift_status ? SPEED_UP_MULTIPLIER : 1.0f);
     cam.moved = true;
 }
 
@@ -221,12 +231,12 @@ void camera_set_far(camera& cam, float far_plane) {
     cam._far = far_plane;
 }
 
-void camera_speed_up(camera& cam) {
-    cam.speed_up = true;
+void camera_shift_pressed(camera& cam) {
+    cam.shift_status = true;
 }
 
-void camera_slow_down(camera& cam) {
-    cam.speed_up = false;
+void camera_shift_released(camera& cam) {
+    cam.shift_status = false;
 }
 
 void camera_set_speed(camera& cam, float speed) {
@@ -237,16 +247,20 @@ void camera_set_last_mouse_pos(camera& cam, const glm::vec2& last_mouse_pos) {
     cam.last_mouse_pos = last_mouse_pos;
 }
 
-void camera_set_mouse_pressed(camera& cam, bool mouse_pressed) {
-    cam.mouse_pressed = mouse_pressed;
+void camera_set_mouse_left_press(camera& cam, bool mouse_left_press) {
+    cam.mouse_left_press = mouse_left_press;
+}
+
+void camera_set_mouse_middle_pressed(camera& cam, bool mouse_middle_pressed) {
+    cam.mouse_middle_pressed = mouse_middle_pressed;
 }
 
 void camera_set_defocus_angle(camera& cam, float defocus_angle) {
-    cam.defocus_angle = defocus_angle;
+    cam.defocus_angle = std::max(CAMERA_DEF_FOCUS_ANGLE_MIN, std::min(CAMERA_DEF_FOCUS_ANGLE_MAX, defocus_angle));
 }
 
 void camera_set_focus_dist(camera& cam, float focus_dist) {
-    cam.focus_dist = focus_dist;
+    cam.focus_dist = std::max(CAMERA_DEF_FOCUS_DIST_MIN, std::min(CAMERA_DEF_FOCUS_DIST_MAX, focus_dist));
 }
 
 // rotate camera around its center
@@ -293,7 +307,7 @@ void rotate_camera_pitch(camera& cam, float pitch) {
 }
 
 void camera_set_mouse_delta(camera& cam, const glm::vec2& mouse_delta) {
-    if(cam.mouse_pressed) {
+    if(cam.mouse_left_press) {
         rotate_camera(cam, mouse_delta.x, mouse_delta.y);
     }
 }

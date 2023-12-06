@@ -61,6 +61,13 @@ struct AppWindow
                 auto & app = *reinterpret_cast<App *>(glfwGetWindowUserPointer(window_ptr));
                 app.on_resize(static_cast<u32>(w), static_cast<u32>(h));
             });
+        glfwSetScrollCallback(
+            glfw_window_ptr,
+            [](GLFWwindow * window_ptr, f64 x, f64 y)
+            {
+                auto & app = *reinterpret_cast<App *>(glfwGetWindowUserPointer(window_ptr));
+                app.on_scroll(static_cast<f32>(x), static_cast<f32>(y));
+            });
     }
 
     ~AppWindow()
