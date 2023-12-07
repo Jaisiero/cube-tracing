@@ -62,3 +62,38 @@ daxa_f32vec3 normal_to_color(daxa_f32vec3 normal)
     return (normal + daxa_f32vec3(1.0)) * 0.5;
 }
 #endif
+
+
+daxa_f32vec3 mat_get_color(Ray ray, MATERIAL mat, inout hit_info hit, inout vec3 attenuation) 
+{
+  // Lambertian
+  daxa_f32vec3 diffuse = daxa_f32vec3(0);
+  {
+    daxa_f32 dot_nl = max(dot(hit.world_nrm, ray.direction), 0.0);
+    daxa_f32vec3  c     = mat.diffuse * dot_nl;
+    if (mat.illum >= 1)
+      c  += mat.ambient;
+    diffuse = c;
+  }
+  daxa_f32vec3 specular = daxa_f32vec3(0);
+
+  {
+    if (mat.illum >= 2) {
+
+      // Compute specular only if not in shadow
+      const daxa_f32 k_pi = 3.14159265;
+      const daxa_f32 k_shininess = max(mat.shininess, 4.0);
+
+      // Specular
+      const daxa_f32 k_energy_conservation = (2.0 + k_shininess) / (2.0 * k_pi);
+      daxa_f32vec3 V = normalize(-ray.direction);
+      daxa_f32vec3 R = reflect(-ray.direction, hit.world_nrm);
+      daxa_f32 specularity = k_energy_conservation * pow(max(dot(V, R), 0.0), k_shininess);
+      specular = daxa_f32vec3(mat.specular * specularity);
+    }
+  }
+
+  attenuation *= mat.emission;
+
+  return vec3(attenuation * (diffuse + specular));
+}

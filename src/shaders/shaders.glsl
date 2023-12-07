@@ -13,10 +13,86 @@
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
+// daxa_f32vec3 mat_get_color(Ray ray, MATERIAL mat, inout hit_info hit, inout vec3 attenuation, light_info light) 
+// {
+//     vec3 L = vec3(0.0, 0.0, 0.0);
+//     // Point light
+//     if(light.type == 0)
+//     {
+//         vec3 lDir      = light.position - hit.world_pos;
+//         light.distance  = length(lDir);
+//         light.intensity = light.intensity / (light.distance * light.distance);
+//         L              = normalize(lDir);
+//     }
+//     else  // Directional light
+//     {
+//         L = normalize(light.position);
+//     }
+
+//     // Diffuse
+//     vec3  diffuse     = compute_diffuse(mat, L, hit.world_nrm);
+//     // vec3 diffuse     = vec3(mat.diffuse);
+//     vec3  specular    = vec3(0);
+
+//     daxa_b32 is_shadowed = false;
+
+//     if(dot(hit.world_nrm, L) > 0) {
+//         float t_min   = 0.0001;
+//         float t_max   = light.distance;
+//         float t       = 0.0;
+//         vec3  origin = hit.world_pos;
+//         vec3  ray_dir = L;
+//         uint cull_mask = 0xff;
+//         rayQueryEXT ray_query_shadow;
+//         rayQueryInitializeEXT(ray_query_shadow, daxa_accelerationStructureEXT(p.tlas),
+//                             // gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
+//                             // gl_RayFlagsTerminateOnFirstHitEXT,
+//                             gl_RayFlagsOpaqueEXT,
+//                             cull_mask, 
+//                             origin,
+//                             t_min, 
+//                             ray_dir, 
+//                             t_max);
+                            
+//         while(rayQueryProceedEXT(ray_query_shadow)) {
+//             uint type = rayQueryGetIntersectionTypeEXT(ray_query_shadow, false);
+//             if(type ==
+//                 gl_RayQueryCandidateIntersectionAABBEXT) {
+//                 rayQueryGenerateIntersectionEXT(ray_query_shadow, t);
+                
+//                 uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query_shadow, true);
+
+//                 if(type_commited ==
+//                     gl_RayQueryCommittedIntersectionGeneratedEXT)
+//                 {     
+//                    // set is_shadowed to true
+//                      is_shadowed = true;
+//                      break;
+//                 } 
+//             }
+//         }
+//         rayQueryTerminateEXT(ray_query_shadow); 
+
+//         if(is_shadowed)
+//         {
+//             attenuation *= 0.3;
+//             // specular = background_color(ray.direction);
+//         }
+//         else
+//         {
+//             attenuation *= 1.0;
+//             // Specular
+//             specular = compute_specular(mat, ray.direction , L, hit.world_nrm);
+//         }
+//     }
+
+//     return vec3(light.intensity * attenuation * (diffuse + specular));
+// }
+
 // Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
 daxa_b32 hit_color(inout Ray ray, inout hit_info hit, inout vec3 attenuation, inout vec3 out_color, light_info light, LCG lcg)
 {
-    vec3 L = vec3(0.0, 0.0, 0.0);
+    // vec3 L = vec3(0.0, 0.0, 0.0);
     // Get first primitive index from instance id
     uint primitive_index = deref(p.instance_buffer).instances[hit.instance_id].first_primitive_index;
 
@@ -29,78 +105,8 @@ daxa_b32 hit_color(inout Ray ray, inout hit_info hit, inout vec3 attenuation, in
     // get material
     MATERIAL mat = deref(p.materials_buffer).materials[material_index];
 
-    // Point light
-    if(light.type == 0)
-    {
-        vec3 lDir      = light.position - hit.world_pos;
-        light.distance  = length(lDir);
-        light.intensity = light.intensity / (light.distance * light.distance);
-        L              = normalize(lDir);
-    }
-    else  // Directional light
-    {
-        L = normalize(light.position);
-    }
-
-    // Diffuse
-    vec3  diffuse     = compute_diffuse(mat, L, hit.world_nrm);
-    // vec3 diffuse     = vec3(mat.diffuse);
-    vec3  specular    = vec3(0);
-
-    daxa_b32 is_shadowed = false;
-
-    if(dot(hit.world_nrm, L) > 0) {
-        float t_min   = 0.0001;
-        float t_max   = light.distance;
-        float t       = 0.0;
-        vec3  origin = hit.world_pos;
-        vec3  ray_dir = L;
-        uint cull_mask = 0xff;
-        rayQueryEXT ray_query_shadow;
-        rayQueryInitializeEXT(ray_query_shadow, daxa_accelerationStructureEXT(p.tlas),
-                            // gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
-                            // gl_RayFlagsTerminateOnFirstHitEXT,
-                            gl_RayFlagsOpaqueEXT,
-                            cull_mask, 
-                            origin,
-                            t_min, 
-                            ray_dir, 
-                            t_max);
-                            
-        while(rayQueryProceedEXT(ray_query_shadow)) {
-            uint type = rayQueryGetIntersectionTypeEXT(ray_query_shadow, false);
-            if(type ==
-                gl_RayQueryCandidateIntersectionAABBEXT) {
-                rayQueryGenerateIntersectionEXT(ray_query_shadow, t);
-                
-                uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query_shadow, true);
-
-                if(type_commited ==
-                    gl_RayQueryCommittedIntersectionGeneratedEXT)
-                {     
-                   // set is_shadowed to true
-                     is_shadowed = true;
-                     break;
-                } 
-            }
-        }
-        rayQueryTerminateEXT(ray_query_shadow); 
-
-        if(is_shadowed)
-        {
-            attenuation *= 0.3;
-            // specular = background_color(ray.direction);
-        }
-        else
-        {
-            attenuation *= 1.0;
-            // Specular
-            specular = compute_specular(mat, ray.direction , L, hit.world_nrm);
-        }
-    }
-
-    //Apply the normal to the color
-    out_color += vec3(light.intensity * attenuation * (diffuse + specular));
+    // out_color += mat_get_color(ray, mat, hit, attenuation, light);
+    out_color += mat_get_color(ray, mat, hit, attenuation);
 
     vec3 scatter_direction;
     

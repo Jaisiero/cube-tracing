@@ -22,7 +22,7 @@ namespace tests
             const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
             const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
-            const u32 MATERIAL_COUNT = 1000;
+            const u32 MATERIAL_COUNT = 100;
 
            Status status = {};
            camera camera = {};
@@ -534,7 +534,7 @@ namespace tests
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .transmittance = {0.0f, 0.0f, 0.0f},
-                            .emission = {0.0f, 0.0f, 0.0f},
+                            .emission = {random_float(0.001, 2.0), random_float(0.001, 1.1), random_float(0.001, 1.1)},
                             .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
