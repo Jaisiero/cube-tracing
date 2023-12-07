@@ -20,8 +20,6 @@ const float INIT_CAMERA_FAR = 1000.0f;
 const float CAMERA_SPEED = 0.1f;
 const float MOUSE_SENSITIVITY = 0.005f;
 const float SPEED_UP_MULTIPLIER = 10.0f;
-const float CAMERA_DEF_FOCUS_ANGLE = 0.0f;
-const float CAMERA_DEF_FOCUS_DIST = 10.0f;
 const float CAMERA_DEF_FOCUS_DIST_MIN = 0.0f;
 const float CAMERA_DEF_FOCUS_DIST_MAX = 100.0f;
 const float CAMERA_DEF_FOCUS_ANGLE_MIN = 0.0f;
@@ -69,8 +67,8 @@ void reset_camera(camera& cam) {
     cam.mouse_middle_pressed = false;
     cam.moved = false;
     cam.shift_status = false;
-    cam.defocus_angle = CAMERA_DEF_FOCUS_ANGLE;
-    cam.focus_dist = CAMERA_DEF_FOCUS_DIST;
+    cam.defocus_angle = CAMERA_DEF_FOCUS_ANGLE_MIN;
+    cam.focus_dist = CAMERA_DEF_FOCUS_DIST_MIN;
 }
 
 const glm::mat4 get_view_matrix(const camera& cam) {

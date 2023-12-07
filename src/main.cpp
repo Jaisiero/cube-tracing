@@ -557,8 +557,8 @@ namespace tests
 
 
                 reset_camera(camera);
-                camera_set_defocus_angle(camera, 0.5f);
-                camera_set_focus_dist(camera, 1.0f);
+                // camera_set_defocus_angle(camera, 0.5f);
+                // camera_set_focus_dist(camera, 1.0f);
                 
 
                 pipeline_manager = daxa::PipelineManager{daxa::PipelineManagerInfo{
