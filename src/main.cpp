@@ -19,13 +19,16 @@ namespace tests
         struct App : AppWindow<App>
         {
             const f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
-            const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
-            const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
+            const u32 INSTANCE_X_AXIS_COUNT = 1; // 2^2 (mirrored on both sides of the x axis)
+            const u32 INSTANCE_Z_AXIS_COUNT = 1; // 2^2 (mirrored on both sides of the z axis)
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
-            const u32 MATERIAL_COUNT = 100;
+            const u32 LAMBERTIAN_MATERIAL_COUNT = 80;
+            const u32 METAL_MATERIAL_COUNT = 15;
+            const u32 DIALECTRIC_MATERIAL_COUNT = 5;
+            const u32 EMISSIVE_MATERIAL_COUNT = 5;
 
-           Status status = {};
-           camera camera = {};
+            Status status = {};
+            camera camera = {};
 
 
             daxa::Instance daxa_ctx = {};
@@ -52,6 +55,9 @@ namespace tests
             daxa::BufferId material_buffer = {};
             u32 max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
 
+            daxa::BufferId light_buffer = {};
+            u32 max_light_buffer_size = sizeof(LIGHT) * MAX_LIGHTS;
+
             daxa::BufferId status_output_buffer = {};
             u32 max_status_output_buffer_size = sizeof(STATUS_OUTPUT);
 
@@ -72,6 +78,8 @@ namespace tests
             u32 current_material_count = 0;
             std::vector<MATERIAL> materials = {};
 
+            std::vector<LIGHT> lights = {};
+
             std::vector<daxa_f32mat4x4> transforms = {};
 
             App() : AppWindow<App>("ray query test") {}
@@ -87,6 +95,7 @@ namespace tests
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
                     device.destroy_buffer(material_buffer);
+                    device.destroy_buffer(light_buffer);
                     device.destroy_buffer(status_buffer);
                     device.destroy_buffer(status_output_buffer);
                     // DEBUGGING
@@ -136,7 +145,7 @@ namespace tests
 
                 // Change every primitive material
                 for(u32 i = 0; i < primitives.size(); i++) {
-                    primitives[i].material_index = random_uint(0, MATERIAL_COUNT - 1);
+                    primitives[i].material_index = random_uint(0, current_material_count - 1);
                 }
 
                 
@@ -182,6 +191,127 @@ namespace tests
 
                 
             }
+
+            daxa_f32vec3 interpolate_sun_light(float t, bool is_afternoon) {
+                // Definir las posiciones clave para el medio día y el atardecer
+                glm::vec3 middayPosition = glm::vec3(0.0, 100.0, 0.0);
+                glm::vec3 sunsetPosition = glm::vec3(0.0, 0.0, 0.0);
+
+                // Calcular las coordenadas elípticas basadas en el tiempo
+                float angle = t * 2.0 * 3.14159; // Ángulo en radianes
+                float ellipseRadiusX = 200.0; // Radio en el eje X
+                float ellipseRadiusY = 100.0; // Radio en el eje Y
+
+                float x = ellipseRadiusX * cos(angle);
+                float y = ellipseRadiusY * sin(angle);
+
+                // Interpolación lineal entre las posiciones elípticas y el atardecer
+                glm::vec3 ellipticalPosition = glm::vec3(x, y, 0.0);
+                glm::vec3 interpolatedPosition = glm::mix(ellipticalPosition, sunsetPosition, t);
+                
+                daxa_f32vec3 position = is_afternoon ? daxa_f32vec3(interpolatedPosition.x, interpolatedPosition.y, interpolatedPosition.z) :
+                    daxa_f32vec3(-interpolatedPosition.x, -interpolatedPosition.y, -interpolatedPosition.z);
+
+                // Ajustar la posición según la hora del día
+                return position;
+            }
+
+            daxa_f32 interpolate_sun_intensity(float time, bool is_afternoon, daxa_f32 max_intensity, daxa_f32 min_intensity) {
+                const daxa_f32 maxIntensityStartTime = 0.5;
+                const daxa_f32 minIntensityEndTime = 0.5;
+
+                float i = 0;
+
+                if (time >= maxIntensityStartTime) {
+                    i = glm::mix(min_intensity, max_intensity, time);  // Adjust the range as needed
+                } else {
+                    i = 0;
+                }
+
+                return i;
+            }
+
+            void load_lights() {
+
+                status.light_count = 1;
+                status.is_afternoon = true;
+                status.time = 0.0;
+
+                if(status.light_count > MAX_LIGHTS) {
+                    std::cout << "status.light_count > MAX_LIGHTS" << std::endl;
+                    abort();
+                }
+
+                lights.reserve(status.light_count);
+
+                // TODO: add more lights (random values?)
+                LIGHT light;
+                light.position = daxa_f32vec3(0.0, 100.0, 0.0);
+                light.intensity = 100.0;
+                light.distance = 50.0;
+                light.type = 0;  // 0: point light, 1: directional light
+
+                lights.push_back(light);
+
+                // Calculate light buffer size
+                auto light_buffer_size = std::min(max_light_buffer_size, static_cast<u32>(sizeof(LIGHT) * status.light_count));
+
+                // get light buffer host mapped pointer
+                auto * light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
+
+                // copy lights to buffer
+                std::memcpy(light_staging_buffer_ptr, 
+                    lights.data(),
+                    light_buffer_size);
+            }
+
+             void update_lights() {
+
+                if(lights.size() == 0) {
+                    return;
+                }
+
+                if(status.light_count == 0) {
+                    return;
+                }
+
+                if(status.light_count > MAX_LIGHTS) {
+                    std::cout << "current_light_count > MAX_LIGHTS" << std::endl;
+                    abort();
+                }
+
+                if(status.light_count != lights.size()) {
+                    std::cout << "current_light_count != lights.size()" << std::endl;
+                    abort();
+                }
+
+                // Speed of time progression
+                float timeSpeed = 0.001;
+
+                // Increment or decrement time
+                status.time += timeSpeed * (status.is_afternoon ? 1.0 : -1.0);
+
+                // Check for boundaries and reverse direction if needed
+                if (status.time < 0.0 || status.time > 1.0) {
+                    status.is_afternoon = !status.is_afternoon;
+                    status.time = std::clamp(status.time, 0.0f, 1.0f);
+                }
+
+                lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
+                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 1000.0f /*max_intensity*/, 0.0f /*min_intensity*/);
+                
+                // Calculate light buffer size
+                auto light_buffer_size = std::min(max_light_buffer_size, static_cast<u32>(sizeof(LIGHT) * status.light_count));
+
+                // get light buffer host mapped pointer
+                auto * light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
+                
+                // copy lights to buffer
+                std::memcpy(light_staging_buffer_ptr, 
+                    lights.data(),
+                    light_buffer_size);
+
+             }
 
             daxa_Bool8 build_tlas(u32 instance_count) {
                 daxa_Bool8 some_level_changed = false;
@@ -234,7 +364,7 @@ namespace tests
                         for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                             for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
                                 
-                                if(random_float(0.0, 1.0) > 0.80) {
+                                if(random_float(0.0, 1.0) > 0.95) {
                                     min_max.push_back(generate_min_max_by_coord(x, y, z));
                                 }
                             }
@@ -270,7 +400,7 @@ namespace tests
                                 (min_max[j].y.y + min_max[j].x.y) / 2.0f,
                                 (min_max[j].y.z + min_max[j].x.z) / 2.0f
                             ),
-                            .material_index = random_uint(0, MATERIAL_COUNT - 1),
+                            .material_index = random_uint(0, current_material_count - 1),
                         });
                     }
 
@@ -469,6 +599,12 @@ namespace tests
                     .name = ("material_buffer"),
                 });
 
+                light_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_light_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+                    .name = ("light_buffer"),
+                });
+
                 status_output_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_status_output_buffer_size,
                     .name = ("status_output_buffer"),
@@ -523,23 +659,80 @@ namespace tests
                         abort();
                     }
 
-                    current_material_count = MATERIAL_COUNT;
+                    current_material_count = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT;
 
                     materials.reserve(current_material_count);
 
-                    for(u32 i = 0; i < current_material_count; i++) {
+                    for(u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = random_uint(0, 2),
+                            .type = 0,
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .transmittance = {0.0f, 0.0f, 0.0f},
-                            .emission = {random_float(0.001, 2.0), random_float(0.001, 1.1), random_float(0.001, 1.1)},
+                            .emission = {0.0, 0.0, 0.0},
                             .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
-                            .dissolve = 1.0f,
-                            .illum = random_int(2, 4),
+                            // .dissolve = (-1/random_float(0.1, 1.0)),
+                            // .dissolve = (random_float(0.1, 1.0)),
+                            .dissolve = 1.0,
+                            .illum = random_int(1, 2),
+                            .textureId = -1,
+                        });
+                    }
+
+                    for(u32 i = 0; i < METAL_MATERIAL_COUNT; i++) {
+                        materials.push_back(MATERIAL{
+                            .type = 1,
+                            .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .transmittance = {0.0f, 0.0f, 0.0f},
+                            .emission = {0.0, 0.0, 0.0},
+                            .shininess = random_float(0.0, 4.0),
+                            .roughness = random_float(0.0, 1.0),
+                            .ior = random_float(1.0, 2.65),
+                            // .dissolve = (-1/random_float(0.1, 1.0)),
+                            // .dissolve = (random_float(0.1, 1.0)),
+                            .dissolve = 1.0,
+                            .illum = random_int(1, 2),
+                            .textureId = -1,
+                        });
+                    }
+                    
+                    
+
+                    for(u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++) {
+                        materials.push_back(MATERIAL{
+                            .type = 2,
+                            .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                            .transmittance = {0.0f, 0.0f, 0.0f},
+                            .emission = {0.0, 0.0, 0.0},
+                            .shininess = random_float(0.0, 4.0),
+                            .roughness = random_float(0.0, 1.0),
+                            .ior = random_float(1.0, 2.65),
+                            .dissolve = 1.0,
+                            .illum = random_int(1, 2),
+                            .textureId = -1,
+                        });
+                    }
+
+                    for(u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++) {
+                        materials.push_back(MATERIAL{
+                            .type = 3,
+                            .ambient = {1.0, 1.0, 1.0},
+                            .diffuse =  {1.0, 1.0, 1.0},
+                            .specular = {1.0, 1.0, 1.0},
+                            .transmittance = {0.0, 0.0, 0.0},
+                            .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
+                            .shininess = random_float(0.0, 4.0),
+                            .roughness = random_float(0.0, 1.0),
+                            .ior = random_float(1.0, 2.65),
+                            .dissolve = 1.0,
+                            .illum = 2,
                             .textureId = -1,
                         });
                     }
@@ -559,6 +752,9 @@ namespace tests
                 reset_camera(camera);
                 // camera_set_defocus_angle(camera, 0.5f);
                 // camera_set_focus_dist(camera, 1.0f);
+
+                load_lights();
+                
                 
 
                 pipeline_manager = daxa::PipelineManager{daxa::PipelineManagerInfo{
@@ -598,6 +794,7 @@ namespace tests
 
                 if (!minimized)
                 {
+                    update_lights();
                     draw();
                     download_gpu_info();
                     // call build tlas
@@ -773,6 +970,7 @@ namespace tests
                     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
                     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
+                    .light_buffer = this->device.get_device_address(light_buffer).value(),
                     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
                     // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
@@ -941,7 +1139,8 @@ namespace tests
 
                 std::cout << "status pixel [" << status.pixel.x << ", " << status.pixel.y << "]" << std::endl;
                 std::cout << "status out instance index " << status_output.instance_id << " primitive index " << status_output.primitive_id 
-                    << " distance " << status_output.hit_distance << " position [" << status_output.hit_position.x << ", " << status_output.hit_position.y << ", " << status_output.hit_position.z << "]" 
+                    << " distance " << status_output.hit_distance << " exit " << status_output.exit_distance
+                    << " position [" << status_output.hit_position.x << ", " << status_output.hit_position.y << ", " << status_output.hit_position.z << "]" 
                     << " normal [" << status_output.hit_normal.x << ", " << status_output.hit_normal.y << ", " << status_output.hit_normal.z << "]"
                     << " origin [" << status_output.origin.x << ", " << status_output.origin.y << ", " << status_output.origin.z << "]"
                     << " direction [" << status_output.direction.x << ", " << status_output.direction.y << ", " << status_output.direction.z << "]" 

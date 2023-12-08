@@ -1,4 +1,6 @@
 // prgn.glsl
+#ifndef PRNG_GLSL
+#define PRNG_GLSL
 #include <daxa/daxa.inl>
 #include "shared.inl"
 #include "Box.glsl"
@@ -139,3 +141,5 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG
     }
     return false;
 }
+
+#endif // PRNG_GLSL

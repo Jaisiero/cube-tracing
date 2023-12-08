@@ -6,124 +6,14 @@
 #include <daxa/daxa.inl>
 
 #include "shared.inl"
-#include "mat.glsl"
 #include "prng.glsl"
+#include "mat.glsl"
 
 #include "intersect.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
-// daxa_f32vec3 mat_get_color(Ray ray, MATERIAL mat, inout hit_info hit, inout vec3 attenuation, light_info light) 
-// {
-//     vec3 L = vec3(0.0, 0.0, 0.0);
-//     // Point light
-//     if(light.type == 0)
-//     {
-//         vec3 lDir      = light.position - hit.world_pos;
-//         light.distance  = length(lDir);
-//         light.intensity = light.intensity / (light.distance * light.distance);
-//         L              = normalize(lDir);
-//     }
-//     else  // Directional light
-//     {
-//         L = normalize(light.position);
-//     }
-
-//     // Diffuse
-//     vec3  diffuse     = compute_diffuse(mat, L, hit.world_nrm);
-//     // vec3 diffuse     = vec3(mat.diffuse);
-//     vec3  specular    = vec3(0);
-
-//     daxa_b32 is_shadowed = false;
-
-//     if(dot(hit.world_nrm, L) > 0) {
-//         float t_min   = 0.0001;
-//         float t_max   = light.distance;
-//         float t       = 0.0;
-//         vec3  origin = hit.world_pos;
-//         vec3  ray_dir = L;
-//         uint cull_mask = 0xff;
-//         rayQueryEXT ray_query_shadow;
-//         rayQueryInitializeEXT(ray_query_shadow, daxa_accelerationStructureEXT(p.tlas),
-//                             // gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
-//                             // gl_RayFlagsTerminateOnFirstHitEXT,
-//                             gl_RayFlagsOpaqueEXT,
-//                             cull_mask, 
-//                             origin,
-//                             t_min, 
-//                             ray_dir, 
-//                             t_max);
-                            
-//         while(rayQueryProceedEXT(ray_query_shadow)) {
-//             uint type = rayQueryGetIntersectionTypeEXT(ray_query_shadow, false);
-//             if(type ==
-//                 gl_RayQueryCandidateIntersectionAABBEXT) {
-//                 rayQueryGenerateIntersectionEXT(ray_query_shadow, t);
-                
-//                 uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query_shadow, true);
-
-//                 if(type_commited ==
-//                     gl_RayQueryCommittedIntersectionGeneratedEXT)
-//                 {     
-//                    // set is_shadowed to true
-//                      is_shadowed = true;
-//                      break;
-//                 } 
-//             }
-//         }
-//         rayQueryTerminateEXT(ray_query_shadow); 
-
-//         if(is_shadowed)
-//         {
-//             attenuation *= 0.3;
-//             // specular = background_color(ray.direction);
-//         }
-//         else
-//         {
-//             attenuation *= 1.0;
-//             // Specular
-//             specular = compute_specular(mat, ray.direction , L, hit.world_nrm);
-//         }
-//     }
-
-//     return vec3(light.intensity * attenuation * (diffuse + specular));
-// }
-
-// Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
-daxa_b32 hit_color(inout Ray ray, inout hit_info hit, inout vec3 attenuation, inout vec3 out_color, light_info light, LCG lcg)
-{
-    // vec3 L = vec3(0.0, 0.0, 0.0);
-    // Get first primitive index from instance id
-    uint primitive_index = deref(p.instance_buffer).instances[hit.instance_id].first_primitive_index;
-
-    // Get actual primitive index from offset and primitive id
-    uint actual_primitive_index = primitive_index + hit.primitive_id;
-
-    // get primitive material index
-    daxa_u32 material_index = deref(p.primitives_buffer).primitives[actual_primitive_index].material_index;
-    
-    // get material
-    MATERIAL mat = deref(p.materials_buffer).materials[material_index];
-
-    // out_color += mat_get_color(ray, mat, hit, attenuation, light);
-    out_color += mat_get_color(ray, mat, hit, attenuation);
-
-    vec3 scatter_direction;
-    
-    if(scatter(mat, ray.direction, hit.world_nrm, lcg, scatter_direction) == false) {
-        // out_color = vec3(0.0, 0.0, 0.0);
-        // No scatter
-        return false;
-    }
-
-    ray = Ray((hit.world_pos + (DELTA_RAY * hit.world_nrm)) , scatter_direction);
-
-    return true;
-}
-
-
-
-daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit) {
+daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit, out MATERIAL mat, LCG lcg) {
 
     mat4 transform = deref(p.instance_buffer).instances[hit.instance_id].transform;
     mat4 transposed = transpose(transform);
@@ -141,25 +31,176 @@ daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit) {
     vec3 aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
 
     // Voxels are centered around half extent
-    vec3 half_extent = vec3(VOXEL_EXTENT / 2 - AVOID_VOXEL_COLLAIDE);
+    vec3 half_extent = vec3(VOXEL_EXTENT / 2);
 
     Ray local_ray = Ray((inv_transposed * vec4(ray.origin, 1)).xyz, (inv_transposed * vec4(ray.direction, 0)).xyz);
 
     Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(transposed));
 
-    daxa_b32 intersection = ourIntersectBox(box, local_ray, 
-        hit.distance, hit.world_nrm, 
+    float t_max = 0.0f;
+
+    daxa_b32 intersection = ourIntersectBoxTwoHits(box, local_ray, 
+        hit.hit_distance, hit.exit_distance, hit.world_nrm, 
         false, safeInverse(local_ray.direction));
 
     if(intersection == false) {
         return false;
     }
 
-    // TODO: Why do we need to place the hit point a little bit further? It seems that if we don't do this we are still hitting the box from the inside
+   
     // hit point in world space
-    hit.world_pos = ray.origin + ray.direction * hit.distance + (VOXEL_EXTENT / 2) * hit.world_nrm;
+    hit.world_pos = hit_get_world_hit(ray, hit);
 
     hit.primitive_center = aabb_center;
+
+    // Get material
+    {
+        // Get first primitive index from instance id
+        uint primitive_index = deref(p.instance_buffer).instances[hit.instance_id].first_primitive_index;
+
+        // Get actual primitive index from offset and primitive id
+        uint actual_primitive_index = primitive_index + hit.primitive_id;
+
+        // get primitive material index
+        daxa_u32 material_index = deref(p.primitives_buffer).primitives[actual_primitive_index].material_index;
+        
+        // get material
+        mat = deref(p.materials_buffer).materials[material_index];
+    }
+
+    daxa_b32 intersected = true;
+    // // Check dissolve and transmission
+    // {
+    //     intersected = material_transmission(ray, hit, mat, lcg);
+    // }
+
+    return intersected;
+}
+
+daxa_f32vec3 mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, inout hit_info hit, LCG lcg) 
+{
+
+    vec3 L = vec3(0.0, 0.0, 0.0);
+    // Point light
+    if(light.type == 0)
+    {
+        vec3 lDir      = light.position - hit.world_pos;
+        light.distance  = length(lDir);
+        light.intensity = light.intensity / (light.distance * light.distance);
+        L              = normalize(lDir);
+    }
+    else  // Directional light
+    {
+        L = normalize(light.position);
+    }
+
+    // Diffuse
+    vec3  diffuse     = compute_diffuse(mat, L, hit.world_nrm);
+    // vec3 diffuse     = vec3(mat.diffuse);
+    vec3  specular    = vec3(0);
+    vec3  attenuation = vec3(1.0);
+
+    daxa_b32 is_shadowed = false;
+
+    if(dot(hit.world_nrm, L) > 0) {
+        float t_min   = 0.0001;
+        float t_max   = light.distance;
+        float t       = 0.0;
+        vec3  origin = hit.world_pos;
+        vec3  ray_dir = L;
+        Ray shadow_ray = Ray(origin, ray_dir);
+        uint cull_mask = 0xff;
+        rayQueryEXT ray_query_shadow;
+        hit_info hit_shadow;
+        MATERIAL mat_shadow;
+        rayQueryInitializeEXT(ray_query_shadow, daxa_accelerationStructureEXT(p.tlas),
+                            // gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
+                            // gl_RayFlagsTerminateOnFirstHitEXT,
+                            gl_RayFlagsOpaqueEXT,
+                            cull_mask, 
+                            origin,
+                            t_min, 
+                            ray_dir, 
+                            t_max);
+                            
+        while(rayQueryProceedEXT(ray_query_shadow)) {
+            uint type = rayQueryGetIntersectionTypeEXT(ray_query_shadow, false);
+            if(type ==
+                gl_RayQueryCandidateIntersectionAABBEXT) {
+                rayQueryGenerateIntersectionEXT(ray_query_shadow, t);
+                
+                uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query_shadow, true);
+
+                if(type_commited ==
+                    gl_RayQueryCommittedIntersectionGeneratedEXT)
+                {  
+#if(DIALECTRICS_DONT_BLOCK_LIGHT == 1)                    
+                    // get instance id
+                    hit_shadow.instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query_shadow, true);
+
+                    // Get primitive id
+                    hit_shadow.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query_shadow, true);
+                    
+                    // TODO: light leaks between cubes
+                    // if(ray_box_intersection(shadow_ray, hit_shadow, mat_shadow, lcg) == true) {
+                    ray_box_intersection(shadow_ray, hit_shadow, mat_shadow, lcg);
+                        
+                        if(mat_shadow.type != TEXTURE_TYPE_DIELECTRIC) {
+#endif // DIALECTRICS_DONT_BLOCK_LIGH                            
+                        // set is_shadowed to true
+                            is_shadowed = true;
+                            break;
+#if(DIALECTRICS_DONT_BLOCK_LIGHT == 1)
+                        }
+                    // }
+#endif // DIALECTRICS_DONT_BLOCK_LIGHT
+
+                } 
+            }
+        }
+        rayQueryTerminateEXT(ray_query_shadow); 
+
+        if(is_shadowed)
+        {
+            attenuation *= 0.3;
+        }
+        else
+        {
+            attenuation *= 1.0;
+            // Specular
+            specular = compute_specular(mat, ray.direction , L, hit.world_nrm);
+        }
+    }
+
+    return vec3(light.intensity * attenuation * (diffuse + specular));
+}
+
+// Credits: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_intersection/shaders/raytrace2.rchit
+daxa_b32 hit_material(inout Ray ray, MATERIAL mat, inout hit_info hit, inout daxa_f32vec3 out_color, LCG lcg)
+{
+    // TODO: Just one light for now
+    LIGHT light = deref(p.light_buffer).lights[0];
+
+    if(light.intensity > 0.0) {
+        // TODO: Fix this
+        vec3 current_diffuse_color = mat.diffuse;
+        mat.diffuse = hit.hit_color;
+        out_color += mat_get_color_by_light(ray, mat, light, hit, lcg);
+        mat.diffuse = current_diffuse_color;
+    }
+    out_color += mat.emission * hit.hit_color;
+    hit.hit_color *= mat.diffuse;
+    // out_color += mat_get_color(ray, mat, hit, attenuation);
+
+    vec3 scatter_direction;
+    
+    if(scatter(mat, ray.direction, hit.world_nrm, lcg, scatter_direction) == false) {
+        // out_color = vec3(0.0, 0.0, 0.0);
+        // No scatter
+        return false;
+    }
+
+    ray = Ray((hit.world_pos + (DELTA_RAY * hit.world_nrm)) , scatter_direction);
 
     return true;
 }
@@ -172,43 +213,28 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
     // Ray query setup
     float t = 0.0f;
     float t_hit = -1.0f;
-    hit_info hit;
+    hit_info hit = hit_info(false, vec3(1.0, 1.0, 1.0), t_hit, t_hit, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), -1, -1, vec3(0.0, 0.0, 0.0));
     uint cull_mask = 0xff;
     float t_min = 0.0001f;
     float t_max = 1000.0f;
     rayQueryEXT ray_query;
-
-    // TODO: Configurable by buffer
-    const vec3 LIGHT_POSITION = vec3(1.0, 10.0, 5.0);
-    // Vector toward the light
-    const float light_intensity = 100.0;
-    const float light_distance  = 50.0;
-    const uint light_type      = 0;  // 0: point light, 1: directional light
-
-    light_info light;
-    light.position = LIGHT_POSITION;
-    light.intensity = light_intensity;
-    light.distance = light_distance;
-    light.type = light_type;
     
     // light setup
-    vec3 attenuation = vec3(1.0);
 
     int instance_id = -1;
     int primitive_id = -1;
+    MATERIAL mat;
 
-    daxa_b32 found = false;
+    daxa_b32 keep_bouncing = false;
 
     for(int i = 0; i < depth; i++) {
 
         t_hit = -1.0f;
 
-        found = false;
+        keep_bouncing = false;
 
         rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
-                            gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
-                            // gl_RayFlagsTerminateOnFirstHitEXT,
-                            // gl_RayFlagsOpaqueEXT,
+                            gl_RayFlagsOpaqueEXT,
                             cull_mask, ray.origin, t_min, ray.direction, t_max);
                             
         while(rayQueryProceedEXT(ray_query)) {
@@ -229,14 +255,15 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
                     // Get primitive id
                     hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
 
-                    if(ray_box_intersection(ray, hit) == true) {
+                    if(ray_box_intersection(ray, hit, mat, lcg) == true) {
+                        hit.is_hit = true;
 #if(DEBUG_NORMALS_ON == 1)
                         out_color = normal_to_color(hit.world_nrm);
                         return out_color;
 #endif                        
 
-                        if(hit_color(ray, hit, attenuation, out_color, light, lcg) == true) {
-                            found = true;
+                        if(hit_material(ray, mat, hit, out_color, lcg) == true) {
+                            keep_bouncing = true;
                         }
                         // out_color = tmp_color;
                         break;
@@ -246,11 +273,21 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
         }
         rayQueryTerminateEXT(ray_query);
 
-        if(found == false) {
-            // No hit
-            // if out_color is (0,0,0) then we are in the background primary ray otherwise we are in a shadow ray
-            attenuation = out_color == vec3(0.0, 0.0, 0.0) ? vec3(1.0) : vec3(0.01);
-            out_color += background_color(ray.direction) * attenuation;
+        if(hit.is_hit == false) {
+            // lost in sky direction random direction
+            // daxa_f32vec3 lost_light_direction = random_on_hemisphere(lcg, ray.direction);
+            out_color = calculate_sky_color(
+                    deref(p.status_buffer).time, 
+                    deref(p.status_buffer).is_afternoon,
+                    ray.direction);
+            return out_color;
+        } else if(keep_bouncing == false) {
+            // lost in sky direction random direction
+            // daxa_f32vec3 lost_light_direction = random_on_hemisphere(lcg, ray.direction);
+            out_color *= calculate_sky_color(
+                deref(p.status_buffer).time,
+                deref(p.status_buffer).is_afternoon,
+                ray.direction);
             return out_color;
         }
     };
@@ -357,16 +394,17 @@ void main()
             vec3 ray_dir = ray.direction;
             hit_info hit;
             rayQueryEXT ray_query; 
+            MATERIAL mat;
 
             rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
-                            gl_RayFlagsOpaqueEXT   | gl_RayFlagsTerminateOnFirstHitEXT,
+                            gl_RayFlagsOpaqueEXT,
                             cull_mask, origin, t_min, ray_dir, t_max);
                             
             while(rayQueryProceedEXT(ray_query)) {
                 uint type = rayQueryGetIntersectionTypeEXT(ray_query, false);
                 if(type ==
                     gl_RayQueryCandidateIntersectionAABBEXT) {
-                    rayQueryGenerateIntersectionEXT(ray_query, hit.distance);
+                    rayQueryGenerateIntersectionEXT(ray_query, hit.hit_distance);
                     
                     uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
 
@@ -379,12 +417,17 @@ void main()
 
                         // Get primitive id
                         hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
+                        
+                        // TEST
+                        // deref(p.status_output_buffer).instance_id = hit.instance_id;
+                        // deref(p.status_output_buffer).primitive_id = hit.primitive_id;
 
-                        if(ray_box_intersection(ray, hit) == true) {
+                        if(ray_box_intersection(ray, hit, mat, lcg) == true) {
                             // if hit write instance & primtive id to status_output_buffer
                             deref(p.status_output_buffer).instance_id = hit.instance_id;
                             deref(p.status_output_buffer).primitive_id = hit.primitive_id;
-                            deref(p.status_output_buffer).hit_distance = hit.distance;
+                            deref(p.status_output_buffer).hit_distance = hit.hit_distance;
+                            deref(p.status_output_buffer).exit_distance = hit.exit_distance;
                             deref(p.status_output_buffer).hit_position = hit.world_pos;
                             deref(p.status_output_buffer).hit_normal = hit.world_nrm;
                             deref(p.status_output_buffer).origin = ray.origin;

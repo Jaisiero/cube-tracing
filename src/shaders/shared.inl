@@ -8,9 +8,11 @@
 #define MAX_INSTANCES 10000
 #define MAX_PRIMITIVES 100000
 #define MAX_MATERIALS 10000
+#define MAX_LIGHTS 20
 
 #define DEBUG_NORMALS_ON 0
-#define PERFECT_PIXEL_ON 0
+#define PERFECT_PIXEL_ON 1
+#define DIALECTRICS_DONT_BLOCK_LIGHT 1
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -20,10 +22,10 @@
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
 #define SAMPLES_PER_PIXEL 5
-#define SAMPLE_OFFSET 0.0001 // Multi sample offset
+#define SAMPLE_OFFSET 1e-6f // Multi sample offset
 #define MAX_DEPTH 5
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
-#define AVOID_VOXEL_COLLAIDE 0.0001f   // Delta ray offset for shadow rays
+#define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
 // #define AVOID_VOXEL_COLLAIDE 0.025f   // Delta ray offset for shadow rays
 // #define DELTA_RAY 0.001
 // #define DELTA_RAY 0.0001
@@ -44,21 +46,15 @@ struct Ray
 
 struct hit_info
 {
-  daxa_f32 distance;
+  daxa_b32 is_hit;
+  daxa_f32vec3 hit_color;
+  daxa_f32 hit_distance;
+  daxa_f32 exit_distance;
   daxa_f32vec3 world_pos;
   daxa_f32vec3 world_nrm;
   daxa_i32 instance_id;
   daxa_i32 primitive_id;
   daxa_f32vec3 primitive_center;
-};
-
-
-struct light_info
-{
-  daxa_f32vec3 position;
-  daxa_f32 intensity;
-  daxa_f32 distance;
-  daxa_u32 type;  // 0: point light, 1: directional light
 };
 
 struct camera_view{ 
@@ -74,6 +70,9 @@ struct Status
     daxa_u32 frame_number;
     daxa_u32vec2 pixel;
     daxa_b32 is_active;
+    daxa_u32 light_count;
+    daxa_f32 time;
+    daxa_b32 is_afternoon;
 };
 DAXA_DECL_BUFFER_PTR(Status)
 
@@ -106,6 +105,7 @@ DAXA_DECL_BUFFER_PTR(PRIMITIVES)
 #define TEXTURE_TYPE_LAMBERTIAN 0
 #define TEXTURE_TYPE_METAL 1
 #define TEXTURE_TYPE_DIELECTRIC 2
+#define TEXTURE_TYPE_CONSTANT_MEDIUM 3
 
 struct MATERIAL
 {
@@ -130,11 +130,27 @@ struct MATERIALS
 DAXA_DECL_BUFFER_PTR(MATERIALS)
 
 
+struct LIGHT
+{
+    daxa_f32vec3 position;
+    daxa_f32 intensity;
+    daxa_f32 distance;
+    daxa_u32 type; // 0: point light, 1: directional light
+};
+
+struct LIGHTS
+{
+    LIGHT lights[MAX_LIGHTS];
+};
+DAXA_DECL_BUFFER_PTR(LIGHTS)
+
+
 struct STATUS_OUTPUT
 {
     daxa_u32 instance_id;
     daxa_u32 primitive_id;
     daxa_f32 hit_distance;
+    daxa_f32 exit_distance;
     daxa_f32vec3 hit_position;
     daxa_f32vec3 hit_normal;
     daxa_f32vec3 origin;
@@ -206,6 +222,7 @@ struct PushConstant
     daxa_BufferPtr(INSTANCES) instance_buffer;
     daxa_BufferPtr(PRIMITIVES) primitives_buffer;
     daxa_BufferPtr(MATERIALS) materials_buffer;
+    daxa_BufferPtr(LIGHTS) light_buffer;
     daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer; 
     // daxa_RWBufferPtr(HIT_DISTANCES) hit_distance_buffer;
     // daxa_RWBufferPtr(INSTANCE_LEVELS) instance_level_buffer;

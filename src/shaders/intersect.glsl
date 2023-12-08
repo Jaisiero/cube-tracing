@@ -9,7 +9,7 @@
 // mat3 box.rotation:     box-to-world rotation (orthonormal 3x3 matrix) transformation
 // bool rayCanStartInBox: if true, assume the origin is never in a box. GLSL optimizes this at compile time
 // bool oriented:         if false, ignore box.rotation
-bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out vec3 normal, const bool rayCanStartInBox, const in bool oriented, in vec3 _invRayDirection) {
+bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const bool rayCanStartInBox, const bool rayCanSecondHit, const in bool oriented, in vec3 _invRayDirection) {
 
     // Move to the box's reference frame. This is unavoidable and un-optimizable.
     ray.origin = box.rotation * (ray.origin - box.center);
@@ -55,8 +55,7 @@ bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out vec3 normal
     bvec3 test = bvec3(TEST(x, yz), TEST(y, zx), TEST(z, xy));
 
     // CMOV chain that guarantees exactly one element of sgn is preserved and that the value has the right sign
-    sgn = test.x ? vec3(sgn.x, 0.0, 0.0) : (test.y ? vec3(0.0, sgn.y, 0.0) : vec3(0.0, 0.0, test.z ? sgn.z : 0.0));    
-#   undef TEST
+    sgn = test.x ? vec3(sgn.x, 0.0, 0.0) : (test.y ? vec3(0.0, sgn.y, 0.0) : vec3(0.0, 0.0, test.z ? sgn.z : 0.0));   
         
     // At most one element of sgn is non-zero now. That element carries the negative sign of the 
     // ray direction as well. Notice that we were able to drop storage of the test vector from registers,
@@ -66,6 +65,41 @@ bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out vec3 normal
     // Dot product is faster than this CMOV chain, but doesn't work when distanceToPlane contains nans or infs. 
     //
     distance = (sgn.x != 0.0) ? distanceToPlane.x : ((sgn.y != 0.0) ? distanceToPlane.y : distanceToPlane.z);
+
+
+    if(rayCanSecondHit) {
+        // Starting outside of the box. Get the distance to the exit plane.
+        if(winding > 0.0) {
+            
+            ray.origin += distance * ray.direction;
+
+            vec3 exit_sgn = sign(ray.direction);
+
+            // Compute the distance to the exit plane from the new origin which is inside the box
+            distanceToPlane = box.radius * exit_sgn - ray.origin;
+            if (oriented) {
+                distanceToPlane /= ray.direction;
+            } else {
+                distanceToPlane *= _invRayDirection;
+            }
+
+            // Perform all three ray-box tests and cast to 0 or 1 on each axis.
+            test = bvec3(TEST(x, yz), TEST(y, zx), TEST(z, xy));
+
+            // CMOV chain that guarantees exactly one element of sgn is preserved and that the value has the right sign
+            exit_sgn = test.x ? vec3(exit_sgn.x, 0.0, 0.0) : (test.y ? vec3(0.0, exit_sgn.y, 0.0) : vec3(0.0, 0.0, test.z ? exit_sgn.z : 0.0));
+
+            // Same as above
+            exit_distance = (exit_sgn.x != 0.0) ? distanceToPlane.x : ((exit_sgn.y != 0.0) ? distanceToPlane.y : distanceToPlane.z);
+
+            exit_distance += distance;
+
+        } else {
+            // Starting inside of the box. The ray can't exit the box, so set the exit distance to infinity.
+            exit_distance = 1 / 0;
+        } 
+    }
+#   undef TEST
 
     // Normal must face back along the ray. If you need
     // to know whether we're entering or leaving the box, 
@@ -111,12 +145,16 @@ bool ourOutsideHitAABox(vec3 boxCenter, vec3 boxRadius, vec3 rayOrigin, vec3 ray
 }
 
 // Ray is always outside of the box
-bool ourOutsideIntersectBox(Box box, Ray ray, out float distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection) {
-    return ourIntersectBoxCommon(box, ray, distance, normal, false, oriented, _invRayDirection);
+bool ourOutsideIntersectBox(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection) {
+    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, false, true, oriented, _invRayDirection);
 }
 
-bool ourIntersectBox(Box box, Ray ray, out float distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection) {
-    return ourIntersectBoxCommon(box, ray, distance, normal, true, oriented, _invRayDirection);
+bool ourIntersectBox(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection) {
+    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, true, false, oriented, _invRayDirection);
+}
+
+bool ourIntersectBoxTwoHits(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection) {
+    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, true, true, oriented, _invRayDirection);
 }
 
 
