@@ -13,11 +13,13 @@
 #define DEBUG_NORMALS_ON 0
 #define PERFECT_PIXEL_ON 1
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
+#define ACCUMULATOR_ON 0
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
 
 #define VOXEL_EXTENT 0.125f
+#define AVOID_LIGHT_LEAKS 0.000
 #define VOXEL_COUNT_BY_AXIS 8 // 2^3
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
@@ -68,6 +70,7 @@ DAXA_DECL_BUFFER_PTR(camera_view)
 struct Status
 {
     daxa_u32 frame_number;
+    daxa_u32 num_accumulated_frames;
     daxa_u32vec2 pixel;
     daxa_b32 is_active;
     daxa_u32 light_count;

@@ -25,6 +25,8 @@ const float CAMERA_DEF_FOCUS_DIST_MAX = 100.0f;
 const float CAMERA_DEF_FOCUS_ANGLE_MIN = 0.0f;
 const float CAMERA_DEF_FOCUS_ANGLE_MAX = 5.0f;
 
+const unsigned int TRIPPLE_BUFFER = 3;
+
 // const glm::vec3 RIGHT_DIRECTION = {1.0f, 0.0f, 0.0f};
 
 typedef struct camera {
@@ -45,7 +47,8 @@ typedef struct camera {
     float speed;
     bool mouse_left_press;
     bool mouse_middle_pressed;
-    bool moved;
+    std::array<bool, TRIPPLE_BUFFER> moved;
+    unsigned int frame_index;
     bool shift_status;
     float defocus_angle;
     float focus_dist;
@@ -65,7 +68,8 @@ void reset_camera(camera& cam) {
     cam.last_mouse_pos = glm::vec2(0, 0);
     cam.mouse_left_press = false;
     cam.mouse_middle_pressed = false;
-    cam.moved = false;
+    cam.moved[0] = cam.moved[1] = cam.moved[2] = true;
+    cam.frame_index = 0;
     cam.shift_status = false;
     cam.defocus_angle = CAMERA_DEF_FOCUS_ANGLE_MIN;
     cam.focus_dist = CAMERA_DEF_FOCUS_DIST_MIN;
@@ -140,7 +144,7 @@ const float& camera_get_speed(const camera& cam) {
 }
 
 const bool& camera_get_moved(const camera& cam) {
-    return cam.moved;
+    return cam.moved[cam.frame_index];
 }
 
 const glm::vec2& camera_get_last_mouse_pos(const camera& cam) {
@@ -173,7 +177,7 @@ const float& camera_get_focus_dist(const camera& cam) {
 
 void move_camera(camera& cam, const glm::vec3& direction) {
     cam.position += direction * cam.speed * (cam.shift_status ? SPEED_UP_MULTIPLIER : 1.0f);
-    cam.moved = true;
+    cam.moved[0] = cam.moved[1] = cam.moved[2] = true;
 }
 
 void move_camera_forward(camera& cam) {
@@ -241,6 +245,15 @@ void camera_set_speed(camera& cam, float speed) {
     cam.speed = speed;
 }
 
+void camera_set_moved(camera& cam) {
+    cam.moved[0] = cam.moved[1] = cam.moved[2] = true;
+}
+
+void camera_reset_moved(camera& cam) {
+    cam.moved[cam.frame_index] = false;
+    cam.frame_index = (cam.frame_index + 1) % TRIPPLE_BUFFER;
+}
+
 void camera_set_last_mouse_pos(camera& cam, const glm::vec2& last_mouse_pos) {
     cam.last_mouse_pos = last_mouse_pos;
 }
@@ -292,7 +305,7 @@ void rotate_camera(camera& cam, float currentX, float currentY)
 			glm::angleAxis(-yaw_delta, glm::vec3(0.f, 1.0f, 0.0f))));
 		cam.forward = glm::rotate(q, cam.forward);
 
-		cam.moved = true;
+        camera_set_moved(cam);
 	}
 }
 

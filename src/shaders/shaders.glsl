@@ -31,6 +31,7 @@ daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit, out MATERIAL mat, LCG
     vec3 aabb_center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
 
     // Voxels are centered around half extent
+    // TODO: Light leaks between voxels due to number precision?
     vec3 half_extent = vec3(VOXEL_EXTENT / 2);
 
     Ray local_ray = Ray((inv_transposed * vec4(ray.origin, 1)).xyz, (inv_transposed * vec4(ray.direction, 0)).xyz);
@@ -142,8 +143,8 @@ daxa_f32vec3 mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, inout hi
                     hit_shadow.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query_shadow, true);
                     
                     // TODO: light leaks between cubes
-                    // if(ray_box_intersection(shadow_ray, hit_shadow, mat_shadow, lcg) == true) {
-                    ray_box_intersection(shadow_ray, hit_shadow, mat_shadow, lcg);
+                    if(ray_box_intersection(shadow_ray, hit_shadow, mat_shadow, lcg) == true) {
+                    // ray_box_intersection(shadow_ray, hit_shadow, mat_shadow, lcg);
                         
                         if(mat_shadow.type != TEXTURE_TYPE_DIELECTRIC) {
 #endif // DIALECTRICS_DONT_BLOCK_LIGH                            
@@ -152,7 +153,7 @@ daxa_f32vec3 mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, inout hi
                             break;
 #if(DIALECTRICS_DONT_BLOCK_LIGHT == 1)
                         }
-                    // }
+                    }
 #endif // DIALECTRICS_DONT_BLOCK_LIGHT
 
                 } 
@@ -371,10 +372,29 @@ void main()
 
 #endif
 
+#if ACCUMULATOR_ON == 1
+    daxa_u32 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
+    vec4 final_pixel;
+    if(num_accumulated_frames > 0) {
+        vec4 previous_frame_pixel = imageLoad(daxa_image2D(p.swapchain), index);
+        
+        vec4 current_frame_pixel = vec4(out_color, 1.0f);
+
+        daxa_f32 weight = 1.0f / (num_accumulated_frames + 1.0f);
+        final_pixel = mix(previous_frame_pixel, current_frame_pixel, weight);
+    } else {
+        final_pixel = vec4(out_color, 1.0f);
+    }
+#else 
+    vec4 final_pixel = vec4(out_color, 1.0f);
+#endif
+
+    // 
+
     // NOTE: We are not using gamma correction because we suspect that swapchain is already in sRGB    
     // imageStore(daxa_image2D(p.swapchain), index, fromLinear(vec4(out_color,1)));
     // imageStore(daxa_image2D(p.swapchain), index, linear_to_ gamma(vec4(out_color,1)));
-    imageStore(daxa_image2D(p.swapchain), index, vec4(out_color,1));
+    imageStore(daxa_image2D(p.swapchain), index, final_pixel);
 
 
 #if(PERFECT_PIXEL_ON == 1)

@@ -19,8 +19,8 @@ namespace tests
         struct App : AppWindow<App>
         {
             const f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
-            const u32 INSTANCE_X_AXIS_COUNT = 1; // 2^2 (mirrored on both sides of the x axis)
-            const u32 INSTANCE_Z_AXIS_COUNT = 1; // 2^2 (mirrored on both sides of the z axis)
+            const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
+            const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
             const u32 LAMBERTIAN_MATERIAL_COUNT = 80;
             const u32 METAL_MATERIAL_COUNT = 15;
@@ -194,36 +194,42 @@ namespace tests
 
             daxa_f32vec3 interpolate_sun_light(float t, bool is_afternoon) {
                 // Definir las posiciones clave para el medio día y el atardecer
-                glm::vec3 middayPosition = glm::vec3(0.0, 100.0, 0.0);
-                glm::vec3 sunsetPosition = glm::vec3(0.0, 0.0, 0.0);
+                glm::vec3 middayPosition = glm::vec3(0.0, 20.0, 0.0);
+                glm::vec3 sunsetPosition = glm::vec3(50.0, 0.0, 0.0);  // Modificar la posición del atardecer
 
                 // Calcular las coordenadas elípticas basadas en el tiempo
                 float angle = t * 2.0 * 3.14159; // Ángulo en radianes
-                float ellipseRadiusX = 200.0; // Radio en el eje X
-                float ellipseRadiusY = 100.0; // Radio en el eje Y
+                float ellipseRadiusX = 100.0;    // Radio en el eje X
+                float ellipseRadiusY = 50.0;     // Radio en el eje Y
 
                 float x = ellipseRadiusX * cos(angle);
                 float y = ellipseRadiusY * sin(angle);
 
-                // Interpolación lineal entre las posiciones elípticas y el atardecer
-                glm::vec3 ellipticalPosition = glm::vec3(x, y, 0.0);
-                glm::vec3 interpolatedPosition = glm::mix(ellipticalPosition, sunsetPosition, t);
-                
-                daxa_f32vec3 position = is_afternoon ? daxa_f32vec3(interpolatedPosition.x, interpolatedPosition.y, interpolatedPosition.z) :
-                    daxa_f32vec3(-interpolatedPosition.x, -interpolatedPosition.y, -interpolatedPosition.z);
+                // Interpolación elíptica desde mediodía hasta atardecer
+                glm::vec3 interpolatedPosition;
+                if (is_afternoon) {
+                    // Atardecer: t=0.5 -> posición = sunsetPosition
+                    interpolatedPosition = glm::mix(sunsetPosition, middayPosition, t);
+                } else {
+                    // Mediodía: t=0.0 -> posición = -middayPosition
+                    // Atardecer: t=1.0 -> posición = middayPosition
+                    interpolatedPosition = glm::mix(-sunsetPosition, -middayPosition, t);
+                }
+
+                daxa_f32vec3 position = daxa_f32vec3(interpolatedPosition.x, interpolatedPosition.y, interpolatedPosition.z);
 
                 // Ajustar la posición según la hora del día
                 return position;
             }
 
-            daxa_f32 interpolate_sun_intensity(float time, bool is_afternoon, daxa_f32 max_intensity, daxa_f32 min_intensity) {
+            daxa_f32 interpolate_sun_intensity(float time, bool is_afternoon, float max_intensity, float min_intensity) {
                 const daxa_f32 maxIntensityStartTime = 0.5;
                 const daxa_f32 minIntensityEndTime = 0.5;
 
                 float i = 0;
 
                 if (time >= maxIntensityStartTime) {
-                    i = glm::mix(min_intensity, max_intensity, time);  // Adjust the range as needed
+                    i = glm::mix(0.0f, max_intensity, time);  // Adjust the range as needed
                 } else {
                     i = 0;
                 }
@@ -235,7 +241,6 @@ namespace tests
 
                 status.light_count = 1;
                 status.is_afternoon = true;
-                status.time = 0.0;
 
                 if(status.light_count > MAX_LIGHTS) {
                     std::cout << "status.light_count > MAX_LIGHTS" << std::endl;
@@ -246,9 +251,9 @@ namespace tests
 
                 // TODO: add more lights (random values?)
                 LIGHT light;
-                light.position = daxa_f32vec3(0.0, 100.0, 0.0);
-                light.intensity = 100.0;
-                light.distance = 50.0;
+                light.position = daxa_f32vec3(0.0, 20.0, 0.0);
+                light.intensity = 50.0;
+                light.distance = 100.0;
                 light.type = 0;  // 0: point light, 1: directional light
 
                 lights.push_back(light);
@@ -285,6 +290,12 @@ namespace tests
                     abort();
                 }
 
+                // for(u32 i = 0; i < status.light_count; i++) {
+                //     lights[i].position.x += 0.005;
+                //     lights[i].position.y -= 0.005;
+                //     lights[i].position.z += 0.005;
+                // }
+
                 // Speed of time progression
                 float timeSpeed = 0.001;
 
@@ -298,7 +309,7 @@ namespace tests
                 }
 
                 lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
-                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 1000.0f /*max_intensity*/, 0.0f /*min_intensity*/);
+                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 100.0f /*max_intensity*/, 0.0f /*min_intensity*/);
                 
                 // Calculate light buffer size
                 auto light_buffer_size = std::min(max_light_buffer_size, static_cast<u32>(sizeof(LIGHT) * status.light_count));
@@ -364,7 +375,7 @@ namespace tests
                         for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                             for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
                                 
-                                if(random_float(0.0, 1.0) > 0.95) {
+                                if(random_float(0.0, 1.0) > 0.75) {
                                     min_max.push_back(generate_min_max_by_coord(x, y, z));
                                 }
                             }
@@ -850,6 +861,13 @@ namespace tests
                     &camera_view,
                     cam_buffer_size);
 
+                // Update/restore status
+                
+                if(camera_get_moved(camera)) {
+                    camera_reset_moved(camera);
+                    status.num_accumulated_frames = 0;
+                }
+
                 auto status_staging_buffer = device.create_buffer({
                     .size = status_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
@@ -864,6 +882,7 @@ namespace tests
 
                 // Update/restore status
                 status.frame_number++;
+                status.num_accumulated_frames++;
 
                 // Copy instances to buffer
                 u32 instance_buffer_size = std::min(max_instance_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE)));
@@ -1350,6 +1369,7 @@ namespace tests
                     case GLFW_KEY_M:
                         if(action == GLFW_PRESS) {
                             change_random_material_primitives();
+                            camera_set_moved(camera);
                         }
                         break;
                     case GLFW_KEY_LEFT_SHIFT:
