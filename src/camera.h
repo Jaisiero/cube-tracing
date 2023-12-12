@@ -3,10 +3,7 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include "defines.h"
 
 const glm::vec3 INIT_FORWARD = {0, 0, -1};
 const glm::vec3 INIT_CAMERA_POS = {0, 0, 2.5};

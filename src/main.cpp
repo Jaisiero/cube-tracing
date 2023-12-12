@@ -11,6 +11,8 @@
 #include "shaders/shared.inl"
 #include "rng.h"
 #include "camera.h"
+#include "texture.hpp"
+
 
 namespace tests
 {
@@ -21,12 +23,17 @@ namespace tests
             const f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
             const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
             const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
+            const u32 CLOUD_INSTANCE_COUNT = 1; // 2^1 (mirrored on both sides of the x axis)
+            const u32 CLOUD_INSTANCE_COUNT_X = (CLOUD_INSTANCE_COUNT * 2);
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
+            const u32 DEFAULT_LAMBERTIAN_MATERIAL = 1;
             const u32 LAMBERTIAN_MATERIAL_COUNT = 80;
             const u32 METAL_MATERIAL_COUNT = 15;
             const u32 DIALECTRIC_MATERIAL_COUNT = 5;
             const u32 EMISSIVE_MATERIAL_COUNT = 5;
             const u32 CONSTANT_MEDIUM_MATERIAL_COUNT = 5;
+
+            const char* RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
 
             Status status = {};
             camera camera = {};
@@ -52,6 +59,10 @@ namespace tests
 
             daxa::BufferId primitive_buffer = {};
             u32 max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
+
+            u32 current_texture_count = 0;
+            std::vector<daxa::ImageId> images = {};
+            std::vector<daxa::SamplerId> samplers = {};
 
             daxa::BufferId material_buffer = {};
             u32 max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
@@ -96,6 +107,10 @@ namespace tests
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
                     device.destroy_buffer(material_buffer);
+                    for(auto image : images)
+                        device.destroy_image(image);
+                    for(auto sampler : samplers)
+                        device.destroy_sampler(sampler);
                     device.destroy_buffer(light_buffer);
                     device.destroy_buffer(status_buffer);
                     device.destroy_buffer(status_output_buffer);
@@ -114,9 +129,9 @@ namespace tests
                 };
             }
 
-            daxa_rowmaj_f32mat3x4 daxa_f32mat4x4_to_daxa_rowmaj_f32mat3x4(daxa_f32mat4x4 const & mat)
+            daxa_f32mat3x4 daxa_f32mat4x4_to_daxa_f32mat3x4(daxa_f32mat4x4 const & mat)
             {
-                return daxa_rowmaj_f32mat3x4{
+                return daxa_f32mat3x4{
                     {mat.x.x, mat.x.y, mat.x.z, mat.x.w},
                     {mat.y.x, mat.y.y, mat.y.z, mat.y.w},
                     {mat.z.x, mat.z.y, mat.z.z, mat.z.w}
@@ -124,8 +139,8 @@ namespace tests
             }
 
             // Generate min max by coord (x, y, z) where x, y, z are 0 to VOXEL_COUNT_BY_AXIS-1 where VOXEL_COUNT_BY_AXIS / 2 is the center at (0, 0, 0)
-            constexpr daxa_f32mat3x2 generate_min_max_by_coord(u32 x, u32 y, u32 z) const {
-                return daxa_f32mat3x2{
+            constexpr daxa_f32mat2x3 generate_min_max_by_coord(u32 x, u32 y, u32 z) const {
+                return daxa_f32mat2x3{
                     {
                         -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + (x * VOXEL_EXTENT) + AVOID_VOXEL_COLLAIDE,
                         -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + (y * VOXEL_EXTENT) + AVOID_VOXEL_COLLAIDE,
@@ -210,12 +225,13 @@ namespace tests
                 // Interpolación elíptica desde mediodía hasta atardecer
                 glm::vec3 interpolatedPosition;
                 if (is_afternoon) {
-                    // Atardecer: t=0.5 -> posición = sunsetPosition
+                    // Atardecer: t=0.0 -> posición = sunsetPosition
+                    // Mediodía: t=1.0 -> posición = middayPosition
                     interpolatedPosition = glm::mix(sunsetPosition, middayPosition, t);
                 } else {
-                    // Mediodía: t=0.0 -> posición = -middayPosition
                     // Atardecer: t=1.0 -> posición = middayPosition
-                    interpolatedPosition = glm::mix(-sunsetPosition, -middayPosition, t);
+                    // Mediodía: t=0.0 -> posición = -sunsetPosition
+                    interpolatedPosition = glm::mix(-sunsetPosition, middayPosition, t);
                 }
 
                 daxa_f32vec3 position = daxa_f32vec3(interpolatedPosition.x, interpolatedPosition.y, interpolatedPosition.z);
@@ -251,10 +267,17 @@ namespace tests
 
                 lights.reserve(status.light_count);
 
+
                 // TODO: add more lights (random values?)
                 LIGHT light;
                 light.position = daxa_f32vec3(0.0, 20.0, 0.0);
+#if DYNAMIC_SUN_LIGHT == 1
                 light.intensity = 50.0;
+#else 
+                light.intensity = 200.0;
+                status.time = 1.0;
+                
+#endif // DYNAMIC_SUN_LIGHT
                 light.distance = 100.0;
                 light.type = 0;  // 0: point light, 1: directional light
 
@@ -311,7 +334,7 @@ namespace tests
                 }
 
                 lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
-                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 100.0f /*max_intensity*/, 0.0f /*min_intensity*/);
+                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 200.0f /*max_intensity*/, 0.0f /*min_intensity*/);
                 
                 // Calculate light buffer size
                 auto light_buffer_size = std::min(max_light_buffer_size, static_cast<u32>(sizeof(LIGHT) * status.light_count));
@@ -367,7 +390,7 @@ namespace tests
 
                 current_primitive_count = 0;
                     
-                std::vector<daxa_f32mat3x2> min_max;
+                std::vector<daxa_f32mat2x3> min_max;
                 min_max.reserve(CHUNK_VOXEL_COUNT);
 
                 for(u32 i = 0; i < instance_count; i++) {
@@ -412,7 +435,7 @@ namespace tests
                                 (min_max[j].y.x + min_max[j].x.x) / 2.0f,
                                 (min_max[j].y.y + min_max[j].x.y) / 2.0f,
                                 (min_max[j].y.z + min_max[j].x.z) / 2.0f),
-                            .material_index = i < instance_count - 1 ? 
+                            .material_index = i < instance_count - CLOUD_INSTANCE_COUNT_X ? 
                                 random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1) : random_uint(current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT, current_material_count - 1),
                             // .material_index = random_uint(0, current_material_count - 1),
                         });
@@ -441,7 +464,7 @@ namespace tests
                         .stride = sizeof(daxa_f32mat3x2),
                         .count = instances[i].primitive_count,
                         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                        .flags = i < instance_count - 1 ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+                        .flags = i < instance_count - CLOUD_INSTANCE_COUNT_X ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
                     });
 
                     /// Create Procedural Blas:
@@ -469,7 +492,7 @@ namespace tests
 
                     blas_instance_array.push_back(daxa_BlasInstanceData{
                         .transform = 
-                            daxa_f32mat4x4_to_daxa_rowmaj_f32mat3x4(instances[i].transform),
+                            daxa_f32mat4x4_to_daxa_f32mat3x4(instances[i].transform),
                         .instance_custom_index = i, // Is also default
                         .mask = 0xFF,
                         .instance_shader_binding_table_record_offset = {}, // Is also default
@@ -634,10 +657,10 @@ namespace tests
                 // TODO: This could be load from a file
                 {
 
-                    f32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
-                    f32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
+                    u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
+                    u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
 
-                    current_instance_count = instance_count_x * instance_count_z + 1; // +1 for some clouds
+                    current_instance_count = instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X;
 
                     if(current_instance_count > MAX_INSTANCES) {
                         std::cout << "current_instance_count > MAX_INSTANCES" << std::endl;
@@ -666,6 +689,12 @@ namespace tests
                             });
                         }
                     }
+                    transforms.push_back(daxa_f32mat4x4{
+                        {1, 0, 0, -AXIS_DISPLACEMENT},
+                        {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
+                        {0, 0, 1, 0},
+                        {0, 0, 0, 1},
+                    });
 
                     transforms.push_back(daxa_f32mat4x4{
                         {1, 0, 0, 0},
@@ -679,13 +708,199 @@ namespace tests
                         abort();
                     }
 
-                    current_material_count = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
+                    {
+                        daxa_u32 SIZE_X = 256;
+                        daxa_u32 SIZE_Y = 256;
+                        daxa_u32 SIZE_Z = 1;
+
+                        daxa_u32 image_stage_buffer_size = SIZE_X * SIZE_Y * SIZE_Z * 4;
+
+                        images.push_back(device.create_image({
+                            .dimensions = 2,
+                            .format = daxa::Format::R8G8B8A8_UNORM,
+                            .size = {SIZE_X, SIZE_Y, SIZE_Z},
+                            .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
+                            .name = "image_1",
+                        }));
+
+                        samplers.push_back(device.create_sampler({
+                            .magnification_filter = daxa::Filter::NEAREST,
+                            .minification_filter = daxa::Filter::NEAREST,
+                            .max_lod = 0.0f,
+                        }));
+
+                        auto image_staging_buffer = device.create_buffer({
+                            .size = image_stage_buffer_size,
+                            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                            .name = ("image_staging_buffer"),
+                        });
+                        defer { device.destroy_buffer(image_staging_buffer); };
+
+                        auto * image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
+
+                        // for(u32 i = 0; i < SIZE_X * SIZE_Y * SIZE_Z; i++) {
+                        //     image_staging_buffer_ptr[i * 4 + 0] = 255;
+                        //     image_staging_buffer_ptr[i * 4 + 1] = 255;
+                        //     image_staging_buffer_ptr[i * 4 + 2] = 255;
+                        //     image_staging_buffer_ptr[i * 4 + 3] = 255;
+                        // }
+
+                        // chessboard pattern for testing (black and white) 8x8 squares based on SIZE_X length
+                        for(u32 x = 0; x < SIZE_X; x++) {
+                            for(u32 y = 0; y < SIZE_Y; y++) {
+                                for(u32 z = 0; z < SIZE_Z; z++) {
+                                    if((x / 32) % 2 == 0) {
+                                        if((y / 32) % 2 == 0) {
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 255;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 255;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 255;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
+                                        } else {
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 0;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 0;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 0;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
+                                        }
+                                    } else {
+                                        if((y / 32) % 2 == 0) {
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 0;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 0;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 0;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
+                                        } else {
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 255;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 255;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 255;
+                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                                
+                        
+                        auto exec_cmds = [&]()
+                        {
+                            auto recorder = device.create_command_recorder({});
+
+                            recorder.pipeline_barrier({
+                                .src_access = daxa::AccessConsts::HOST_WRITE,
+                                .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                            });
+                            
+                            recorder.copy_buffer_to_image({
+                                .buffer = image_staging_buffer,
+                                .image = images.at(images.size() - 1),
+                                .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
+                            });
+                            
+                            recorder.pipeline_barrier({
+                                .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                                .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                            });
+
+                            return recorder.complete_current_commands();
+                        }();
+                        device.submit_commands({.command_lists = std::array{exec_cmds}});
+                        ++current_texture_count;
+                    }
+
+                    {
+
+                        ImageTexture red_brick_wall = ImageTexture(RED_BRICK_WALL_IMAGE);
+                        daxa_u32 SIZE_X = red_brick_wall.get_width();
+                        daxa_u32 SIZE_Y = red_brick_wall.get_height();
+                        daxa_u32 SIZE_Z = 1;
+
+                        daxa_u32 image_stage_buffer_size = red_brick_wall.get_size();
+
+                        images.push_back(device.create_image({
+                            .dimensions = 2,
+                            .format = daxa::Format::R8G8B8A8_UNORM, // change to R8G8B8A8_UNORM and doesn't crash
+                            .size = {SIZE_X, SIZE_Y, SIZE_Z},
+                            .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
+                            .name = "image_2",
+                        }));
+
+                        // samplers.push_back(device.create_sampler({
+                        //     .magnification_filter = daxa::Filter::NEAREST,
+                        //     .minification_filter = daxa::Filter::NEAREST,
+                        //     .max_lod = 0.0f,
+                        // }));
+
+                        auto image_staging_buffer = device.create_buffer({
+                            .size = image_stage_buffer_size,
+                            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                            .name = ("image_staging_buffer"),
+                        });
+                        defer { device.destroy_buffer(image_staging_buffer); };
+
+                        auto * image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
+
+                        memcpy(
+                            image_staging_buffer_ptr,
+                            red_brick_wall.get_data(),
+                            image_stage_buffer_size
+                        );
+                        
+                        auto exec_cmds = [&]()
+                        {
+                            auto recorder = device.create_command_recorder({});
+
+                            recorder.pipeline_barrier({
+                                .src_access = daxa::AccessConsts::HOST_WRITE,
+                                .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                            });
+                            
+                            recorder.copy_buffer_to_image({
+                                .buffer = image_staging_buffer,
+                                .image = images.at(images.size() - 1),
+                                .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
+                            });
+                            
+                            recorder.pipeline_barrier({
+                                .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                                .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                            });
+
+                            return recorder.complete_current_commands();
+                        }();
+                        device.submit_commands({.command_lists = std::array{exec_cmds}});
+
+                        ++current_texture_count;
+                    }
+
+                    
+                    current_material_count = DEFAULT_LAMBERTIAN_MATERIAL + LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
 
                     materials.reserve(current_material_count);
 
+                    materials.push_back(MATERIAL{
+                        .type = MATERIAL_TYPE_LAMBERTIAN,
+                        .ambient = {1.0f, 1.0f, 1.0f},
+                        .diffuse = {1.0f, 1.0f, 1.0f},
+                        .specular = {0.0f, 0.0f, 0.0f},
+                        .transmittance = {0.0f, 0.0f, 0.0f},
+                        .emission = {0.0f, 0.0f, 0.0f},
+                        .shininess = 2.0f,
+                        .roughness = 1.0f,
+                        .ior = 1.0f,
+                        .dissolve = 1.0f,
+                        .illum = 2,
+                        .texture_id = MAX_TEXTURES,
+                        .sampler_id = MAX_TEXTURES,
+                    });
+
                     for(u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++) {
+                        
+                        daxa_u32 texture_id = MAX_TEXTURES;
+                        daxa_f32 random_float_value = random_float(0.0, 1.0);
+                        if(random_float_value > 0.95) {
+                            texture_id = random_uint(0, current_texture_count - 1);
+                        }
+
                         materials.push_back(MATERIAL{
-                            .type = TEXTURE_TYPE_LAMBERTIAN,
+                            .type = MATERIAL_TYPE_LAMBERTIAN + (texture_id != MAX_TEXTURES) ? MATERIAL_TEXTURE_ON : 0,
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
@@ -698,13 +913,14 @@ namespace tests
                             // .dissolve = (random_float(0.1, 1.0)),
                             .dissolve = 1.0,
                             .illum = random_int(1, 2),
-                            .textureId = -1,
+                            .texture_id = (texture_id != MAX_TEXTURES) ? images.at(texture_id).default_view()  : daxa::ImageViewId{},
+                            .sampler_id = samplers.at(0),
                         });
                     }
 
                     for(u32 i = 0; i < METAL_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = TEXTURE_TYPE_METAL,
+                            .type = MATERIAL_TYPE_METAL,
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
@@ -717,7 +933,8 @@ namespace tests
                             // .dissolve = (random_float(0.1, 1.0)),
                             .dissolve = 1.0,
                             .illum = random_int(1, 2),
-                            .textureId = -1,
+                            .texture_id = MAX_TEXTURES,
+                            .sampler_id = MAX_TEXTURES,
                         });
                     }
                     
@@ -725,7 +942,7 @@ namespace tests
 
                     for(u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = TEXTURE_TYPE_DIELECTRIC,
+                            .type = MATERIAL_TYPE_DIELECTRIC,
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
@@ -736,13 +953,14 @@ namespace tests
                             .ior = random_float(1.0, 2.65),
                             .dissolve = 1.0,
                             .illum = random_int(1, 2),
-                            .textureId = -1,
+                            .texture_id = MAX_TEXTURES,
+                            .sampler_id = MAX_TEXTURES,
                         });
                     }
 
                     for(u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = TEXTURE_TYPE_LAMBERTIAN,
+                            .type = MATERIAL_TYPE_LAMBERTIAN,
                             .ambient = {1.0, 1.0, 1.0},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {1.0, 1.0, 1.0},
@@ -753,13 +971,14 @@ namespace tests
                             .ior = random_float(1.0, 2.65),
                             .dissolve = 1.0,
                             .illum = 2,
-                            .textureId = -1,
+                            .texture_id = MAX_TEXTURES,
+                            .sampler_id = MAX_TEXTURES,
                         });
                     }
 
                     for(u32 i = 0; i < CONSTANT_MEDIUM_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = TEXTURE_TYPE_CONSTANT_MEDIUM,
+                            .type = MATERIAL_TYPE_CONSTANT_MEDIUM,
                             .ambient = {0.999, 0.999, 0.999},
                             .diffuse =  {0.999, 0.999, 0.999},
                             .specular = {0.999, 0.999, 0.999},
@@ -769,9 +988,10 @@ namespace tests
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
                             // .dissolve = (-1.0f/random_float(0.1, 0.5)),
-                            .dissolve = random_float(0.1, 0.3),
+                            .dissolve = random_float(0.1, 0.2),
                             .illum = 2,
-                            .textureId = -1,
+                            .texture_id = MAX_TEXTURES,
+                            .sampler_id = MAX_TEXTURES,
                         });
                     }
 
@@ -793,20 +1013,24 @@ namespace tests
 
                 load_lights();
                 
-                
+                daxa::ShaderCompileOptions shader_compile_options = {
+                    .root_paths = {
+                        DAXA_SHADER_INCLUDE_DIR,
+                        "src/shaders",
+                    },
+                    .write_out_preprocessed_code = "build/Debug",
+                    .write_out_shader_binary = "build/Debug",
+                    .enable_debug_info = false,
+                };
 
                 pipeline_manager = daxa::PipelineManager{daxa::PipelineManagerInfo{
                     .device = device,
-                    .shader_compile_options = {
-                        .root_paths = {
-                            DAXA_SHADER_INCLUDE_DIR,
-                            "src/shaders",
-                        },
-                    },
+                    .shader_compile_options = shader_compile_options,
                 }};
                 auto const compute_pipe_info = daxa::ComputePipelineCompileInfo{
                     .shader_info = daxa::ShaderCompileInfo{
                         .source = daxa::ShaderFile{"shaders.glsl"},
+                        .compile_options = shader_compile_options,
                     },
                     .push_constant_size = sizeof(PushConstant),
                     .name = "ray query comp shader",
@@ -832,7 +1056,9 @@ namespace tests
 
                 if (!minimized)
                 {
+#if DYNAMIC_SUN_LIGHT == 1                    
                     update_lights();
+#endif // DYNAMIC_SUN_LIGHT == 1
                     draw();
                     download_gpu_info();
                     // call build tlas
@@ -1191,6 +1417,7 @@ namespace tests
                     << " origin [" << status_output.origin.x << ", " << status_output.origin.y << ", " << status_output.origin.z << "]"
                     << " direction [" << status_output.direction.x << ", " << status_output.direction.y << ", " << status_output.direction.z << "]" 
                     << " primitive center [" << status_output.primitive_center.x << ", " << status_output.primitive_center.y << ", " << status_output.primitive_center.z << "]"
+                    << " material_index " << status_output.material_index << ", uv [" << status_output.uv.x << ", " << status_output.uv.y << "]" 
                     << std::endl;
 #endif // PERFECT_PIXEL_ON
                 

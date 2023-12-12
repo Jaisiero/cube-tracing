@@ -9,11 +9,13 @@
 #define MAX_PRIMITIVES 100000
 #define MAX_MATERIALS 10000
 #define MAX_LIGHTS 20
+#define MAX_TEXTURES 100ULL
 
 #define DEBUG_NORMALS_ON 0
 #define PERFECT_PIXEL_ON 1
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
-#define ACCUMULATOR_ON 1
+#define ACCUMULATOR_ON 0
+#define DYNAMIC_SUN_LIGHT 0
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -28,10 +30,6 @@
 #define MAX_DEPTH 5
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
-// #define AVOID_VOXEL_COLLAIDE 0.025f   // Delta ray offset for shadow rays
-// #define DELTA_RAY 0.001
-// #define DELTA_RAY 0.0001
-// #define DELTA_RAY 0.00001
 
 
 struct Aabb
@@ -46,10 +44,9 @@ struct Ray
   daxa_f32vec3 direction;
 };
 
-struct hit_info
+struct HIT_INFO
 {
   daxa_b32 is_hit;
-  daxa_f32vec3 hit_color;
   daxa_f32 hit_distance;
   daxa_f32 exit_distance;
   daxa_f32vec3 world_pos;
@@ -57,6 +54,8 @@ struct hit_info
   daxa_i32 instance_id;
   daxa_i32 primitive_id;
   daxa_f32vec3 primitive_center;
+  daxa_u32 material_index;
+  daxa_f32vec2 uv;
 };
 
 struct camera_view{ 
@@ -105,14 +104,22 @@ struct PRIMITIVES
 };
 DAXA_DECL_BUFFER_PTR(PRIMITIVES)
 
-#define TEXTURE_TYPE_LAMBERTIAN 0
-#define TEXTURE_TYPE_METAL 1
-#define TEXTURE_TYPE_DIELECTRIC 2
-#define TEXTURE_TYPE_CONSTANT_MEDIUM 3
+
+
+
+#define MATERIAL_TYPE_LAMBERTIAN 0
+#define MATERIAL_TYPE_METAL 1
+#define MATERIAL_TYPE_DIELECTRIC 2
+#define MATERIAL_TYPE_CONSTANT_MEDIUM 3
+#define MATERIAL_TYPE_MAX_ENUM 4
+
+#define MATERIAL_TYPE_MASK 0xFF
+#define MATERIAL_TEXTURE_ON 1U << 31
 
 struct MATERIAL
 {
-    daxa_u32 type;      // 0: lambertian, 1: metal, 2: dielectric
+    daxa_u32 type;      // lowest 8 bits -> 0: lambertian, 1: metal, 2: dielectric (glass), 3: constant medium (fog)
+                        // uppest bit -> texture on/off
     daxa_f32vec3  ambient;
     daxa_f32vec3  diffuse;
     daxa_f32vec3  specular;
@@ -123,7 +130,8 @@ struct MATERIAL
     daxa_f32 ior;       // index of refraction
     daxa_f32 dissolve;  // 1 == opaque; 0 == fully transparent
     daxa_i32   illum;     // illumination model (see http://www.fileformat.info/format/material/)
-    daxa_i32   textureId;
+    daxa_ImageViewId   texture_id;
+    daxa_SamplerId   sampler_id;
 };
 
 struct MATERIALS
@@ -159,6 +167,8 @@ struct STATUS_OUTPUT
     daxa_f32vec3 origin;
     daxa_f32vec3 direction;
     daxa_f32vec3 primitive_center;
+    daxa_u32 material_index;
+    daxa_f32vec2 uv;
 };
 DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
 

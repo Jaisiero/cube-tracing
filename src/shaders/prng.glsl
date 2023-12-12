@@ -107,13 +107,13 @@ daxa_f32vec3 refraction(daxa_f32vec3 uv, daxa_f32vec3 n, daxa_f32 etai_over_etat
 
 
 daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG lcg, out daxa_f32vec3 scatter_direction) {
-    switch (m.type)
+    switch (m.type & MATERIAL_TYPE_MASK)
     {
-    case TEXTURE_TYPE_METAL:
+    case MATERIAL_TYPE_METAL:
         daxa_f32vec3 reflected = reflection(direction, world_nrm);
         scatter_direction = reflected + min(m.roughness, 1.0) * random_unit_vector(lcg);
         return dot(scatter_direction, world_nrm) > 0.0f;
-    case TEXTURE_TYPE_DIELECTRIC:
+    case MATERIAL_TYPE_DIELECTRIC:
         daxa_f32 etai_over_etat = m.ior;
         if (dot(direction, world_nrm) > 0.0f) {
             world_nrm = -world_nrm;
@@ -130,13 +130,13 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG
         else
             scatter_direction = refraction(direction, world_nrm, etai_over_etat);
         return true;
-    case TEXTURE_TYPE_CONSTANT_MEDIUM:
+    case MATERIAL_TYPE_CONSTANT_MEDIUM:
         scatter_direction = random_unit_vector(lcg);
         // Catch degenerate scatter direction
         if (normal_near_zero(scatter_direction))
             scatter_direction = world_nrm;
         return true;
-    case TEXTURE_TYPE_LAMBERTIAN:
+    case MATERIAL_TYPE_LAMBERTIAN:
     default:
         scatter_direction = world_nrm + random_unit_vector(lcg);
         // Catch degenerate scatter direction

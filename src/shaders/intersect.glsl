@@ -9,7 +9,7 @@
 // mat3 box.rotation:     box-to-world rotation (orthonormal 3x3 matrix) transformation
 // bool rayCanStartInBox: if true, assume the origin is never in a box. GLSL optimizes this at compile time
 // bool oriented:         if false, ignore box.rotation
-bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const bool rayCanStartInBox, const bool rayCanSecondHit, const in bool oriented, in vec3 _invRayDirection) {
+bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const bool rayCanStartInBox, const bool rayCanSecondHit, const bool getUV, const in bool oriented, in vec3 _invRayDirection, out vec2 uv) {
 
     // Move to the box's reference frame. This is unavoidable and un-optimizable.
     ray.origin = box.rotation * (ray.origin - box.center);
@@ -66,7 +66,38 @@ bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out float exit_
     //
     distance = (sgn.x != 0.0) ? distanceToPlane.x : ((sgn.y != 0.0) ? distanceToPlane.y : distanceToPlane.z);
 
+    // TODO: Refactor this
+    if (getUV)
+    {
+        // Calculate UV coordinates based on the hit point from the ray-box intersection which can occur on any of the 6 faces of the box
 
+        // Calculate the hit point in the box's reference frame
+        vec3 hitPoint = ray.origin + distance * ray.direction;
+
+        // TODO: improve this.
+        if (sgn.x != 0.0)
+        {
+            // -z and +z faces
+            uv = vec2(hitPoint.z, hitPoint.y);
+            uv += box.radius.xy;
+        }
+        else if (sgn.y != 0.0)
+        {
+            // -y and +y faces
+            uv = vec2(hitPoint.x, hitPoint.z);
+            uv += box.radius.xy;
+        }
+        else if (sgn.z != 0.0)
+        {
+            // -x and +x faces
+            uv = vec2(hitPoint.x, hitPoint.y);
+            uv += box.radius.xy;
+        }
+
+        uv = uv / (box.radius.xy * 2);
+    }
+
+    // TODO: Refactor this
     if(rayCanSecondHit) {
         // Starting outside of the box. Get the distance to the exit plane.
         if(winding == 1.0) {
@@ -146,15 +177,22 @@ bool ourOutsideHitAABox(vec3 boxCenter, vec3 boxRadius, vec3 rayOrigin, vec3 ray
 
 // Ray is always outside of the box
 bool ourOutsideIntersectBox(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection) {
-    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, false, true, oriented, _invRayDirection);
+    vec2 uv;
+    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, false, true, false, oriented, _invRayDirection, uv);
 }
 
 bool ourIntersectBox(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection) {
-    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, true, false, oriented, _invRayDirection);
+    vec2 uv;
+    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, true, false, false, oriented, _invRayDirection, uv);
 }
 
 bool ourIntersectBoxTwoHits(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection) {
-    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, true, true, oriented, _invRayDirection);
+    vec2 uv;
+    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, true, true, false, oriented, _invRayDirection, uv);
+}
+
+bool ourIntersectBoxTwoHitsAndUV(Box box, Ray ray, out float distance, out float exit_distance, out vec3 normal, const in bool oriented, in vec3 _invRayDirection, out vec2 uv) {
+    return ourIntersectBoxCommon(box, ray, distance, exit_distance, normal, true, true, true, oriented, _invRayDirection, uv);
 }
 
 

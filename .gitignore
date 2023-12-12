@@ -3,3 +3,13 @@ build
 CMakePresets.json
 daxa-lod.code-workspace
 deps/Daxa
+.out
+vcpkg_installed/
+CMakeFiles/
+ALL_BUILD.vcxproj*
+CMakeCache.txt
+daxa-lod.sln
+ZERO_CHECK*
+vcpkg-manifest-install.log
+daxa-lod.vcxproj*
+cmake_install.cmake

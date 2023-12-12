@@ -152,13 +152,13 @@ daxa_f32vec3 normal_to_color(daxa_f32vec3 normal)
 
 
 
-daxa_f32vec3 hit_get_world_hit(Ray ray, hit_info hit) {
+daxa_f32vec3 hit_get_world_hit(Ray ray, HIT_INFO hit) {
     return ray.origin + ray.direction * hit.hit_distance + (VOXEL_EXTENT / 2) * hit.world_nrm;
 }
 
-
+// TODO: this solution doesn't work. Maybe cause using floats?
 // // Transmission through an homogeneous medium(for now)
-// daxa_b32 material_transmission(Ray ray, inout hit_info hit, MATERIAL mat, LCG lcg) {
+// daxa_b32 material_transmission(Ray ray, inout HIT_INFO hit, MATERIAL mat, LCG lcg) {
 
 //   daxa_f32 ray_length = length(ray.direction);
 //   daxa_f32 distance_inside_boundary = (hit.exit_distance - hit.hit_distance) * ray_length;
@@ -188,27 +188,29 @@ daxa_f32 calculateTransmittance(daxa_f32 dissolve, daxa_f32 distance) {
 }
 
 // Function to determine hit inside or outside for a constant medium
-daxa_b32 material_transmission(Ray ray, inout hit_info hit, MATERIAL mat, LCG lcg) {
+daxa_b32 material_transmission(Ray ray, inout HIT_INFO hit, daxa_f32 dissolve, LCG lcg) {
 
-    // Calculate the thickness of the medium
-    daxa_f32 thickness = hit.exit_distance - hit.hit_distance;
+    // Calculate the thickness of the medium (if hit inside the volume, thickness is the distance from ray origin to hit distance, otherwise it is the distance from hit distance to the exit distance)
+    daxa_f32 thickness = hit.hit_distance != hit.exit_distance ?  hit.exit_distance - hit.hit_distance :
+        length(hit.world_pos - ray.origin);
     // daxa_f32 thickness = 0.125f;
     
 
     // Fine-tune parameters for controlling the probability
     // daxa_f32 base = 0.1;   // Base value for the exponential function
-    daxa_f32 exponentScale = 50.0f;  // Exponent value for the exponential function
+    daxa_f32 exponentScale = 20.0f;  // Exponent value for the exponential function
     // exponentScale *= length(ray.origin - hit.world_pos);  // Scale exponent by distance from camera to hit point (further away = less likely to hit
 
     // Random value between [0, 1]
     daxa_f32 random_value = randomInRangeLCG(lcg, 0.0, 1.0);
 
     // Calculate the probability of impact with an exponential relationship based on dissolve
-    float probability = 1.0f - exp(-mat.dissolve * thickness * exponentScale);
+    float probability = 1.0f - exp(-dissolve * thickness * exponentScale);
 
-    hit.primitive_center.x = thickness;
-    hit.primitive_center.y = probability;
-    hit.primitive_center.z = random_value;
+    // DEBUG
+    // hit.primitive_center.x = thickness;
+    // hit.primitive_center.y = probability;
+    // hit.primitive_center.z = random_value;
 
     // Check if the random value is below the transmittance probability
     if (random_value < probability) {
