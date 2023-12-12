@@ -70,10 +70,12 @@ daxa_b32 ray_box_intersection(Ray ray, inout hit_info hit, out MATERIAL mat, LCG
     }
 
     daxa_b32 intersected = true;
-    // // Check dissolve and transmission
-    // {
-    //     intersected = material_transmission(ray, hit, mat, lcg);
-    // }
+    // Check dissolve and transmission
+    {
+        if(mat.type == TEXTURE_TYPE_CONSTANT_MEDIUM) {
+            intersected = material_transmission(ray, hit, mat, lcg);
+        }
+    }
 
     return intersected;
 }
@@ -242,22 +244,23 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
             uint type = rayQueryGetIntersectionTypeEXT(ray_query, false);
             if(type ==
                 gl_RayQueryCandidateIntersectionAABBEXT) {
-                rayQueryGenerateIntersectionEXT(ray_query, t);
-                
-                uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
+                // get instance id
+                hit.instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, false);
 
-                if(type_commited ==
-                    gl_RayQueryCommittedIntersectionGeneratedEXT)
-                {     
-                    
-                    // get instance id
-                    hit.instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
+                // Get primitive id
+                hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, false);
 
-                    // Get primitive id
-                    hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
+                if(ray_box_intersection(ray, hit, mat, lcg) == true) {
+                    hit.is_hit = true;
+            
+                    rayQueryGenerateIntersectionEXT(ray_query, hit.hit_distance);
+            
+                    uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
 
-                    if(ray_box_intersection(ray, hit, mat, lcg) == true) {
-                        hit.is_hit = true;
+                    if(type_commited ==
+                        gl_RayQueryCommittedIntersectionGeneratedEXT)
+                    {     
+
 #if(DEBUG_NORMALS_ON == 1)
                         out_color = normal_to_color(hit.world_nrm);
                         return out_color;
@@ -269,7 +272,7 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, LCG lcg)
                         // out_color = tmp_color;
                         break;
                     }
-                } 
+                }
             }
         }
         rayQueryTerminateEXT(ray_query);
@@ -423,40 +426,41 @@ void main()
             while(rayQueryProceedEXT(ray_query)) {
                 uint type = rayQueryGetIntersectionTypeEXT(ray_query, false);
                 if(type ==
-                    gl_RayQueryCandidateIntersectionAABBEXT) {
-                    rayQueryGenerateIntersectionEXT(ray_query, hit.hit_distance);
-                    
-                    uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
-
-                    if(type_commited ==
-                        gl_RayQueryCommittedIntersectionGeneratedEXT)
-                    {     
+                    gl_RayQueryCandidateIntersectionAABBEXT) {    
                         
-                        // get instance id
-                        hit.instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true);
+                    // get instance id
+                    hit.instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, false);
 
-                        // Get primitive id
-                        hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
+                    // Get primitive id
+                    hit.primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, false);
                         
-                        // TEST
-                        // deref(p.status_output_buffer).instance_id = hit.instance_id;
-                        // deref(p.status_output_buffer).primitive_id = hit.primitive_id;
+                    // TEST
+                    deref(p.status_output_buffer).instance_id = hit.instance_id;
+                    deref(p.status_output_buffer).primitive_id = hit.primitive_id;
 
-                        if(ray_box_intersection(ray, hit, mat, lcg) == true) {
-                            // if hit write instance & primtive id to status_output_buffer
-                            deref(p.status_output_buffer).instance_id = hit.instance_id;
-                            deref(p.status_output_buffer).primitive_id = hit.primitive_id;
-                            deref(p.status_output_buffer).hit_distance = hit.hit_distance;
-                            deref(p.status_output_buffer).exit_distance = hit.exit_distance;
-                            deref(p.status_output_buffer).hit_position = hit.world_pos;
-                            deref(p.status_output_buffer).hit_normal = hit.world_nrm;
-                            deref(p.status_output_buffer).origin = ray.origin;
-                            deref(p.status_output_buffer).direction = ray.direction;
-                            deref(p.status_output_buffer).primitive_center = hit.primitive_center;
+                    if(ray_box_intersection(ray, hit, mat, lcg) == true) {
+                        // if hit write instance & primtive id to status_output_buffer
+                        deref(p.status_output_buffer).instance_id = hit.instance_id;
+                        deref(p.status_output_buffer).primitive_id = hit.primitive_id;
+                        deref(p.status_output_buffer).hit_distance = hit.hit_distance;
+                        deref(p.status_output_buffer).exit_distance = hit.exit_distance;
+                        deref(p.status_output_buffer).hit_position = hit.world_pos;
+                        deref(p.status_output_buffer).hit_normal = hit.world_nrm;
+                        deref(p.status_output_buffer).origin = ray.origin;
+                        deref(p.status_output_buffer).direction = ray.direction;
+                        deref(p.status_output_buffer).primitive_center = hit.primitive_center;
+                        
+                        rayQueryGenerateIntersectionEXT(ray_query, hit.hit_distance);
+                        
+                        uint type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
+
+                        if(type_commited ==
+                            gl_RayQueryCommittedIntersectionGeneratedEXT)
+                        { 
 
                             break;
                         }
-                    } 
+                    }
                 }
             }
         }

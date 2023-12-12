@@ -130,6 +130,12 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG
         else
             scatter_direction = refraction(direction, world_nrm, etai_over_etat);
         return true;
+    case TEXTURE_TYPE_CONSTANT_MEDIUM:
+        scatter_direction = random_unit_vector(lcg);
+        // Catch degenerate scatter direction
+        if (normal_near_zero(scatter_direction))
+            scatter_direction = world_nrm;
+        return true;
     case TEXTURE_TYPE_LAMBERTIAN:
     default:
         scatter_direction = world_nrm + random_unit_vector(lcg);

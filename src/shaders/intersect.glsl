@@ -69,7 +69,7 @@ bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out float exit_
 
     if(rayCanSecondHit) {
         // Starting outside of the box. Get the distance to the exit plane.
-        if(winding > 0.0) {
+        if(winding == 1.0) {
             
             ray.origin += distance * ray.direction;
 
@@ -96,7 +96,7 @@ bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out float exit_
 
         } else {
             // Starting inside of the box. The ray can't exit the box, so set the exit distance to infinity.
-            exit_distance = 1 / 0;
+            exit_distance = distance;
         } 
     }
 #   undef TEST

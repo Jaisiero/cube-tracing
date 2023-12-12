@@ -26,6 +26,7 @@ namespace tests
             const u32 METAL_MATERIAL_COUNT = 15;
             const u32 DIALECTRIC_MATERIAL_COUNT = 5;
             const u32 EMISSIVE_MATERIAL_COUNT = 5;
+            const u32 CONSTANT_MEDIUM_MATERIAL_COUNT = 5;
 
             Status status = {};
             camera camera = {};
@@ -145,7 +146,8 @@ namespace tests
 
                 // Change every primitive material
                 for(u32 i = 0; i < primitives.size(); i++) {
-                    primitives[i].material_index = random_uint(0, current_material_count - 1);
+                    primitives[i].material_index = random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1);
+                    // primitives[i].material_index = random_uint(0, current_material_count - 1);
                 }
 
                 
@@ -404,17 +406,17 @@ namespace tests
                     
                     // push primitives
                     for(u32 j = 0; j < instances[i].primitive_count; j++) {
-                        
+
                         primitives.push_back(PRIMITIVE{
                             .center = daxa_f32vec3(
                                 (min_max[j].y.x + min_max[j].x.x) / 2.0f,
                                 (min_max[j].y.y + min_max[j].x.y) / 2.0f,
-                                (min_max[j].y.z + min_max[j].x.z) / 2.0f
-                            ),
-                            .material_index = random_uint(0, current_material_count - 1),
+                                (min_max[j].y.z + min_max[j].x.z) / 2.0f),
+                            .material_index = i < instance_count - 1 ? 
+                                random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1) : random_uint(current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT, current_material_count - 1),
+                            // .material_index = random_uint(0, current_material_count - 1),
                         });
                     }
-
                 }
 
                 
@@ -439,7 +441,7 @@ namespace tests
                         .stride = sizeof(daxa_f32mat3x2),
                         .count = instances[i].primitive_count,
                         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                        .flags = 0x1 | 0x2,
+                        .flags = i < instance_count - 1 ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
                     });
 
                     /// Create Procedural Blas:
@@ -635,7 +637,7 @@ namespace tests
                     f32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
                     f32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
 
-                    current_instance_count = instance_count_x * instance_count_z;
+                    current_instance_count = instance_count_x * instance_count_z + 1; // +1 for some clouds
 
                     if(current_instance_count > MAX_INSTANCES) {
                         std::cout << "current_instance_count > MAX_INSTANCES" << std::endl;
@@ -665,18 +667,25 @@ namespace tests
                         }
                     }
 
+                    transforms.push_back(daxa_f32mat4x4{
+                        {1, 0, 0, 0},
+                        {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
+                        {0, 0, 1, 0},
+                        {0, 0, 0, 1},
+                    });
+
                     if(transforms.size() < current_instance_count) {
                         std::cout << "transforms.size() != current_instance_count" << std::endl;
                         abort();
                     }
 
-                    current_material_count = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT;
+                    current_material_count = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
 
                     materials.reserve(current_material_count);
 
                     for(u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = 0,
+                            .type = TEXTURE_TYPE_LAMBERTIAN,
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
@@ -695,7 +704,7 @@ namespace tests
 
                     for(u32 i = 0; i < METAL_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = 1,
+                            .type = TEXTURE_TYPE_METAL,
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
@@ -716,7 +725,7 @@ namespace tests
 
                     for(u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = 2,
+                            .type = TEXTURE_TYPE_DIELECTRIC,
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
@@ -733,9 +742,9 @@ namespace tests
 
                     for(u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++) {
                         materials.push_back(MATERIAL{
-                            .type = 3,
+                            .type = TEXTURE_TYPE_LAMBERTIAN,
                             .ambient = {1.0, 1.0, 1.0},
-                            .diffuse =  {1.0, 1.0, 1.0},
+                            .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {1.0, 1.0, 1.0},
                             .transmittance = {0.0, 0.0, 0.0},
                             .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
@@ -743,6 +752,24 @@ namespace tests
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
                             .dissolve = 1.0,
+                            .illum = 2,
+                            .textureId = -1,
+                        });
+                    }
+
+                    for(u32 i = 0; i < CONSTANT_MEDIUM_MATERIAL_COUNT; i++) {
+                        materials.push_back(MATERIAL{
+                            .type = TEXTURE_TYPE_CONSTANT_MEDIUM,
+                            .ambient = {0.999, 0.999, 0.999},
+                            .diffuse =  {0.999, 0.999, 0.999},
+                            .specular = {0.999, 0.999, 0.999},
+                            .transmittance =  {random_float(0.9, 0.999), random_float(0.9, 0.999), random_float(0.9, 0.999)},
+                            .emission = {0.0, 0.0, 0.0},
+                            .shininess = random_float(0.0, 4.0),
+                            .roughness = random_float(0.0, 1.0),
+                            .ior = random_float(1.0, 2.65),
+                            // .dissolve = (-1.0f/random_float(0.1, 0.5)),
+                            .dissolve = random_float(0.1, 0.3),
                             .illum = 2,
                             .textureId = -1,
                         });

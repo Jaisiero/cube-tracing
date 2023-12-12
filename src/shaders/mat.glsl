@@ -163,13 +163,14 @@ daxa_f32vec3 hit_get_world_hit(Ray ray, hit_info hit) {
 //   daxa_f32 ray_length = length(ray.direction);
 //   daxa_f32 distance_inside_boundary = (hit.exit_distance - hit.hit_distance) * ray_length;
 
+//   hit.primitive_center.x = mat.dissolve;
 //   // Ensure that log(randomInRangeLCG(lcg, 0.0, 1.0)) is positive
 //   daxa_f32 random_value = randomInRangeLCG(lcg, 0.0, 1.0);
-//   daxa_f32 hit_distance = mat.dissolve * log(random_value);
+//   hit.primitive_center.y = random_value;
+//   daxa_f32 log_random_value = log(random_value);
+//   hit.primitive_center.z = log_random_value;
+//   daxa_f32 hit_distance = mat.dissolve * log_random_value;
 
-//   hit.primitive_center.x = mat.dissolve;
-//   hit.primitive_center.y = hit_distance;
-//   hit.primitive_center.z = distance_inside_boundary;
 
 //   if (hit_distance > distance_inside_boundary)
 //     return false;
@@ -181,42 +182,45 @@ daxa_f32vec3 hit_get_world_hit(Ray ray, hit_info hit) {
 // }
 
 
-// // Function to calculate transmittance for a constant medium
-// daxa_f32 calculateTransmittance(daxa_f32 dissolve, daxa_f32 distance) {
-//     return exp(-dissolve * distance);
-// }
+// Function to calculate transmittance for a constant medium
+daxa_f32 calculateTransmittance(daxa_f32 dissolve, daxa_f32 distance) {
+    return exp(-dissolve * distance);
+}
 
-// // Function to determine hit inside or outside for a constant medium
-// daxa_b32 material_transmission(Ray ray, inout hit_info hit, MATERIAL mat, LCG lcg) {
+// Function to determine hit inside or outside for a constant medium
+daxa_b32 material_transmission(Ray ray, inout hit_info hit, MATERIAL mat, LCG lcg) {
 
-//     // Calculate the thickness of the medium
-//     daxa_f32 thickness = hit.exit_distance - hit.hit_distance;
+    // Calculate the thickness of the medium
+    daxa_f32 thickness = hit.exit_distance - hit.hit_distance;
+    // daxa_f32 thickness = 0.125f;
+    
 
-//     // Fine-tune parameters for controlling the probability
-//     // daxa_f32 base = 0.1;   // Base value for the exponential function
-//     daxa_f32 exponentScale = 50.0f;  // Exponent value for the exponential function
+    // Fine-tune parameters for controlling the probability
+    // daxa_f32 base = 0.1;   // Base value for the exponential function
+    daxa_f32 exponentScale = 50.0f;  // Exponent value for the exponential function
+    // exponentScale *= length(ray.origin - hit.world_pos);  // Scale exponent by distance from camera to hit point (further away = less likely to hit
 
-//     // Random value between [0, 1]
-//     daxa_f32 random_value = randomInRangeLCG(lcg, 0.0, 1.0);
+    // Random value between [0, 1]
+    daxa_f32 random_value = randomInRangeLCG(lcg, 0.0, 1.0);
 
-//     // Calculate the probability of impact with an exponential relationship based on dissolve
-//     float probability = 1.0f - exp(-mat.dissolve * thickness * exponentScale);
+    // Calculate the probability of impact with an exponential relationship based on dissolve
+    float probability = 1.0f - exp(-mat.dissolve * thickness * exponentScale);
 
-//     hit.primitive_center.x = mat.dissolve;
-//     hit.primitive_center.y = probability;
-//     hit.primitive_center.z = random_value;
+    hit.primitive_center.x = thickness;
+    hit.primitive_center.y = probability;
+    hit.primitive_center.z = random_value;
 
-//     // Check if the random value is below the transmittance probability
-//     if (random_value < probability) {
-//         // Hit occurred inside the volume, set thit within the range [tmin, tmax]
-//         hit.hit_distance = hit.hit_distance + random_value * thickness;
-//         hit.world_pos = hit_get_world_hit(ray, hit);
-//         return true;
-//     } else {
-//         hit.hit_distance = -1.0f;  // No hit inside the volume
-//         return false;
-//     }
-// }
+    // Check if the random value is below the transmittance probability
+    if (random_value < probability) {
+        // Hit occurred inside the volume, set thit within the range [tmin, tmax]
+        hit.hit_distance = hit.hit_distance + random_value * thickness;
+        hit.world_pos = hit_get_world_hit(ray, hit);
+        return true;
+    } else {
+        hit.hit_distance = -1.0f;  // No hit inside the volume
+        return false;
+    }
+}
 
 
 
