@@ -4,6 +4,12 @@
 #define RANDOM_H
 
 #include <random>
+#include <cstdlib>
+
+inline float random_float_rand() {
+    return rand() / (RAND_MAX + 1.0f);
+}
+
 
 inline float random_float() {
     static std::uniform_real_distribution<float> distribution(0.0, 1.0);

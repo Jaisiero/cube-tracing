@@ -6,6 +6,7 @@
 #include "defines.h"
 #include "rtw_stb_image.hpp"
 #include "interval.h"
+#include "perlin.hpp"
 
 // #include "perlin.h"
 class AbstractTexture {
@@ -21,7 +22,7 @@ public:
         return std::make_unique<Derived>(static_cast<Derived const&>(*this));
     }
 
-    virtual glm::vec3 value(double u, double v, const glm::vec3& p) const = 0;
+    virtual glm::vec3 value(float u, float v, const glm::vec3& p) const = 0;
 
 protected:
    // We make clear Texture class needs to be inherited
@@ -36,7 +37,7 @@ class ImageTexture : public Texture<ImageTexture> {
   public:
     ImageTexture(const char* filename) : image(filename) {}
 
-    glm::vec3 value(double u, double v, const glm::vec3& p) const override {
+    glm::vec3 value(float u, float v, const glm::vec3& p) const override {
         // If we have no texture data, then return solid cyan as a debugging aid.
         if (image.height() <= 0) return glm::vec3(0,1,1);
 
@@ -64,13 +65,71 @@ class ImageTexture : public Texture<ImageTexture> {
         return image.height();
     }
 
-    ~ImageTexture() = default;
-
     const unsigned char* get_data() const {
         return image.data_ptr();
     }
 
+    ~ImageTexture() = default;
+
   private:
     RTWimage image;
+};
+
+class NoiseTexture : public Texture<ImageTexture> {
+  public:
+    NoiseTexture() {}
+
+    glm::vec3 value(float u, float v, const glm::vec3& p) const override {
+        return glm::vec3(1,1,1) * noise.noise(p);
+    }
+
+    unsigned int get_size() const {
+        return noise.get_size();
+    }
+
+    unsigned int get_pixel_count() const {
+        return get_size() * 4;
+    }
+
+    unsigned int get_pixel_count_in_bytes() const {
+        return noise.get_size() * sizeof(int) * 3 + noise.get_size() * sizeof(float);
+    }
+
+    unsigned int get_perm_x_size_in_bytes() const {
+        return noise.get_size() * sizeof(int);
+    }
+
+    unsigned int get_perm_y_size_in_bytes() const {
+        return noise.get_size() * sizeof(int);
+    }
+
+    unsigned int get_perm_z_size_in_bytes() const {
+        return noise.get_size() * sizeof(int);
+    }
+
+    unsigned int get_ranfloat_size_in_bytes() const {
+        return noise.get_size() * sizeof(float);
+    }
+
+    int* get_perm_x_data() const {
+        return noise.perm_x_data();
+    }
+
+    int* get_perm_y_data() const {
+        return noise.perm_y_data();
+    }
+
+    int* get_perm_z_data() const {
+        return noise.perm_z_data();
+    }
+
+    float* get_ranfloat_data() const {
+        return noise.ranfloat_data();
+    }
+
+    ~NoiseTexture() = default;
+
+  private:
+    Perlin noise;
 };
 #endif // TEXTURE_HPP

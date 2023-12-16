@@ -10,6 +10,7 @@
 #include "mat.glsl"
 
 #include "intersect.glsl"
+#include "perlin.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
@@ -62,7 +63,9 @@ daxa_b32 ray_box_intersection(Ray ray, inout HIT_INFO hit, out daxa_u32 material
 
    
     // hit point in world space
-    hit.world_pos = hit_get_world_hit(ray, hit);
+    hit.world_hit = hit_get_world_hit(ray, hit);
+
+    hit.obj_hit = (inv_transposed * vec4(hit.world_hit, 1)).xyz;
 
     hit.primitive_center = aabb_center;
 
@@ -89,7 +92,7 @@ daxa_f32vec3 mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, inout HI
     // Point light
     if(light.type == 0)
     {
-        vec3 lDir      = light.position - hit.world_pos;
+        vec3 lDir      = light.position - hit.world_hit;
         light.distance  = length(lDir);
         light.intensity = light.intensity / (light.distance * light.distance);
         L              = normalize(lDir);
@@ -111,7 +114,7 @@ daxa_f32vec3 mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, inout HI
         float t_min   = 0.0001;
         float t_max   = light.distance;
         float t       = 0.0;
-        vec3  origin = hit.world_pos;
+        vec3  origin = hit.world_hit;
         vec3  ray_dir = L;
         Ray shadow_ray = Ray(origin, ray_dir);
         uint cull_mask = 0xff;
@@ -203,6 +206,15 @@ daxa_b32 hit_material(inout Ray ray, daxa_u32 hit_material_index, inout HIT_INFO
         vec2 uv = hit.uv;
         vec4 texel = texture(daxa_sampler2D(mat.texture_id, mat.sampler_id), uv);
         out_color *= texel.xyz;
+    } 
+    else if((mat.type & MATERIAL_PERLIN_ON) != 0U) {
+        // float noise = get_perlin_noise(PERLIN_FACTOR * VOXEL_EXTENT * abs(hit.obj_hit), mat.texture_id, mat.sampler_id);
+        // out_color *= vec3(noise);
+        // float turbulence = get_perlin_turbulence(PERLIN_FACTOR * VOXEL_EXTENT * abs(hit.obj_hit), 4, 2.0, 0.5, mat.texture_id, mat.sampler_id);  
+        // out_color *= vec3(turbulence);
+        vec3 s = PERLIN_FACTOR * VOXEL_EXTENT * abs(hit.obj_hit);
+        float turbulence = get_perlin_turbulence(s, 4, 2.0, 0.5, mat.texture_id, mat.sampler_id);
+        out_color *= 0.5 * (1 + sin(s.z + 10 * turbulence));
     }
 
     out_color += mat.emission * mat.diffuse;
@@ -216,7 +228,7 @@ daxa_b32 hit_material(inout Ray ray, daxa_u32 hit_material_index, inout HIT_INFO
         return false;
     }
 
-    ray = Ray((hit.world_pos + (DELTA_RAY * hit.world_nrm)) , scatter_direction);
+    ray = Ray((hit.world_hit + (DELTA_RAY * hit.world_nrm)) , scatter_direction);
 
     return true;
 }
@@ -228,7 +240,7 @@ vec3 ray_color(Ray ray, int depth, ivec2 index, daxa_u32 light_count, LCG lcg)
 
     // Ray query setup
     float t = 0.0f;
-    HIT_INFO hit = HIT_INFO(false, -1.0f, -1.0f, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), -1, -1, vec3(0.0, 0.0, 0.0), 0, vec2(0.0, 0.0));
+    HIT_INFO hit = HIT_INFO(false, -1.0f, -1.0f, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), -1, -1, vec3(0.0, 0.0, 0.0), 0, vec2(0.0, 0.0));
     uint cull_mask = 0xff;
     float t_min = 0.0001f;
     float t_max = 1000.0f;
@@ -450,7 +462,7 @@ void main()
                         deref(p.status_output_buffer).primitive_id = hit.primitive_id;
                         deref(p.status_output_buffer).hit_distance = hit.hit_distance;
                         deref(p.status_output_buffer).exit_distance = hit.exit_distance;
-                        deref(p.status_output_buffer).hit_position = hit.world_pos;
+                        deref(p.status_output_buffer).hit_position = hit.world_hit;
                         deref(p.status_output_buffer).hit_normal = hit.world_nrm;
                         deref(p.status_output_buffer).origin = ray.origin;
                         deref(p.status_output_buffer).direction = ray.direction;

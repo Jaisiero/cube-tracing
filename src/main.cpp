@@ -708,6 +708,7 @@ namespace tests
                         abort();
                     }
 
+                    // CHESSBOARD PATTERN TEXTURE
                     {
                         daxa_u32 SIZE_X = 256;
                         daxa_u32 SIZE_Y = 256;
@@ -805,6 +806,7 @@ namespace tests
                         ++current_texture_count;
                     }
 
+                    // LOAD TEXTURE
                     {
 
                         ImageTexture red_brick_wall = ImageTexture(RED_BRICK_WALL_IMAGE);
@@ -870,6 +872,77 @@ namespace tests
                         ++current_texture_count;
                     }
 
+                    // LOAD TEXTURE
+                    {
+                        // NoiseTexture perlin_texture = NoiseTexture();
+                        // daxa_u32 SIZE_X = perlin_texture.get_pixel_count();
+
+                        // daxa_u32 image_stage_buffer_size = perlin_texture.get_pixel_count_in_bytes();
+
+                        auto perlin_data = get_perm_noise_texture();
+
+                        daxa_u32 SIZE_X = 256;
+                        daxa_u32 SIZE_Y = 256;
+                        daxa_u32 SIZE_Z = 1;
+
+                        daxa_u32 image_stage_buffer_size = 256 * 256 * 4;
+
+                        images.push_back(device.create_image({
+                            .dimensions = 2,
+                            .format = daxa::Format::R8G8B8A8_UNORM, // change to R8G8B8A8_UNORM and doesn't crash
+                            .size = {SIZE_X, SIZE_Y, SIZE_Z},
+                            .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
+                            .name = "image_3",
+                        }));
+
+                        // samplers.push_back(device.create_sampler({
+                        //     .magnification_filter = daxa::Filter::NEAREST,
+                        //     .minification_filter = daxa::Filter::NEAREST,
+                        //     .max_lod = 0.0f,
+                        // }));
+
+                        auto image_staging_buffer = device.create_buffer({
+                            .size = image_stage_buffer_size,
+                            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                            .name = ("image_staging_buffer"),
+                        });
+                        defer { device.destroy_buffer(image_staging_buffer); };
+
+                        auto * image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
+
+                        memcpy(
+                            image_staging_buffer_ptr,
+                            perlin_data.get(),
+                            image_stage_buffer_size
+                        );
+                        
+                        auto exec_cmds = [&]()
+                        {
+                            auto recorder = device.create_command_recorder({});
+
+                            recorder.pipeline_barrier({
+                                .src_access = daxa::AccessConsts::HOST_WRITE,
+                                .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                            });
+                            
+                            recorder.copy_buffer_to_image({
+                                .buffer = image_staging_buffer,
+                                .image = images.at(images.size() - 1),
+                                .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
+                            });
+                            
+                            recorder.pipeline_barrier({
+                                .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                                .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                            });
+
+                            return recorder.complete_current_commands();
+                        }();
+                        device.submit_commands({.command_lists = std::array{exec_cmds}});
+
+                        ++current_texture_count;
+                    }
+
                     
                     current_material_count = DEFAULT_LAMBERTIAN_MATERIAL + LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
 
@@ -900,7 +973,7 @@ namespace tests
                         }
 
                         materials.push_back(MATERIAL{
-                            .type = MATERIAL_TYPE_LAMBERTIAN + (texture_id != MAX_TEXTURES) ? MATERIAL_TEXTURE_ON : 0,
+                            .type = MATERIAL_TYPE_LAMBERTIAN + ((texture_id == MAX_TEXTURES) ? 0 : ((texture_id == current_texture_count -1) ? MATERIAL_PERLIN_ON : MATERIAL_TEXTURE_ON)),
                             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},

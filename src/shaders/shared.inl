@@ -31,6 +31,7 @@
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
 
+#define PERLIN_FACTOR 500
 
 struct Aabb
 {
@@ -49,8 +50,9 @@ struct HIT_INFO
   daxa_b32 is_hit;
   daxa_f32 hit_distance;
   daxa_f32 exit_distance;
-  daxa_f32vec3 world_pos;
+  daxa_f32vec3 world_hit;
   daxa_f32vec3 world_nrm;
+  daxa_f32vec3 obj_hit;
   daxa_i32 instance_id;
   daxa_i32 primitive_id;
   daxa_f32vec3 primitive_center;
@@ -115,6 +117,7 @@ DAXA_DECL_BUFFER_PTR(PRIMITIVES)
 
 #define MATERIAL_TYPE_MASK 0xFF
 #define MATERIAL_TEXTURE_ON 1U << 31
+#define MATERIAL_PERLIN_ON 1U << 30
 
 struct MATERIAL
 {

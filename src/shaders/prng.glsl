@@ -30,6 +30,16 @@ void initLCG(inout LCG lcg, daxa_u32 frame_number, daxa_u32 seed_x, daxa_u32 see
     lcg.state = frame_number + seed_x * 73856093 + seed_y * 19349663;
 }
 
+daxa_i32 randomIntLCG(inout LCG lcg) {
+    lcg.state = (lcg.a * lcg.state + lcg.c) % lcg.m;
+    return daxa_i32(lcg.state);
+}
+
+daxa_i32 randomIntInRangeLCG(inout LCG lcg, daxa_i32 min, daxa_i32 max) {
+    daxa_i32 random_value = randomIntLCG(lcg);
+    return min + random_value % (max - min);
+}
+
 daxa_f32 randomLCG(inout LCG lcg) {
     lcg.state = (lcg.a * lcg.state + lcg.c) % lcg.m;
     return daxa_f32(lcg.state) / daxa_f32(lcg.m);
