@@ -1,5 +1,6 @@
 #include <iostream>
 #include <algorithm>
+#include <thread>
 
 #include <daxa/daxa.hpp>
 #include <daxa/utils/pipeline_manager.hpp>
@@ -80,6 +81,9 @@ namespace tests
             // DEBUGGING
             
             // CPU DATA
+            std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
+            std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
+            
             u32 current_instance_count = 0;
             std::array<INSTANCE, MAX_INSTANCES> instances = {};
 
@@ -167,11 +171,15 @@ namespace tests
 
                 
                 // Copy primitives to buffer
-                u32 primitive_buffer_size = std::min(max_primitive_buffer_size, static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE)));
+                u32 current_primitive_buffer_size = static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE));
+                if(current_primitive_buffer_size > max_primitive_buffer_size) {
+                    std::cout << "current_primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+                    abort();
+                }
 
                 // push primitives to buffer
                 auto primitive_staging_buffer = device.create_buffer({
-                    .size = primitive_buffer_size,
+                    .size = current_primitive_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = "primitive staging buffer",
                 });
@@ -180,7 +188,7 @@ namespace tests
                 auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
                 std::memcpy(primitive_buffer_ptr, 
                     primitives.data(),
-                    primitive_buffer_size);
+                    current_primitive_buffer_size);
 
                 auto exec_cmds = [&]()
                 {
@@ -284,7 +292,11 @@ namespace tests
                 lights.push_back(light);
 
                 // Calculate light buffer size
-                auto light_buffer_size = std::min(max_light_buffer_size, static_cast<u32>(sizeof(LIGHT) * status.light_count));
+                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
+                if(light_buffer_size > max_light_buffer_size) {
+                    std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
+                    abort();
+                }
 
                 // get light buffer host mapped pointer
                 auto * light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
@@ -337,7 +349,11 @@ namespace tests
                 lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 200.0f /*max_intensity*/, 0.0f /*min_intensity*/);
                 
                 // Calculate light buffer size
-                auto light_buffer_size = std::min(max_light_buffer_size, static_cast<u32>(sizeof(LIGHT) * status.light_count));
+                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
+                if(light_buffer_size > max_light_buffer_size) {
+                    std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
+                    abort();
+                }
 
                 // get light buffer host mapped pointer
                 auto * light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
@@ -444,14 +460,12 @@ namespace tests
 
                 
                 // COMMENT FROM HERE
-                std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
                 blas_build_infos.reserve(instance_count);
 
                 std::vector<daxa_BlasInstanceData> blas_instance_array = {};
                 blas_instance_array.reserve(instance_count);
 
                 // TODO: As much geometry as instances for now
-                std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
                 aabb_geometries.resize(instance_count);
 
 
@@ -1211,7 +1225,11 @@ namespace tests
                 status.num_accumulated_frames++;
 
                 // Copy instances to buffer
-                u32 instance_buffer_size = std::min(max_instance_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE)));
+                u32 instance_buffer_size = static_cast<u32>(current_instance_count * sizeof(INSTANCE));
+                if(instance_buffer_size > max_instance_buffer_size) {
+                    std::cout << "instance_buffer_size > max_instance_buffer_size" << std::endl;
+                    abort();
+                }
 
 
                 auto instance_staging_buffer = device.create_buffer({
@@ -1227,7 +1245,11 @@ namespace tests
                     instance_buffer_size);
 
                 // Copy primitives to buffer
-                u32 primitive_buffer_size = std::min(max_primitive_buffer_size, static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE)));
+                u32 primitive_buffer_size = static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE));
+                if(primitive_buffer_size > max_primitive_buffer_size) {
+                    std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+                    abort();
+                }
 
 
                 auto primitive_staging_buffer = device.create_buffer({
@@ -1242,7 +1264,11 @@ namespace tests
                     primitives.data(),
                     primitive_buffer_size);
 
-                daxa_u32 material_buffer_size = std::min(max_material_buffer_size, static_cast<u32>(current_material_count * sizeof(MATERIAL)));
+                daxa_u32 material_buffer_size = static_cast<u32>(current_material_count * sizeof(MATERIAL));
+                if(material_buffer_size > max_material_buffer_size) {
+                    std::cout << "material_buffer_size > max_material_buffer_size" << std::endl;
+                    abort();
+                }
 
                 auto material_staging_buffer = device.create_buffer({
                     .size = material_buffer_size,
