@@ -80,6 +80,18 @@ daxa_f32vec3 random_on_hemisphere(LCG lcg, daxa_f32vec3 normal) {
         return -on_unit_sphere;
 }
 
+daxa_f32vec3 random_cosine_direction(LCG lcg) {
+    daxa_f32 r1 = randomLCG(lcg);
+    daxa_f32 r2 = randomLCG(lcg);
+    daxa_f32 z = sqrt(1.0f - r2);
+
+    daxa_f32 phi = 2.0f * DAXA_PI * r1;
+    daxa_f32 x = cos(phi) * sqrt(r2);
+    daxa_f32 y = sin(phi) * sqrt(r2);
+
+    return daxa_f32vec3(x, y, z);
+}
+
 daxa_f32vec3 random_in_unit_disk(LCG lcg) {
     while (true) {
         daxa_f32vec3 p = daxa_f32vec3(randomInRangeLCG(lcg, -1.0f, 1.0f), randomInRangeLCG(lcg, -1.0f, 1.0f), 0);
@@ -121,7 +133,7 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG
     {
     case MATERIAL_TYPE_METAL:
         daxa_f32vec3 reflected = reflection(direction, world_nrm);
-        scatter_direction = reflected + min(m.roughness, 1.0) * random_unit_vector(lcg);
+        scatter_direction = reflected + min(m.roughness, 1.0) * random_cosine_direction(lcg);
         return dot(scatter_direction, world_nrm) > 0.0f;
     case MATERIAL_TYPE_DIELECTRIC:
         daxa_f32 etai_over_etat = m.ior;
@@ -148,7 +160,7 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG
         return true;
     case MATERIAL_TYPE_LAMBERTIAN:
     default:
-        scatter_direction = world_nrm + random_unit_vector(lcg);
+        scatter_direction = world_nrm + random_cosine_direction(lcg);
         // Catch degenerate scatter direction
         if (normal_near_zero(scatter_direction))
             scatter_direction = world_nrm;

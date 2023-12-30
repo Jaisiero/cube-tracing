@@ -15,7 +15,7 @@
 #define PERFECT_PIXEL_ON 1
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 #define ACCUMULATOR_ON 0
-#define DYNAMIC_SUN_LIGHT 0
+#define DYNAMIC_SUN_LIGHT 1
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -26,6 +26,8 @@
 #define VOXEL_COUNT_BY_AXIS 8 // 2^3
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
+#define DAXA_PI 3.1415926535897932384626433832795f
+
 #define SAMPLES_PER_PIXEL 5
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
 #define MAX_DEPTH 5
@@ -33,6 +35,7 @@
 #define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
 
 #define PERLIN_FACTOR 500
+
 
 struct Aabb
 {
