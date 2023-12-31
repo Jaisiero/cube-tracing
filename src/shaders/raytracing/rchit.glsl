@@ -37,7 +37,8 @@ daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_IN
     if(dot(hit.world_nrm, L) > 0) {
         float t_min   = 0.0001;
         float t_max   = light.distance;
-        vec3  origin = hit.world_hit;
+        // NOTE: In order to avoid self shadowing
+        vec3  origin = hit.world_hit + hit.world_nrm * t_min;
         vec3  ray_dir = L;
         Ray shadow_ray = Ray(origin, ray_dir);
         uint cull_mask = 0xff;
