@@ -10,6 +10,7 @@ DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 
+layout(location = 3) callableDataEXT HIT_MAT_PAY_LOAD hit_call;
 // #define DEBUG_NORMALS 1
 
 daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_INFO hit) 
@@ -129,22 +130,45 @@ void main()
 
     vec3 out_color = vec3(0.0);
 
-    // LCG lcg;
-    // InitLCGSetConstants(lcg);
-    // lcg.state = prd.seed;
+    // NOTE: more texture types will be added later if they are needed
+    if((mat.type & MATERIAL_TEXTURE_ON) != 0U) {
+        hit_call.hit = hit.world_hit;
+        hit_call.nrm = hit.world_nrm;
+        hit_call.texture_id = mat.texture_id;
+        hit_call.sampler_id = mat.sampler_id;
+        executeCallableEXT(0, 3);
+        out_color = hit_call.hit_value;
+    } 
+    else if((mat.type & MATERIAL_PERLIN_ON) != 0U) {
+        hit_call.hit = (model * vec4(hit.world_hit, 1)).xyz;
+        hit_call.nrm = hit.world_nrm;
+        hit_call.texture_id = mat.texture_id;
+        hit_call.sampler_id = mat.sampler_id;
+        executeCallableEXT(1, 3);
+        out_color = hit_call.hit_value;
+    }
 
     // TODO: ReSTIR or something easier first
     for(daxa_u32 l = 0; l < light_count; l++) {
         LIGHT light = deref(p.light_buffer).lights[l];
 
         if(light.intensity > 0.0) {
-            out_color = _mat_get_color_by_light(ray, mat, light, hit);
+            out_color += _mat_get_color_by_light(ray, mat, light, hit);
         }
     }
 
-
     prd.hit_value = out_color;
 #endif
+
+    // vec3 scatter_direction;
+    
+    // if(scatter(mat, ray.direction, hit.world_nrm, lcg, scatter_direction) == false) {
+    //     // out_color = vec3(0.0, 0.0, 0.0);
+    //     // No scatter
+    //     return false;
+    // }
+
+    
 
     if(mat.illum == 3)
     {

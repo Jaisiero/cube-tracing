@@ -62,6 +62,25 @@ struct HIT_PAY_LOAD
     daxa_f32vec3 ray_dir;
 };
 
+struct HIT_MAT_PAY_LOAD
+{
+    daxa_f32vec3 hit;
+    daxa_f32vec3 nrm;
+    daxa_f32vec3 hit_value;
+    daxa_ImageViewId texture_id;
+    daxa_SamplerId sampler_id;
+};
+
+struct HIT_SCATTER_PAY_LOAD
+{
+    daxa_f32vec3 hit;
+    daxa_f32vec3 mat_nrm;
+    daxa_f32vec3 ray_dir;
+    daxa_u32 seed;
+    daxa_f32vec3 scatter_dir;
+    daxa_i32 done;
+};
+
 struct HIT_INFO
 {
   daxa_b32 is_hit;

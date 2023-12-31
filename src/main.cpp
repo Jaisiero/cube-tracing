@@ -1109,6 +1109,12 @@ namespace tests
                 auto shadow_miss_compile_options = rt_shader_compile_options;
                 shadow_miss_compile_options.defines = std::vector{daxa::ShaderDefine{"MISS_SHADOW", "1"}};
 
+                auto tex_call_compile_options = rt_shader_compile_options;
+                tex_call_compile_options.defines = std::vector{daxa::ShaderDefine{"MATERIAL_TEXTURE", "1"}};
+
+                auto perlin_call_compile_options = rt_shader_compile_options;
+                perlin_call_compile_options.defines = std::vector{daxa::ShaderDefine{"PERLIN_TEXTURE", "1"}};
+
                 auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
                     .ray_gen_infos = daxa::ShaderCompileInfo{
                         .source = daxa::ShaderFile{"rgen.glsl"},
@@ -1118,6 +1124,16 @@ namespace tests
                         daxa::ShaderCompileInfo{
                             .source = daxa::ShaderFile{"rint.glsl"},
                             .compile_options = rt_shader_compile_options,
+                        },
+                    },
+                    .callable_infos = {
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rcall_mat.glsl"},
+                            .compile_options = tex_call_compile_options,
+                        },
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rcall_mat.glsl"},
+                            .compile_options = perlin_call_compile_options,
                         },
                     },
                     .closest_hit_infos = {
@@ -1143,17 +1159,25 @@ namespace tests
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 3,
+                            .general_shader_index = 5,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 4,
+                            .general_shader_index = 6,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
-                            .closest_hit_shader_index = 2,
+                            .closest_hit_shader_index = 4,
                             .intersection_shader_index = 1,
                         },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 2,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 3,
+                        }
                     },
                     .max_ray_recursion_depth = status.max_depth,
                     .push_constant_size = sizeof(PushConstant),
