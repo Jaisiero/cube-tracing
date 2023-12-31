@@ -49,6 +49,13 @@ struct Ray
   daxa_f32vec3 direction;
 };
 
+
+struct HitPayLoad
+{
+    daxa_f32vec3 hit_value;
+    daxa_u32 seed;
+};
+
 struct HIT_INFO
 {
   daxa_b32 is_hit;
