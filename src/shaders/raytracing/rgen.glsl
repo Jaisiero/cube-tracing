@@ -14,11 +14,7 @@ const uint NBSAMPLES = 1;
 void main()
 {
     const ivec2 index = ivec2(gl_LaunchIDEXT.xy);
-
-    prd.hit_value = vec3(1.0);
-
-    // Ray setup
-    Ray ray;
+    daxa_u32 max_depth = deref(p.status_buffer).max_depth;
 
     // Camera setup
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
@@ -32,22 +28,25 @@ void main()
     // DEBUGGING
     // deref(p.hit_distance_buffer).hit_distances[index.x + index.y * p.size.x].distance = -1.0f;
 
+    // Random number generator setup
     LCG lcg;
     daxa_u32 frame_number = deref(p.status_buffer).frame_number;
-    // daxa_u32 light_count = deref(p.status_buffer).light_count;
     daxa_u32 seedX = index.x;
     daxa_u32 seedY = index.y;
-
     initLCG(lcg, frame_number, seedX, seedY);
-
     prd.seed = lcg.state;
 
+    // Depth of field setup
     daxa_f32 defocus_angle = deref(p.camera_buffer).defocus_angle;
     daxa_f32 focus_dist = deref(p.camera_buffer).focus_dist;
 
     daxa_f32 defocus_radius = focus_dist * tan(radians(defocus_angle / 2));
     daxa_f32vec2 defocus_disk = vec2(d.x * defocus_radius, 
         d.y * defocus_radius);
+
+    
+    // Ray setup
+    Ray ray;
 
     daxa_f32vec4 origin = inv_view * vec4(0,0,0,1);
     ray.origin = (defocus_angle <= 0) ? origin.xyz : defocus_disk_sample(origin.xyz, defocus_disk, lcg);
@@ -57,26 +56,49 @@ void main()
 
     ray.direction = direction.xyz;
 
-    daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
-    daxa_f32 tMin = 0.0001;
-    daxa_f32 tMax = 10000.0;
+    prd.depth = 0;
+    prd.hit_value = vec3(0);
+    prd.attenuation = vec3(1.f, 1.f, 1.f);
+    prd.done = 1;
+    prd.ray_origin = origin.xyz;
+    prd.ray_dir = direction.xyz;
 
-    traceRayEXT(
-        daxa_accelerationStructureEXT(p.tlas),
-        ray_flags,      // rayFlags
-        0xFF,          // cullMask
-        0,             // sbtRecordOffset
-        0,             // sbtRecordStride
-        0,             // missIndex
-        origin.xyz,    // ray origin
-        tMin,          // ray min range
-        direction.xyz, // ray direction
-        tMax,          // ray max range
-        0              // payload (location = 0)
-    );
+    daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
+    daxa_f32 t_min = 0.0001;
+    daxa_f32 t_max = 10000.0;
+    daxa_u32 cull_mask = 0xFF;
+
+
+    vec3 hit_value = vec3(0);
+    for(;;)
+    {
+        traceRayEXT(
+            daxa_accelerationStructureEXT(p.tlas),
+            ray_flags,      // rayFlags
+            cull_mask,          // cullMask
+            0,             // sbtRecordOffset
+            0,             // sbtRecordStride
+            0,             // missIndex
+            ray.origin.xyz,    // ray origin
+            t_min,          // ray min range
+            ray.direction.xyz, // ray direction
+            t_max,          // ray max range
+            0              // payload (location = 0)
+        );
+
+        hit_value += prd.hit_value * prd.attenuation;
+
+        prd.depth++;
+        if(prd.done == 1 || prd.depth >= 2)
+        break;
+
+        ray.origin.xyz    = prd.ray_origin;
+        ray.direction.xyz = prd.ray_dir;
+        prd.done      = 1; // Will stop if a reflective material isn't hit
+    }
 
     
-    clamp(prd.hit_value, 0.0, 0.99999999);
+    clamp(hit_value, 0.0, 0.99999999);
 
-    imageStore(daxa_image2D(p.swapchain), index, daxa_f32vec4(prd.hit_value, 1.0));
+    imageStore(daxa_image2D(p.swapchain), index, daxa_f32vec4(hit_value, 1.0));
 }

@@ -15,7 +15,7 @@
 #define PERFECT_PIXEL_ON 1
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 #define ACCUMULATOR_ON 0
-#define DYNAMIC_SUN_LIGHT 1
+#define DYNAMIC_SUN_LIGHT 0
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -54,7 +54,12 @@ struct Ray
 struct HIT_PAY_LOAD
 {
     daxa_f32vec3 hit_value;
+    daxa_i32 depth;
+    daxa_f32vec3 attenuation;
     daxa_u32 seed;
+    int  done;
+    daxa_f32vec3 ray_origin;
+    daxa_f32vec3 ray_dir;
 };
 
 struct HIT_INFO
@@ -95,6 +100,7 @@ struct Status
     daxa_u32 light_count;
     daxa_f32 time;
     daxa_b32 is_afternoon;
+    daxa_u32 max_depth;
 };
 DAXA_DECL_BUFFER_PTR(Status)
 

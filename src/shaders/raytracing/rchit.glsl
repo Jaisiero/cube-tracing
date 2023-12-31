@@ -12,7 +12,7 @@ layout(location = 1) rayPayloadEXT bool isShadowed;
 
 // #define DEBUG_NORMALS 1
 
-daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_INFO hit, LCG lcg) 
+daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_INFO hit) 
 {
 
     vec3 L = vec3(0.0, 0.0, 0.0);
@@ -37,8 +37,7 @@ daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_IN
     if(dot(hit.world_nrm, L) > 0) {
         float t_min   = 0.0001;
         float t_max   = light.distance;
-        // NOTE: In order to avoid self shadowing
-        vec3  origin = hit.world_hit + hit.world_nrm * t_min;
+        vec3  origin = hit.world_hit;
         vec3  ray_dir = L;
         Ray shadow_ray = Ray(origin, ray_dir);
         uint cull_mask = 0xff;
@@ -83,7 +82,6 @@ void main()
         gl_ObjectToWorldEXT[2][0], gl_ObjectToWorldEXT[2][1], gl_ObjectToWorldEXT[2][2], 0,
         gl_ObjectToWorldEXT[3][0], gl_ObjectToWorldEXT[3][1], gl_ObjectToWorldEXT[3][2], 1.0);
 
-    
 
     // Get first primitive index from instance id
     uint primitive_index = deref(p.instance_buffer).instances[gl_InstanceCustomIndexEXT].first_primitive_index;
@@ -106,40 +104,55 @@ void main()
                                                                                         : vec3(0, 0, sign(world_nrm.z));
     }
 
-#if defined(DEBUG_NORMALS)
-    prd.hit_value *= world_nrm * 0.5 + 0.5;
-#else
 
+    // Ray info 
     Ray ray = Ray(
         gl_WorldRayOriginEXT,
         gl_WorldRayDirectionEXT);
 
+    
+    // intersection info
+    _HIT_INFO hit = _HIT_INFO(
+        // NOTE: In order to avoid self intersection we need to offset the ray origin
+        world_pos + world_nrm * AVOID_VOXEL_COLLAIDE, 
+        world_nrm);
+    
+    // Get material index from primitive
     PRIMITIVE primitive = deref(p.primitives_buffer).primitives[actual_primitive_index];
-
     MATERIAL mat = deref(p.materials_buffer).materials[primitive.material_index];
+
+#if defined(DEBUG_NORMALS)
+    prd.hit_value += world_nrm * 0.5 + 0.5;
+#else
 
     daxa_u32 light_count = deref(p.status_buffer).light_count;
 
     vec3 out_color = vec3(0.0);
 
-    _HIT_INFO hit = _HIT_INFO(
-        world_pos,
-        world_nrm);
-
-    LCG lcg;
-    InitLCGSetConstants(lcg);
-    lcg.state = prd.seed;
+    // LCG lcg;
+    // InitLCGSetConstants(lcg);
+    // lcg.state = prd.seed;
 
     // TODO: ReSTIR or something easier first
     for(daxa_u32 l = 0; l < light_count; l++) {
         LIGHT light = deref(p.light_buffer).lights[l];
 
         if(light.intensity > 0.0) {
-            out_color = _mat_get_color_by_light(ray, mat, light, hit, lcg);
+            out_color = _mat_get_color_by_light(ray, mat, light, hit);
         }
     }
 
 
-    prd.hit_value *= out_color;
+    prd.hit_value = out_color;
 #endif
+
+    if(mat.illum == 3)
+    {
+        vec3 origin = hit.world_hit;
+        vec3 ray_dir = reflect(gl_WorldRayDirectionEXT, hit.world_nrm);
+        prd.attenuation *= mat.specular;
+        prd.done = 0;
+        prd.ray_origin = origin;
+        prd.ray_dir    = ray_dir;
+    }
 }

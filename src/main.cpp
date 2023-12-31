@@ -27,7 +27,6 @@ namespace tests
             const u32 CLOUD_INSTANCE_COUNT = 1; // 2^1 (mirrored on both sides of the x axis)
             const u32 CLOUD_INSTANCE_COUNT_X = (CLOUD_INSTANCE_COUNT * 2);
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
-            const u32 DEFAULT_LAMBERTIAN_MATERIAL = 1;
             const u32 LAMBERTIAN_MATERIAL_COUNT = 80;
             const u32 METAL_MATERIAL_COUNT = 15;
             const u32 DIALECTRIC_MATERIAL_COUNT = 5;
@@ -271,6 +270,7 @@ namespace tests
 
                 status.light_count = 1;
                 status.is_afternoon = true;
+                status.max_depth = MAX_DEPTH;
 
                 if(status.light_count > MAX_LIGHTS) {
                     std::cout << "status.light_count > MAX_LIGHTS" << std::endl;
@@ -954,25 +954,9 @@ namespace tests
                     }
 
                     
-                    current_material_count = DEFAULT_LAMBERTIAN_MATERIAL + LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
+                    current_material_count = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
 
                     materials.reserve(current_material_count);
-
-                    materials.push_back(MATERIAL{
-                        .type = MATERIAL_TYPE_LAMBERTIAN,
-                        .ambient = {1.0f, 1.0f, 1.0f},
-                        .diffuse = {1.0f, 1.0f, 1.0f},
-                        .specular = {0.0f, 0.0f, 0.0f},
-                        .transmittance = {0.0f, 0.0f, 0.0f},
-                        .emission = {0.0f, 0.0f, 0.0f},
-                        .shininess = 2.0f,
-                        .roughness = 1.0f,
-                        .ior = 1.0f,
-                        .dissolve = 1.0f,
-                        .illum = 2,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
-                    });
 
                     for(u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++) {
                         
@@ -995,7 +979,7 @@ namespace tests
                             // .dissolve = (-1/random_float(0.1, 1.0)),
                             // .dissolve = (random_float(0.1, 1.0)),
                             .dissolve = 1.0,
-                            .illum = random_int(1, 2),
+                            .illum = 3,
                             .texture_id = (texture_id != MAX_TEXTURES) ? images.at(texture_id).default_view()  : daxa::ImageViewId{},
                             .sampler_id = samplers.at(0),
                         });
@@ -1015,7 +999,7 @@ namespace tests
                             // .dissolve = (-1/random_float(0.1, 1.0)),
                             // .dissolve = (random_float(0.1, 1.0)),
                             .dissolve = 1.0,
-                            .illum = random_int(1, 2),
+                            .illum = 3,
                             .texture_id = MAX_TEXTURES,
                             .sampler_id = MAX_TEXTURES,
                         });
@@ -1035,7 +1019,7 @@ namespace tests
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
                             .dissolve = 1.0,
-                            .illum = random_int(1, 2),
+                            .illum = 3,
                             .texture_id = MAX_TEXTURES,
                             .sampler_id = MAX_TEXTURES,
                         });
@@ -1053,7 +1037,7 @@ namespace tests
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
                             .dissolve = 1.0,
-                            .illum = 2,
+                            .illum = 3,
                             .texture_id = MAX_TEXTURES,
                             .sampler_id = MAX_TEXTURES,
                         });
@@ -1072,7 +1056,7 @@ namespace tests
                             .ior = random_float(1.0, 2.65),
                             // .dissolve = (-1.0f/random_float(0.1, 0.5)),
                             .dissolve = random_float(0.1, 0.2),
-                            .illum = 2,
+                            .illum = 3,
                             .texture_id = MAX_TEXTURES,
                             .sampler_id = MAX_TEXTURES,
                         });
@@ -1171,7 +1155,7 @@ namespace tests
                             .intersection_shader_index = 1,
                         },
                     },
-                    .max_ray_recursion_depth = 2,
+                    .max_ray_recursion_depth = status.max_depth,
                     .push_constant_size = sizeof(PushConstant),
                     .name = "ray trace shader",
                 };
