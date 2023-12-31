@@ -15,8 +15,7 @@ void main()
 {
     const ivec2 index = ivec2(gl_LaunchIDEXT.xy);
 
-    // // Color output
-    // vec3 out_color = vec3(0.0, 0.0, 0.0);
+    prd.hit_value = vec3(1.0);
 
     // Ray setup
     Ray ray;
@@ -35,11 +34,13 @@ void main()
 
     LCG lcg;
     daxa_u32 frame_number = deref(p.status_buffer).frame_number;
-    daxa_u32 light_count = deref(p.status_buffer).light_count;
+    // daxa_u32 light_count = deref(p.status_buffer).light_count;
     daxa_u32 seedX = index.x;
     daxa_u32 seedY = index.y;
 
     initLCG(lcg, frame_number, seedX, seedY);
+
+    prd.seed = lcg.state;
 
     daxa_f32 defocus_angle = deref(p.camera_buffer).defocus_angle;
     daxa_f32 focus_dist = deref(p.camera_buffer).focus_dist;
@@ -73,6 +74,9 @@ void main()
         tMax,          // ray max range
         0              // payload (location = 0)
     );
+
+    
+    clamp(prd.hit_value, 0.0, 0.99999999);
 
     imageStore(daxa_image2D(p.swapchain), index, daxa_f32vec4(prd.hit_value, 1.0));
 }

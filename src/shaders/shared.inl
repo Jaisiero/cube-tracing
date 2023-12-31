@@ -72,6 +72,12 @@ struct HIT_INFO
   daxa_f32vec2 uv;
 };
 
+struct _HIT_INFO
+{
+  daxa_f32vec3 world_hit;
+  daxa_f32vec3 world_nrm;
+};
+
 struct camera_view{ 
     daxa_f32mat4x4 inv_view;
     daxa_f32mat4x4 inv_proj;
@@ -108,7 +114,6 @@ DAXA_DECL_BUFFER_PTR(INSTANCES)
 
 struct PRIMITIVE
 {
-    daxa_f32vec3 center;
     daxa_u32 material_index;
 };
 
@@ -240,6 +245,12 @@ DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
 // };
 // DAXA_DECL_BUFFER_PTR(PRIMITIVE_AABBS)
 
+struct Aabbs
+{
+    Aabb aabbs[MAX_PRIMITIVES];
+};
+DAXA_DECL_BUFFER_PTR(Aabbs)
+
 struct PushConstant
 {
     daxa_u32vec2 size;
@@ -249,6 +260,7 @@ struct PushConstant
     daxa_BufferPtr(Status) status_buffer;
     daxa_BufferPtr(INSTANCES) instance_buffer;
     daxa_BufferPtr(PRIMITIVES) primitives_buffer;
+    daxa_BufferPtr(Aabbs) aabb_buffer;
     daxa_BufferPtr(MATERIALS) materials_buffer;
     daxa_BufferPtr(LIGHTS) light_buffer;
     daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer; 

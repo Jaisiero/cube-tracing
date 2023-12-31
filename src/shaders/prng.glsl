@@ -5,6 +5,13 @@
 #include "shared.inl"
 #include "Box.glsl"
 
+struct LCG {
+    daxa_u32 state;
+    daxa_u32 a;
+    daxa_u32 c;
+    daxa_u32 m;
+};
+
 // Credits: https://raytracing.github.io/books/RayTracingInOneWeekend.html#metal/modelinglightscatterandreflectance
 daxa_b32 normal_near_zero(daxa_f32vec3 v)
 {
@@ -16,17 +23,14 @@ daxa_f32 length_square(daxa_f32vec3 v) {
     return v.x * v.x + v.y * v.y + v.z * v.z;
 }
 
-struct LCG {
-    daxa_u32 state;
-    daxa_u32 a;
-    daxa_u32 c;
-    daxa_u32 m;
-};
-
-void initLCG(inout LCG lcg, daxa_u32 frame_number, daxa_u32 seed_x, daxa_u32 seed_y) {
+void InitLCGSetConstants(inout LCG lcg) {
     lcg.a = 1664525;
     lcg.c = 1013904223;
     lcg.m = 4294967295;  // 2^32 - 1
+}
+
+void initLCG(inout LCG lcg, daxa_u32 frame_number, daxa_u32 seed_x, daxa_u32 seed_y) {
+    InitLCGSetConstants(lcg);
     lcg.state = frame_number + seed_x * 73856093 + seed_y * 19349663;
 }
 

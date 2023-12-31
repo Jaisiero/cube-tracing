@@ -36,28 +36,12 @@ void main()
 
     float tHit = -1;
 
-    // TODO: resuse aabb buffer
-    {
-        // uint prim_index = gl_PrimitiveID + gl_GeometryIndexEXT + gl_InstanceCustomIndexEXT;
-
-        // Aabb aabb;
-        // Aabb aabb = deref(p.aabb_buffer).aabbs[i];
-    }
-
-    // TODO: current center starts
     // Get first primitive index from instance id
     uint primitive_index = deref(p.instance_buffer).instances[gl_InstanceCustomIndexEXT].first_primitive_index;
     // Get actual primitive index from offset and primitive id
     uint actual_primitive_index = primitive_index + gl_PrimitiveID;
 
-    // Get center position from transform
-    vec3 center = deref(p.primitives_buffer).primitives[actual_primitive_index].center;
-
-    Aabb aabb;
-    aabb.minimum = center - HALF_VOXEL_EXTENT;
-    aabb.maximum = center + HALF_VOXEL_EXTENT;
-    // TODO: current center ends
-
+    Aabb aabb = deref(p.aabb_buffer).aabbs[actual_primitive_index];
 
     tHit = hitAabb(aabb, ray);
 

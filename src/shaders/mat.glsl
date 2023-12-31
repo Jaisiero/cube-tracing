@@ -3,7 +3,7 @@
 #define MATERIAL_GLSL
 #include <daxa/daxa.inl>
 #include "shared.inl"
-
+#include "prng.glsl"
 
 // Credit: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing__before/shaders/wavefront.glsl
 daxa_f32vec3 compute_diffuse(MATERIAL mat, daxa_f32vec3 light_dir, daxa_f32vec3 normal)

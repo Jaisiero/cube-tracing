@@ -61,6 +61,9 @@ namespace tests
             daxa::BufferId primitive_buffer = {};
             u32 max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
 
+            daxa::BufferId aabb_buffer = {};
+            u32 max_aabb_buffer_size = sizeof(daxa_f32mat3x2) * MAX_PRIMITIVES;
+
             u32 current_texture_count = 0;
             std::vector<daxa::ImageId> images = {};
             std::vector<daxa::SamplerId> samplers = {};
@@ -110,6 +113,7 @@ namespace tests
                     device.destroy_buffer(cam_buffer);
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
+                    device.destroy_buffer(aabb_buffer);
                     device.destroy_buffer(material_buffer);
                     for(auto image : images)
                         device.destroy_image(image);
@@ -393,16 +397,13 @@ namespace tests
                 this->proc_blas.clear();
                 this->proc_blas.reserve(instance_count);
 
-                u32 aabb_buffer_size = this->max_current_primitive_count * sizeof(daxa_f32mat3x2);
-
                 // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
                 // GeometryType of each element of pGeometries must be the same
-                auto aabb_buffer = device.create_buffer({
-                    .size = aabb_buffer_size,
+                aabb_buffer = device.create_buffer({
+                    .size = max_aabb_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = "aabb buffer",
                 });
-                defer { device.destroy_buffer(aabb_buffer); };
 
                 current_primitive_count = 0;
                     
@@ -445,12 +446,7 @@ namespace tests
                     
                     // push primitives
                     for(u32 j = 0; j < instances[i].primitive_count; j++) {
-
                         primitives.push_back(PRIMITIVE{
-                            .center = daxa_f32vec3(
-                                (min_max[j].y.x + min_max[j].x.x) / 2.0f,
-                                (min_max[j].y.y + min_max[j].x.y) / 2.0f,
-                                (min_max[j].y.z + min_max[j].x.z) / 2.0f),
                             .material_index = i < instance_count - CLOUD_INSTANCE_COUNT_X ? 
                                 random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1) : random_uint(current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT, current_material_count - 1),
                             // .material_index = random_uint(0, current_material_count - 1),
@@ -1126,6 +1122,9 @@ namespace tests
                     .enable_debug_info = false,
                 };
 
+                auto shadow_miss_compile_options = rt_shader_compile_options;
+                shadow_miss_compile_options.defines = std::vector{daxa::ShaderDefine{"MISS_SHADOW", "1"}};
+
                 auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
                     .ray_gen_infos = daxa::ShaderCompileInfo{
                         .source = daxa::ShaderFile{"rgen.glsl"},
@@ -1148,6 +1147,10 @@ namespace tests
                             .source = daxa::ShaderFile{"rmiss.glsl"},
                             .compile_options = rt_shader_compile_options,
                         },
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rmiss.glsl"},
+                            .compile_options = shadow_miss_compile_options,
+                        },
                     },
                     .shader_groups_infos = {
                         daxa::RayTracingShaderGroupInfo{
@@ -1157,6 +1160,10 @@ namespace tests
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 3,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 4,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
@@ -1387,6 +1394,7 @@ namespace tests
                     .status_buffer = this->device.get_device_address(status_buffer).value(),
                     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
                     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
+                    .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
                     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
