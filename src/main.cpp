@@ -44,7 +44,6 @@ namespace tests
             daxa::Device device = {};
             daxa::Swapchain swapchain = {};
             daxa::PipelineManager pipeline_manager = {};
-            std::shared_ptr<daxa::ComputePipeline> comp_pipeline = {};
             std::shared_ptr<daxa::RayTracingPipeline> rt_pipeline = {};
             daxa::TlasId tlas = {};
             std::vector<daxa::BlasId> proc_blas = {};
@@ -1115,15 +1114,6 @@ namespace tests
                     .device = device,
                     .shader_compile_options = shader_compile_options,
                 }};
-                auto const compute_pipe_info = daxa::ComputePipelineCompileInfo{
-                    .shader_info = daxa::ShaderCompileInfo{
-                        .source = daxa::ShaderFile{"shaders.glsl"},
-                        .compile_options = shader_compile_options,
-                    },
-                    .push_constant_size = sizeof(PushConstant),
-                    .name = "ray query comp shader",
-                };
-                comp_pipeline = pipeline_manager.add_compute_pipeline(compute_pipe_info).value();
 
 
                 daxa::ShaderCompileOptions rt_shader_compile_options = {
@@ -1141,6 +1131,18 @@ namespace tests
                         .source = daxa::ShaderFile{"rgen.glsl"},
                         .compile_options = rt_shader_compile_options,
                     },
+                    .intersection_infos = {
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rint.glsl"},
+                            .compile_options = rt_shader_compile_options,
+                        },
+                    },
+                    .closest_hit_infos = {
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rchit.glsl"},
+                            .compile_options = rt_shader_compile_options,
+                        },
+                    },
                     .miss_hit_infos = {
                         daxa::ShaderCompileInfo{
                             .source = daxa::ShaderFile{"rmiss.glsl"},
@@ -1154,7 +1156,12 @@ namespace tests
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 1,
+                            .general_shader_index = 3,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
+                            .closest_hit_shader_index = 2,
+                            .intersection_shader_index = 1,
                         },
                     },
                     .max_ray_recursion_depth = 2,
@@ -1357,46 +1364,6 @@ namespace tests
                     .dst_buffer = material_buffer,
                     .size = material_buffer_size,
                 });
-
-                // recorder.pipeline_barrier({
-                //     .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                //     .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
-                // });
-
-                // recorder.pipeline_barrier_image_transition({
-                //     .dst_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
-                //     .src_layout = daxa::ImageLayout::UNDEFINED,
-                //     .dst_layout = daxa::ImageLayout::GENERAL,
-                //     .image_id = swapchain_image,
-                // });
-
-                // recorder.set_pipeline(*comp_pipeline);
-                // recorder.push_constant(PushConstant{
-                //     .size = {width, height},
-                //     .tlas = tlas,
-                //     .swapchain = swapchain_image.default_view(),
-                //     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
-                //     .status_buffer = this->device.get_device_address(status_buffer).value(),
-                //     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
-                //     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
-                //     .materials_buffer = this->device.get_device_address(material_buffer).value(),
-                //     .light_buffer = this->device.get_device_address(light_buffer).value(),
-                //     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
-                //     // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
-                //     // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
-                //     // .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
-                //     // .aabb_buffer = this->device.get_device_address(gpu_aabb_buffer).value(),
-                // });
-                // daxa::u32 block_count_x = (width + 8 - 1) / 8;
-                // daxa::u32 block_count_y = (height + 8 - 1) / 8;
-                // recorder.dispatch({block_count_x, block_count_y, 1});
-
-                // recorder.pipeline_barrier_image_transition({
-                //     .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
-                //     .src_layout = daxa::ImageLayout::GENERAL,
-                //     .dst_layout = daxa::ImageLayout::PRESENT_SRC,
-                //     .image_id = swapchain_image,
-                // });
 
 
                 recorder.pipeline_barrier({

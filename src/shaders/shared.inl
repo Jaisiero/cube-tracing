@@ -21,6 +21,7 @@
 // #define LEVEL_1_VOXEL_EXTENT 0.125
 
 #define VOXEL_EXTENT 0.125f
+#define HALF_VOXEL_EXTENT VOXEL_EXTENT * 0.5f
 // #define VOXEL_EXTENT 0.015625f
 #define AVOID_LIGHT_LEAKS 0.000
 #define VOXEL_COUNT_BY_AXIS 8 // 2^3
@@ -50,7 +51,7 @@ struct Ray
 };
 
 
-struct HitPayLoad
+struct HIT_PAY_LOAD
 {
     daxa_f32vec3 hit_value;
     daxa_u32 seed;

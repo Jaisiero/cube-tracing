@@ -7,7 +7,7 @@
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
-layout(location = 0) rayPayloadEXT HitPayLoad prd;
+layout(location = 0) rayPayloadEXT HIT_PAY_LOAD prd;
 
 const uint NBSAMPLES = 1;
 
