@@ -1055,8 +1055,8 @@ namespace tests
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
                             // .dissolve = (-1.0f/random_float(0.1, 0.5)),
-                            .dissolve = random_float(0.1, 0.2),
-                            .illum = 3,
+                            .dissolve = random_float(0.1, 0.3),
+                            .illum = 4,
                             .texture_id = MAX_TEXTURES,
                             .sampler_id = MAX_TEXTURES,
                         });
@@ -1138,6 +1138,12 @@ namespace tests
                             .compile_options = rt_shader_compile_options,
                         },
                     },
+                    .any_hit_infos = {
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rahit.glsl"},
+                            .compile_options = rt_shader_compile_options,
+                        },
+                    },
                     .callable_infos = {
                         daxa::ShaderCompileInfo{
                             .source = daxa::ShaderFile{"rcall_mat.glsl"},
@@ -1187,20 +1193,17 @@ namespace tests
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 9,
-                        },
-                        daxa::RayTracingShaderGroupInfo{
-                            .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 10,
                         },
                         daxa::RayTracingShaderGroupInfo{
-                            .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
-                            .closest_hit_shader_index = 8,
-                            .intersection_shader_index = 1,
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 11,
                         },
                         daxa::RayTracingShaderGroupInfo{
-                            .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 2,
+                            .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
+                            .closest_hit_shader_index = 9,
+                            .any_hit_shader_index = 2,
+                            .intersection_shader_index = 1,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
@@ -1221,6 +1224,10 @@ namespace tests
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 7,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 8,
                         },
                     },
                     .max_ray_recursion_depth = status.max_depth,

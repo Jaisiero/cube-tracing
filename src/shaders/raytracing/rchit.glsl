@@ -204,5 +204,6 @@ void main()
     prd.ray_origin = call_scatter.hit;
     prd.ray_dir    = call_scatter.scatter_dir;
     prd.done = call_scatter.done;
+    prd.seed = call_scatter.seed;
 #endif
 }

@@ -4,6 +4,7 @@
 
 #include "shared.inl"
 #include "prng.glsl"
+#include "random.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
@@ -15,6 +16,7 @@ void main()
 {
     const ivec2 index = ivec2(gl_LaunchIDEXT.xy);
     daxa_u32 max_depth = deref(p.status_buffer).max_depth;
+    daxa_u32 frame_number = deref(p.status_buffer).frame_number;
 
     // Camera setup
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
@@ -27,14 +29,19 @@ void main()
     
     // DEBUGGING
     // deref(p.hit_distance_buffer).hit_distances[index.x + index.y * p.size.x].distance = -1.0f;
+    
+    // Initialize the random number
+    uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, frame_number * NBSAMPLES);
+    prd.seed = seed;
 
     // Random number generator setup
     LCG lcg;
-    daxa_u32 frame_number = deref(p.status_buffer).frame_number;
-    daxa_u32 seedX = index.x;
-    daxa_u32 seedY = index.y;
+    daxa_u32 seedX = gl_LaunchIDEXT.x;
+    daxa_u32 seedY = gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x;
     initLCG(lcg, frame_number, seedX, seedY);
-    prd.seed = lcg.state;
+    // prd.seed = lcg.state;
+    lcg.state = seed;
+    
 
     // Depth of field setup
     daxa_f32 defocus_angle = deref(p.camera_buffer).defocus_angle;
@@ -89,7 +96,7 @@ void main()
         hit_value += prd.hit_value * prd.attenuation;
 
         prd.depth++;
-        if(prd.done == 1 || prd.depth >= 2)
+        if(prd.done == 1 || prd.depth >= max_depth)
         break;
 
         ray.origin.xyz    = prd.ray_origin;
