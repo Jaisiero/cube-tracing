@@ -14,7 +14,7 @@ layout(location = 3) callableDataEXT HIT_MAT_PAY_LOAD hit_call;
 layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
 // #define DEBUG_NORMALS 1
 
-daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_INFO hit) 
+daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_INFO hit)
 {
 
     vec3 L = vec3(0.0, 0.0, 0.0);
@@ -111,7 +111,11 @@ void main()
                                                                                         : vec3(0, 0, sign(world_nrm.z));
     }
 
-
+#if defined(DEBUG_NORMALS)
+    prd.hit_value += world_nrm * 0.5 + 0.5;
+    prd.done = 1;
+#else
+    
     // Ray info 
     Ray ray = Ray(
         gl_WorldRayOriginEXT,
@@ -124,13 +128,51 @@ void main()
         world_pos + world_nrm * AVOID_VOXEL_COLLAIDE, 
         world_nrm);
 
-#if defined(DEBUG_NORMALS)
-    prd.hit_value += world_nrm * 0.5 + 0.5;
-#else
     // Get material index from primitive
     PRIMITIVE primitive = deref(p.primitives_buffer).primitives[actual_primitive_index];
     MATERIAL mat = deref(p.materials_buffer).materials[primitive.material_index];
 
+    call_scatter.hit = hit.world_hit;
+    call_scatter.nrm = hit.world_nrm;
+    call_scatter.ray_dir = ray.direction;
+    call_scatter.seed = prd.seed;
+    call_scatter.scatter_dir = vec3(0.0);
+    call_scatter.done = 0;
+    call_scatter.mat_idx = primitive.material_index;
+    call_scatter.scattering_pdf = 1.0;
+    call_scatter.pdf = 1.0;
+
+
+    // SCATTER
+    // vec3 ray_dir = reflect(gl_WorldRayDirectionEXT, hit.world_nrm);
+    prd.attenuation *= mat.specular;
+
+    // SCATTER
+    switch (mat.type & MATERIAL_TYPE_MASK)
+    {
+    case MATERIAL_TYPE_METAL:
+        executeCallableEXT(3, 4);
+        break;
+    case MATERIAL_TYPE_DIELECTRIC:
+        executeCallableEXT(4, 4);
+        break;
+    case MATERIAL_TYPE_CONSTANT_MEDIUM:
+        executeCallableEXT(5, 4);
+        break;
+    case MATERIAL_TYPE_LAMBERTIAN:
+    default:
+        executeCallableEXT(2, 4);
+        break;
+    }
+
+    
+    prd.ray_origin = call_scatter.hit;
+    prd.ray_dir    = call_scatter.scatter_dir;
+    prd.done = call_scatter.done;
+    prd.seed = call_scatter.seed;
+    
+
+    // LIGHTS
     daxa_u32 light_count = deref(p.status_buffer).light_count;
 
     vec3 out_color = vec3(0.0);
@@ -169,42 +211,7 @@ void main()
 
     prd.hit_value = out_color;
     prd.emission = mat.emission;
-
-
-    call_scatter.hit = hit.world_hit;
-    call_scatter.nrm = hit.world_nrm;
-    call_scatter.ray_dir = ray.direction;
-    call_scatter.seed = prd.seed;
-    call_scatter.scatter_dir = vec3(0.0);
-    call_scatter.done = 0;
-    call_scatter.mat_idx = primitive.material_index;
-
-
-    // SCATTER
-    // vec3 ray_dir = reflect(gl_WorldRayDirectionEXT, hit.world_nrm);
-    prd.attenuation *= mat.specular;
-
-    // SCATTER
-    switch (mat.type & MATERIAL_TYPE_MASK)
-    {
-    case MATERIAL_TYPE_METAL:
-        executeCallableEXT(3, 4);
-        break;
-    case MATERIAL_TYPE_DIELECTRIC:
-        executeCallableEXT(4, 4);
-        break;
-    case MATERIAL_TYPE_CONSTANT_MEDIUM:
-        executeCallableEXT(5, 4);
-        break;
-    case MATERIAL_TYPE_LAMBERTIAN:
-    default:
-        executeCallableEXT(2, 4);
-        break;
-    }
-    
-    prd.ray_origin = call_scatter.hit;
-    prd.ray_dir    = call_scatter.scatter_dir;
-    prd.done = call_scatter.done;
-    prd.seed = call_scatter.seed;
+    prd.scattering_pdf = call_scatter.scattering_pdf;
+    prd.pdf = call_scatter.pdf;
 #endif
 }

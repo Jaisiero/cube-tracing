@@ -71,6 +71,12 @@ void main()
 
 #else // Labertian
 
+daxa_f32 scattering_pdf(daxa_f32vec3 nrm, daxa_f32vec3 dir)
+{
+    daxa_f32 cos_theta = dot(nrm, dir);
+    return cos_theta < 0 ? 0 : cos_theta/DAXA_PI;
+}
+
 void main()
 {
     LCG lcg;
@@ -81,6 +87,9 @@ void main()
     // Catch degenerate scatter direction
     if (normal_near_zero(call_scatter.scatter_dir))
         call_scatter.scatter_dir = call_scatter.nrm;
+    
+    call_scatter.scattering_pdf = scattering_pdf(call_scatter.nrm, call_scatter.scatter_dir);
+    call_scatter.pdf = 1 / (2*DAXA_PI);
 
     call_scatter.seed = lcg.state;
 }

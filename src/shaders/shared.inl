@@ -57,6 +57,8 @@ struct HIT_PAY_LOAD
     daxa_i32 depth;
     daxa_f32vec3 attenuation;
     daxa_f32vec3 emission;
+    daxa_f32 scattering_pdf;
+    daxa_f32 pdf;
     daxa_u32 seed;
     int  done;
     daxa_f32vec3 ray_origin;
@@ -78,9 +80,11 @@ struct HIT_SCATTER_PAY_LOAD
     daxa_f32vec3 nrm;
     daxa_f32vec3 ray_dir;
     daxa_u32 seed;
+    daxa_i32 done;
     daxa_f32vec3 scatter_dir;
     daxa_u32 mat_idx;
-    daxa_i32 done;
+    daxa_f32 scattering_pdf;
+    daxa_f32 pdf;
 };
 
 struct HIT_INFO

@@ -75,13 +75,15 @@ void main()
     daxa_f32 t_max = 10000.0;
     daxa_u32 cull_mask = 0xFF;
 
-    vec3 hit_value = vec3(0);
+    vec3 hit_value = vec3(1);
 
     for(int smpl = 0; smpl < NBSAMPLES; smpl++)
     { 
         for(;;)
         {
             prd.emission = vec3(0);
+            prd.pdf = 1.0f;
+            prd.scattering_pdf = 1.0f;
             traceRayEXT(
                 daxa_accelerationStructureEXT(p.tlas),
                 ray_flags,      // rayFlags
@@ -96,7 +98,9 @@ void main()
                 0              // payload (location = 0)
             );
 
-            hit_value += prd.hit_value * prd.attenuation + prd.emission;
+            hit_value = (hit_value * prd.hit_value * prd.attenuation * prd.scattering_pdf) / prd.pdf;
+
+            hit_value += prd.emission;
 
             prd.depth++;
             if(prd.done == 1 || prd.depth >= max_depth)
