@@ -112,5 +112,28 @@ void main()
     
     clamp(hit_value, 0.0, 0.99999999);
 
-    imageStore(daxa_image2D(p.swapchain), index, daxa_f32vec4(hit_value, 1.0));
+    vec4 final_pixel;
+#if ACCUMULATOR_ON == 1
+    daxa_u32 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
+    if(num_accumulated_frames > 0) {
+        vec4 previous_frame_pixel = imageLoad(daxa_image2D(p.swapchain), index);
+        
+        vec4 current_frame_pixel = vec4(hit_value, 1.0f);
+
+        daxa_f32 weight = 1.0f / (num_accumulated_frames + 1.0f);
+        final_pixel = mix(previous_frame_pixel, current_frame_pixel, weight);
+    } else {
+        final_pixel = vec4(hit_value, 1.0f);
+    }
+#else 
+    final_pixel = vec4(hit_value, 1.0f);
+#endif
+
+    // 
+
+    // NOTE: We are not using gamma correction because we suspect that swapchain is already in sRGB    
+    // imageStore(daxa_image2D(p.swapchain), index, fromLinear(vec4(out_color,1)));
+    // imageStore(daxa_image2D(p.swapchain), index, linear_to_ gamma(vec4(out_color,1)));
+    imageStore(daxa_image2D(p.swapchain), index, final_pixel);
+
 }
