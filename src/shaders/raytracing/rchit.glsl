@@ -11,6 +11,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 
 layout(location = 3) callableDataEXT HIT_MAT_PAY_LOAD hit_call;
+layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
 // #define DEBUG_NORMALS 1
 
 daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_INFO hit) 
@@ -75,8 +76,11 @@ daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_IN
 
 void main()
 {
+
+    // Get world position from hit position
     vec3 world_pos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
 
+    // Get model matrix
     mat4 model = mat4(
         gl_ObjectToWorldEXT[0][0], gl_ObjectToWorldEXT[0][1], gl_ObjectToWorldEXT[0][2], 0,
         gl_ObjectToWorldEXT[0][1], gl_ObjectToWorldEXT[1][1], gl_ObjectToWorldEXT[1][2], 0,
@@ -89,15 +93,17 @@ void main()
     // Get actual primitive index from offset and primitive id
     uint actual_primitive_index = primitive_index + gl_PrimitiveID;
 
+    // Get aabb from primitive
     Aabb aabb = deref(p.aabb_buffer).aabbs[actual_primitive_index];
 
+    // Get center of aabb
     vec3 center = (aabb.minimum + aabb.maximum) * 0.5;
 
+    // Transform center to world space
     center = (model * vec4(center, 1)).xyz;
 
     // Computing the normal at hit position
     vec3 world_nrm = normalize(world_pos - center);
-
     {
         vec3 absN = abs(world_nrm);
         float maxC = max(max(absN.x, absN.y), absN.z);
@@ -117,36 +123,40 @@ void main()
         // NOTE: In order to avoid self intersection we need to offset the ray origin
         world_pos + world_nrm * AVOID_VOXEL_COLLAIDE, 
         world_nrm);
-    
-    // Get material index from primitive
-    PRIMITIVE primitive = deref(p.primitives_buffer).primitives[actual_primitive_index];
-    MATERIAL mat = deref(p.materials_buffer).materials[primitive.material_index];
 
 #if defined(DEBUG_NORMALS)
     prd.hit_value += world_nrm * 0.5 + 0.5;
 #else
+    // Get material index from primitive
+    PRIMITIVE primitive = deref(p.primitives_buffer).primitives[actual_primitive_index];
+    MATERIAL mat = deref(p.materials_buffer).materials[primitive.material_index];
 
     daxa_u32 light_count = deref(p.status_buffer).light_count;
 
     vec3 out_color = vec3(0.0);
 
-    // NOTE: more texture types will be added later if they are needed
-    if((mat.type & MATERIAL_TEXTURE_ON) != 0U) {
-        hit_call.hit = hit.world_hit;
-        hit_call.nrm = hit.world_nrm;
-        hit_call.texture_id = mat.texture_id;
-        hit_call.sampler_id = mat.sampler_id;
-        executeCallableEXT(0, 3);
-        out_color = hit_call.hit_value;
-    } 
-    else if((mat.type & MATERIAL_PERLIN_ON) != 0U) {
-        hit_call.hit = (model * vec4(hit.world_hit, 1)).xyz;
-        hit_call.nrm = hit.world_nrm;
-        hit_call.texture_id = mat.texture_id;
-        hit_call.sampler_id = mat.sampler_id;
-        executeCallableEXT(1, 3);
-        out_color = hit_call.hit_value;
-    }
+    // // TEXTURES
+    // {
+    //     // NOTE: more texture types will be added later if they are needed
+    //     if((mat.type & MATERIAL_TEXTURE_ON) != 0U) {
+    //         hit_call.hit = (model * vec4(hit.world_hit, 1)).xyz;
+    //         hit_call.nrm = hit.world_nrm;
+    //         hit_call.texture_id = mat.texture_id;
+    //         hit_call.sampler_id = mat.sampler_id;
+    //         hit_call.hit_value = vec3(0.0);
+    //         // executeCallableEXT(0, 3);
+    //         out_color = hit_call.hit_value;
+    //     } 
+    //     else if((mat.type & MATERIAL_PERLIN_ON) != 0U) {
+    //         hit_call.hit = (model * vec4(hit.world_hit, 1)).xyz;
+    //         hit_call.nrm = hit.world_nrm;
+    //         hit_call.texture_id = mat.texture_id;
+    //         hit_call.sampler_id = mat.sampler_id;
+    //         hit_call.hit_value = vec3(0.0);
+    //         executeCallableEXT(1, 3);
+    //         out_color = hit_call.hit_value;
+    //     }
+    // }
 
     // TODO: ReSTIR or something easier first
     for(daxa_u32 l = 0; l < light_count; l++) {
@@ -158,25 +168,41 @@ void main()
     }
 
     prd.hit_value = out_color;
-#endif
 
-    // vec3 scatter_direction;
-    
-    // if(scatter(mat, ray.direction, hit.world_nrm, lcg, scatter_direction) == false) {
-    //     // out_color = vec3(0.0, 0.0, 0.0);
-    //     // No scatter
-    //     return false;
-    // }
 
-    
+    call_scatter.hit = hit.world_hit;
+    call_scatter.nrm = hit.world_nrm;
+    call_scatter.ray_dir = ray.direction;
+    call_scatter.seed = prd.seed;
+    call_scatter.scatter_dir = vec3(0.0);
+    call_scatter.done = 0;
+    call_scatter.mat_idx = primitive.material_index;
 
-    if(mat.illum == 3)
+
+    // SCATTER
+    // vec3 ray_dir = reflect(gl_WorldRayDirectionEXT, hit.world_nrm);
+    prd.attenuation *= mat.specular;
+
+    // SCATTER
+    switch (mat.type & MATERIAL_TYPE_MASK)
     {
-        vec3 origin = hit.world_hit;
-        vec3 ray_dir = reflect(gl_WorldRayDirectionEXT, hit.world_nrm);
-        prd.attenuation *= mat.specular;
-        prd.done = 0;
-        prd.ray_origin = origin;
-        prd.ray_dir    = ray_dir;
+    case MATERIAL_TYPE_METAL:
+        executeCallableEXT(3, 4);
+        break;
+    case MATERIAL_TYPE_DIELECTRIC:
+        executeCallableEXT(4, 4);
+        break;
+    case MATERIAL_TYPE_CONSTANT_MEDIUM:
+        executeCallableEXT(5, 4);
+        break;
+    case MATERIAL_TYPE_LAMBERTIAN:
+    default:
+        executeCallableEXT(2, 4);
+        break;
     }
+    
+    prd.ray_origin = call_scatter.hit;
+    prd.ray_dir    = call_scatter.scatter_dir;
+    prd.done = call_scatter.done;
+#endif
 }

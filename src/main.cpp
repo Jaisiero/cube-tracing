@@ -1115,6 +1115,18 @@ namespace tests
                 auto perlin_call_compile_options = rt_shader_compile_options;
                 perlin_call_compile_options.defines = std::vector{daxa::ShaderDefine{"PERLIN_TEXTURE", "1"}};
 
+                auto metallic_call_compile_options = rt_shader_compile_options;
+                metallic_call_compile_options.defines = std::vector{daxa::ShaderDefine{"METAL", "1"}};
+
+                auto dielectric_call_compile_options = rt_shader_compile_options;
+                dielectric_call_compile_options.defines = std::vector{daxa::ShaderDefine{"DIELECTRIC", "1"}};
+
+                auto emissive_call_compile_options = rt_shader_compile_options;
+                emissive_call_compile_options.defines = std::vector{daxa::ShaderDefine{"EMISSIVE", "1"}};
+
+                auto constant_medium_call_compile_options = rt_shader_compile_options;
+                constant_medium_call_compile_options.defines = std::vector{daxa::ShaderDefine{"CONSTANT_MEDIUM", "1"}};
+
                 auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
                     .ray_gen_infos = daxa::ShaderCompileInfo{
                         .source = daxa::ShaderFile{"rgen.glsl"},
@@ -1134,6 +1146,22 @@ namespace tests
                         daxa::ShaderCompileInfo{
                             .source = daxa::ShaderFile{"rcall_mat.glsl"},
                             .compile_options = perlin_call_compile_options,
+                        },
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rcall_scatter.glsl"},
+                            .compile_options = rt_shader_compile_options,
+                        },
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rcall_scatter.glsl"},
+                            .compile_options = metallic_call_compile_options,
+                        },
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rcall_scatter.glsl"},
+                            .compile_options = dielectric_call_compile_options,
+                        },
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rcall_scatter.glsl"},
+                            .compile_options = constant_medium_call_compile_options,
                         },
                     },
                     .closest_hit_infos = {
@@ -1159,15 +1187,15 @@ namespace tests
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 5,
+                            .general_shader_index = 9,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 6,
+                            .general_shader_index = 10,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
-                            .closest_hit_shader_index = 4,
+                            .closest_hit_shader_index = 8,
                             .intersection_shader_index = 1,
                         },
                         daxa::RayTracingShaderGroupInfo{
@@ -1177,7 +1205,23 @@ namespace tests
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 3,
-                        }
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 4,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 5,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 6,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 7,
+                        },
                     },
                     .max_ray_recursion_depth = status.max_depth,
                     .push_constant_size = sizeof(PushConstant),

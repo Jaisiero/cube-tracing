@@ -74,10 +74,11 @@ struct HIT_MAT_PAY_LOAD
 struct HIT_SCATTER_PAY_LOAD
 {
     daxa_f32vec3 hit;
-    daxa_f32vec3 mat_nrm;
+    daxa_f32vec3 nrm;
     daxa_f32vec3 ray_dir;
     daxa_u32 seed;
     daxa_f32vec3 scatter_dir;
+    daxa_u32 mat_idx;
     daxa_i32 done;
 };
 
