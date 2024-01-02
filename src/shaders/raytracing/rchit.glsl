@@ -168,6 +168,7 @@ void main()
     }
 
     prd.hit_value = out_color;
+    prd.emission = mat.emission;
 
 
     call_scatter.hit = hit.world_hit;

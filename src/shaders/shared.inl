@@ -56,6 +56,7 @@ struct HIT_PAY_LOAD
     daxa_f32vec3 hit_value;
     daxa_i32 depth;
     daxa_f32vec3 attenuation;
+    daxa_f32vec3 emission;
     daxa_u32 seed;
     int  done;
     daxa_f32vec3 ray_origin;

@@ -75,34 +75,39 @@ void main()
     daxa_f32 t_max = 10000.0;
     daxa_u32 cull_mask = 0xFF;
 
-
     vec3 hit_value = vec3(0);
-    for(;;)
-    {
-        traceRayEXT(
-            daxa_accelerationStructureEXT(p.tlas),
-            ray_flags,      // rayFlags
-            cull_mask,          // cullMask
-            0,             // sbtRecordOffset
-            0,             // sbtRecordStride
-            0,             // missIndex
-            ray.origin.xyz,    // ray origin
-            t_min,          // ray min range
-            ray.direction.xyz, // ray direction
-            t_max,          // ray max range
-            0              // payload (location = 0)
-        );
 
-        hit_value += prd.hit_value * prd.attenuation;
+    for(int smpl = 0; smpl < NBSAMPLES; smpl++)
+    { 
+        for(;;)
+        {
+            prd.emission = vec3(0);
+            traceRayEXT(
+                daxa_accelerationStructureEXT(p.tlas),
+                ray_flags,      // rayFlags
+                cull_mask,          // cullMask
+                0,             // sbtRecordOffset
+                0,             // sbtRecordStride
+                0,             // missIndex
+                ray.origin.xyz,    // ray origin
+                t_min,          // ray min range
+                ray.direction.xyz, // ray direction
+                t_max,          // ray max range
+                0              // payload (location = 0)
+            );
 
-        prd.depth++;
-        if(prd.done == 1 || prd.depth >= max_depth)
-        break;
+            hit_value += prd.hit_value * prd.attenuation + prd.emission;
 
-        ray.origin.xyz    = prd.ray_origin;
-        ray.direction.xyz = prd.ray_dir;
-        prd.done      = 1; // Will stop if a reflective material isn't hit
+            prd.depth++;
+            if(prd.done == 1 || prd.depth >= max_depth)
+            break;
+
+            ray.origin.xyz    = prd.ray_origin;
+            ray.direction.xyz = prd.ray_dir;
+            prd.done      = 1; // Will stop if a reflective material isn't hit
+        }
     }
+    hit_value = hit_value / NBSAMPLES;
 
     
     clamp(hit_value, 0.0, 0.99999999);
