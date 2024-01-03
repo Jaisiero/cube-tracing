@@ -63,12 +63,8 @@ void main()
 
     ray.direction = direction.xyz;
 
-    prd.depth = 0;
+    prd.depth = max_depth;
     prd.hit_value = vec3(0);
-    prd.attenuation = vec3(1.f, 1.f, 1.f);
-    prd.done = 1;
-    prd.ray_origin = origin.xyz;
-    prd.ray_dir = direction.xyz;
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
     daxa_f32 t_min = 0.0001;
@@ -79,33 +75,21 @@ void main()
 
     for(int smpl = 0; smpl < NBSAMPLES; smpl++)
     { 
-        for(;;)
-        {
-            prd.emission = vec3(0);
-            traceRayEXT(
-                daxa_accelerationStructureEXT(p.tlas),
-                ray_flags,      // rayFlags
-                cull_mask,          // cullMask
-                0,             // sbtRecordOffset
-                0,             // sbtRecordStride
-                0,             // missIndex
-                ray.origin.xyz,    // ray origin
-                t_min,          // ray min range
-                ray.direction.xyz, // ray direction
-                t_max,          // ray max range
-                0              // payload (location = 0)
-            );
+        traceRayEXT(
+            daxa_accelerationStructureEXT(p.tlas),
+            ray_flags,      // rayFlags
+            cull_mask,          // cullMask
+            0,             // sbtRecordOffset
+            0,             // sbtRecordStride
+            0,             // missIndex
+            ray.origin.xyz,    // ray origin
+            t_min,          // ray min range
+            ray.direction.xyz, // ray direction
+            t_max,          // ray max range
+            0              // payload (location = 0)
+        );
 
-            hit_value += prd.hit_value * prd.attenuation + prd.emission;
-
-            prd.depth++;
-            if(prd.done == 1 || prd.depth >= max_depth)
-            break;
-
-            ray.origin.xyz    = prd.ray_origin;
-            ray.direction.xyz = prd.ray_dir;
-            prd.done      = 1; // Will stop if a reflective material isn't hit
-        }
+        hit_value = prd.hit_value;
     }
     hit_value = hit_value / NBSAMPLES;
 

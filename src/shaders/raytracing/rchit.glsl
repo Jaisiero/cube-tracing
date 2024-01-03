@@ -31,17 +31,13 @@ daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_IN
         L = normalize(light.position);
     }
 
-    // Diffuse
-    vec3  diffuse     = compute_diffuse(mat, L, hit.world_nrm);
-    vec3  specular    = vec3(0);
-    float  attenuation = 1.0;
+    vec3 color = vec3(0.0, 0.0, 0.0);
 
     if(dot(hit.world_nrm, L) > 0) {
         float t_min   = 0.0001;
         float t_max   = light.distance;
-        vec3  origin = hit.world_hit;
+        vec3  ray_origin = hit.world_hit;
         vec3  ray_dir = L;
-        Ray shadow_ray = Ray(origin, ray_dir);
         uint cull_mask = 0xff;
         uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
         isShadowed = true;
@@ -53,25 +49,20 @@ daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_IN
             0,      // sbtRecordOffset
             0,      // sbtRecordStride
             1,      // missIndex
-            shadow_ray.origin, // ray origin
+            ray_origin, // ray origin
             t_min,   // ray min range
-            shadow_ray.direction, // ray direction
+            ray_dir, // ray direction
             t_max,   // ray max range
             1       // payload (location = 1)
         );
 
-        if(isShadowed)
+        if(!isShadowed)
         {
-            attenuation = 0.3;
-        }
-        else
-        {
-            // Specular
-            specular = compute_specular(mat, ray.direction , L, hit.world_nrm);
+            color = vec3(light.intensity * compute_diffuse(mat, hit.world_nrm, L));
         }
     }
 
-    return vec3(light.intensity * attenuation * (diffuse + specular));
+    return color;
 }
 
 void main()
@@ -131,9 +122,63 @@ void main()
     PRIMITIVE primitive = deref(p.primitives_buffer).primitives[actual_primitive_index];
     MATERIAL mat = deref(p.materials_buffer).materials[primitive.material_index];
 
-    daxa_u32 light_count = deref(p.status_buffer).light_count;
 
-    vec3 out_color = vec3(0.0);
+    if(prd.depth > 1) {
+        call_scatter.hit = hit.world_hit;
+        call_scatter.nrm = hit.world_nrm;
+        call_scatter.ray_dir = ray.direction;
+        call_scatter.seed = prd.seed;
+        call_scatter.scatter_dir = vec3(0.0);
+        call_scatter.done = 0;
+        call_scatter.mat_idx = primitive.material_index;
+
+        // SCATTER
+        switch (mat.type & MATERIAL_TYPE_MASK)
+        {
+        case MATERIAL_TYPE_METAL:
+            executeCallableEXT(3, 4);
+            break;
+        case MATERIAL_TYPE_DIELECTRIC:
+            executeCallableEXT(4, 4);
+            break;
+        case MATERIAL_TYPE_CONSTANT_MEDIUM:
+            executeCallableEXT(5, 4);
+            break;
+        case MATERIAL_TYPE_LAMBERTIAN:
+        default:
+            executeCallableEXT(2, 4);
+            break;
+        }
+        prd.seed = call_scatter.seed;
+        
+        if(call_scatter.done == 1) {
+            prd.depth = 0;
+        } else {
+            prd.depth--;
+            float t_min   = 0.0001;
+            float t_max   = 100000.0;
+            vec3  ray_origin = call_scatter.hit;
+            vec3  ray_dir    = call_scatter.scatter_dir;
+            uint cull_mask = 0xff;
+            uint  flags  = gl_RayFlagsNoneEXT;
+
+            traceRayEXT(
+                daxa_accelerationStructureEXT(p.tlas),
+                flags,         // rayFlags
+                cull_mask,         // cullMask
+                0,                 // sbtRecordOffset
+                0,                 // sbtRecordStride
+                0,                 // missIndex
+                ray_origin,    // ray origin
+                t_min,             // ray min range
+                ray_dir, // ray direction
+                t_max,             // ray max range
+                0                  // payload (location = 0)
+            );
+        }
+    }
+
+    prd.hit_value *= mat.specular;
 
     // // TEXTURES
     // {
@@ -158,53 +203,24 @@ void main()
     //     }
     // }
 
+    vec3 mat_color = vec3(0.0);
+
+
+    // COLOR
+    daxa_u32 light_count = deref(p.status_buffer).light_count;
+
     // TODO: ReSTIR or something easier first
     for(daxa_u32 l = 0; l < light_count; l++) {
         LIGHT light = deref(p.light_buffer).lights[l];
 
         if(light.intensity > 0.0) {
-            out_color += _mat_get_color_by_light(ray, mat, light, hit);
+            mat_color += _mat_get_color_by_light(ray, mat, light, hit);
         }
     }
-
-    prd.hit_value = out_color;
-    prd.emission = mat.emission;
-
-
-    call_scatter.hit = hit.world_hit;
-    call_scatter.nrm = hit.world_nrm;
-    call_scatter.ray_dir = ray.direction;
-    call_scatter.seed = prd.seed;
-    call_scatter.scatter_dir = vec3(0.0);
-    call_scatter.done = 0;
-    call_scatter.mat_idx = primitive.material_index;
-
-
-    // SCATTER
-    // vec3 ray_dir = reflect(gl_WorldRayDirectionEXT, hit.world_nrm);
-    prd.attenuation *= mat.specular;
-
-    // SCATTER
-    switch (mat.type & MATERIAL_TYPE_MASK)
-    {
-    case MATERIAL_TYPE_METAL:
-        executeCallableEXT(3, 4);
-        break;
-    case MATERIAL_TYPE_DIELECTRIC:
-        executeCallableEXT(4, 4);
-        break;
-    case MATERIAL_TYPE_CONSTANT_MEDIUM:
-        executeCallableEXT(5, 4);
-        break;
-    case MATERIAL_TYPE_LAMBERTIAN:
-    default:
-        executeCallableEXT(2, 4);
-        break;
-    }
     
-    prd.ray_origin = call_scatter.hit;
-    prd.ray_dir    = call_scatter.scatter_dir;
-    prd.done = call_scatter.done;
-    prd.seed = call_scatter.seed;
+    prd.hit_value += mat_color;
+
+    prd.hit_value += mat.emission;
+
 #endif
 }
