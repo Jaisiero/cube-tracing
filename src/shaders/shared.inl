@@ -15,7 +15,8 @@
 #define PERFECT_PIXEL_ON 1
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 #define ACCUMULATOR_ON 0
-#define DYNAMIC_SUN_LIGHT 1
+#define DYNAMIC_SUN_LIGHT 0
+#define RESERVOIR_ON 1
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -29,13 +30,14 @@
 
 #define DAXA_PI 3.1415926535897932384626433832795f
 
-#define SAMPLES_PER_PIXEL 5
+#define SAMPLES_PER_PIXEL 1
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
-#define MAX_DEPTH 5
+#define MAX_DEPTH 2
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
 
 #define PERLIN_FACTOR 500
+#define INFLUENCE_FROM_THE_PAST_THRESHOLD 20.0f
 
 
 struct Aabb
@@ -214,6 +216,40 @@ struct STATUS_OUTPUT
 };
 DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
 
+
+struct RESERVOIR
+{
+    daxa_u32 Y; // index of most important light
+    daxa_f32 W_y; // light weight
+    daxa_f32 W_sum; // sum of all weights for all lights processed
+    daxa_f32 M; // number of lights processed for this reservoir
+};
+
+#define SCREEN_SIZE_X 3840
+#define SCREEN_SIZE_Y 2160
+
+#define MAX_RESERVOIRS SCREEN_SIZE_X * SCREEN_SIZE_Y
+
+
+struct RESERVOIRS
+{
+    RESERVOIR reservoirs[MAX_RESERVOIRS];
+};
+DAXA_DECL_BUFFER_PTR(RESERVOIRS)
+
+
+struct VELOCITIES
+{
+    daxa_f32vec2 velocities[MAX_RESERVOIRS];
+};
+DAXA_DECL_BUFFER_PTR(VELOCITIES)
+
+struct NORMALS
+{
+    daxa_f32vec3 normals[MAX_RESERVOIRS];
+};
+DAXA_DECL_BUFFER_PTR(NORMALS)
+
 // struct INSTANCE_LEVEL
 // {
 //     daxa_i32 level_index;
@@ -286,6 +322,11 @@ struct PushConstant
     daxa_BufferPtr(MATERIALS) materials_buffer;
     daxa_BufferPtr(LIGHTS) light_buffer;
     daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer; 
+    daxa_RWBufferPtr(VELOCITIES) velocity_buffer;
+    daxa_RWBufferPtr(NORMALS) previous_normal_buffer;
+    daxa_RWBufferPtr(NORMALS) normal_buffer;
+    daxa_RWBufferPtr(RESERVOIRS) previous_reservoir_buffer;
+    daxa_RWBufferPtr(RESERVOIRS) reservoir_buffer;
     // daxa_RWBufferPtr(HIT_DISTANCES) hit_distance_buffer;
     // daxa_RWBufferPtr(INSTANCE_LEVELS) instance_level_buffer;
     // daxa_RWBufferPtr(INSTANCE_DISTANCES) instance_distance_buffer;

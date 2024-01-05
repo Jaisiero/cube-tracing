@@ -75,6 +75,17 @@ namespace tests
 
             daxa::BufferId status_output_buffer = {};
             u32 max_status_output_buffer_size = sizeof(STATUS_OUTPUT);
+            
+            daxa::BufferId previous_reservoir_buffer = {};
+            daxa::BufferId reservoir_buffer = {};
+            u32 max_reservoir_buffer_size = sizeof(RESERVOIR) * MAX_RESERVOIRS;
+
+            daxa::BufferId velocity_buffer = {};
+            u32 max_velocity_buffer_size = sizeof(daxa_i32vec2) * MAX_RESERVOIRS;
+
+            daxa::BufferId previous_normal_buffer = {};
+            daxa::BufferId normal_buffer = {};
+            u32 max_normal_buffer_size = sizeof(daxa_f32vec3) * MAX_RESERVOIRS;
 
             // DEBUGGING
             // daxa::BufferId hit_distance_buffer = {};
@@ -121,6 +132,11 @@ namespace tests
                     device.destroy_buffer(light_buffer);
                     device.destroy_buffer(status_buffer);
                     device.destroy_buffer(status_output_buffer);
+                    device.destroy_buffer(previous_reservoir_buffer);
+                    device.destroy_buffer(reservoir_buffer);
+                    device.destroy_buffer(velocity_buffer);
+                    device.destroy_buffer(previous_normal_buffer);
+                    device.destroy_buffer(normal_buffer);
                     // DEBUGGING
                     // device.destroy_buffer(hit_distance_buffer);
                 }
@@ -266,11 +282,61 @@ namespace tests
                 return i;
             }
 
+
+            void load_reservoirs() {
+
+                const daxa_u32 reservoir_buffer_size = static_cast<u32>(sizeof(RESERVOIR) * MAX_RESERVOIRS);
+
+                // get previous reservoir buffer host mapped pointer
+                auto * previous_reservoir_staging_buffer_ptr = device.get_host_address(previous_reservoir_buffer).value();
+
+                // copy previous reservoirs to buffer
+                std::memset(previous_reservoir_staging_buffer_ptr, 
+                    0,
+                    reservoir_buffer_size);
+
+                // get reservoir buffer host mapped pointer
+                auto * reservoir_staging_buffer_ptr = device.get_host_address(reservoir_buffer).value();
+
+                // copy reservoirs to buffer
+                std::memset(reservoir_staging_buffer_ptr, 
+                    0,
+                    reservoir_buffer_size);
+                    
+                const daxa_u32 velocity_buffer_size = static_cast<u32>(sizeof(daxa_i32vec2) * MAX_RESERVOIRS);
+
+                // get velocity buffer host mapped pointer
+                auto * velocity_staging_buffer_ptr = device.get_host_address(velocity_buffer).value();
+
+                // copy velocities to buffer
+                std::memset(velocity_staging_buffer_ptr, 
+                    0,
+                    velocity_buffer_size);
+
+                const daxa_u32 normal_buffer_size = static_cast<u32>(sizeof(daxa_f32vec3) * MAX_RESERVOIRS);
+
+                // get previous normal buffer host mapped pointer
+                auto * previous_normal_staging_buffer_ptr = device.get_host_address(previous_normal_buffer).value();
+
+                // copy previous normals to buffer
+                std::memset(previous_normal_staging_buffer_ptr, 
+                    0,
+                    normal_buffer_size);
+
+                // get normal buffer host mapped pointer
+                auto * normal_staging_buffer_ptr = device.get_host_address(normal_buffer).value();
+
+                // copy normals to buffer
+                std::memset(normal_staging_buffer_ptr, 
+                    0,
+                    normal_buffer_size);
+            }
+
             void load_lights() {
 
-                status.light_count = 1;
+                status.light_count = 3;
+                // status.light_count = 1;
                 status.is_afternoon = true;
-                status.max_depth = MAX_DEPTH;
 
                 if(status.light_count > MAX_LIGHTS) {
                     std::cout << "status.light_count > MAX_LIGHTS" << std::endl;
@@ -281,7 +347,7 @@ namespace tests
 
 
                 // TODO: add more lights (random values?)
-                LIGHT light;
+                LIGHT light = {}; // 0: point light, 1: directional light
                 light.position = daxa_f32vec3(0.0, 20.0, 0.0);
 #if DYNAMIC_SUN_LIGHT == 1
                 light.intensity = 50.0;
@@ -290,10 +356,18 @@ namespace tests
                 status.time = 1.0;
                 
 #endif // DYNAMIC_SUN_LIGHT
-                light.distance = 100.0;
-                light.type = 0;  // 0: point light, 1: directional light
-
                 lights.push_back(light);
+
+                LIGHT light2 = {};
+                light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0);
+                light2.intensity = 10.0;
+                lights.push_back(light2);
+
+                LIGHT light3 = {};
+                light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0);
+                light3.intensity = 8.0;
+                lights.push_back(light3);
+
 
                 // Calculate light buffer size
                 auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
@@ -350,7 +424,7 @@ namespace tests
                 }
 
                 lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
-                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 200.0f /*max_intensity*/, 0.0f /*min_intensity*/);
+                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 20000.0f /*max_intensity*/, 0.0f /*min_intensity*/);
                 
                 // Calculate light buffer size
                 auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
@@ -647,13 +721,43 @@ namespace tests
 
                 light_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_light_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = ("light_buffer"),
                 });
 
                 status_output_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_status_output_buffer_size,
                     .name = ("status_output_buffer"),
+                });
+
+                previous_reservoir_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_reservoir_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+                    .name = ("previous_reservoir_buffer"),
+                });
+
+                reservoir_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_reservoir_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+                    .name = ("reservoir_buffer"),
+                });
+
+                velocity_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_velocity_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+                    .name = ("velocity_buffer"),
+                });
+
+                previous_normal_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_normal_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+                    .name = ("previous_normal_buffer"),
+                });
+
+                normal_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_normal_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+                    .name = ("normal_buffer"),
                 });
 
                 // hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
@@ -1032,7 +1136,8 @@ namespace tests
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {1.0, 1.0, 1.0},
                             .transmittance = {0.0, 0.0, 0.0},
-                            .emission = {random_float(1.0, 20.0), random_float(1.0, 20.0), random_float(1.0, 20.0)},
+                            // .emission = {random_float(1.0, 20.0), random_float(1.0, 20.0), random_float(1.0, 20.0)},
+                            .emission = {0.0, 0.0, 0.0},
                             .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
@@ -1077,8 +1182,11 @@ namespace tests
                 reset_camera(camera);
                 // camera_set_defocus_angle(camera, 0.5f);
                 // camera_set_focus_dist(camera, 1.0f);
+                
+                status.max_depth = MAX_DEPTH;
 
                 load_lights();
+                load_reservoirs();
                 
                 daxa::ShaderCompileOptions shader_compile_options = {
                     .root_paths = {
@@ -1332,10 +1440,6 @@ namespace tests
                     &status,
                     status_buffer_size);
 
-                // Update/restore status
-                status.frame_number++;
-                status.num_accumulated_frames++;
-
                 // Copy instances to buffer
                 u32 instance_buffer_size = static_cast<u32>(current_instance_count * sizeof(INSTANCE));
                 if(instance_buffer_size > max_instance_buffer_size) {
@@ -1457,6 +1561,11 @@ namespace tests
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
                     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
+                    .previous_normal_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_normal_buffer).value() : this->device.get_device_address(normal_buffer).value(),
+                    .normal_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(normal_buffer).value() : this->device.get_device_address(previous_normal_buffer).value(),
+                    .previous_reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
+                    .reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
                     // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
                     // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
                     // .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
@@ -1494,6 +1603,14 @@ namespace tests
                 });
 
                 device.collect_garbage();
+
+                
+                // Update status
+                {
+                    // Update/restore status
+                    status.frame_number++;
+                    status.num_accumulated_frames++;
+                }
             }
 
             void download_gpu_info() {

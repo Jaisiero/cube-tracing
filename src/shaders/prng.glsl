@@ -4,6 +4,7 @@
 #include <daxa/daxa.inl>
 #include "shared.inl"
 #include "Box.glsl"
+#include "random.glsl"
 
 struct LCG {
     daxa_u32 state;
@@ -23,70 +24,66 @@ daxa_f32 length_square(daxa_f32vec3 v) {
     return v.x * v.x + v.y * v.y + v.z * v.z;
 }
 
-void InitLCGSetConstants(inout LCG lcg) {
-    lcg.a = 1664525;
-    lcg.c = 1013904223;
-    lcg.m = 4294967295;  // 2^32 - 1
+daxa_i32 randomIntLCG(inout daxa_u32 seed) {
+    return daxa_i32(urnd(seed));
 }
 
-void initLCG(inout LCG lcg, daxa_u32 frame_number, daxa_u32 seed_x, daxa_u32 seed_y) {
-    InitLCGSetConstants(lcg);
-    lcg.state = frame_number + seed_x * 73856093 + seed_y * 19349663;
-}
-
-daxa_i32 randomIntLCG(inout LCG lcg) {
-    lcg.state = (lcg.a * lcg.state + lcg.c) % lcg.m;
-    return daxa_i32(lcg.state);
-}
-
-daxa_i32 randomIntInRangeLCG(inout LCG lcg, daxa_i32 min, daxa_i32 max) {
-    daxa_i32 random_value = randomIntLCG(lcg);
+daxa_i32 randomIntInRangeLCG(inout daxa_u32 seed, daxa_i32 min, daxa_i32 max) {
+    daxa_i32 random_value = randomIntLCG(seed);
     return min + random_value % (max - min);
 }
 
-daxa_f32 randomLCG(inout LCG lcg) {
-    lcg.state = (lcg.a * lcg.state + lcg.c) % lcg.m;
-    return daxa_f32(lcg.state) / daxa_f32(lcg.m);
+daxa_u32 randomUIntLCG(inout daxa_u32 seed) {
+    return urnd(seed);
 }
 
-daxa_f32 randomInRangeLCG(inout LCG lcg, daxa_f32 min, daxa_f32 max) {
-    daxa_f32 random_value = randomLCG(lcg);
+daxa_u32 randomUIntInRangeLCG(inout daxa_u32 seed, daxa_u32 min, daxa_u32 max) {
+    daxa_u32 random_value = randomUIntLCG(seed);
+    return min + random_value % (max - min);
+}
+
+daxa_f32 randomLCG(inout daxa_u32 seed) {
+    return rnd(seed);
+}
+
+daxa_f32 randomInRangeLCG(inout daxa_u32 seed, daxa_f32 min, daxa_f32 max) {
+    daxa_f32 random_value = rnd(seed);
     return min + random_value * (max - min);
 }
 
-daxa_f32vec3 randomVec3LCG(inout LCG lcg) {
-    return daxa_f32vec3(randomLCG(lcg), randomLCG(lcg), randomLCG(lcg));
+daxa_f32vec3 randomVec3LCG(inout daxa_u32 seed) {
+    return daxa_f32vec3(rnd(seed), rnd(seed), rnd(seed));
 }
 
-daxa_f32vec3 randomVec3InRangeLCG(inout LCG lcg, daxa_f32 min, daxa_f32 max) {
-    return daxa_f32vec3(randomInRangeLCG(lcg, min, max), randomInRangeLCG(lcg, min, max), randomInRangeLCG(lcg, min, max));
+daxa_f32vec3 randomVec3InRangeLCG(inout daxa_u32 seed, daxa_f32 min, daxa_f32 max) {
+    return daxa_f32vec3(randomInRangeLCG(seed, min, max), randomInRangeLCG(seed, min, max), randomInRangeLCG(seed, min, max));
 }
 
 
 
-daxa_f32vec3 random_in_unit_sphere(LCG lcg) {
+daxa_f32vec3 random_in_unit_sphere(inout daxa_u32 seed) {
     while (true) {
-        daxa_f32vec3 p = randomVec3InRangeLCG(lcg, -1.0f, 1.0f);
+        daxa_f32vec3 p = randomVec3InRangeLCG(seed, -1.0f, 1.0f);
         if (length_square(p) >= 1.0f) continue;
         return p;
     }
 }
 
-daxa_f32vec3 random_unit_vector(LCG lcg) {
-    return normalize(random_in_unit_sphere(lcg));
+daxa_f32vec3 random_unit_vector(inout daxa_u32 seed) {
+    return normalize(random_in_unit_sphere(seed));
 }
 
-daxa_f32vec3 random_on_hemisphere(LCG lcg, daxa_f32vec3 normal) {
-    daxa_f32vec3 on_unit_sphere = random_unit_vector(lcg);
+daxa_f32vec3 random_on_hemisphere(inout daxa_u32 seed, daxa_f32vec3 normal) {
+    daxa_f32vec3 on_unit_sphere = random_unit_vector(seed);
     if (dot(on_unit_sphere, normal) > 0.0) // In the same hemisphere as the normal
         return on_unit_sphere;
     else
         return -on_unit_sphere;
 }
 
-daxa_f32vec3 random_cosine_direction(LCG lcg) {
-    daxa_f32 r1 = randomLCG(lcg);
-    daxa_f32 r2 = randomLCG(lcg);
+daxa_f32vec3 random_cosine_direction(inout uint seed) {
+    daxa_f32 r1 = randomLCG(seed);
+    daxa_f32 r2 = randomLCG(seed);
     daxa_f32 z = sqrt(1.0f - r2);
 
     daxa_f32 phi = 2.0f * DAXA_PI * r1;
@@ -96,17 +93,17 @@ daxa_f32vec3 random_cosine_direction(LCG lcg) {
     return daxa_f32vec3(x, y, z);
 }
 
-daxa_f32vec3 random_in_unit_disk(LCG lcg) {
+daxa_f32vec3 random_in_unit_disk(inout daxa_u32 seed) {
     while (true) {
-        daxa_f32vec3 p = daxa_f32vec3(randomInRangeLCG(lcg, -1.0f, 1.0f), randomInRangeLCG(lcg, -1.0f, 1.0f), 0);
+        daxa_f32vec3 p = daxa_f32vec3(randomInRangeLCG(seed, -1.0f, 1.0f), randomInRangeLCG(seed, -1.0f, 1.0f), 0);
         if (length_square(p) < 1)
             return p;
     }
 }
 
-daxa_f32vec3 defocus_disk_sample(daxa_f32vec3 origin, daxa_f32vec2 defocus_disk, LCG lcg) {
+daxa_f32vec3 defocus_disk_sample(daxa_f32vec3 origin, daxa_f32vec2 defocus_disk, inout daxa_u32 seed) {
     // Returns a random point in the camera defocus disk.
-    daxa_f32vec3 p = random_in_unit_disk(lcg);
+    daxa_f32vec3 p = random_in_unit_disk(seed);
     return origin + (p.x * defocus_disk.x) + (p.y * defocus_disk.y);
 }
 
@@ -132,12 +129,12 @@ daxa_f32vec3 refraction(daxa_f32vec3 uv, daxa_f32vec3 n, daxa_f32 etai_over_etat
 
 
 
-daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG lcg, out daxa_f32vec3 scatter_direction) {
+daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, inout uint seed, out daxa_f32vec3 scatter_direction) {
     switch (m.type & MATERIAL_TYPE_MASK)
     {
     case MATERIAL_TYPE_METAL:
         daxa_f32vec3 reflected = reflection(direction, world_nrm);
-        scatter_direction = reflected + min(m.roughness, 1.0) * random_cosine_direction(lcg);
+        scatter_direction = reflected + min(m.roughness, 1.0) * random_cosine_direction(seed);
         return dot(scatter_direction, world_nrm) > 0.0f;
     case MATERIAL_TYPE_DIELECTRIC:
         daxa_f32 etai_over_etat = m.ior;
@@ -151,20 +148,20 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, LCG
 
         daxa_b32 cannot_refract = etai_over_etat * sin_theta > 1.0;
 
-        if (cannot_refract || reflectance(cos_theta, etai_over_etat) > randomInRangeLCG(lcg, 0.0f, 1.0f))
+        if (cannot_refract || reflectance(cos_theta, etai_over_etat) > randomInRangeLCG(seed, 0.0f, 1.0f))
             scatter_direction = reflection(direction, world_nrm);
         else
             scatter_direction = refraction(direction, world_nrm, etai_over_etat);
         return true;
     case MATERIAL_TYPE_CONSTANT_MEDIUM:
-        scatter_direction = random_unit_vector(lcg);
+        scatter_direction = random_unit_vector(seed);
         // Catch degenerate scatter direction
         if (normal_near_zero(scatter_direction))
             scatter_direction = world_nrm;
         return true;
     case MATERIAL_TYPE_LAMBERTIAN:
     default:
-        scatter_direction = world_nrm + random_cosine_direction(lcg);
+        scatter_direction = world_nrm + random_cosine_direction(seed);
         // Catch degenerate scatter direction
         if (normal_near_zero(scatter_direction))
             scatter_direction = world_nrm;

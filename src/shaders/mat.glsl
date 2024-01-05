@@ -188,7 +188,7 @@ daxa_f32 calculateTransmittance(daxa_f32 dissolve, daxa_f32 distance) {
 }
 
 // Function to determine hit inside or outside for a constant medium
-daxa_b32 material_transmission(Ray ray, inout HIT_INFO hit, daxa_f32 dissolve, LCG lcg) {
+daxa_b32 material_transmission(Ray ray, inout HIT_INFO hit, daxa_f32 dissolve, inout uint seed) {
 
     // Calculate the thickness of the medium (if hit inside the volume, thickness is the distance from ray origin to hit distance, otherwise it is the distance from hit distance to the exit distance)
     daxa_f32 thickness = hit.hit_distance != hit.exit_distance ?  hit.exit_distance - hit.hit_distance :
@@ -202,7 +202,7 @@ daxa_b32 material_transmission(Ray ray, inout HIT_INFO hit, daxa_f32 dissolve, L
     // exponentScale *= length(ray.origin - hit.world_hit);  // Scale exponent by distance from camera to hit point (further away = less likely to hit
 
     // Random value between [0, 1]
-    daxa_f32 random_value = randomInRangeLCG(lcg, 0.0, 1.0);
+    daxa_f32 random_value = randomInRangeLCG(seed, 0.0, 1.0);
 
     // Calculate the probability of impact with an exponential relationship based on dissolve
     float probability = 1.0f - exp(-dissolve * thickness * exponentScale);

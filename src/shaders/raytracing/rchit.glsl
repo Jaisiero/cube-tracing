@@ -4,17 +4,69 @@
 
 #include "shared.inl"
 #include "mat.glsl"
+#include "reservoir.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
 layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
-layout(location = 1) rayPayloadEXT bool isShadowed;
+layout(location = 1) rayPayloadEXT bool is_shadowed;
 
 layout(location = 3) callableDataEXT HIT_MAT_PAY_LOAD hit_call;
 layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
 // #define DEBUG_NORMALS 1
 
-daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_INFO hit) 
+
+// daxa_f32vec3 get_point_light_radiance(Ray ray, LIGHT light, _HIT_INFO hit) 
+// {
+//     vec3 L = vec3(0.0, 0.0, 0.0);
+//     // Point light
+//     if(light.type == 0)
+//     {
+//         vec3 lDir      = light.position - hit.world_hit;
+//         light.distance  = length(lDir);
+//         light.intensity = light.intensity / (light.distance * light.distance);
+//         L              = normalize(lDir);
+//     }
+//     else  // Directional light
+//     {
+//         L = normalize(light.position);
+//     }
+
+//     daxa_f32vec3 radiance = daxa_f32vec3(0.0, 0.0, 0.0);
+//     // TODO: Add light color to light struct
+//     daxa_f32vec3 light_color = daxa_f32vec3(1.0, 1.0, 1.0);
+
+//     radiance = light.intensity * dot(hit.world_nrm, L) * light_color;
+
+//     return radiance;
+// }
+
+daxa_f32vec3 get_point_light_radiance(Ray ray, LIGHT light, _HIT_INFO hit)
+{
+    // 1. Get light parameters
+    daxa_f32vec3 light_position = light.position;
+    // TODO: Add light color to light struct
+    daxa_f32vec3 light_color = daxa_f32vec3(1.0, 1.0, 1.0);
+    daxa_f32 light_intensity = light.intensity;
+
+    // 2. Get light direction
+    daxa_f32vec3 light_direction = normalize(light_position - hit.world_hit);
+
+    // 3. Get surface normal
+    daxa_f32vec3 surface_normal = hit.world_nrm;
+
+    // 3. Atenuation calculation
+    daxa_f32 distance = length(light_position - hit.world_hit);
+    daxa_f32 attenuation = 1.0 / (1.0 + 0.1 * distance + 0.01 * distance * distance);
+
+    // 4. Radiance calculation
+    daxa_f32vec3 light_radiance = light_color * light_intensity * attenuation / (4.0 * DAXA_PI * distance * distance) * max(0.0, dot(light_direction, surface_normal));
+
+
+    return light_radiance;
+} 
+
+daxa_b32 is_light_visible(Ray ray, inout LIGHT light, _HIT_INFO hit) 
 {
 
     vec3 L = vec3(0.0, 0.0, 0.0);
@@ -40,7 +92,7 @@ daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_IN
         vec3  ray_dir = L;
         uint cull_mask = 0xff;
         uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-        isShadowed = true;
+        is_shadowed = true;
 
         traceRayEXT(
             daxa_accelerationStructureEXT(p.tlas),
@@ -55,14 +107,24 @@ daxa_f32vec3 _mat_get_color_by_light(Ray ray, MATERIAL mat, LIGHT light, _HIT_IN
             t_max,   // ray max range
             1       // payload (location = 1)
         );
-
-        if(!isShadowed)
-        {
-            color = vec3(light.intensity * compute_diffuse(mat, hit.world_nrm, L));
-        }
     }
 
-    return color;
+    return !is_shadowed;
+}
+
+    // Use the reservoir to calculate the final radiance.
+void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hit, inout daxa_f32 p_hat){
+
+    if (is_reservoir_valid(reservoir))
+    {
+        LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
+    
+        // calculate the radiance of this light
+        p_hat = is_light_visible(ray, light, hit) ? length(get_point_light_radiance(ray, light, hit)) : 0.0;
+            
+        // calculate the weight of this light
+        reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
+    }
 }
 
 void main()
@@ -112,7 +174,7 @@ void main()
     // intersection info
     _HIT_INFO hit = _HIT_INFO(
         // NOTE: In order to avoid self intersection we need to offset the ray origin
-        world_pos + world_nrm * AVOID_VOXEL_COLLAIDE, 
+        world_pos - world_nrm * AVOID_VOXEL_COLLAIDE, 
         world_nrm);
 
 #if defined(DEBUG_NORMALS)
@@ -178,8 +240,6 @@ void main()
         }
     }
 
-    prd.hit_value *= mat.specular;
-
     // // TEXTURES
     // {
     //     // NOTE: more texture types will be added later if they are needed
@@ -203,24 +263,119 @@ void main()
     //     }
     // }
 
-    vec3 mat_color = vec3(0.0);
-
-
     // COLOR
     daxa_u32 light_count = deref(p.status_buffer).light_count;
+    
+    daxa_f32vec3 radiance = daxa_f32vec3(0.0);
 
-    // TODO: ReSTIR or something easier first
-    for(daxa_u32 l = 0; l < light_count; l++) {
-        LIGHT light = deref(p.light_buffer).lights[l];
+#if RESERVOIR_ON == 1
+
+    RESERVOIR reservoir;
+    initialise_reservoir(reservoir);
+
+    // TODO: M by parameter?
+    const daxa_u32 M = 1;
+    daxa_f32 p_hat = 0;
+
+    daxa_f32 pdf = 1.0 / daxa_f32(light_count);
+
+    for(daxa_u32 l = 0; l < M; l++) {
+        daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
+
+        LIGHT light = deref(p.light_buffer).lights[light_index];
+
+        daxa_f32 w = 0.0f;
 
         if(light.intensity > 0.0) {
-            mat_color += _mat_get_color_by_light(ray, mat, light, hit);
+            p_hat = length(get_point_light_radiance(ray, light, hit));
+            w = p_hat / pdf;
         }
-    }
-    
-    prd.hit_value += mat_color;
 
-    prd.hit_value += mat.emission;
+        update_reservoir(reservoir, light_index, w, 1.0f, prd.seed);
+    }
+
+    calculate_reservoir_radiance(reservoir, ray, hit, p_hat);
+
+    // Temporal reuse
+    daxa_u32 screen_pos = gl_LaunchIDEXT.x + gl_LaunchSizeEXT.x * gl_LaunchIDEXT.y;
+
+
+    RESERVOIR temporal_reservoir;
+    initialise_reservoir(temporal_reservoir);
+    
+    // //reproject using the motion vectors.
+    // daxa_i32vec2 screen_pos_previous_vec = daxa_i32vec2((gl_LaunchIDEXT.xy - deref(p.velocity_buffer).velocities[screen_pos]) * gl_LaunchSizeEXT.xy);
+
+    // // TODO: do we need to store previous launch size?
+    // daxa_u32 screen_pos_previous = screen_pos_previous_vec.y * gl_LaunchSizeEXT.x + screen_pos_previous_vec.x;
+
+    daxa_u32 screen_pos_previous = screen_pos;
+        
+    daxa_f32vec3 normal_previous = normalize(deref(p.previous_normal_buffer).normals[screen_pos_previous].xyz);
+        
+    RESERVOIR reservoir_previous = deref(p.previous_reservoir_buffer).reservoirs[screen_pos_previous];
+    
+    //restrict influence from past samples.
+    reservoir_previous.M = min(INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
+
+    //some simple rejection based on normals' divergence, can be improved
+    bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99;
+    
+    if (valid_history)
+    {
+        //add current reservoir sample
+        update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
+
+        float p_hat_prev = length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(reservoir_previous)], hit)); 
+
+        //add sample from previous frame
+        update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir_previous), p_hat_prev * reservoir_previous.W_y * reservoir_previous.M, reservoir_previous.M, prd.seed);
+    
+        p_hat = is_reservoir_valid(temporal_reservoir) ?
+                length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(temporal_reservoir)], hit)) : 0.0;
+    
+        //calculate weight of the selected lights                
+        temporal_reservoir.W_y = p_hat > 0.0 ? (temporal_reservoir.W_sum / temporal_reservoir.M) / p_hat : 0.0;
+    
+        // TODO: We need motion vectors to do this
+        reservoir = temporal_reservoir;
+    }
+
+
+    // TODO: this is not correct, velocity should be calculated with reprojection
+    // Store velocity
+    // deref(p.velocity_buffer).velocities[screen_pos] = daxa_i32vec2(gl_LaunchIDEXT.xy - gl_LaunchSizeEXT.xy * gl_WorldRayDirectionEXT.xy);
+
+    // Store normal
+    deref(p.normal_buffer).normals[screen_pos] = hit.world_nrm;
+
+    // Store the reservoir
+    deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+
+    LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
+
+    radiance += get_point_light_radiance(ray, light, hit) * reservoir.W_y;
+
+    // diffuse color   
+    prd.hit_value += radiance * mat.diffuse;
+
+    // Add emission
+    // prd.hit_value += mat.emission;
+
+#else
+
+    for(daxa_u32 l = 0; l < light_count; l++) {
+
+        LIGHT light = deref(p.light_buffer).lights[l];
+
+        radiance += is_light_visible(ray, light, hit) ? get_point_light_radiance(ray, light, hit) : daxa_f32vec3(0.0);
+    }
+
+    prd.hit_value += radiance * mat.diffuse;
+
+
+#endif // RESERVOIR_ON
+
 
 #endif
 }

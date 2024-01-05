@@ -17,6 +17,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef RANDOM_GLSL
+#define RANDOM_GLSL
+
 // Generate a random unsigned int from two unsigned int values, using 16 pairs
 // of rounds of the Tiny Encryption Algorithm. See Zafar, Olano, and Curtis,
 // "GPU Random Numbers via the Tiny Encryption Algorithm"
@@ -51,3 +54,17 @@ float rnd(inout uint prev)
 {
   return (float(lcg(prev)) / float(0x01000000));
 }
+
+uint urnd(inout uint prev)
+{
+  return lcg(prev);
+}
+
+// Generate a random uint unsigned in between two given numbers from given the previous RNG state
+uint urnd_interval(inout uint prev, uint min, uint max)
+{
+  return min + urnd(prev) % (max - min);
+}
+
+
+#endif // RANDOM_GLSL

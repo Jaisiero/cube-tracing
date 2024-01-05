@@ -4,13 +4,11 @@
 
 #include "shared.inl"
 #include "prng.glsl"
-#include "random.glsl"
+// #include "random.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
 layout(location = 0) rayPayloadEXT HIT_PAY_LOAD prd;
-
-const uint NBSAMPLES = 1;
 
 void main()
 {
@@ -31,17 +29,7 @@ void main()
     // deref(p.hit_distance_buffer).hit_distances[index.x + index.y * p.size.x].distance = -1.0f;
     
     // Initialize the random number
-    uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, frame_number * NBSAMPLES);
-    prd.seed = seed;
-
-    // Random number generator setup
-    LCG lcg;
-    daxa_u32 seedX = gl_LaunchIDEXT.x;
-    daxa_u32 seedY = gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x;
-    initLCG(lcg, frame_number, seedX, seedY);
-    // prd.seed = lcg.state;
-    lcg.state = seed;
-    
+    uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, frame_number * SAMPLES_PER_PIXEL);
 
     // Depth of field setup
     daxa_f32 defocus_angle = deref(p.camera_buffer).defocus_angle;
@@ -56,14 +44,16 @@ void main()
     Ray ray;
 
     daxa_f32vec4 origin = inv_view * vec4(0,0,0,1);
-    ray.origin = (defocus_angle <= 0) ? origin.xyz : defocus_disk_sample(origin.xyz, defocus_disk, lcg);
+    ray.origin = (defocus_angle <= 0) ? origin.xyz : defocus_disk_sample(origin.xyz, defocus_disk, seed);
 
 	vec4 target = inv_proj * vec4(d.x, d.y, 1, 1) ;
 	vec4 direction = inv_view * vec4(normalize(target.xyz), 0) ;
 
     ray.direction = direction.xyz;
 
-    prd.depth = max_depth;
+    prd.seed = seed;
+    // prd.depth =  max_depth;
+    prd.depth =  1;
     prd.hit_value = vec3(0);
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
@@ -73,7 +63,7 @@ void main()
 
     vec3 hit_value = vec3(0);
 
-    for(int smpl = 0; smpl < NBSAMPLES; smpl++)
+    for(int smpl = 0; smpl < SAMPLES_PER_PIXEL; smpl++)
     { 
         traceRayEXT(
             daxa_accelerationStructureEXT(p.tlas),
@@ -89,9 +79,9 @@ void main()
             0              // payload (location = 0)
         );
 
-        hit_value = prd.hit_value;
+        hit_value += prd.hit_value;
     }
-    hit_value = hit_value / NBSAMPLES;
+    hit_value /= SAMPLES_PER_PIXEL;
 
     
     clamp(hit_value, 0.0, 0.99999999);

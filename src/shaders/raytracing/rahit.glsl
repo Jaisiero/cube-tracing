@@ -3,7 +3,7 @@
 #include <daxa/daxa.inl>
 
 #include "shared.inl"
-#include "prng.glsl"
+#include "random.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
@@ -23,14 +23,8 @@ void main()
   if (mat.illum != 4)
     return;
 
-  LCG lcg;
-  InitLCGSetConstants(lcg);
-  lcg.state = prd.seed;
-
   if (mat.dissolve == 0.0)
     ignoreIntersectionEXT;
-  else if (randomLCG(lcg) > mat.dissolve)
+  else if (rnd(prd.seed) > mat.dissolve)
     ignoreIntersectionEXT;
-    
-  prd.seed = lcg.state;
 }
