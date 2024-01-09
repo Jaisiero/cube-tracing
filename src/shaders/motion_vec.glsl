@@ -29,6 +29,7 @@ void main()
 
     // Find the world position of the current pixel
     daxa_f32vec4 prev_pos = prev_inv_proj * daxa_f32vec4(uv * 2.0 - 1.0, 1.0, 1.0);
+    // Find the world position of the current pixel
     daxa_f32vec4 pos = inv_proj * daxa_f32vec4(uv * 2.0 - 1.0, 1.0, 1.0);
 
     if(prev_pos.w == 0.0 || pos.w == 0.0)
@@ -48,5 +49,5 @@ void main()
     daxa_f32vec2 motion_vector = pos.xy - prev_pos.xy;
 
     // Store the motion vector
-    deref(p.velocity_buffer).velocities[index.y * p.size.x + index.x] = motion_vector;
+    deref(p.velocity_buffer).velocities[index.y * p.size.x + index.x] = -motion_vector;
 }

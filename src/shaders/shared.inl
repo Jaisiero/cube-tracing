@@ -11,12 +11,10 @@
 #define MAX_LIGHTS 20
 #define MAX_TEXTURES 100ULL
 
-#define DEBUG_NORMALS_ON 0
-#define PERFECT_PIXEL_ON 1
+#define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 #define ACCUMULATOR_ON 0
-#define DYNAMIC_SUN_LIGHT 0
-#define RESERVOIR_ON 1
+#define DYNAMIC_SUN_LIGHT 1
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -37,10 +35,8 @@
 #define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
 
 #define PERLIN_FACTOR 500
-#define INFLUENCE_FROM_THE_PAST_THRESHOLD 20.0f
-#define NUM_OF_NEIGHBORS 5
-#define NEIGHBORS_RADIUS 30.0f
 
+#define SUN_MAX_INTENSITY 100000.0f
 
 struct Aabb
 {
@@ -248,11 +244,19 @@ struct VELOCITIES
 };
 DAXA_DECL_BUFFER_PTR(VELOCITIES)
 
-struct NORMALS
+
+struct DIRECT_ILLUMINATION_INFO
 {
-    daxa_f32vec4 normals[MAX_RESERVOIRS];
+    daxa_f32vec4 normal;
+    daxa_u32 instance_id;
+    daxa_u32 primitive_id;
 };
-DAXA_DECL_BUFFER_PTR(NORMALS)
+
+struct DIRECT_ILLUMINATION_BUFFER
+{
+    DIRECT_ILLUMINATION_INFO DI_info[MAX_RESERVOIRS];
+};
+DAXA_DECL_BUFFER_PTR(DIRECT_ILLUMINATION_BUFFER)
 
 // struct INSTANCE_LEVEL
 // {
@@ -327,8 +331,8 @@ struct PushConstant
     daxa_BufferPtr(LIGHTS) light_buffer;
     daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer; 
     daxa_RWBufferPtr(VELOCITIES) velocity_buffer;
-    daxa_RWBufferPtr(NORMALS) previous_normal_buffer;
-    daxa_RWBufferPtr(NORMALS) normal_buffer;
+    daxa_RWBufferPtr(DIRECT_ILLUMINATION_BUFFER) previous_di_buffer;
+    daxa_RWBufferPtr(DIRECT_ILLUMINATION_BUFFER) di_buffer;
     daxa_RWBufferPtr(RESERVOIRS) previous_reservoir_buffer;
     daxa_RWBufferPtr(RESERVOIRS) reservoir_buffer;
     // daxa_RWBufferPtr(HIT_DISTANCES) hit_distance_buffer;

@@ -84,9 +84,9 @@ namespace tests
             daxa::BufferId velocity_buffer = {};
             u32 max_velocity_buffer_size = sizeof(daxa_i32vec2) * MAX_RESERVOIRS;
 
-            daxa::BufferId previous_normal_buffer = {};
-            daxa::BufferId normal_buffer = {};
-            u32 max_normal_buffer_size = sizeof(daxa_f32vec4) * MAX_RESERVOIRS;
+            daxa::BufferId previous_direct_illum_buffer = {};
+            daxa::BufferId direct_illum_buffer = {};
+            u32 max_direct_illum_buffer_size = sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS;
 
             // DEBUGGING
             // daxa::BufferId hit_distance_buffer = {};
@@ -136,8 +136,8 @@ namespace tests
                     device.destroy_buffer(previous_reservoir_buffer);
                     device.destroy_buffer(reservoir_buffer);
                     device.destroy_buffer(velocity_buffer);
-                    device.destroy_buffer(previous_normal_buffer);
-                    device.destroy_buffer(normal_buffer);
+                    device.destroy_buffer(previous_direct_illum_buffer);
+                    device.destroy_buffer(direct_illum_buffer);
                     // DEBUGGING
                     // device.destroy_buffer(hit_distance_buffer);
                 }
@@ -314,23 +314,23 @@ namespace tests
                     0,
                     velocity_buffer_size);
 
-                const daxa_u32 normal_buffer_size = static_cast<u32>(sizeof(daxa_f32vec4) * MAX_RESERVOIRS);
+                const daxa_u32 direct_illum_buffer_size = static_cast<u32>(sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS);
 
                 // get previous normal buffer host mapped pointer
-                auto * previous_normal_staging_buffer_ptr = device.get_host_address(previous_normal_buffer).value();
+                auto * previous_direct_illum_staging_buffer_ptr = device.get_host_address(previous_direct_illum_buffer).value();
 
                 // copy previous normals to buffer
-                std::memset(previous_normal_staging_buffer_ptr, 
+                std::memset(previous_direct_illum_staging_buffer_ptr, 
                     0,
-                    normal_buffer_size);
+                    direct_illum_buffer_size);
 
                 // get normal buffer host mapped pointer
-                auto * normal_staging_buffer_ptr = device.get_host_address(normal_buffer).value();
+                auto * direct_illum_staging_buffer_ptr = device.get_host_address(direct_illum_buffer).value();
 
                 // copy normals to buffer
-                std::memset(normal_staging_buffer_ptr, 
+                std::memset(direct_illum_staging_buffer_ptr, 
                     0,
-                    normal_buffer_size);
+                    direct_illum_buffer_size);
             }
 
             void load_lights() {
@@ -351,9 +351,9 @@ namespace tests
                 LIGHT light = {}; // 0: point light, 1: directional light
                 light.position = daxa_f32vec3(0.0, 20.0, 0.0);
 #if DYNAMIC_SUN_LIGHT == 1
-                light.intensity = 50.0;
+                light.intensity = SUN_MAX_INTENSITY * 0.2;
 #else 
-                light.intensity = 200.0;
+                light.intensity = SUN_MAX_INTENSITY;
                 status.time = 1.0;
                 
 #endif // DYNAMIC_SUN_LIGHT
@@ -366,7 +366,7 @@ namespace tests
 
                 LIGHT light3 = {};
                 light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0);
-                light3.intensity = 8.0;
+                light3.intensity = 10.0;
                 lights.push_back(light3);
 
 
@@ -425,7 +425,7 @@ namespace tests
                 }
 
                 lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
-                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, 20000.0f /*max_intensity*/, 0.0f /*min_intensity*/);
+                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, SUN_MAX_INTENSITY /*max_intensity*/, 0.0f /*min_intensity*/);
                 
                 // Calculate light buffer size
                 auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
@@ -749,16 +749,16 @@ namespace tests
                     .name = ("velocity_buffer"),
                 });
 
-                previous_normal_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_normal_buffer_size,
+                previous_direct_illum_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_direct_illum_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
-                    .name = ("previous_normal_buffer"),
+                    .name = ("previous_direct_illum_buffer"),
                 });
 
-                normal_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_normal_buffer_size,
+                direct_illum_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_direct_illum_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
-                    .name = ("normal_buffer"),
+                    .name = ("direct_illum_buffer"),
                 });
 
                 // hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
@@ -1578,8 +1578,8 @@ namespace tests
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
                     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
-                    .previous_normal_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_normal_buffer).value() : this->device.get_device_address(normal_buffer).value(),
-                    .normal_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(normal_buffer).value() : this->device.get_device_address(previous_normal_buffer).value(),
+                    .previous_di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_direct_illum_buffer).value() : this->device.get_device_address(direct_illum_buffer).value(),
+                    .di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(direct_illum_buffer).value() : this->device.get_device_address(previous_direct_illum_buffer).value(),
                     .previous_reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
                     .reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
                     // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
@@ -1612,8 +1612,8 @@ namespace tests
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
                     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
-                    .previous_normal_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_normal_buffer).value() : this->device.get_device_address(normal_buffer).value(),
-                    .normal_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(normal_buffer).value() : this->device.get_device_address(previous_normal_buffer).value(),
+                    .previous_di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_direct_illum_buffer).value() : this->device.get_device_address(direct_illum_buffer).value(),
+                    .di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(direct_illum_buffer).value() : this->device.get_device_address(previous_direct_illum_buffer).value(),
                     .previous_reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
                     .reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
                 });
@@ -1700,8 +1700,8 @@ namespace tests
             //             .light_buffer = this->device.get_device_address(light_buffer).value(),
             //             .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
             //             .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
-            //             .previous_normal_buffer = (frame % 2) == 0 ? this->device.get_device_address(previous_normal_buffer).value() : this->device.get_device_address(normal_buffer).value(),
-            //             .normal_buffer = (frame % 2) == 0 ? this->device.get_device_address(normal_buffer).value() : this->device.get_device_address(previous_normal_buffer).value(),
+            //             .previous_di_buffer = (frame % 2) == 0 ? this->device.get_device_address(previous_direct_illum_buffer).value() : this->device.get_device_address(direct_illum_buffer).value(),
+            //             .di_buffer = (frame % 2) == 0 ? this->device.get_device_address(direct_illum_buffer).value() : this->device.get_device_address(previous_direct_illum_buffer).value(),
             //             .previous_reservoir_buffer = (frame % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
             //             .reservoir_buffer = (frame % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
             //         });

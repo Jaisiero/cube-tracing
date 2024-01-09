@@ -224,6 +224,4 @@ daxa_b32 material_transmission(Ray ray, inout HIT_INFO hit, daxa_f32 dissolve, i
     }
 }
 
-
-
 #endif // MATERIAL_GLSL

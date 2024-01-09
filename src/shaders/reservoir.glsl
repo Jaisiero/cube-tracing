@@ -20,7 +20,7 @@ daxa_b32 update_reservoir(inout RESERVOIR reservoir, daxa_u32 X, daxa_f32 w, dax
     reservoir.W_sum += w;
     reservoir.M += c;
  
-    if ( rnd(seed) < w / reservoir.W_sum  )
+    if ( rnd(seed) < (w / reservoir.W_sum)  )
     {
         reservoir.Y = X;
         return true;
