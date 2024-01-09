@@ -44,6 +44,7 @@ namespace tests
             daxa::Swapchain swapchain = {};
             daxa::PipelineManager pipeline_manager = {};
             std::shared_ptr<daxa::RayTracingPipeline> rt_pipeline = {};
+            std::shared_ptr<daxa::ComputePipeline> compute_motion_vectors_pipeline = {};
             daxa::TlasId tlas = {};
             std::vector<daxa::BlasId> proc_blas = {};
 
@@ -85,7 +86,7 @@ namespace tests
 
             daxa::BufferId previous_normal_buffer = {};
             daxa::BufferId normal_buffer = {};
-            u32 max_normal_buffer_size = sizeof(daxa_f32vec3) * MAX_RESERVOIRS;
+            u32 max_normal_buffer_size = sizeof(daxa_f32vec4) * MAX_RESERVOIRS;
 
             // DEBUGGING
             // daxa::BufferId hit_distance_buffer = {};
@@ -313,7 +314,7 @@ namespace tests
                     0,
                     velocity_buffer_size);
 
-                const daxa_u32 normal_buffer_size = static_cast<u32>(sizeof(daxa_f32vec3) * MAX_RESERVOIRS);
+                const daxa_u32 normal_buffer_size = static_cast<u32>(sizeof(daxa_f32vec4) * MAX_RESERVOIRS);
 
                 // get previous normal buffer host mapped pointer
                 auto * previous_normal_staging_buffer_ptr = device.get_host_address(previous_normal_buffer).value();
@@ -1343,6 +1344,16 @@ namespace tests
                     .name = "ray trace shader",
                 };
                 rt_pipeline = pipeline_manager.add_ray_tracing_pipeline(ray_trace_pipe_info).value();
+
+
+                compute_motion_vectors_pipeline = pipeline_manager.add_compute_pipeline(daxa::ComputePipelineCompileInfo{
+                    .shader_info = daxa::ShaderCompileInfo{
+                        .source = daxa::ShaderFile{"motion_vec.glsl"},
+                        .compile_options = shader_compile_options,
+                    },
+                    .push_constant_size = sizeof(PushConstant),
+                    .name = "motion vector shader",
+                }).value();
             }
 
             auto update() -> bool
@@ -1498,6 +1509,11 @@ namespace tests
                     materials.data(),
                     material_buffer_size);
 
+                size_t previous_matrices = sizeof(daxa_f32mat4x4) * 2;
+
+
+
+
                 recorder.pipeline_barrier({
                     .src_access = daxa::AccessConsts::HOST_WRITE,
                     .dst_access = daxa::AccessConsts::TRANSFER_READ,
@@ -1578,8 +1594,56 @@ namespace tests
                     .depth = 1,
                 });
 
-                recorder.pipeline_barrier_image_transition({
+                recorder.pipeline_barrier({
                     .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                    .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                });
+
+                recorder.set_pipeline(*compute_motion_vectors_pipeline);
+                recorder.push_constant(PushConstant{
+                    .size = {width, height},
+                    .tlas = tlas,
+                    .camera_buffer = this->device.get_device_address(cam_buffer).value(),
+                    .status_buffer = this->device.get_device_address(status_buffer).value(),
+                    .instance_buffer = this->device.get_device_address(instance_buffer).value(),
+                    .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
+                    .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
+                    .materials_buffer = this->device.get_device_address(material_buffer).value(),
+                    .light_buffer = this->device.get_device_address(light_buffer).value(),
+                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
+                    .previous_normal_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_normal_buffer).value() : this->device.get_device_address(normal_buffer).value(),
+                    .normal_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(normal_buffer).value() : this->device.get_device_address(previous_normal_buffer).value(),
+                    .previous_reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
+                    .reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
+                });
+
+                recorder.dispatch({
+                    .x = width,
+                    .y = height,
+                    .z = 1,
+                });
+
+                recorder.pipeline_barrier({
+                    .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
+                    .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                });
+
+                recorder.copy_buffer_to_buffer({
+                    .src_buffer = cam_buffer,
+                    .dst_buffer = cam_buffer,
+                    .src_offset = 0,
+                    .dst_offset = cam_buffer_size - previous_matrices,
+                    .size = previous_matrices,
+                });
+
+                recorder.pipeline_barrier({
+                    .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                    .dst_access = daxa::AccessConsts::HOST_READ,
+                });
+
+                recorder.pipeline_barrier_image_transition({
+                    .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
                     .src_layout = daxa::ImageLayout::GENERAL,
                     .dst_layout = daxa::ImageLayout::PRESENT_SRC,
                     .image_id = swapchain_image,
@@ -1603,15 +1667,89 @@ namespace tests
                 });
 
                 device.collect_garbage();
-
                 
-                // Update status
-                {
-                    // Update/restore status
-                    status.frame_number++;
-                    status.num_accumulated_frames++;
-                }
+                // Update/restore status
+                status.frame_number++;
+                status.num_accumulated_frames++;
             }
+
+
+            // void compute_motion_vectors() {
+
+            //     size_t previous_matrices = sizeof(daxa_f32mat4x4) * 2;
+            //     daxa_u32 width = size_x;
+            //     daxa_u32 height = size_y;
+
+            //     daxa_u32 frame = (status.frame_number - 1);
+
+            //      /// Record build commands:
+            //     auto exec_cmds = [&]()
+            //     {
+
+            //         auto recorder = device.create_command_recorder({});
+            //         recorder.set_pipeline(*compute_motion_vectors_pipeline);
+            //         recorder.push_constant(PushConstant{
+            //             .size = {width, height},
+            //             .tlas = tlas,
+            //             .camera_buffer = this->device.get_device_address(cam_buffer).value(),
+            //             .status_buffer = this->device.get_device_address(status_buffer).value(),
+            //             .instance_buffer = this->device.get_device_address(instance_buffer).value(),
+            //             .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
+            //             .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
+            //             .materials_buffer = this->device.get_device_address(material_buffer).value(),
+            //             .light_buffer = this->device.get_device_address(light_buffer).value(),
+            //             .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+            //             .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
+            //             .previous_normal_buffer = (frame % 2) == 0 ? this->device.get_device_address(previous_normal_buffer).value() : this->device.get_device_address(normal_buffer).value(),
+            //             .normal_buffer = (frame % 2) == 0 ? this->device.get_device_address(normal_buffer).value() : this->device.get_device_address(previous_normal_buffer).value(),
+            //             .previous_reservoir_buffer = (frame % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
+            //             .reservoir_buffer = (frame % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
+            //         });
+
+            //         recorder.dispatch({
+            //             .x = width,
+            //             .y = height,
+            //             .z = 1,
+            //         });
+
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
+            //             .dst_access = daxa::AccessConsts::TRANSFER_READ,
+            //         });
+                    
+            //         recorder.copy_buffer_to_buffer({
+            //             .src_buffer = cam_buffer,
+            //             .dst_buffer = cam_buffer,
+            //             .src_offset = 0,
+            //             .dst_offset = cam_buffer_size - previous_matrices,
+            //             .size = previous_matrices,
+            //         });
+
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+            //             .dst_access = daxa::AccessConsts::HOST_READ,
+            //         });
+            //         return recorder.complete_current_commands();
+            //     }();
+
+            //     // WAIT FOR COMMANDS TO FINISH
+            //     {
+            //         device.submit_commands({
+            //             .command_lists = std::array{exec_cmds},
+            //         });
+
+            //         device.wait_idle();
+            //     }
+            // }
+
+            // void update_status() {
+            //     // Update status
+            //     {
+            //         // Update/restore status
+            //         status.frame_number++;
+            //         status.num_accumulated_frames++;
+            //     }
+            // }
 
             void download_gpu_info() {
 
@@ -1981,6 +2119,8 @@ namespace tests
                     size_x = swapchain.get_surface_extent().x;
                     size_y = swapchain.get_surface_extent().y;
                     draw();
+                    // compute_motion_vectors();
+                    // update_status();
                 }
             }
         };

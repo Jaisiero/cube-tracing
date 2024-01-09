@@ -38,6 +38,8 @@
 
 #define PERLIN_FACTOR 500
 #define INFLUENCE_FROM_THE_PAST_THRESHOLD 20.0f
+#define NUM_OF_NEIGHBORS 5
+#define NEIGHBORS_RADIUS 30.0f
 
 
 struct Aabb
@@ -106,6 +108,8 @@ struct camera_view{
     daxa_f32mat4x4 inv_proj;
     daxa_f32 defocus_angle;
     daxa_f32 focus_dist;
+    daxa_f32mat4x4 prev_inv_view;
+    daxa_f32mat4x4 prev_inv_proj;
 };
 DAXA_DECL_BUFFER_PTR(camera_view)
 
@@ -246,7 +250,7 @@ DAXA_DECL_BUFFER_PTR(VELOCITIES)
 
 struct NORMALS
 {
-    daxa_f32vec3 normals[MAX_RESERVOIRS];
+    daxa_f32vec4 normals[MAX_RESERVOIRS];
 };
 DAXA_DECL_BUFFER_PTR(NORMALS)
 

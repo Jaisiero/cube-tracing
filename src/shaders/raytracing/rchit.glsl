@@ -86,8 +86,8 @@ daxa_b32 is_light_visible(Ray ray, inout LIGHT light, _HIT_INFO hit)
     vec3 color = vec3(0.0, 0.0, 0.0);
 
     if(dot(hit.world_nrm, L) > 0) {
-        float t_min   = 0.0001;
-        float t_max   = light.distance;
+        daxa_f32 t_min   = 0.0001;
+        daxa_f32 t_max   = light.distance;
         vec3  ray_origin = hit.world_hit;
         vec3  ray_dir = L;
         uint cull_mask = 0xff;
@@ -159,7 +159,7 @@ void main()
     vec3 world_nrm = normalize(world_pos - center);
     {
         vec3 absN = abs(world_nrm);
-        float maxC = max(max(absN.x, absN.y), absN.z);
+        daxa_f32 maxC = max(max(absN.x, absN.y), absN.z);
         world_nrm = (maxC == absN.x) ? vec3(sign(world_nrm.x), 0, 0) : (maxC == absN.y) ? vec3(0, sign(world_nrm.y), 0)
                                                                                         : vec3(0, 0, sign(world_nrm.z));
     }
@@ -217,8 +217,8 @@ void main()
             prd.depth = 0;
         } else {
             prd.depth--;
-            float t_min   = 0.0001;
-            float t_max   = 100000.0;
+            daxa_f32 t_min   = 0.0001;
+            daxa_f32 t_max   = 100000.0;
             vec3  ray_origin = call_scatter.hit;
             vec3  ray_dir    = call_scatter.scatter_dir;
             uint cull_mask = 0xff;
@@ -296,64 +296,136 @@ void main()
 
     calculate_reservoir_radiance(reservoir, ray, hit, p_hat);
 
-    // Temporal reuse
+    // Screen position
     daxa_u32 screen_pos = gl_LaunchIDEXT.x + gl_LaunchSizeEXT.x * gl_LaunchIDEXT.y;
 
-
-    RESERVOIR temporal_reservoir;
-    initialise_reservoir(temporal_reservoir);
-    
-    // //reproject using the motion vectors.
-    // daxa_i32vec2 screen_pos_previous_vec = daxa_i32vec2((gl_LaunchIDEXT.xy - deref(p.velocity_buffer).velocities[screen_pos]) * gl_LaunchSizeEXT.xy);
-
-    // // TODO: do we need to store previous launch size?
-    // daxa_u32 screen_pos_previous = screen_pos_previous_vec.y * gl_LaunchSizeEXT.x + screen_pos_previous_vec.x;
-
-    daxa_u32 screen_pos_previous = screen_pos;
-        
-    daxa_f32vec3 normal_previous = normalize(deref(p.previous_normal_buffer).normals[screen_pos_previous].xyz);
-        
-    RESERVOIR reservoir_previous = deref(p.previous_reservoir_buffer).reservoirs[screen_pos_previous];
-    
-    //restrict influence from past samples.
-    reservoir_previous.M = min(INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
-
-    //some simple rejection based on normals' divergence, can be improved
-    bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99;
-    
-    if (valid_history)
+    // Temporal reuse
     {
-        //add current reservoir sample
-        update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
 
-        float p_hat_prev = length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(reservoir_previous)], hit)); 
+        RESERVOIR temporal_reservoir;
+        initialise_reservoir(temporal_reservoir);
 
-        //add sample from previous frame
-        update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir_previous), p_hat_prev * reservoir_previous.W_y * reservoir_previous.M, reservoir_previous.M, prd.seed);
-    
-        p_hat = is_reservoir_valid(temporal_reservoir) ?
-                length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(temporal_reservoir)], hit)) : 0.0;
-    
-        //calculate weight of the selected lights                
-        temporal_reservoir.W_y = p_hat > 0.0 ? (temporal_reservoir.W_sum / temporal_reservoir.M) / p_hat : 0.0;
-    
-        // TODO: We need motion vectors to do this
-        reservoir = temporal_reservoir;
+        daxa_f32vec2 uv = (daxa_f32vec2(gl_LaunchIDEXT.xy) + 0.5) / daxa_f32vec2(gl_LaunchSizeEXT.xy);
+        
+        //reproject using the motion vectors.
+        daxa_i32vec2 screen_pos_previous_vec = daxa_i32vec2((uv - deref(p.velocity_buffer).velocities[screen_pos]) * gl_LaunchSizeEXT.xy);
+
+        daxa_u32 screen_pos_previous = screen_pos_previous_vec.y * gl_LaunchSizeEXT.x + screen_pos_previous_vec.x;
+
+        daxa_u32 max_screen_pos = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y - 1;
+
+        screen_pos_previous = min(max_screen_pos, screen_pos_previous);
+
+        // daxa_u32 screen_pos_previous = screen_pos;
+            
+        // Normal from previous frame
+        daxa_f32vec3 normal_previous = normalize(deref(p.previous_normal_buffer).normals[screen_pos_previous].xyz);
+            
+        // Reservoir from previous frame
+        RESERVOIR reservoir_previous = deref(p.previous_reservoir_buffer).reservoirs[screen_pos_previous];
+        
+        //restrict influence from past samples.
+        reservoir_previous.M = min(INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
+
+        //some simple rejection based on normals' divergence, can be improved
+        bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99;
+        
+        if (valid_history)
+        {
+            //add current reservoir sample
+            update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
+
+            daxa_f32 p_hat_prev = length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(reservoir_previous)], hit)); 
+
+            //add sample from previous frame
+            update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir_previous), p_hat_prev * reservoir_previous.W_y * reservoir_previous.M, reservoir_previous.M, prd.seed);
+        
+            p_hat = is_reservoir_valid(temporal_reservoir) ?
+                    length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(temporal_reservoir)], hit)) : 0.0;
+        
+            //calculate weight of the selected lights                
+            temporal_reservoir.W_y = p_hat > 0.0 ? (temporal_reservoir.W_sum / temporal_reservoir.M) / p_hat : 0.0;
+        
+            reservoir = temporal_reservoir;
+        }
+
+
+        // TODO: this is not correct, velocity should be calculated with reprojection
+        // Store velocity
+        // deref(p.velocity_buffer).velocities[screen_pos] = daxa_i32vec2(gl_LaunchIDEXT.xy - gl_LaunchSizeEXT.xy * gl_WorldRayDirectionEXT.xy);
+
+        // Store normal
+        deref(p.normal_buffer).normals[screen_pos] = daxa_f32vec4(hit.world_nrm, gl_HitTEXT);
+
+        // Store the reservoir
+        deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
     }
 
+    // Spacial reuse
+    {
+        RESERVOIR spacial_reservoir;
+        initialise_reservoir(spacial_reservoir);
+        
+        //add sample from previous frame
+        update_reservoir(spacial_reservoir, get_reservoir_light_index(reservoir), p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
+    
+        daxa_f32 p_hat_temp = is_reservoir_valid(spacial_reservoir) ?
+                length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(spacial_reservoir)], hit)) : 0.0;
+    
+        //calculate weight of the selected lights                
+        spacial_reservoir.W_y = p_hat_temp > 0.0 ? (spacial_reservoir.W_sum / spacial_reservoir.M) / p_hat : 0.0;
 
-    // TODO: this is not correct, velocity should be calculated with reprojection
-    // Store velocity
-    // deref(p.velocity_buffer).velocities[screen_pos] = daxa_i32vec2(gl_LaunchIDEXT.xy - gl_LaunchSizeEXT.xy * gl_WorldRayDirectionEXT.xy);
+        RESERVOIR neighbor_reservoir;
 
-    // Store normal
-    deref(p.normal_buffer).normals[screen_pos] = hit.world_nrm;
+        for (int i = 0; i < NUM_OF_NEIGHBORS; i++)
+        { 
+            daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(prd.seed), rnd(prd.seed)) - 1;
+        
+            offset.x = gl_LaunchIDEXT.x + int(offset.x * NEIGHBORS_RADIUS);
+            offset.y = gl_LaunchIDEXT.y + int(offset.y * NEIGHBORS_RADIUS);
+        
+            offset.x = max(0, min(gl_LaunchSizeEXT.x - 1, offset.x));
+            offset.y = max(0, min(gl_LaunchSizeEXT.y - 1, offset.y));
 
-    // Store the reservoir
-    deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+            daxa_u32vec2 offset_u32 = daxa_u32vec2(offset);
 
+            daxa_u32 offset_u32_linear = offset_u32.y * gl_LaunchSizeEXT.x + offset_u32.x;
+        
+            // TODO: Should it be used depth buffer?
+            // daxa_f32 neighbor_depth_linear = linearise_depth(deref(p.depth_buffer).depth[daxa_f32vec2(offset)].x);
+
+            daxa_f32 neighbor_hit_dist = deref(p.previous_normal_buffer).normals[offset_u32_linear].w;
+            
+            // TODO: Adjust dist threshold dynamically
+            if (  
+                // (neighbor_depth_linear > 1.1f * depth_linear || neighbor_depth_linear < 0.9f * depth_linear)   ||
+                (neighbor_hit_dist > VOXEL_EXTENT + gl_HitTEXT || neighbor_hit_dist < gl_HitTEXT - VOXEL_EXTENT)   ||
+                dot(hit.world_nrm, deref(p.previous_normal_buffer).normals[offset_u32_linear].xyz) < 0.906)
+            {
+                // skip this neighbour sample if not suitable
+                continue;
+            }
+
+        
+            neighbor_reservoir = deref(p.previous_reservoir_buffer).reservoirs[offset_u32_linear];
+        
+            p_hat = is_reservoir_valid(neighbor_reservoir) ?
+                    length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(neighbor_reservoir)], hit)) : 0;
+            
+            update_reservoir(spacial_reservoir, get_reservoir_light_index(neighbor_reservoir), p_hat * neighbor_reservoir.W_y * neighbor_reservoir.M, neighbor_reservoir.M, prd.seed);
+        }  
+        
+        p_hat = is_reservoir_valid(spacial_reservoir) ? length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(spacial_reservoir)], hit)) : 0;
+        
+        spacial_reservoir.W_y = p_hat > 0.0 ? (spacial_reservoir.W_sum / spacial_reservoir.M) / p_hat : 0.0;  
+        
+        reservoir = spacial_reservoir;
+    }
+
+    // Get the light from the reservoir
     LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
 
+    // Add light radiance
     radiance += get_point_light_radiance(ray, light, hit) * reservoir.W_y;
 
     // diffuse color   

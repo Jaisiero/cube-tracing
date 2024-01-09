@@ -128,6 +128,14 @@ const float camera_get_aspect(const camera& cam) {
     return cam.width / cam.height;
 }
 
+const unsigned int& camera_get_width(const camera& cam) {
+    return cam.width;
+}
+
+const unsigned int& camera_get_height(const camera& cam) {
+    return cam.height;
+}
+
 const float& camera_get__near(const camera& cam) {
     return cam._near;
 }
