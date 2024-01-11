@@ -11,7 +11,7 @@
 #define LIGHT_SAMPLING_ON 0
 #define INFLUENCE_FROM_THE_PAST_THRESHOLD 20.0f
 #define NUM_OF_NEIGHBORS 15
-#define NEIGHBORS_RADIUS 2.0f
+#define NEIGHBORS_RADIUS 30.0f
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
@@ -205,16 +205,24 @@ void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR
     }
 }
 
-daxa_u32 current_primitive_id() {
+daxa_u32 current_primitive_index() {
     // Get first primitive index from instance id
     uint primitive_index = deref(p.instance_buffer).instances[gl_InstanceCustomIndexEXT].first_primitive_index;
     // Get actual primitive index from offset and primitive id
     return primitive_index + gl_PrimitiveID;
 }
 
+
+daxa_u32 current_primitive_index_from_instance_and_primitive_id(daxa_u32 instance_id, daxa_u32 primitive_id) {
+    // Get first primitive index from instance id
+    uint primitive_index = deref(p.instance_buffer).instances[instance_id].first_primitive_index;
+    // Get actual primitive index from offset and primitive id
+    return primitive_index + primitive_id;
+}
+
 MATERIAL get_current_material() {
     // Get material index from primitive
-    PRIMITIVE primitive = deref(p.primitives_buffer).primitives[current_primitive_id()];
+    PRIMITIVE primitive = deref(p.primitives_buffer).primitives[current_primitive_index()];
 
     daxa_u32 mat_index = primitive.material_index;
 
@@ -256,7 +264,7 @@ void main()
         gl_ObjectToWorldEXT[3][0], gl_ObjectToWorldEXT[3][1], gl_ObjectToWorldEXT[3][2], 1.0);
 
 
-    daxa_u32 actual_primitive_index = current_primitive_id();
+    daxa_u32 actual_primitive_index = current_primitive_index();
 
     // Get aabb from primitive
     Aabb aabb = deref(p.aabb_buffer).aabbs[actual_primitive_index];
@@ -500,12 +508,19 @@ void main()
             // TODO: Should it be used depth buffer?
             // daxa_f32 neighbor_depth_linear = linearise_depth(deref(p.depth_buffer).depth[daxa_f32vec2(offset)].x);
 
-            daxa_f32 neighbor_hit_dist = deref(p.previous_di_buffer).DI_info[offset_u32_linear].normal.w;
+            DIRECT_ILLUMINATION_INFO di_info_previous = deref(p.previous_di_buffer).DI_info[offset_u32_linear];
+
+            daxa_f32 neighbor_hit_dist = di_info_previous.normal.w;
+
+            daxa_u32 current_primitive_index = current_primitive_index_from_instance_and_primitive_id(di_info_previous.instance_id, di_info_previous.primitive_id);
+
+            daxa_u32 neighbor_mat_index = get_material_index_from_primitive_index(current_primitive_index);
             
             // TODO: Adjust dist threshold dynamically
             if (  
                 // (neighbor_depth_linear > 1.1f * depth_linear || neighbor_depth_linear < 0.9f * depth_linear)   ||
-                abs(neighbor_hit_dist - gl_HitTEXT) > VOXEL_EXTENT ||
+                // abs(neighbor_hit_dist - gl_HitTEXT) > VOXEL_EXTENT ||
+                neighbor_mat_index != mat_index ||
                 dot(hit.world_nrm, deref(p.previous_di_buffer).DI_info[offset_u32_linear].normal.xyz) < 0.906)
             {
                 // skip this neighbour sample if not suitable
