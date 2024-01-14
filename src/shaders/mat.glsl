@@ -5,34 +5,12 @@
 #include "shared.inl"
 #include "prng.glsl"
 
-// Credit: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing__before/shaders/wavefront.glsl
-daxa_f32vec3 compute_diffuse(MATERIAL mat, daxa_f32vec3 light_dir, daxa_f32vec3 normal)
+
+daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat)
 {
-  // Lambertian
-  daxa_f32 dot_nl = max(dot(normal, light_dir), 0.0);
-  daxa_f32vec3  c     = mat.diffuse * dot_nl;
-  if(mat.illum >= 1)
-    c += mat.ambient;
-  return c;
+    return mat.diffuse / DAXA_PI;
 }
 
-daxa_f32vec3 compute_specular(MATERIAL mat, daxa_f32vec3 view_dir, daxa_f32vec3 light_dir, daxa_f32vec3 normal)
-{
-  if (mat.illum < 2)
-    return daxa_f32vec3(0);
-
-  // Compute specular only if not in shadow
-  const daxa_f32 k_pi = 3.14159265;
-  const daxa_f32 k_shininess = max(mat.shininess, 4.0);
-
-  // Specular
-  const daxa_f32 k_energy_conservation = (2.0 + k_shininess) / (2.0 * k_pi);
-  daxa_f32vec3 V = normalize(-view_dir);
-  daxa_f32vec3 R = reflect(-light_dir, normal);
-  daxa_f32 specular = k_energy_conservation * pow(max(dot(V, R), 0.0), k_shininess);
-
-  return daxa_f32vec3(mat.specular * specular);
-}
 
 // Credit: https://gamedev.stackexchange.com/questions/92015/optimized-linear-to-srgb-glsl
 daxa_f32vec4 fromLinear(daxa_f32vec4 linear_RGB)
@@ -155,32 +133,6 @@ daxa_f32vec3 normal_to_color(daxa_f32vec3 normal)
 daxa_f32vec3 hit_get_world_hit(Ray ray, HIT_INFO hit) {
     return ray.origin + ray.direction * hit.hit_distance + (VOXEL_EXTENT / 2) * hit.world_nrm;
 }
-
-// TODO: this solution doesn't work. Maybe cause using floats?
-// // Transmission through an homogeneous medium(for now)
-// daxa_b32 material_transmission(Ray ray, inout HIT_INFO hit, MATERIAL mat, LCG lcg) {
-
-//   daxa_f32 ray_length = length(ray.direction);
-//   daxa_f32 distance_inside_boundary = (hit.exit_distance - hit.hit_distance) * ray_length;
-
-//   hit.primitive_center.x = mat.dissolve;
-//   // Ensure that log(randomInRangeLCG(lcg, 0.0, 1.0)) is positive
-//   daxa_f32 random_value = randomInRangeLCG(lcg, 0.0, 1.0);
-//   hit.primitive_center.y = random_value;
-//   daxa_f32 log_random_value = log(random_value);
-//   hit.primitive_center.z = log_random_value;
-//   daxa_f32 hit_distance = mat.dissolve * log_random_value;
-
-
-//   if (hit_distance > distance_inside_boundary)
-//     return false;
-
-//   hit.hit_distance += hit_distance / ray_length;
-//   hit.world_hit = hit_get_world_hit(ray, hit);
-  
-//   return true;
-// }
-
 
 // Function to calculate transmittance for a constant medium
 daxa_f32 calculateTransmittance(daxa_f32 dissolve, daxa_f32 distance) {

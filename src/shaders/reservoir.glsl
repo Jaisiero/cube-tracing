@@ -48,14 +48,14 @@ daxa_b32 is_reservoir_valid(in RESERVOIR reservoir)
 
 
     // Use the reservoir to calculate the final radiance.
-void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hit, inout daxa_f32 p_hat){
+void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hit, MATERIAL mat, inout daxa_f32 p_hat){
 
     if (is_reservoir_valid(reservoir))
     {
         LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
 
         // calculate the radiance of this light
-        p_hat = is_light_visible(ray, light, hit) ? length(get_point_light_radiance(ray, light, hit)) : 0.0;
+        p_hat = is_light_visible(ray, light, hit) ? length(calculate_sampled_light(ray, hit, light, mat)) : 0.0;
 
         // calculate the weight of this light
         reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
@@ -63,12 +63,14 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, _HIT_INFO 
 }
 
 
-void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hit, inout daxa_f32 p_hat){
+void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hit, MATERIAL mat, inout daxa_f32 p_hat){
 
     if (is_reservoir_valid(reservoir))
     {
+        LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
+
         p_hat = is_reservoir_valid(reservoir) ?
-                    length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)], hit)) : 0.0;
+                    length(calculate_sampled_light(ray, hit, light, mat)) : 0.0;
 
         // calculate weight of the selected lights
         reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
@@ -76,11 +78,13 @@ void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hi
 }
 
 
-void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR aggregation_reservoir, Ray ray, _HIT_INFO hit, inout daxa_f32 p_hat){
+void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR aggregation_reservoir, Ray ray, _HIT_INFO hit, MATERIAL mat, inout daxa_f32 p_hat){
 
     if (is_reservoir_valid(aggregation_reservoir))
     {
-        p_hat = length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(aggregation_reservoir)], hit));
+        LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(aggregation_reservoir)];
+
+        p_hat = length(calculate_sampled_light(ray, hit, light, mat));
 
         //add sample from previous frame
         update_reservoir(reservoir, get_reservoir_light_index(aggregation_reservoir), p_hat * aggregation_reservoir.W_y * aggregation_reservoir.M, aggregation_reservoir.M, prd.seed);
@@ -89,7 +93,7 @@ void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR
 
 
 
-daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_INFO hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL current_mat, daxa_f32mat4x4 instance_model) {
+daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_INFO hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL mat, daxa_f32mat4x4 instance_model) {
     RESERVOIR reservoir;
     initialise_reservoir(reservoir);
 
@@ -108,14 +112,14 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
         daxa_f32 w = 0.0f;
 
         if(light.intensity > 0.0) {
-            p_hat = length(get_point_light_radiance(ray, light, hit));
+            p_hat = length(calculate_sampled_light(ray, hit, light, mat));
             daxa_f32vec3 light_direction = normalize(light.position - hit.world_hit);
             w = p_hat / spot_light_pdf;
             update_reservoir(reservoir, light_index, w, 1.0f, prd.seed);
         }
     }
 
-    calculate_reservoir_radiance(reservoir, ray, hit, p_hat);
+    calculate_reservoir_radiance(reservoir, ray, hit, mat, p_hat);
 
     // Previous frame screen coord
     daxa_u32vec2 predicted_coord = get_previous_frame_pixel_coord(gl_LaunchIDEXT.xy, hit.world_hit, gl_LaunchSizeEXT.xy, gl_InstanceCustomIndexEXT,  instance_model);
@@ -159,10 +163,10 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
             reservoir_previous.M = min(INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
 
             //add sample from previous frame
-            calculate_reservoir_weight_aggregation(temporal_reservoir, reservoir_previous, ray, hit, p_hat);
+            calculate_reservoir_weight_aggregation(temporal_reservoir, reservoir_previous, ray, hit, mat, p_hat);
 
             //calculate the weight of this light
-            calculate_reservoir_weight(temporal_reservoir, ray, hit, p_hat);
+            calculate_reservoir_weight(temporal_reservoir, ray, hit, mat, p_hat);
 
             reservoir = temporal_reservoir;
         }
@@ -174,7 +178,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
         initialise_reservoir(spatial_reservoir);
 
         //add previous samples
-        calculate_reservoir_weight_aggregation(spatial_reservoir, reservoir, ray, hit, p_hat);
+        calculate_reservoir_weight_aggregation(spatial_reservoir, reservoir, ray, hit, mat, p_hat);
 
         RESERVOIR neighbor_reservoir;
 
@@ -225,10 +229,10 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
             // TODO: restrict influence from neighbor samples?
             neighbor_reservoir.M = min(spatial_influence_threshold, neighbor_reservoir.M);
 
-            calculate_reservoir_weight_aggregation(spatial_reservoir, neighbor_reservoir, ray, hit, p_hat);
+            calculate_reservoir_weight_aggregation(spatial_reservoir, neighbor_reservoir, ray, hit, mat, p_hat);
         }
 
-        calculate_reservoir_weight(spatial_reservoir, ray, hit, p_hat);
+        calculate_reservoir_weight(spatial_reservoir, ray, hit, mat, p_hat);
 
         reservoir = spatial_reservoir;
     }
@@ -236,16 +240,8 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
     // Get the light from the reservoir
     LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
 
-    daxa_f32vec3 hit_value = vec3(0.0);
-
     // Add light radiance
-    hit_value += get_point_light_radiance(ray, light, hit) * reservoir.W_y;
-
-    // diffuse color
-    hit_value *= current_mat.diffuse;
-
-    // Add emission
-    // prd.hit_value += mat.emission;
+    daxa_f32vec3 hit_value = calculate_sampled_light(ray, hit, light, mat) * reservoir.W_y;
 
     // Store the reservoir
     deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;

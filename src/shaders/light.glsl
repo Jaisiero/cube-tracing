@@ -21,13 +21,13 @@ daxa_f32vec3 get_point_light_radiance(Ray ray, LIGHT light, _HIT_INFO hit)
 
     // 3. Atenuation calculation
     daxa_f32 distance = length(light_position - hit.world_hit);
-    daxa_f32 attenuation = 1.0 / (1.0 + 0.1 * distance + 0.01 * distance * distance);
+
+    daxa_f32 attenuation = 1.0 / (distance * distance);
 
     // 4. Radiance calculation
-    daxa_f32vec3 light_radiance = light_color * light_intensity * attenuation / (4.0 * DAXA_PI * distance * distance) * max(0.0, dot(light_direction, surface_normal));
+    daxa_f32vec3 light_radiance = light_color * light_intensity * attenuation * max(0.0, dot(light_direction, surface_normal));
 
     light_radiance = max(light_radiance, daxa_f32vec3(0.0));
-
 
     return light_radiance;
 } 
@@ -75,6 +75,12 @@ daxa_b32 is_light_visible(Ray ray, LIGHT light, _HIT_INFO hit)
     }
 
     return !is_shadowed;
+}
+
+
+daxa_f32vec3 calculate_sampled_light(Ray ray, _HIT_INFO hit, LIGHT light, MATERIAL mat) {
+    // TODO: All diffuse mats for now
+    return get_point_light_radiance(ray, light, hit) * get_diffuse_BRDF(mat);
 }
 
 daxa_b32 sample_lights(daxa_f32vec3 P, daxa_f32vec3 n,

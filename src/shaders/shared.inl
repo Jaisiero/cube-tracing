@@ -36,7 +36,7 @@
 
 #define PERLIN_FACTOR 500
 
-#define SUN_MAX_INTENSITY 100000.0f
+#define SUN_MAX_INTENSITY 5000.0f
 
 struct Aabb
 {

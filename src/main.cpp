@@ -363,12 +363,12 @@ namespace tests
 
                 LIGHT light2 = {};
                 light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0);
-                light2.intensity = 10.0;
+                light2.intensity = 3;
                 lights.push_back(light2);
 
                 LIGHT light3 = {};
                 light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0);
-                light3.intensity = 10.0;
+                light3.intensity = 4;
                 lights.push_back(light3);
 
 

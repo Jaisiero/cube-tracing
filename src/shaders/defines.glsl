@@ -11,3 +11,8 @@ layout(location = 1) rayPayloadEXT bool is_shadowed;
 
 layout(location = 3) callableDataEXT HIT_MAT_PAY_LOAD hit_call;
 layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
+
+#define DEBUG_NORMALS_ON 0
+#define RESERVOIR_ON 1
+#define LIGHT_SAMPLING_ON 0
+// #define DEBUG_NORMALS 1

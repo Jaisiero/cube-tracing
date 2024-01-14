@@ -8,10 +8,6 @@
 #include "reservoir.glsl"
 #include "light.glsl"
 
-#define DEBUG_NORMALS_ON 0
-#define RESERVOIR_ON 1
-#define LIGHT_SAMPLING_ON 0
-// #define DEBUG_NORMALS 1
 
 void main()
 {
@@ -154,7 +150,7 @@ void main()
 
 #if RESERVOIR_ON == 1
 
-    prd.hit_value = reservoir_direct_illumination(light_count, ray, hit, screen_pos, mat_index, mat, model);
+    prd.hit_value += reservoir_direct_illumination(light_count, ray, hit, screen_pos, mat_index, mat, model);
 
 #else
     
@@ -162,14 +158,16 @@ void main()
     daxa_f32vec3 radiance = daxa_f32vec3(0.0);
 
 #if LIGHT_SAMPLING_ON == 1
+    // spot light pdf
+    daxa_f32 spot_light_pdf = 1.0 / daxa_f32(light_count);
 
     daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
     LIGHT light = deref(p.light_buffer).lights[light_index];
 
-    radiance += is_light_visible(ray, light, hit) ? direct_light(ray, light, hit) * spot_light_pdf : vec3(0.0);
+    radiance += is_light_visible(ray, light, hit) ? (calculate_sampled_light(ray, hit, light, mat) / spot_light_pdf) : vec3(0.0);
 
-    prd.hit_value += radiance * mat.diffuse;
+    prd.hit_value += radiance;
 
 #else
 
@@ -177,13 +175,15 @@ void main()
 
         LIGHT light = deref(p.light_buffer).lights[l];
 
-        radiance += is_light_visible(ray, light, hit) ? get_point_light_radiance(ray, light, hit) : vec3(0.0);
+        radiance += is_light_visible(ray, light, hit) ? calculate_sampled_light(ray, hit, light, mat) : vec3(0.0);
     }
 
-    prd.hit_value += radiance * mat.diffuse;
+    prd.hit_value += radiance;
 #endif // LIGHT_SAMPLING_ON
 
 #endif // RESERVOIR_ON
+
+    prd.hit_value += mat.emission;
 
     DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(daxa_f32vec4(hit.world_nrm, gl_HitTEXT), gl_InstanceCustomIndexEXT, gl_PrimitiveID);
 
