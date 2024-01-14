@@ -150,7 +150,7 @@ void main()
 
 #if RESERVOIR_ON == 1
 
-    prd.hit_value += reservoir_direct_illumination(light_count, ray, hit, screen_pos, mat_index, mat, model);
+    prd.hit_value *= reservoir_direct_illumination(light_count, ray, hit, screen_pos, mat_index, mat, model);
 
 #else
     
@@ -167,7 +167,7 @@ void main()
 
     radiance += is_light_visible(ray, light, hit) ? (calculate_sampled_light(ray, hit, light, mat) / spot_light_pdf) : vec3(0.0);
 
-    prd.hit_value += radiance;
+    prd.hit_value *= radiance;
 
 #else
 
@@ -178,7 +178,7 @@ void main()
         radiance += is_light_visible(ray, light, hit) ? calculate_sampled_light(ray, hit, light, mat) : vec3(0.0);
     }
 
-    prd.hit_value += radiance;
+    prd.hit_value *= radiance;
 #endif // LIGHT_SAMPLING_ON
 
 #endif // RESERVOIR_ON

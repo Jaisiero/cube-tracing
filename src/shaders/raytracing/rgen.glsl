@@ -54,7 +54,7 @@ void main()
     prd.seed = seed;
     // prd.depth =  max_depth;
     prd.depth =  1;
-    prd.hit_value = vec3(0);
+    prd.hit_value = vec3(1.0);
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
     daxa_f32 t_min = 0.0001;
