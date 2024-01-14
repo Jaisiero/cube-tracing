@@ -154,7 +154,7 @@ void main()
 
 #if RESERVOIR_ON == 1
 
-    prd.hit_value = reservoir_direct_illumination(light_count, ray, hit, screen_pos, mat_index, mat);
+    prd.hit_value = reservoir_direct_illumination(light_count, ray, hit, screen_pos, mat_index, mat, model);
 
 #else
     

@@ -50,47 +50,49 @@ namespace tests
 
             // BUFFERS
             daxa::BufferId cam_buffer = {};
-            u32 cam_buffer_size = sizeof(camera_view);
+            size_t cam_buffer_size = sizeof(camera_view);
+            size_t previous_matrices = sizeof(daxa_f32mat4x4) * 2;
+            size_t cam_update_size = cam_buffer_size - previous_matrices;
 
             daxa::BufferId status_buffer = {};
-            u32 status_buffer_size = sizeof(Status);
+            size_t status_buffer_size = sizeof(Status);
 
             daxa::BufferId instance_buffer = {};
-            u32 max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
+            size_t max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
 
             daxa::BufferId primitive_buffer = {};
-            u32 max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
+            size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
 
             daxa::BufferId aabb_buffer = {};
-            u32 max_aabb_buffer_size = sizeof(daxa_f32mat3x2) * MAX_PRIMITIVES;
+            size_t max_aabb_buffer_size = sizeof(daxa_f32mat3x2) * MAX_PRIMITIVES;
 
             u32 current_texture_count = 0;
             std::vector<daxa::ImageId> images = {};
             std::vector<daxa::SamplerId> samplers = {};
 
             daxa::BufferId material_buffer = {};
-            u32 max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
+            size_t max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
 
             daxa::BufferId light_buffer = {};
-            u32 max_light_buffer_size = sizeof(LIGHT) * MAX_LIGHTS;
+            size_t max_light_buffer_size = sizeof(LIGHT) * MAX_LIGHTS;
 
             daxa::BufferId status_output_buffer = {};
-            u32 max_status_output_buffer_size = sizeof(STATUS_OUTPUT);
+            size_t max_status_output_buffer_size = sizeof(STATUS_OUTPUT);
             
             daxa::BufferId previous_reservoir_buffer = {};
             daxa::BufferId reservoir_buffer = {};
-            u32 max_reservoir_buffer_size = sizeof(RESERVOIR) * MAX_RESERVOIRS;
+            size_t max_reservoir_buffer_size = sizeof(RESERVOIR) * MAX_RESERVOIRS;
 
             daxa::BufferId velocity_buffer = {};
-            u32 max_velocity_buffer_size = sizeof(daxa_i32vec2) * MAX_RESERVOIRS;
+            size_t max_velocity_buffer_size = sizeof(VELOCITY) * MAX_RESERVOIRS;
 
             daxa::BufferId previous_direct_illum_buffer = {};
             daxa::BufferId direct_illum_buffer = {};
-            u32 max_direct_illum_buffer_size = sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS;
+            size_t max_direct_illum_buffer_size = sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS;
 
             // DEBUGGING
             // daxa::BufferId hit_distance_buffer = {};
-            // u32 max_hit_distance_buffer_size = sizeof(HIT_DISTANCE) * WIDTH_RES * HEIGHT_RES;
+            // size_t max_hit_distance_buffer_size = sizeof(HIT_DISTANCE) * WIDTH_RES * HEIGHT_RES;
             // std::vector<HIT_DISTANCE> hit_distances = {};
             // DEBUGGING
             
@@ -502,6 +504,10 @@ namespace tests
                     u32 primitive_count_current_instance = min_max.size();
 
                     instances[i].transform = {
+                        transforms[i],
+                    },
+                    // TODO: get previous transform from previous build
+                    instances[i].prev_transform = {
                         transforms[i],
                     },
                     instances[i].primitive_count = primitive_count_current_instance;
@@ -1421,7 +1427,7 @@ namespace tests
                 camera_view.inv_proj.y.y *= -1;
                 
                 auto cam_staging_buffer = device.create_buffer({
-                    .size = cam_buffer_size,
+                    .size = cam_update_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = ("cam_staging_buffer"),
                 });
@@ -1430,7 +1436,7 @@ namespace tests
                 auto * buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(cam_staging_buffer).value();
                 std::memcpy(buffer_ptr, 
                     &camera_view,
-                    cam_buffer_size);
+                    cam_update_size);
 
                 // Update/restore status
                 
@@ -1509,11 +1515,6 @@ namespace tests
                     materials.data(),
                     material_buffer_size);
 
-                size_t previous_matrices = sizeof(daxa_f32mat4x4) * 2;
-
-
-
-
                 recorder.pipeline_barrier({
                     .src_access = daxa::AccessConsts::HOST_WRITE,
                     .dst_access = daxa::AccessConsts::TRANSFER_READ,
@@ -1522,7 +1523,7 @@ namespace tests
                 recorder.copy_buffer_to_buffer({
                     .src_buffer = cam_staging_buffer,
                     .dst_buffer = cam_buffer,
-                    .size = cam_buffer_size,
+                    .size = cam_buffer_size - previous_matrices,
                 });
 
                 recorder.copy_buffer_to_buffer(
@@ -1594,46 +1595,46 @@ namespace tests
                     .depth = 1,
                 });
 
-                recorder.pipeline_barrier({
-                    .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
-                    .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
-                });
+                // recorder.pipeline_barrier({
+                //     .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                //     .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                // });
 
-                recorder.set_pipeline(*compute_motion_vectors_pipeline);
-                recorder.push_constant(PushConstant{
-                    .size = {width, height},
-                    .tlas = tlas,
-                    .camera_buffer = this->device.get_device_address(cam_buffer).value(),
-                    .status_buffer = this->device.get_device_address(status_buffer).value(),
-                    .instance_buffer = this->device.get_device_address(instance_buffer).value(),
-                    .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
-                    .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
-                    .materials_buffer = this->device.get_device_address(material_buffer).value(),
-                    .light_buffer = this->device.get_device_address(light_buffer).value(),
-                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
-                    .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
-                    .previous_di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_direct_illum_buffer).value() : this->device.get_device_address(direct_illum_buffer).value(),
-                    .di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(direct_illum_buffer).value() : this->device.get_device_address(previous_direct_illum_buffer).value(),
-                    .previous_reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
-                    .reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
-                });
+                // // recorder.set_pipeline(*compute_motion_vectors_pipeline);
+                // // recorder.push_constant(PushConstant{
+                // //     .size = {width, height},
+                // //     .tlas = tlas,
+                // //     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
+                // //     .status_buffer = this->device.get_device_address(status_buffer).value(),
+                // //     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
+                // //     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
+                // //     .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
+                // //     .materials_buffer = this->device.get_device_address(material_buffer).value(),
+                // //     .light_buffer = this->device.get_device_address(light_buffer).value(),
+                // //     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                // //     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
+                // //     .previous_di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_direct_illum_buffer).value() : this->device.get_device_address(direct_illum_buffer).value(),
+                // //     .di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(direct_illum_buffer).value() : this->device.get_device_address(previous_direct_illum_buffer).value(),
+                // //     .previous_reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
+                // //     .reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
+                // // });
 
-                recorder.dispatch({
-                    .x = width,
-                    .y = height,
-                    .z = 1,
-                });
+                // // recorder.dispatch({
+                // //     .x = width,
+                // //     .y = height,
+                // //     .z = 1,
+                // // });
 
-                recorder.pipeline_barrier({
-                    .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
-                    .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                });
+                // // recorder.pipeline_barrier({
+                // //     .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
+                // //     .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                // // });
 
                 recorder.copy_buffer_to_buffer({
                     .src_buffer = cam_buffer,
                     .dst_buffer = cam_buffer,
                     .src_offset = 0,
-                    .dst_offset = cam_buffer_size - previous_matrices,
+                    .dst_offset = cam_update_size,
                     .size = previous_matrices,
                 });
 
@@ -1643,7 +1644,7 @@ namespace tests
                 });
 
                 recorder.pipeline_barrier_image_transition({
-                    .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
+                    .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
                     .src_layout = daxa::ImageLayout::GENERAL,
                     .dst_layout = daxa::ImageLayout::PRESENT_SRC,
                     .image_id = swapchain_image,

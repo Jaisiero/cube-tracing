@@ -77,7 +77,7 @@ const glm::mat4 get_view_matrix(const camera& cam) {
 }
 
 const glm::mat4 get_projection_matrix(const camera& cam) {
-    return glm::perspective(cam.fov, cam.width / (float)cam.height , cam._near, cam._far);
+    return glm::perspectiveRH_ZO(cam.fov, cam.width / (float)cam.height , cam._near, cam._far);
 }
 
 const glm::mat4 get_view_projection_matrix(const camera& cam) {

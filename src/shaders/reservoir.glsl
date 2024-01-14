@@ -8,6 +8,7 @@
 #include "prng.glsl"
 #include "light.glsl"
 #include "primitives.glsl"
+#include "motion_vectors.glsl"
 
 #define INFLUENCE_FROM_THE_PAST_THRESHOLD 20.0f
 #define NUM_OF_NEIGHBORS 15
@@ -25,13 +26,13 @@ daxa_b32 update_reservoir(inout RESERVOIR reservoir, daxa_u32 X, daxa_f32 w, dax
 {
     reservoir.W_sum += w;
     reservoir.M += c;
- 
+
     if ( rnd(seed) < (w / reservoir.W_sum)  )
     {
         reservoir.Y = X;
         return true;
     }
- 
+
     return false;
 }
 
@@ -52,10 +53,10 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, _HIT_INFO 
     if (is_reservoir_valid(reservoir))
     {
         LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
-    
+
         // calculate the radiance of this light
         p_hat = is_light_visible(ray, light, hit) ? length(get_point_light_radiance(ray, light, hit)) : 0.0;
-            
+
         // calculate the weight of this light
         reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
     }
@@ -79,7 +80,7 @@ void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR
 
     if (is_reservoir_valid(aggregation_reservoir))
     {
-        p_hat = length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(aggregation_reservoir)], hit)); 
+        p_hat = length(get_point_light_radiance(ray, deref(p.light_buffer).lights[get_reservoir_light_index(aggregation_reservoir)], hit));
 
         //add sample from previous frame
         update_reservoir(reservoir, get_reservoir_light_index(aggregation_reservoir), p_hat * aggregation_reservoir.W_y * aggregation_reservoir.M, aggregation_reservoir.M, prd.seed);
@@ -88,7 +89,7 @@ void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR
 
 
 
-daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_INFO hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL current_mat) {
+daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_INFO hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL current_mat, daxa_f32mat4x4 instance_model) {
     RESERVOIR reservoir;
     initialise_reservoir(reservoir);
 
@@ -116,79 +117,78 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
 
     calculate_reservoir_radiance(reservoir, ray, hit, p_hat);
 
+    // Previous frame screen coord
+    daxa_u32vec2 predicted_coord = get_previous_frame_pixel_coord(gl_LaunchIDEXT.xy, hit.world_hit, gl_LaunchSizeEXT.xy, gl_InstanceCustomIndexEXT,  instance_model);
+
+    daxa_u32 prev_predicted_index = predicted_coord.x + predicted_coord.y * gl_LaunchSizeEXT.x;
+
+    // Max screen pos
+    daxa_u32 max_screen_pos = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y - 1;
+
+    // Clamp screen pos for 
+    prev_predicted_index = min(max_screen_pos, prev_predicted_index);
+
     // Temporal reuse
     {
 
         RESERVOIR temporal_reservoir;
         initialise_reservoir(temporal_reservoir);
 
-        daxa_f32vec2 uv = (daxa_f32vec2(gl_LaunchIDEXT.xy) + 0.5) / daxa_f32vec2(gl_LaunchSizeEXT.xy);
-        
-        //reproject using the motion vectors.
-        daxa_i32vec2 screen_pos_previous_vec = daxa_i32vec2((uv - deref(p.velocity_buffer).velocities[screen_pos]) * gl_LaunchSizeEXT.xy);
+        DIRECT_ILLUMINATION_INFO di_info_previous = deref(p.previous_di_buffer).DI_info[prev_predicted_index];
 
-        daxa_u32 screen_pos_previous = screen_pos_previous_vec.y * gl_LaunchSizeEXT.x + screen_pos_previous_vec.x;
-
-        daxa_u32 max_screen_pos = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y - 1;
-
-        screen_pos_previous = min(max_screen_pos, screen_pos_previous);
-
-        // daxa_u32 screen_pos_previous = screen_pos;
-
-        DIRECT_ILLUMINATION_INFO di_info_previous = deref(p.previous_di_buffer).DI_info[screen_pos_previous];
-            
         // Normal from previous frame
         daxa_f32vec3 normal_previous = di_info_previous.normal.xyz;
 
-        // // Depth from previous frame
-        // daxa_f32 depth_previous = deref(p.previous_di_buffer).DI_info[screen_pos_previous].normal.w;
+        // daxa_f32 previous_hit_dist = di_info_previous.normal.w;
+
+        // Depth from previous frame
+        daxa_f32 depth_previous = di_info_previous.normal.w;
 
         //some simple rejection based on normals' divergence, can be improved
         bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && di_info_previous.instance_id == gl_InstanceCustomIndexEXT && di_info_previous.primitive_id == gl_PrimitiveID;
-        
+
         if (valid_history)
         {
-
             //add current reservoir sample
             update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
 
             // Reservoir from previous frame
-            RESERVOIR reservoir_previous = deref(p.previous_reservoir_buffer).reservoirs[screen_pos_previous];
-            
+            RESERVOIR reservoir_previous = deref(p.previous_reservoir_buffer).reservoirs[prev_predicted_index];
+
             // NOTE: restrict influence from past samples.
             reservoir_previous.M = min(INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
 
             //add sample from previous frame
             calculate_reservoir_weight_aggregation(temporal_reservoir, reservoir_previous, ray, hit, p_hat);
-        
+
             //calculate the weight of this light
             calculate_reservoir_weight(temporal_reservoir, ray, hit, p_hat);
-        
+
             reservoir = temporal_reservoir;
         }
     }
 
     // Spacial reuse
     {
-        RESERVOIR spacial_reservoir;
-        initialise_reservoir(spacial_reservoir);
-        
+        RESERVOIR spatial_reservoir;
+        initialise_reservoir(spatial_reservoir);
+
         //add previous samples
-        calculate_reservoir_weight_aggregation(spacial_reservoir, reservoir, ray, hit, p_hat);
+        calculate_reservoir_weight_aggregation(spatial_reservoir, reservoir, ray, hit, p_hat);
 
         RESERVOIR neighbor_reservoir;
 
         daxa_f32 spatial_influence_threshold = max(1.0, (INFLUENCE_FROM_THE_PAST_THRESHOLD * M) / NUM_OF_NEIGHBORS);
 
         for (daxa_u32 i = 0; i < NUM_OF_NEIGHBORS; i++)
-        { 
+        {
             // Random offset
             daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(prd.seed), rnd(prd.seed)) - 1;
-        
+
             // Scale offset
-            offset.x = gl_LaunchIDEXT.x + int(offset.x * NEIGHBORS_RADIUS);
-            offset.y = gl_LaunchIDEXT.y + int(offset.y * NEIGHBORS_RADIUS);
-        
+            offset.x = predicted_coord.x + int(offset.x * NEIGHBORS_RADIUS);
+            offset.y = predicted_coord.y + int(offset.y * NEIGHBORS_RADIUS);
+
             // Clamp offset
             offset.x = min(gl_LaunchSizeEXT.x - 1, max(0, min(gl_LaunchSizeEXT.x - 1, offset.x)));
             offset.y = min(gl_LaunchSizeEXT.y - 1, max(0, min(gl_LaunchSizeEXT.y - 1, offset.y)));
@@ -198,7 +198,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
 
             // Convert offset to linear
             daxa_u32 offset_u32_linear = offset_u32.y * gl_LaunchSizeEXT.x + offset_u32.x;
-        
+
             // TODO: Should it be used depth buffer?
             // daxa_f32 neighbor_depth_linear = linearise_depth(deref(p.depth_buffer).depth[daxa_f32vec2(offset)].x);
 
@@ -209,9 +209,9 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
             daxa_u32 current_primitive_index = current_primitive_index_from_instance_and_primitive_id(di_info_previous.instance_id, di_info_previous.primitive_id);
 
             daxa_u32 neighbor_mat_index = get_material_index_from_primitive_index(current_primitive_index);
-            
+
             // TODO: Adjust dist threshold dynamically
-            if (  
+            if (
                 // (neighbor_depth_linear > 1.1f * depth_linear || neighbor_depth_linear < 0.9f * depth_linear)   ||
                 // abs(neighbor_hit_dist - gl_HitTEXT) > VOXEL_EXTENT ||
                 neighbor_mat_index != current_mat_index ||
@@ -224,13 +224,13 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
             neighbor_reservoir = deref(p.previous_reservoir_buffer).reservoirs[offset_u32_linear];
             // TODO: restrict influence from neighbor samples?
             neighbor_reservoir.M = min(spatial_influence_threshold, neighbor_reservoir.M);
-        
-            calculate_reservoir_weight_aggregation(spacial_reservoir, neighbor_reservoir, ray, hit, p_hat);
-        }  
-        
-        calculate_reservoir_weight(spacial_reservoir, ray, hit, p_hat);
-        
-        reservoir = spacial_reservoir;
+
+            calculate_reservoir_weight_aggregation(spatial_reservoir, neighbor_reservoir, ray, hit, p_hat);
+        }
+
+        calculate_reservoir_weight(spatial_reservoir, ray, hit, p_hat);
+
+        reservoir = spatial_reservoir;
     }
 
     // Get the light from the reservoir
@@ -238,10 +238,10 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
 
     daxa_f32vec3 hit_value = vec3(0.0);
 
-    // Add light radiance    
+    // Add light radiance
     hit_value += get_point_light_radiance(ray, light, hit) * reservoir.W_y;
 
-    // diffuse color   
+    // diffuse color
     hit_value *= current_mat.diffuse;
 
     // Add emission

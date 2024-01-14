@@ -34,7 +34,7 @@ void main()
 
     if(prev_pos.w == 0.0 || pos.w == 0.0)
     {
-        deref(p.velocity_buffer).velocities[index.y * p.size.x + index.x] = daxa_f32vec2(0.0);
+        deref(p.velocity_buffer).velocities[index.y * p.size.x + index.x] = VELOCITY(daxa_f32vec2(0.0, 0.0));
         return;
     }
 
@@ -49,5 +49,5 @@ void main()
     daxa_f32vec2 motion_vector = pos.xy - prev_pos.xy;
 
     // Store the motion vector
-    deref(p.velocity_buffer).velocities[index.y * p.size.x + index.x] = -motion_vector;
+    // deref(p.velocity_buffer).velocities[index.y * p.size.x + index.x] = -motion_vector;
 }

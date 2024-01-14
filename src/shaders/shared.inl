@@ -5,7 +5,7 @@
 
 // #define MAX_LEVELS 2
 
-#define MAX_INSTANCES 10000
+#define MAX_INSTANCES 1000
 #define MAX_PRIMITIVES 100000
 #define MAX_MATERIALS 10000
 #define MAX_LIGHTS 20
@@ -125,6 +125,7 @@ DAXA_DECL_BUFFER_PTR(Status)
 struct INSTANCE
 {
     daxa_f32mat4x4 transform;
+    daxa_f32mat4x4 prev_transform;
     daxa_u32 first_primitive_index;
     daxa_u32 primitive_count;
     // daxa_i32 level_index;
@@ -237,10 +238,15 @@ struct RESERVOIRS
 };
 DAXA_DECL_BUFFER_PTR(RESERVOIRS)
 
+struct VELOCITY
+{
+    daxa_f32vec2 velocity;
+};
+
 
 struct VELOCITIES
 {
-    daxa_f32vec2 velocities[MAX_RESERVOIRS];
+    VELOCITY velocities[MAX_RESERVOIRS];
 };
 DAXA_DECL_BUFFER_PTR(VELOCITIES)
 
