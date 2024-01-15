@@ -165,7 +165,9 @@ void main()
 
     LIGHT light = deref(p.light_buffer).lights[light_index];
 
-    radiance += is_light_visible(ray, light, hit) ? (calculate_sampled_light(ray, hit, light, mat) / spot_light_pdf) : vec3(0.0);
+    daxa_f32 pdf = 1.0;
+
+    radiance += calculate_sampled_light(ray, hit, light, mat, light_count, pdf, true, true);
 
     prd.hit_value *= radiance;
 
@@ -175,7 +177,9 @@ void main()
 
         LIGHT light = deref(p.light_buffer).lights[l];
 
-        radiance += is_light_visible(ray, light, hit) ? calculate_sampled_light(ray, hit, light, mat) : vec3(0.0);
+        daxa_f32 pdf = 1.0;
+
+        radiance += calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, true);
     }
 
     prd.hit_value *= radiance;

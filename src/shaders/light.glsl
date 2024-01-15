@@ -13,24 +13,21 @@ daxa_f32vec3 get_point_light_radiance(Ray ray, LIGHT light, _HIT_INFO hit)
     daxa_f32vec3 light_color = daxa_f32vec3(1.0, 1.0, 1.0);
     daxa_f32 light_intensity = light.intensity;
 
-    // 2. Get light direction
-    daxa_f32vec3 light_direction = normalize(light_position - hit.world_hit);
-
-    // 3. Get surface normal
-    daxa_f32vec3 surface_normal = hit.world_nrm;
-
-    // 3. Atenuation calculation
+    // 2. Atenuation calculation
     daxa_f32 distance = length(light_position - hit.world_hit);
-
     daxa_f32 attenuation = 1.0 / (distance * distance);
 
-    // 4. Radiance calculation
-    daxa_f32vec3 light_radiance = light_color * light_intensity * attenuation * max(0.0, dot(light_direction, surface_normal));
+    // 3. Radiance calculation
+    daxa_f32vec3 light_radiance = light_color * light_intensity * attenuation;
 
     light_radiance = max(light_radiance, daxa_f32vec3(0.0));
 
     return light_radiance;
 } 
+
+daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
+    return max(dot(n, w_i), 0.0);
+}
 
 daxa_b32 is_light_visible(Ray ray, LIGHT light, _HIT_INFO hit) 
 {
@@ -78,33 +75,47 @@ daxa_b32 is_light_visible(Ray ray, LIGHT light, _HIT_INFO hit)
 }
 
 
-daxa_f32vec3 calculate_sampled_light(Ray ray, _HIT_INFO hit, LIGHT light, MATERIAL mat) {
-    // TODO: All diffuse mats for now
-    return get_point_light_radiance(ray, light, hit) * get_diffuse_BRDF(mat);
+daxa_f32 geom_fact_sa(daxa_f32vec3 P, daxa_f32vec3 P_surf, daxa_f32vec3 n_surf)
+{
+    daxa_f32vec3 dir = normalize(P_surf - P);
+    daxa_f32 dist2 = distance(P, P_surf);
+    return abs(-dot(n_surf, dir)) / (dist2 * dist2);
+}
+
+daxa_f32vec3 evaluate_material(MATERIAL mat) {
+    // TODO: just diffuse for now
+    daxa_f32vec3 color = get_diffuse_BRDF(mat);
+
+    return color;
 }
 
 daxa_b32 sample_lights(daxa_f32vec3 P, daxa_f32vec3 n,
-                       LIGHT l, inout daxa_f32 p,
+                       LIGHT l, inout daxa_f32 pdf,
                        out daxa_f32vec3 P_out, out daxa_f32vec3 n_out,
-                       out daxa_f32vec3 Le_out, out daxa_f32 pdf_out)
+                       out daxa_f32vec3 Le_out, 
+                       const in daxa_b32 visibility)
 {
-    vec3 l_pos , l_nor;
-    // if (l.type == GeometryType::Sphere)
-    // {
-    //     float r = l.size.x;
-    //     // Choose a normal on the side of the sphere visible to P.
-    //     l_nor = random_hemisphere(P - l.pos);
-    //     l_pos = l.pos + l_nor * r;
-    //     float area_half_sphere = 2.0 * PI * r * r;
-    //     p /= area_half_sphere;
-    // }
-    // else if (l.type == GeometryType::Quad)
-    // {
-    //     l_pos = l.pos + random_quad(l.normal, l.size);
-    //     l_nor = l.normal;
-    //     float area = l.size.x * l.size.y;
-    //     p /= area;
-    // }
+    daxa_f32vec3 l_pos , l_nor;
+    if (l.type == GEOMETRY_LIGHT_SPEHERE)
+    {
+        // float r = l.size.x;
+        // // Choose a normal on the side of the sphere visible to P.
+        // l_nor = random_hemisphere(P - l.pos);
+        // l_pos = l.pos + l_nor * r;
+        // float area_half_sphere = 2.0 * PI * r * r;
+        // pdf /= area_half_sphere;
+    }
+    else if (l.type == GEOMETRY_LIGHT_QUAD)
+    {
+        // l_pos = l.pos + random_quad(l.normal, l.size);
+        // l_nor = l.normal;
+        // float area = l.size.x * l.size.y;
+        // pdf /= area;
+    } else if (l.type == GEOMETRY_LIGHT_POINT)
+    {
+        l_pos = l.position;
+        l_nor = normalize(P - l_pos);
+    }
     
     // Point light
     l_pos = l.position;
@@ -119,34 +130,42 @@ daxa_b32 sample_lights(daxa_f32vec3 P, daxa_f32vec3 n,
 
     Ray shadow_ray = Ray(P, l_pos - P);
 
-    vis = vis && is_light_visible(shadow_ray, l, _HIT_INFO(P, n));
+    if(visibility) {
+        vis = vis && is_light_visible(shadow_ray, l, _HIT_INFO(P, n));
+    }
 
     P_out = l_pos;
     n_out = l_nor;
-    pdf_out = p;
     Le_out = vis ? l.intensity * vec3(1.0) : vec3(0.0);
     return vis;
 }
 
-float geom_fact_sa(daxa_f32vec3 P, daxa_f32vec3 P_surf, daxa_f32vec3 n_surf)
-{
-    daxa_f32vec3 dir = normalize(P_surf - P);
-    daxa_f32 dist2 = distance(P, P_surf);
-    return abs(-dot(n_surf, dir)) / dist2;
-}
+daxa_f32vec3 calculate_sampled_light(Ray ray, _HIT_INFO hit, LIGHT light, MATERIAL mat, daxa_u32 light_count, out daxa_f32 pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility) {
+    // 2. Get light direction
+    daxa_f32vec3 light_direction = normalize(light.position - hit.world_hit);
+    daxa_f32vec3 surface_normal = hit.world_nrm;
 
-vec3 direct_light(daxa_f32vec3 P, daxa_f32vec3 n, daxa_f32vec3 wo, MATERIAL m, LIGHT l, daxa_f32 p)
-{
-    daxa_f32 pdf;
-    daxa_f32vec3 l_pos, l_nor, Le;
-    if (sample_lights(P, n, l, p, l_pos, l_nor, Le, pdf) != true)
-    {
+    daxa_f32vec3 l_pos , l_nor , Le;
+
+    pdf = 1.0 / daxa_f32(light_count);
+
+    if(sample_lights(hit.world_hit, hit.world_nrm, light, pdf, l_pos, l_nor, Le, use_visibility) == false) {
         return vec3(0.0);
     }
-    daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
-    daxa_f32vec3 wi = normalize(l_pos - P);
-    // TODO: BRDF
-    // daxa_f32vec3 brdf = evaluate_material(m, n, wo, wi);
-    daxa_f32vec3 brdf = m.diffuse;
-    return brdf * G * max(0, dot(n, wi)) * Le / pdf;
+
+    daxa_f32vec3 brdf = evaluate_material(mat);
+    daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
+    daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
+    // daxa_f32 G = 1.0;
+
+    daxa_f32vec3 light_contribution = vec3(0.0);
+    
+    if(use_pdf) {
+        light_contribution = brdf * Le * G * cos_theta / pdf;
+    } else {
+        light_contribution = brdf * Le * G * cos_theta;
+    
+    }
+
+    return light_contribution;
 }
