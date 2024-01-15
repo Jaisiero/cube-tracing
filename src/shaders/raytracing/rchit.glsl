@@ -147,19 +147,17 @@ void main()
 
     // Screen position
     daxa_u32 screen_pos = gl_LaunchIDEXT.x + gl_LaunchSizeEXT.x * gl_LaunchIDEXT.y;
+    
+    // radiance
+    daxa_f32vec3 radiance = daxa_f32vec3(0.0);
+
+#if LIGHT_SAMPLING_ON == 1
 
 #if RESERVOIR_ON == 1
 
     prd.hit_value *= reservoir_direct_illumination(light_count, ray, hit, screen_pos, mat_index, mat, model);
 
 #else
-    
-    // radiance
-    daxa_f32vec3 radiance = daxa_f32vec3(0.0);
-
-#if LIGHT_SAMPLING_ON == 1
-    // spot light pdf
-    daxa_f32 spot_light_pdf = 1.0 / daxa_f32(light_count);
 
     daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
@@ -170,6 +168,8 @@ void main()
     radiance += calculate_sampled_light(ray, hit, light, mat, light_count, pdf, true, true);
 
     prd.hit_value *= radiance;
+
+#endif // RESERVOIR_ON
 
 #else
 
@@ -183,9 +183,8 @@ void main()
     }
 
     prd.hit_value *= radiance;
+    
 #endif // LIGHT_SAMPLING_ON
-
-#endif // RESERVOIR_ON
 
     prd.hit_value += mat.emission;
 

@@ -101,6 +101,34 @@ daxa_f32vec3 random_in_unit_disk(inout daxa_u32 seed) {
     }
 }
 
+daxa_f32vec3 random_quad(daxa_f32vec3 normal, daxa_f32vec2 size, inout daxa_u32 seed) {
+    // Generate a random point on a quad with normal n and size s
+    daxa_f32vec3 quad_point = daxa_f32vec3(0, 0, 0);
+    daxa_f32vec3 u = daxa_f32vec3(0, 0, 0);
+    daxa_f32vec3 v = daxa_f32vec3(0, 0, 0);
+
+    // Check front facing and back facing quads
+
+    if (normal.x == 0 && normal.y == 0) {
+        u = daxa_f32vec3(1, 0, 0);
+        v = daxa_f32vec3(0, sign(normal.z), 0);
+    }
+    else if (normal.x == 0 && normal.z == 0) {
+        u = daxa_f32vec3(1, 0, 0);
+        v = daxa_f32vec3(0, 0, sign(normal.y));
+    }
+    else {
+        u = daxa_f32vec3(0, 1, 0);
+        v = daxa_f32vec3(sign(normal.x), 0, 0);
+    }
+    quad_point = quad_point.x * u * size.x + quad_point.y * v * size.y;
+    
+    return quad_point;
+
+
+}
+
+
 daxa_f32vec3 defocus_disk_sample(daxa_f32vec3 origin, daxa_f32vec2 defocus_disk, inout daxa_u32 seed) {
     // Returns a random point in the camera defocus disk.
     daxa_f32vec3 p = random_in_unit_disk(seed);

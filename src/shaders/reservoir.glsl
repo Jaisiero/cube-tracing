@@ -10,9 +10,12 @@
 #include "primitives.glsl"
 #include "motion_vectors.glsl"
 
-#define INFLUENCE_FROM_THE_PAST_THRESHOLD 20.0f
-#define NUM_OF_NEIGHBORS 15
-#define NEIGHBORS_RADIUS 30.0f
+
+// TODO: M by parameter?
+const daxa_u32 M = 32;
+const daxa_f32 INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
+const daxa_f32 NUM_OF_NEIGHBORS = 15;
+const daxa_f32 NEIGHBORS_RADIUS = 30.0f;
 
 void initialise_reservoir(inout RESERVOIR reservoir)
 {
@@ -101,25 +104,17 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
     RESERVOIR reservoir;
     initialise_reservoir(reservoir);
 
-    // TODO: M by parameter?
-    const daxa_u32 M = 1;
     daxa_f32 p_hat = 0;
-
-    // spot light pdf
 
     for(daxa_u32 l = 0; l < M; l++) {
         daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
         LIGHT light = deref(p.light_buffer).lights[light_index];
 
-        daxa_f32 w = 0.0f;
-
-        if(light.intensity > 0.0) {
-            daxa_f32 pdf = 1.0;
-            p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, false));
-            w = p_hat / pdf;
-            update_reservoir(reservoir, light_index, w, 1.0f, prd.seed);
-        }
+        daxa_f32 pdf = 1.0;
+        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, false));
+        daxa_f32 w = p_hat / pdf;
+        update_reservoir(reservoir, light_index, w, 1.0f, prd.seed);
     }
 
     calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat);
@@ -185,11 +180,11 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
 
         RESERVOIR neighbor_reservoir;
 
-        daxa_f32 spatial_influence_threshold = max(1.0, (INFLUENCE_FROM_THE_PAST_THRESHOLD * M) / NUM_OF_NEIGHBORS);
+        daxa_f32 spatial_influence_threshold = max(1.0, (INFLUENCE_FROM_THE_PAST_THRESHOLD) / NUM_OF_NEIGHBORS);
 
         for (daxa_u32 i = 0; i < NUM_OF_NEIGHBORS; i++)
         {
-            // Random offset
+            // Random offsetww
             daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(prd.seed), rnd(prd.seed)) - 1;
 
             // Scale offset
@@ -206,7 +201,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
             // Convert offset to linear
             daxa_u32 offset_u32_linear = offset_u32.y * gl_LaunchSizeEXT.x + offset_u32.x;
 
-            // TODO: Should it be used depth buffer?
+            // TODO: Should depth buffer be used?
             // daxa_f32 neighbor_depth_linear = linearise_depth(deref(p.depth_buffer).depth[daxa_f32vec2(offset)].x);
 
             DIRECT_ILLUMINATION_INFO di_info_previous = deref(p.previous_di_buffer).DI_info[offset_u32_linear];

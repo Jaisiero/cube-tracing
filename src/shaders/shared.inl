@@ -8,7 +8,7 @@
 #define MAX_INSTANCES 1000
 #define MAX_PRIMITIVES 100000
 #define MAX_MATERIALS 10000
-#define MAX_LIGHTS 20
+#define MAX_LIGHTS 400
 #define MAX_TEXTURES 100ULL
 
 #define PERFECT_PIXEL_ON 0
@@ -188,13 +188,15 @@ DAXA_DECL_BUFFER_PTR(MATERIALS)
 #define GEOMETRY_LIGHT_POINT 0
 #define GEOMETRY_LIGHT_QUAD 1
 #define GEOMETRY_LIGHT_SPEHERE 2
+#define GEOMETRY_LIGHT_MAX_ENUM 3
 
 struct LIGHT
 {
     daxa_f32vec3 position;
-    daxa_f32 intensity;
-    daxa_f32 distance;
-    daxa_u32 type; // 0: point light, 1: directional light
+    daxa_f32vec3 emissive;
+    daxa_u32 instance_index;
+    daxa_u32 primitive_index;
+    daxa_u32 type; // 0: point, 1: quad, 2: sphere
 };
 
 struct LIGHTS

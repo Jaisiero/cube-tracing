@@ -32,6 +32,9 @@ namespace tests
             const u32 DIALECTRIC_MATERIAL_COUNT = 5;
             const u32 EMISSIVE_MATERIAL_COUNT = 5;
             const u32 CONSTANT_MEDIUM_MATERIAL_COUNT = 5;
+            const u32 MATERIAL_COUNT = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
+            const u32 MATERIAL_COUNT_UP_TO_DIALECTRIC = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT;
+            const u32 MATERIAL_COUNT_UP_TO_EMISSIVE = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT;
 
             const char* RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
 
@@ -335,9 +338,10 @@ namespace tests
                     direct_illum_buffer_size);
             }
 
-            void load_lights() {
 
-                status.light_count = 3;
+            void create_point_lights() {
+                // TODO: add more lights (random values?)
+                status.light_count += 3;
                 // status.light_count = 1;
                 status.is_afternoon = true;
 
@@ -346,31 +350,32 @@ namespace tests
                     abort();
                 }
 
-                lights.reserve(status.light_count);
-
-
-                // TODO: add more lights (random values?)
                 LIGHT light = {}; // 0: point light, 1: directional light
                 light.position = daxa_f32vec3(0.0, 20.0, 0.0);
 #if DYNAMIC_SUN_LIGHT == 1
-                light.intensity = SUN_MAX_INTENSITY * 0.2;
+                light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2);
 #else 
                 light.intensity = SUN_MAX_INTENSITY;
                 status.time = 1.0;
                 
 #endif // DYNAMIC_SUN_LIGHT
+                light.type = GEOMETRY_LIGHT_POINT;
                 lights.push_back(light);
 
                 LIGHT light2 = {};
                 light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0);
-                light2.intensity = 3;
+                light2.emissive = daxa_f32vec3(3.0, 3.0, 3.0);
+                light2.type = GEOMETRY_LIGHT_POINT;
                 lights.push_back(light2);
 
                 LIGHT light3 = {};
                 light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0);
-                light3.intensity = 4;
+                light3.emissive = daxa_f32vec3(4.0, 4.0, 4.0);
+                light3.type = GEOMETRY_LIGHT_POINT;
                 lights.push_back(light3);
+            }
 
+            void load_lights() {
 
                 // Calculate light buffer size
                 auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
@@ -427,7 +432,8 @@ namespace tests
                 }
 
                 lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
-                lights[0].intensity = interpolate_sun_intensity(status.time, status.is_afternoon, SUN_MAX_INTENSITY /*max_intensity*/, 0.0f /*min_intensity*/);
+                daxa_f32 intensity = interpolate_sun_intensity(status.time, status.is_afternoon, SUN_MAX_INTENSITY /*max_intensity*/, 0.0f /*min_intensity*/);
+                lights[0].emissive = daxa_f32vec3(intensity, intensity, intensity);
                 
                 // Calculate light buffer size
                 auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
@@ -527,10 +533,21 @@ namespace tests
                     
                     // push primitives
                     for(u32 j = 0; j < instances[i].primitive_count; j++) {
+
+                        daxa_u32 material_index = (i < instance_count - CLOUD_INSTANCE_COUNT_X) ? random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1) : random_uint(current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT, current_material_count - 1);
+                        if(material_index >= MATERIAL_COUNT_UP_TO_DIALECTRIC && material_index < MATERIAL_COUNT_UP_TO_EMISSIVE) {
+                            LIGHT surface_light = {};
+                            surface_light.position = daxa_f32vec3( );
+                            surface_light.emissive = materials[material_index].emission;
+                            surface_light.instance_index = i;
+                            surface_light.primitive_index = j;
+                            surface_light.type = GEOMETRY_LIGHT_QUAD;
+                            lights.push_back(surface_light);
+                            status.light_count++;
+                        }
+
                         primitives.push_back(PRIMITIVE{
-                            .material_index = i < instance_count - CLOUD_INSTANCE_COUNT_X ? 
-                                random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1) : random_uint(current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT, current_material_count - 1),
-                            // .material_index = random_uint(0, current_material_count - 1),
+                            .material_index = material_index,
                         });
                     }
                 }
@@ -1065,7 +1082,7 @@ namespace tests
                     }
 
                     
-                    current_material_count = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
+                    current_material_count = MATERIAL_COUNT;
 
                     materials.reserve(current_material_count);
 
@@ -1143,8 +1160,7 @@ namespace tests
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {1.0, 1.0, 1.0},
                             .transmittance = {0.0, 0.0, 0.0},
-                            // .emission = {random_float(1.0, 20.0), random_float(1.0, 20.0), random_float(1.0, 20.0)},
-                            .emission = {0.0, 0.0, 0.0},
+                            .emission = {random_float(1.0, 20.0), random_float(1.0, 20.0), random_float(1.0, 20.0)},
                             .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
@@ -1177,13 +1193,16 @@ namespace tests
                     proc_blas.reserve(current_instance_count);
                 }
 
-
+                status.light_count = 0;
+                lights.reserve(MAX_LIGHTS);
+                create_point_lights();
 
                 // call build tlas
                 if(!build_tlas(current_instance_count)) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
+                load_lights();
 
 
                 reset_camera(camera);
@@ -1191,8 +1210,6 @@ namespace tests
                 // camera_set_focus_dist(camera, 1.0f);
                 
                 status.max_depth = MAX_DEPTH;
-
-                load_lights();
                 load_reservoirs();
                 
                 daxa::ShaderCompileOptions shader_compile_options = {
