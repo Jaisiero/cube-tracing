@@ -117,7 +117,7 @@ namespace tests
 
             std::vector<daxa_f32mat4x4> transforms = {};
 
-            App() : AppWindow<App>("ray query test") {}
+            App() : AppWindow<App>("Cubeland") {}
 
             ~App()
             {
@@ -291,51 +291,57 @@ namespace tests
 
             void load_reservoirs() {
 
-                const daxa_u32 reservoir_buffer_size = static_cast<u32>(sizeof(RESERVOIR) * MAX_RESERVOIRS);
+                const daxa_u32 reservoir_buffer_size = static_cast<u32>(std::max(std::max(sizeof(RESERVOIR), sizeof(DIRECT_ILLUMINATION_INFO)), sizeof(VELOCITY)) * MAX_RESERVOIRS);
 
-                // get previous reservoir buffer host mapped pointer
-                auto * previous_reservoir_staging_buffer_ptr = device.get_host_address(previous_reservoir_buffer).value();
+                auto reservoir_staging_buffer = device.create_buffer({
+                    .size = reservoir_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = "reservoir staging buffer",
+                });
+                defer { device.destroy_buffer(reservoir_staging_buffer); };
 
-                // copy previous reservoirs to buffer
-                std::memset(previous_reservoir_staging_buffer_ptr, 
+                std::memset(device.get_host_address(reservoir_staging_buffer).value(), 
                     0,
                     reservoir_buffer_size);
 
-                // get reservoir buffer host mapped pointer
-                auto * reservoir_staging_buffer_ptr = device.get_host_address(reservoir_buffer).value();
-
-                // copy reservoirs to buffer
-                std::memset(reservoir_staging_buffer_ptr, 
-                    0,
-                    reservoir_buffer_size);
+                const daxa_u32 reservoir_size = static_cast<u32>(sizeof(RESERVOIR) * MAX_RESERVOIRS);
                     
-                const daxa_u32 velocity_buffer_size = static_cast<u32>(sizeof(daxa_i32vec2) * MAX_RESERVOIRS);
-
-                // get velocity buffer host mapped pointer
-                auto * velocity_staging_buffer_ptr = device.get_host_address(velocity_buffer).value();
-
-                // copy velocities to buffer
-                std::memset(velocity_staging_buffer_ptr, 
-                    0,
-                    velocity_buffer_size);
+                const daxa_u32 velocity_buffer_size = static_cast<u32>(sizeof(VELOCITY) * MAX_RESERVOIRS);
 
                 const daxa_u32 direct_illum_buffer_size = static_cast<u32>(sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS);
 
-                // get previous normal buffer host mapped pointer
-                auto * previous_direct_illum_staging_buffer_ptr = device.get_host_address(previous_direct_illum_buffer).value();
+                /// Record build commands:
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
 
-                // copy previous normals to buffer
-                std::memset(previous_direct_illum_staging_buffer_ptr, 
-                    0,
-                    direct_illum_buffer_size);
+                     recorder.copy_buffer_to_buffer({
+                        .src_buffer = reservoir_staging_buffer,
+                        .dst_buffer = previous_reservoir_buffer,
+                        .size = reservoir_size,
+                    });
 
-                // get normal buffer host mapped pointer
-                auto * direct_illum_staging_buffer_ptr = device.get_host_address(direct_illum_buffer).value();
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = reservoir_staging_buffer,
+                        .dst_buffer = reservoir_buffer,
+                        .size = reservoir_size,
+                    });
 
-                // copy normals to buffer
-                std::memset(direct_illum_staging_buffer_ptr, 
-                    0,
-                    direct_illum_buffer_size);
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = reservoir_staging_buffer,
+                        .dst_buffer = velocity_buffer,
+                        .size = velocity_buffer_size,
+                    });
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = reservoir_staging_buffer,
+                        .dst_buffer = previous_direct_illum_buffer,
+                        .size = direct_illum_buffer_size,
+                    });
+
+                    return recorder.complete_current_commands();
+                }();
+                device.submit_commands({.command_lists = std::array{exec_cmds}});
             }
 
 
@@ -355,7 +361,7 @@ namespace tests
 #if DYNAMIC_SUN_LIGHT == 1
                 light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2);
 #else 
-                light.intensity = SUN_MAX_INTENSITY;
+                light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY, SUN_MAX_INTENSITY, SUN_MAX_INTENSITY);
                 status.time = 1.0;
                 
 #endif // DYNAMIC_SUN_LIGHT
@@ -541,7 +547,7 @@ namespace tests
                             surface_light.emissive = materials[material_index].emission;
                             surface_light.instance_index = i;
                             surface_light.primitive_index = j;
-                            surface_light.type = GEOMETRY_LIGHT_QUAD;
+                            surface_light.type = GEOMETRY_LIGHT_CUBE;
                             lights.push_back(surface_light);
                             status.light_count++;
                         }
@@ -552,8 +558,11 @@ namespace tests
                     }
                 }
 
+                // Update status for shaders
+                status.obj_count = current_primitive_count;
+
                 
-                // COMMENT FROM HERE
+                // reserve blas build infos
                 blas_build_infos.reserve(instance_count);
 
                 std::vector<daxa_BlasInstanceData> blas_instance_array = {};
@@ -565,8 +574,8 @@ namespace tests
 
                 u32 current_instance_index = 0;
 
+                // build procedural blas
                 for(u32 i = 0; i < instance_count; i++) {
-
                     aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
                         .data = device.get_device_address(aabb_buffer).value() + (instances[i].first_primitive_index * sizeof(daxa_f32mat3x2)),
                         .stride = sizeof(daxa_f32mat3x2),
@@ -610,17 +619,16 @@ namespace tests
 
                     ++current_instance_index;
                 }
-                // COMMENT TO HERE
 
-
+                // Check if all instances were processed
                 if(current_instance_index != instance_count) {
                     std::cout << "current_instance_index != instance_count" << std::endl;
                     return false;
                 }
 
+                // Update instance count
                 this->current_instance_count = instance_count;
                 
-                // current instance count in this scene is 2 right now
                 /// create blas instances for tlas:
                 auto blas_instances_buffer = device.create_buffer({
                     .size = sizeof(daxa_BlasInstanceData) * instance_count,
@@ -664,6 +672,70 @@ namespace tests
                 tlas_build_info.dst_tlas = tlas;
                 tlas_build_info.scratch_data = device.get_device_address(tlas_scratch_buffer).value();
                 blas_instances[0].data = device.get_device_address(blas_instances_buffer).value();
+
+
+
+                // Copy instances to buffer
+                u32 instance_buffer_size = static_cast<u32>(current_instance_count * sizeof(INSTANCE));
+                if(instance_buffer_size > max_instance_buffer_size) {
+                    std::cout << "instance_buffer_size > max_instance_buffer_size" << std::endl;
+                    abort();
+                }
+
+
+                auto instance_staging_buffer = device.create_buffer({
+                    .size = instance_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("instance_staging_buffer"),
+                });
+                defer { device.destroy_buffer(instance_staging_buffer); };
+
+                auto * instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
+                std::memcpy(instance_buffer_ptr, 
+                    &instances,
+                    instance_buffer_size);
+
+                // Copy primitives to buffer
+                u32 primitive_buffer_size = static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE));
+                if(primitive_buffer_size > max_primitive_buffer_size) {
+                    std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+                    abort();
+                }
+
+
+                auto primitive_staging_buffer = device.create_buffer({
+                    .size = primitive_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("primitive_staging_buffer"),
+                });
+                defer { device.destroy_buffer(primitive_staging_buffer); };
+
+                auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
+                std::memcpy(primitive_buffer_ptr, 
+                    primitives.data(),
+                    primitive_buffer_size);
+
+
+                // TODO: Refactor materials copies
+                daxa_u32 material_buffer_size = static_cast<u32>(current_material_count * sizeof(MATERIAL));
+                if(material_buffer_size > max_material_buffer_size) {
+                    std::cout << "material_buffer_size > max_material_buffer_size" << std::endl;
+                    abort();
+                }
+
+                auto material_staging_buffer = device.create_buffer({
+                    .size = material_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("material_staging_buffer"),
+                });
+                defer { device.destroy_buffer(material_staging_buffer); };
+
+                auto * material_buffer_ptr = device.get_host_address_as<PRIMITIVE>(material_staging_buffer).value();
+                std::memcpy(material_buffer_ptr, 
+                    materials.data(),
+                    material_buffer_size);
+
+
                 /// Record build commands:
                 auto exec_cmds = [&]()
                 {
@@ -682,6 +754,25 @@ namespace tests
                         .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
                         .dst_access = daxa::AccessConsts::READ_WRITE,
                     });
+
+                     recorder.copy_buffer_to_buffer({
+                        .src_buffer = instance_staging_buffer,
+                        .dst_buffer = instance_buffer,
+                        .size = instance_buffer_size,
+                    });
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = primitive_staging_buffer,
+                        .dst_buffer = primitive_buffer,
+                        .size = primitive_buffer_size,
+                    });
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = material_staging_buffer,
+                        .dst_buffer = material_buffer,
+                        .size = material_buffer_size,
+                    });
+
                     return recorder.complete_current_commands();
                 }();
                 device.submit_commands({.command_lists = std::array{exec_cmds}});
@@ -756,31 +847,26 @@ namespace tests
 
                 previous_reservoir_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_reservoir_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
                     .name = ("previous_reservoir_buffer"),
                 });
 
                 reservoir_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_reservoir_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
                     .name = ("reservoir_buffer"),
                 });
 
                 velocity_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_velocity_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
                     .name = ("velocity_buffer"),
                 });
 
                 previous_direct_illum_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_direct_illum_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
                     .name = ("previous_direct_illum_buffer"),
                 });
 
                 direct_illum_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_direct_illum_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
                     .name = ("direct_illum_buffer"),
                 });
 
@@ -1160,7 +1246,7 @@ namespace tests
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {1.0, 1.0, 1.0},
                             .transmittance = {0.0, 0.0, 0.0},
-                            .emission = {random_float(1.0, 20.0), random_float(1.0, 20.0), random_float(1.0, 20.0)},
+                            .emission = {random_float(20.0, 5000.0), random_float(20.0, 5000.0), random_float(20.0, 5000.0)},
                             .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),
@@ -1259,6 +1345,12 @@ namespace tests
                 auto constant_medium_call_compile_options = rt_shader_compile_options;
                 constant_medium_call_compile_options.defines = std::vector{daxa::ShaderDefine{"CONSTANT_MEDIUM", "1"}};
 
+                auto direct_illumination_compile_options = rt_shader_compile_options;
+                direct_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"DIRECT_ILLUMINATION", "1"}};
+
+                auto indirect_illumination_compile_options = rt_shader_compile_options;
+                indirect_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"INDIRECT_ILLUMINATION", "1"}};
+
                 auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
                     .ray_gen_infos = daxa::ShaderCompileInfo{
                         .source = daxa::ShaderFile{"rgen.glsl"},
@@ -1305,7 +1397,11 @@ namespace tests
                     .closest_hit_infos = {
                         daxa::ShaderCompileInfo{
                             .source = daxa::ShaderFile{"rchit.glsl"},
-                            .compile_options = rt_shader_compile_options,
+                            .compile_options = direct_illumination_compile_options,
+                        },
+                        daxa::ShaderCompileInfo{
+                            .source = daxa::ShaderFile{"rchit.glsl"},
+                            .compile_options = indirect_illumination_compile_options,
                         },
                     },
                     .miss_hit_infos = {
@@ -1325,15 +1421,21 @@ namespace tests
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 10,
+                            .general_shader_index = 11,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 11,
+                            .general_shader_index = 12,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
                             .closest_hit_shader_index = 9,
+                            .any_hit_shader_index = 2,
+                            .intersection_shader_index = 1,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
+                            .closest_hit_shader_index = 10,
                             .any_hit_shader_index = 2,
                             .intersection_shader_index = 1,
                         },
@@ -1474,64 +1576,6 @@ namespace tests
                     &status,
                     status_buffer_size);
 
-                // Copy instances to buffer
-                u32 instance_buffer_size = static_cast<u32>(current_instance_count * sizeof(INSTANCE));
-                if(instance_buffer_size > max_instance_buffer_size) {
-                    std::cout << "instance_buffer_size > max_instance_buffer_size" << std::endl;
-                    abort();
-                }
-
-
-                auto instance_staging_buffer = device.create_buffer({
-                    .size = instance_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("instance_staging_buffer"),
-                });
-                defer { device.destroy_buffer(instance_staging_buffer); };
-
-                auto * instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
-                std::memcpy(instance_buffer_ptr, 
-                    &instances,
-                    instance_buffer_size);
-
-                // Copy primitives to buffer
-                u32 primitive_buffer_size = static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE));
-                if(primitive_buffer_size > max_primitive_buffer_size) {
-                    std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
-                    abort();
-                }
-
-
-                auto primitive_staging_buffer = device.create_buffer({
-                    .size = primitive_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("primitive_staging_buffer"),
-                });
-                defer { device.destroy_buffer(primitive_staging_buffer); };
-
-                auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
-                std::memcpy(primitive_buffer_ptr, 
-                    primitives.data(),
-                    primitive_buffer_size);
-
-                daxa_u32 material_buffer_size = static_cast<u32>(current_material_count * sizeof(MATERIAL));
-                if(material_buffer_size > max_material_buffer_size) {
-                    std::cout << "material_buffer_size > max_material_buffer_size" << std::endl;
-                    abort();
-                }
-
-                auto material_staging_buffer = device.create_buffer({
-                    .size = material_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("material_staging_buffer"),
-                });
-                defer { device.destroy_buffer(material_staging_buffer); };
-
-                auto * material_buffer_ptr = device.get_host_address_as<PRIMITIVE>(material_staging_buffer).value();
-                std::memcpy(material_buffer_ptr, 
-                    materials.data(),
-                    material_buffer_size);
-
                 recorder.pipeline_barrier({
                     .src_access = daxa::AccessConsts::HOST_WRITE,
                     .dst_access = daxa::AccessConsts::TRANSFER_READ,
@@ -1550,24 +1594,6 @@ namespace tests
                         .size = status_buffer_size,
                     }
                 );
-
-                recorder.copy_buffer_to_buffer({
-                    .src_buffer = instance_staging_buffer,
-                    .dst_buffer = instance_buffer,
-                    .size = instance_buffer_size,
-                });
-
-                recorder.copy_buffer_to_buffer({
-                    .src_buffer = primitive_staging_buffer,
-                    .dst_buffer = primitive_buffer,
-                    .size = primitive_buffer_size,
-                });
-
-                recorder.copy_buffer_to_buffer({
-                    .src_buffer = material_staging_buffer,
-                    .dst_buffer = material_buffer,
-                    .size = material_buffer_size,
-                });
 
 
                 recorder.pipeline_barrier({

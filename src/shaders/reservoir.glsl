@@ -15,7 +15,7 @@
 const daxa_u32 M = 32;
 const daxa_f32 INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
 const daxa_f32 NUM_OF_NEIGHBORS = 15;
-const daxa_f32 NEIGHBORS_RADIUS = 30.0f;
+const daxa_f32 NEIGHBORS_RADIUS = 10.0f;
 
 void initialise_reservoir(inout RESERVOIR reservoir)
 {
@@ -51,7 +51,7 @@ daxa_b32 is_reservoir_valid(in RESERVOIR reservoir)
 
 
     // Use the reservoir to calculate the final radiance.
-void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hit, MATERIAL mat, daxa_u32 light_count, inout daxa_f32 p_hat){
+void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, inout daxa_f32 p_hat){
 
     if (is_reservoir_valid(reservoir))
     {
@@ -67,7 +67,7 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, _HIT_INFO 
 }
 
 
-void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hit, MATERIAL mat, daxa_u32 light_count, inout daxa_f32 p_hat){
+void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, inout daxa_f32 p_hat){
 
     if (is_reservoir_valid(reservoir))
     {
@@ -83,7 +83,7 @@ void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, _HIT_INFO hi
 }
 
 
-void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR aggregation_reservoir, Ray ray, _HIT_INFO hit, MATERIAL mat, daxa_u32 light_count, inout daxa_f32 p_hat){
+void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR aggregation_reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, inout daxa_f32 p_hat){
 
     if (is_reservoir_valid(aggregation_reservoir))
     {
@@ -100,7 +100,7 @@ void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR
 
 
 
-daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_INFO hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL mat, daxa_f32mat4x4 instance_model) {
+daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object_count, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL mat, daxa_f32mat4x4 instance_model) {
     RESERVOIR reservoir;
     initialise_reservoir(reservoir);
 
@@ -120,7 +120,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
     calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat);
 
     // Previous frame screen coord
-    daxa_u32vec2 predicted_coord = get_previous_frame_pixel_coord(gl_LaunchIDEXT.xy, hit.world_hit, gl_LaunchSizeEXT.xy, gl_InstanceCustomIndexEXT,  instance_model);
+    daxa_u32vec2 predicted_coord = get_previous_frame_pixel_coord(gl_LaunchIDEXT.xy, hit.world_hit, gl_LaunchSizeEXT.xy, hit.instance_id,  instance_model);
 
     daxa_u32 prev_predicted_index = predicted_coord.x + predicted_coord.y * gl_LaunchSizeEXT.x;
 
@@ -141,13 +141,11 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
         // Normal from previous frame
         daxa_f32vec3 normal_previous = di_info_previous.normal.xyz;
 
-        // daxa_f32 previous_hit_dist = di_info_previous.normal.w;
-
         // Depth from previous frame
         daxa_f32 depth_previous = di_info_previous.normal.w;
 
         //some simple rejection based on normals' divergence, can be improved
-        bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && di_info_previous.instance_id == gl_InstanceCustomIndexEXT && di_info_previous.primitive_id == gl_PrimitiveID;
+        bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && di_info_previous.instance_id == hit.instance_id && di_info_previous.primitive_id == hit.primitive_id;
 
         if (valid_history)
         {
@@ -170,6 +168,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
         }
     }
 
+    // daxa_u32 material_type = (mat.type & MATERIAL_TYPE_MASK);
     // Spacial reuse
     {
         RESERVOIR spatial_reservoir;
@@ -208,7 +207,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, Ray ray, _HIT_I
 
             daxa_f32 neighbor_hit_dist = di_info_previous.normal.w;
 
-            daxa_u32 current_primitive_index = current_primitive_index_from_instance_and_primitive_id(di_info_previous.instance_id, di_info_previous.primitive_id);
+            daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(di_info_previous.instance_id, di_info_previous.primitive_id);
 
             daxa_u32 neighbor_mat_index = get_material_index_from_primitive_index(current_primitive_index);
 

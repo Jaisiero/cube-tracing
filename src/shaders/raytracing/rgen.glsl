@@ -4,11 +4,12 @@
 
 #include "shared.inl"
 #include "prng.glsl"
-// #include "random.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
 layout(location = 0) rayPayloadEXT HIT_PAY_LOAD prd;
+
+#define ACCUMULATOR_ON 0
 
 void main()
 {
@@ -52,8 +53,7 @@ void main()
     ray.direction = direction.xyz;
 
     prd.seed = seed;
-    // prd.depth =  max_depth;
-    prd.depth =  1;
+    prd.depth = max_depth;
     prd.hit_value = vec3(1.0);
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;

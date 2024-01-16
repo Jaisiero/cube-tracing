@@ -2,9 +2,8 @@
 #extension GL_EXT_ray_tracing : enable
 #include <daxa/daxa.inl>
 
-#include "shared.inl"
-
-DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
+#include "defines.glsl"
+#include "primitives.glsl"
 
 // Ray-AABB intersection
 float hitAabb(const Aabb aabb, const Ray r)
@@ -22,30 +21,19 @@ float hitAabb(const Aabb aabb, const Ray r)
 void main()
 {
     Ray ray;
-    ray.origin = gl_ObjectRayOriginEXT;
-    ray.direction = gl_ObjectRayDirectionEXT;
+    ray.origin = gl_WorldRayOriginEXT;
+    ray.direction = gl_WorldRayDirectionEXT;
 
-    mat4 inv_model = mat4(
-        gl_ObjectToWorld3x4EXT[0][0], gl_ObjectToWorld3x4EXT[0][1], gl_ObjectToWorld3x4EXT[0][2], gl_ObjectToWorld3x4EXT[0][3],
-        gl_ObjectToWorld3x4EXT[0][1], gl_ObjectToWorld3x4EXT[1][1], gl_ObjectToWorld3x4EXT[1][2], gl_ObjectToWorld3x4EXT[1][3],
-        gl_ObjectToWorld3x4EXT[2][0], gl_ObjectToWorld3x4EXT[2][1], gl_ObjectToWorld3x4EXT[2][2], gl_ObjectToWorld3x4EXT[2][3],
-        0, 0, 0, 1.0);
+    daxa_f32 t_hit = -1.0;
 
-    ray.origin = (inv_model * vec4(ray.origin, 1)).xyz;
-    ray.direction = (inv_model * vec4(ray.direction, 0)).xyz;
+    daxa_f32vec3 pos;
+    daxa_f32vec3 nor;
 
-    float tHit = -1;
-
-    // Get first primitive index from instance id
-    uint primitive_index = deref(p.instance_buffer).instances[gl_InstanceCustomIndexEXT].first_primitive_index;
-    // Get actual primitive index from offset and primitive id
-    uint actual_primitive_index = primitive_index + gl_PrimitiveID;
-
-    Aabb aabb = deref(p.aabb_buffer).aabbs[actual_primitive_index];
-
-    tHit = hitAabb(aabb, ray);
+    if(is_hit_from_ray(ray, gl_InstanceCustomIndexEXT, gl_PrimitiveID, t_hit, pos, nor, true, false) == false) {
+        t_hit = -1.0;
+    }
 
     // Report hit point
-    if (tHit > 0)
-        reportIntersectionEXT(tHit, 0); // 0 is the hit kind (hit group index)
+    if (t_hit > 0)
+        reportIntersectionEXT(t_hit, 0); // 0 is the hit kind (hit group index)
 }

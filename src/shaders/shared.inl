@@ -5,7 +5,7 @@
 
 // #define MAX_LEVELS 2
 
-#define MAX_INSTANCES 1000
+#define MAX_INSTANCES 10000
 #define MAX_PRIMITIVES 100000
 #define MAX_MATERIALS 10000
 #define MAX_LIGHTS 400
@@ -13,8 +13,7 @@
 
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
-#define ACCUMULATOR_ON 0
-#define DYNAMIC_SUN_LIGHT 1
+#define DYNAMIC_SUN_LIGHT 0
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -27,10 +26,11 @@
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
 
 #define DAXA_PI 3.1415926535897932384626433832795f
+#define INV_DAXA_PI 0.31830988618379067153776752674503f
 
 #define SAMPLES_PER_PIXEL 1
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
-#define MAX_DEPTH 2
+#define MAX_DEPTH 3
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
 
@@ -58,6 +58,13 @@ struct HIT_PAY_LOAD
     daxa_u32 seed;
 };
 
+struct HIT_INDIRECT_PAY_LOAD
+{
+    daxa_f32vec3 hit_value;
+    daxa_u32 depth;
+    daxa_u32 seed;
+};
+
 struct HIT_MAT_PAY_LOAD
 {
     daxa_f32vec3 hit;
@@ -76,6 +83,9 @@ struct HIT_SCATTER_PAY_LOAD
     daxa_f32vec3 scatter_dir;
     daxa_u32 mat_idx;
     daxa_i32 done;
+    daxa_u32 instance_id;
+    daxa_u32 primitive_id;
+    daxa_f32 pdf;
 };
 
 struct HIT_INFO
@@ -93,11 +103,17 @@ struct HIT_INFO
   daxa_f32vec2 uv;
 };
 
-struct _HIT_INFO
+struct HIT_INFO_INPUT
 {
+  daxa_f32vec3 hit_value;
   daxa_f32vec3 world_hit;
   daxa_f32vec3 world_nrm;
+  daxa_u32 instance_id;
+  daxa_u32 primitive_id;
+  daxa_u32 seed;
+  daxa_u32 depth;
 };
+
 
 struct camera_view{ 
     daxa_f32mat4x4 inv_view;
@@ -116,6 +132,7 @@ struct Status
     daxa_u32vec2 pixel;
     daxa_b32 is_active;
     daxa_u32 light_count;
+    daxa_u32 obj_count;
     daxa_f32 time;
     daxa_b32 is_afternoon;
     daxa_u32 max_depth;
@@ -128,7 +145,6 @@ struct INSTANCE
     daxa_f32mat4x4 prev_transform;
     daxa_u32 first_primitive_index;
     daxa_u32 primitive_count;
-    // daxa_i32 level_index;
 };
 
 struct INSTANCES
@@ -185,8 +201,21 @@ struct MATERIALS
 };
 DAXA_DECL_BUFFER_PTR(MATERIALS)
 
+
+
+
+struct INTERSECT {
+    daxa_b32 is_hit;
+    daxa_f32vec3 world_hit;
+    daxa_f32vec3 world_nrm;
+    daxa_u32 instance_id;
+    daxa_u32 primitive_id;
+    MATERIAL mat;
+};
+
+
 #define GEOMETRY_LIGHT_POINT 0
-#define GEOMETRY_LIGHT_QUAD 1
+#define GEOMETRY_LIGHT_CUBE 1
 #define GEOMETRY_LIGHT_SPEHERE 2
 #define GEOMETRY_LIGHT_MAX_ENUM 3
 

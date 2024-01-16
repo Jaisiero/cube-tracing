@@ -3,7 +3,7 @@
 #define PRNG_GLSL
 #include <daxa/daxa.inl>
 #include "shared.inl"
-#include "Box.glsl"
+// #include "Box.glsl"
 #include "random.glsl"
 
 struct LCG {

@@ -6,9 +6,36 @@
 #include "prng.glsl"
 
 
-daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat)
-{
-    return mat.diffuse / DAXA_PI;
+daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
+    return mat.diffuse * INV_DAXA_PI;
+}
+
+
+daxa_f32vec3 get_metal_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
+    daxa_f32vec3 half_dir = normalize(light_dir + view_dir);
+    daxa_f32vec3 fresnel = min(mat.roughness, 1.0) + (daxa_f32vec3(1.0) - min(mat.roughness, 1.0)) * pow(1.0 - dot(light_dir, half_dir), 5.0);
+    daxa_f32vec3 diffuse = (daxa_f32vec3(1.0) - fresnel) * (daxa_f32vec3(1.0) - mat.specular);
+    daxa_f32vec3 specular = fresnel * mat.specular;
+    return (diffuse + specular) * INV_DAXA_PI;
+}
+
+daxa_f32vec3 get_dialectric_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
+    // Coeficiente de Fresnel utilizando el modelo de Fresnel-Schlick
+    daxa_f32vec3 fresnel = mat.roughness + (daxa_f32vec3(1.0) - mat.roughness) * pow(1.0 - dot(light_dir, view_dir), 5.0);
+
+    // Término de reflexión especular
+    daxa_f32vec3 specular = fresnel;
+
+    // Término de reflexión difusa (Lambertian)
+    daxa_f32vec3 diffuse = (daxa_f32vec3(1.0) - fresnel) * (mat.diffuse / DAXA_PI);
+
+    // Suma ponderada de los términos difusos y especulares
+    return diffuse + specular;
+}
+
+
+daxa_f32vec3 get_constant_medium_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
+    return mat.diffuse;
 }
 
 
