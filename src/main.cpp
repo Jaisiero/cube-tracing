@@ -1489,8 +1489,6 @@ namespace tests
                     std::cout << reload_err->message << std::endl;
                 else if (daxa::get_if<daxa::PipelineReloadSuccess>(&reload_result))
                     std::cout << "reload success" << std::endl;
-                using namespace std::literals;
-                std::this_thread::sleep_for(1ms);
                 glfwPollEvents();
                 if (glfwWindowShouldClose(glfw_window_ptr) != 0)
                 {
