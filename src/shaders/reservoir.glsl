@@ -58,8 +58,9 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_
         LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
 
         daxa_f32 pdf = 1.0;
+        daxa_f32 pdf_out = 1.0;
         // calculate the radiance of this light
-        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, true));
+        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, false, false, true));
 
         // calculate the weight of this light
         reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
@@ -74,8 +75,9 @@ void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, inout HIT_IN
         LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
 
         daxa_f32 pdf = 1.0;
+        daxa_f32 pdf_out = 1.0;
         // calculate the radiance of this light
-        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, false));
+        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, false, false, false));
 
         // calculate weight of the selected lights
         reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
@@ -90,8 +92,9 @@ void calculate_reservoir_weight_aggregation(inout RESERVOIR reservoir, RESERVOIR
         LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(aggregation_reservoir)];
 
         daxa_f32 pdf = 1.0;
+        daxa_f32 pdf_out = 1.0;
         // calculate the radiance of this light
-        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, false));
+        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, false, false, false));
 
         //add sample from previous frame
         update_reservoir(reservoir, get_reservoir_light_index(aggregation_reservoir), p_hat * aggregation_reservoir.W_y * aggregation_reservoir.M, aggregation_reservoir.M, prd.seed);
@@ -105,15 +108,16 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
     initialise_reservoir(reservoir);
 
     daxa_f32 p_hat = 0;
+    daxa_f32 pdf = 1.0 / light_count;
 
     for(daxa_u32 l = 0; l < M; l++) {
         daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
         LIGHT light = deref(p.light_buffer).lights[light_index];
-
-        daxa_f32 pdf = 1.0;
-        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, false));
-        daxa_f32 w = p_hat / pdf;
+        
+        daxa_f32 current_pdf = 1.0;
+        p_hat = length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, current_pdf, true, false, false));
+        daxa_f32 w = p_hat / current_pdf;
         update_reservoir(reservoir, light_index, w, 1.0f, prd.seed);
     }
 
@@ -237,10 +241,10 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
     // Get the light from the reservoir
     LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
 
-    daxa_f32 pdf = 1.0;
+    daxa_f32 pdf_out = 1.0;
     
     // Add light radiance
-    daxa_f32vec3 hit_value = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, false) * reservoir.W_y;
+    daxa_f32vec3 hit_value = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, false, false, false) * reservoir.W_y;
 
     // Store the reservoir
     deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;

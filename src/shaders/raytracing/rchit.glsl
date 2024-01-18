@@ -245,31 +245,33 @@ void main()
 
     LIGHT light = deref(p.light_buffer).lights[light_index];
 
-    daxa_f32 pdf = 1.0;
+    daa_f32 pdf_out = 1.0;
 
 #if MIS_ON == 1
+    daxa_f32 pdf = 1.0;
     daxa_f32vec3 m_wi = daxa_f32vec3(0.0);
     radiance = direct_mis(ray, hit, light_count, light, object_count, mat, m_wi, pdf, true, true);
 #else 
-    radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, true, true);
+    daxa_f32 pdf = 1.0 / light_count;
+    radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, true, true, true);
 #endif // MIS_ON
 
 #endif // RESERVOIR_ON
 
 #else
 
+    daxa_f32 pdf = 1.0;
+
     for(daxa_u32 l = 0; l < light_count; l++) {
 
         LIGHT light = deref(p.light_buffer).lights[l];
-
-        daxa_f32 pdf = 1.0;
         
         daxa_f32vec3 m_wi = daxa_f32vec3(0.0);
 
 #if MIS_ON == 1
         radiance += direct_mis(ray, hit, light_count, light, object_count, mat, m_wi, pdf, false, true);
 #else 
-        radiance += calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, true);
+        radiance += calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, false, false, true);
 #endif // MIS_ON
     }
     
@@ -360,7 +362,8 @@ void main()
 
     LIGHT light = deref(p.light_buffer).lights[light_index];
 
-    daxa_f32 pdf = 1.0;
+    daxa_f32 pdf = 1.0 / light_count;
+    daxa_f32 pdf_out = 1.0;
 
     if(indirect_prd.depth > 0) {
 
@@ -423,7 +426,7 @@ void main()
         }
 
 #if LIGHT_SAMPLING_ON == 1
-        radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, true, true);
+        radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, true, true, true);
 #else
 
 
@@ -437,9 +440,9 @@ void main()
             daxa_f32vec3 m_wi = daxa_f32vec3(0.0);
 
 #if MIS_ON == 1
-            radiance += direct_mis(ray, hit, light_count, light, object_count, mat, m_wi, pdf, false, true);
+            radiance += direct_mis(ray, hit, light_count, light, object_count, mat, m_wi, pdf, pdf_out, false, false, true);
 #else
-            radiance += calculate_sampled_light(ray, hit, light, mat, light_count, pdf, false, true);
+            radiance += calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, false, false, true);
 #endif // MIS_ON
         }
 

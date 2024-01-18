@@ -161,9 +161,19 @@ namespace tests
             daxa_f32mat3x4 daxa_f32mat4x4_to_daxa_f32mat3x4(daxa_f32mat4x4 const & mat)
             {
                 return daxa_f32mat3x4{
-                    {mat.x.x, mat.x.y, mat.x.z, mat.x.w},
-                    {mat.y.x, mat.y.y, mat.y.z, mat.y.w},
-                    {mat.z.x, mat.z.y, mat.z.z, mat.z.w}
+                    {mat.x.x, mat.y.x, mat.z.x, mat.w.x},
+                    {mat.x.y, mat.y.y, mat.z.y, mat.w.y},
+                    {mat.x.z, mat.y.z, mat.z.z, mat.w.z}
+                };
+            }
+
+            daxa_f32mat4x4 get_daxa_f32mat4x4_transpose(daxa_f32mat4x4 const & mat)
+            {
+                return daxa_f32mat4x4{
+                    {mat.x.x, mat.y.x, mat.z.x, mat.w.x},
+                    {mat.x.y, mat.y.y, mat.z.y, mat.w.y},
+                    {mat.x.z, mat.y.z, mat.z.z, mat.w.z},
+                    {mat.x.w, mat.y.w, mat.z.w, mat.w.w},
                 };
             }
 
@@ -515,12 +525,14 @@ namespace tests
 
                     u32 primitive_count_current_instance = min_max.size();
 
+                    daxa_f32mat4x4 transpose_mat = get_daxa_f32mat4x4_transpose(transforms[i]);
+
                     instances[i].transform = {
-                        transforms[i],
+                        transpose_mat,
                     },
                     // TODO: get previous transform from previous build
                     instances[i].prev_transform = {
-                        transforms[i],
+                        transpose_mat,
                     },
                     instances[i].primitive_count = primitive_count_current_instance;
                     instances[i].first_primitive_index = current_primitive_count;

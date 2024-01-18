@@ -27,7 +27,7 @@ daxa_f32vec3 get_dialectric_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3
     daxa_f32vec3 specular = fresnel;
 
     // Término de reflexión difusa (Lambertian)
-    daxa_f32vec3 diffuse = (daxa_f32vec3(1.0) - fresnel) * (mat.diffuse / DAXA_PI);
+    daxa_f32vec3 diffuse = (daxa_f32vec3(1.0) - fresnel) * (mat.diffuse *  INV_DAXA_PI);
 
     // Suma ponderada de los términos difusos y especulares
     return diffuse + specular;
@@ -158,7 +158,7 @@ daxa_f32vec3 normal_to_color(daxa_f32vec3 normal)
 
 
 daxa_f32vec3 hit_get_world_hit(Ray ray, HIT_INFO hit) {
-    return ray.origin + ray.direction * hit.hit_distance + (VOXEL_EXTENT / 2) * hit.world_nrm;
+    return ray.origin + ray.direction * hit.hit_distance + (VOXEL_EXTENT * 0.5) * hit.world_nrm;
 }
 
 // Function to calculate transmittance for a constant medium

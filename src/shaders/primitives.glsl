@@ -8,12 +8,12 @@
 
 daxa_f32mat4x4 get_geometry_previous_transform_from_instance_id(daxa_u32 instance_id) {
     // TODO: Transpose before sending to shader
-    return transpose(deref(p.instance_buffer).instances[instance_id].prev_transform);
+    return deref(p.instance_buffer).instances[instance_id].prev_transform;
 }
 
 daxa_f32mat4x4 get_geometry_transform_from_instance_id(daxa_u32 instance_id) {
     // TODO: Transpose before sending to shader
-    return transpose(deref(p.instance_buffer).instances[instance_id].transform);
+    return deref(p.instance_buffer).instances[instance_id].transform;
 }
 
 daxa_u32 get_geometry_first_primitive_index_from_instance_id(daxa_u32 instance_id) {
@@ -163,16 +163,13 @@ daxa_b32 is_hit_from_ray(Ray ray, daxa_u32 instance_id, daxa_u32 primitive_id, o
     daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
 
     // TODO: pass this as a parameter
-    daxa_f32vec3 half_extent = vec3(VOXEL_EXTENT / 2);
+    daxa_f32vec3 half_extent = vec3(VOXEL_EXTENT * 0.5);
 
     Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
 
     daxa_f32vec3 normal = vec3(0.0f);
-    daxa_b32 hit = false;
-    if(intersect_box(box, ray, t_hit, nor, rayCanStartInBox, oriented, safeInverse(ray.direction))) {
-        hit = true;
-        pos = ray.origin + ray.direction * t_hit;
-    }
+    daxa_b32 hit = intersect_box(box, ray, t_hit, nor, rayCanStartInBox, oriented, safeInverse(ray.direction));
+    pos = ray.origin + ray.direction * t_hit;
 
     return hit;
 }
