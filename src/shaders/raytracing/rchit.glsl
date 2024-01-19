@@ -7,6 +7,11 @@
 #include "reservoir.glsl"
 #include "light.glsl"
 
+#if SER_ON == 1
+#extension GL_NV_shader_invocation_reorder : enable
+layout(location = 0) hitObjectAttributeNV vec3 hitValue;
+#endif
+
 
 #if defined(DIRECT_ILLUMINATION)
 

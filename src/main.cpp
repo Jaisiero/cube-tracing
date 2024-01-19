@@ -42,6 +42,8 @@ namespace tests
             Status status = {};
             camera camera = {};
 
+            daxa_u32 invocation_reorder_mode;
+
 
             daxa::Instance daxa_ctx = {};
             daxa::Device device = {};
@@ -807,7 +809,21 @@ namespace tests
                     },
                     .flags = daxa::DeviceFlagBits::RAY_TRACING,
                 });
-                std::cout << "Choosen Device: " << device.properties().device_name << std::endl;
+                
+                bool ray_tracing_supported = device.properties().ray_tracing_properties.has_value();
+                invocation_reorder_mode = device.properties().invocation_reorder_properties.has_value() ? device.properties().invocation_reorder_properties.value().invocation_reorder_mode : 0;
+                std::string ray_tracing_supported_str = ray_tracing_supported ? "available" : "not available";
+
+                std::cout << "Choosen Device: " << device.properties().device_name <<
+                            ", Ray Tracing: " <<  ray_tracing_supported_str <<
+                            ", Invocation Reordering mode: " << invocation_reorder_mode  << std::endl;
+
+                if(ray_tracing_supported == false) {
+                    std::cout << "Ray tracing is not supported" << std::endl;
+                    abort();
+                }
+            
+
                 swapchain = device.create_swapchain({
                     .native_window = get_native_handle(),
                     .native_window_platform = get_native_platform(),
@@ -1360,9 +1376,15 @@ namespace tests
 
                 auto direct_illumination_compile_options = rt_shader_compile_options;
                 direct_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"DIRECT_ILLUMINATION", "1"}};
+                if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
+                    direct_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER_ON", "1"});
+                }
 
                 auto indirect_illumination_compile_options = rt_shader_compile_options;
                 indirect_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"INDIRECT_ILLUMINATION", "1"}};
+                if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
+                    indirect_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER_ON", "1"});
+                }
 
                 auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
                     .ray_gen_infos = daxa::ShaderCompileInfo{

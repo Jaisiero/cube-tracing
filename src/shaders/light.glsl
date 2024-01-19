@@ -184,16 +184,17 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
     // }
     daxa_b32 vis = false;
 
-    if (l.type == GEOMETRY_LIGHT_SPEHERE)
-    {
-        // daxa_f32 r = l.size.x;
-        // // Choose a normal on the side of the sphere visible to P.
-        // l_nor = random_hemisphere(P - l.pos);
-        // l_pos = l.pos + l_nor * r;
-        // daxa_f32 area_half_sphere = 2.0 * PI * r * r;
-        // pdf /= area_half_sphere;
-    }
-    else if (l.type == GEOMETRY_LIGHT_CUBE)
+    // if (l.type == GEOMETRY_LIGHT_SPEHERE)
+    // {
+    //     // daxa_f32 r = l.size.x;
+    //     // // Choose a normal on the side of the sphere visible to P.
+    //     // l_nor = random_hemisphere(P - l.pos);
+    //     // l_pos = l.pos + l_nor * r;
+    //     // daxa_f32 area_half_sphere = 2.0 * PI * r * r;
+    //     // pdf /= area_half_sphere;
+    // }
+    // else
+     if (l.type == GEOMETRY_LIGHT_CUBE)
     {
         // TODO: config
         daxa_f32 voxel_extent = VOXEL_EXTENT;
@@ -234,7 +235,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
 
     P_out = l_pos;
     n_out = l_nor;
-    Le_out = vis ? l.emissive : vec3(0.0);
+    Le_out = daxa_f32(vis) * l.emissive;
     return vis;
 }
 
@@ -250,9 +251,10 @@ daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, LIGHT li
         pdf_out = pdf;
     }
 
-    if(sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility) == false) {
-        return vec3(0.0);
-    }
+    // if(sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility) == false) {
+    //     return vec3(0.0);
+    // }
+    sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility);
 
     daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, ray.direction, wi);
     daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
