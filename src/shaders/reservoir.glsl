@@ -10,13 +10,6 @@
 #include "primitives.glsl"
 #include "motion_vectors.glsl"
 
-
-// TODO: M by parameter?
-const daxa_u32 M = 32;
-const daxa_f32 INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
-const daxa_f32 NUM_OF_NEIGHBORS = 15;
-const daxa_f32 NEIGHBORS_RADIUS = 10.0f;
-
 void initialise_reservoir(inout RESERVOIR reservoir)
 {
     reservoir.W_y = 0.0;
@@ -126,6 +119,9 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
     // Previous frame screen coord
     daxa_u32vec2 predicted_coord = get_previous_frame_pixel_coord(gl_LaunchIDEXT.xy, hit.world_hit, gl_LaunchSizeEXT.xy, hit.instance_id,  instance_model);
 
+
+#if RESERVOIR_TEMPORAL_ON == 1
+
     daxa_u32 prev_predicted_index = predicted_coord.x + predicted_coord.y * gl_LaunchSizeEXT.x;
 
     // Max screen pos
@@ -133,7 +129,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
 
     // Clamp screen pos for 
     prev_predicted_index = min(max_screen_pos, prev_predicted_index);
-
+    
     // Temporal reuse
     {
 
@@ -171,7 +167,9 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
             reservoir = temporal_reservoir;
         }
     }
+#endif // RESERVOIR_TEMPORAL_ON == 1
 
+#if RESERVOIR_SPATIAL_ON == 1
     // daxa_u32 material_type = (mat.type & MATERIAL_TYPE_MASK);
     // Spacial reuse
     {
@@ -187,7 +185,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
 
         for (daxa_u32 i = 0; i < NUM_OF_NEIGHBORS; i++)
         {
-            // Random offsetww
+            // Random offset
             daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(prd.seed), rnd(prd.seed)) - 1;
 
             // Scale offset
@@ -220,7 +218,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
                 // (neighbor_depth_linear > 1.1f * depth_linear || neighbor_depth_linear < 0.9f * depth_linear)   ||
                 // abs(neighbor_hit_dist - gl_HitTEXT) > VOXEL_EXTENT ||
                 neighbor_mat_index != current_mat_index ||
-                dot(hit.world_nrm, deref(p.previous_di_buffer).DI_info[offset_u32_linear].normal.xyz) < 0.906)
+                dot(hit.world_nrm, di_info_previous.normal.xyz) < 0.906)
             {
                 // skip this neighbour sample if not suitable
                 continue;
@@ -237,6 +235,7 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
 
         reservoir = spatial_reservoir;
     }
+#endif // RESERVOIR_SPATIAL_ON == 1
 
     // Get the light from the reservoir
     LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];

@@ -16,9 +16,19 @@ layout(location = 4) callableDataInEXT HIT_SCATTER_PAY_LOAD call_scatter;
 #endif
 
 #define DEBUG_NORMALS_ON 0
+
 #define LIGHT_SAMPLING_ON 1
 #define RESERVOIR_ON 1
+#define RESERVOIR_TEMPORAL_ON 1
+#define RESERVOIR_SPATIAL_ON 1
+
 #define MIS_ON 0
 #define INDIRECT_ILLUMINATION_ON 1
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
+
+// TODO: M by parameter?
+const daxa_u32 M = 1;
+const daxa_f32 INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
+const daxa_f32 NUM_OF_NEIGHBORS = 15;
+const daxa_f32 NEIGHBORS_RADIUS = 5.0f;

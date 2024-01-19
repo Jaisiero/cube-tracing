@@ -232,6 +232,9 @@ void main()
     
     // radiance
     daxa_f32vec3 radiance = daxa_f32vec3(0.0);
+    // PDF for lights
+    daxa_f32 pdf = 1.0 / light_count;
+    daxa_f32 pdf_out = 1.0;
 
 #if LIGHT_SAMPLING_ON == 1
 
@@ -245,22 +248,16 @@ void main()
 
     LIGHT light = deref(p.light_buffer).lights[light_index];
 
-    daa_f32 pdf_out = 1.0;
-
 #if MIS_ON == 1
-    daxa_f32 pdf = 1.0;
     daxa_f32vec3 m_wi = daxa_f32vec3(0.0);
     radiance = direct_mis(ray, hit, light_count, light, object_count, mat, m_wi, pdf, true, true);
 #else 
-    daxa_f32 pdf = 1.0 / light_count;
     radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, true, true, true);
 #endif // MIS_ON
 
 #endif // RESERVOIR_ON
 
 #else
-
-    daxa_f32 pdf = 1.0;
 
     for(daxa_u32 l = 0; l < light_count; l++) {
 

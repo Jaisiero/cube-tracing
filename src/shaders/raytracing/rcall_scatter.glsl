@@ -42,7 +42,8 @@ void main()
         ray.origin = call_scatter.hit + call_scatter.scatter_dir * AVOID_VOXEL_COLLAIDE;
         ray.direction = call_scatter.scatter_dir;
 
-        mat4 inv_model = inverse(get_geometry_transform_from_instance_id(call_scatter.instance_id));
+        mat4 model = get_geometry_transform_from_instance_id(call_scatter.instance_id);
+        mat4 inv_model = inverse(model);
 
         ray.origin = (inv_model * vec4(ray.origin, 1)).xyz;
         ray.direction = (inv_model * vec4(ray.direction, 0)).xyz;
@@ -52,17 +53,16 @@ void main()
         daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
 
         // TODO: pass this as a parameter
-        daxa_f32vec3 half_extent = vec3(VOXEL_EXTENT / 2);
+        daxa_f32vec3 half_extent = vec3(VOXEL_EXTENT * 0.5);
 
-        Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
+        Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(model));
 
         daxa_f32 t_max = 0.0f;
         daxa_f32vec3 normal = vec3(0.0f);
         
 
         if(intersect_box(box, ray, t_max, normal, true, false, safeInverse(ray.direction))){
-            call_scatter.hit = ray.origin + ray.direction * t_max;
-
+            call_scatter.hit = ray.origin + ray.direction * t_max + normal * AVOID_VOXEL_COLLAIDE;
             call_scatter.nrm = normal;
         } else {
             call_scatter.scatter_dir = reflection(call_scatter.ray_dir, call_scatter.nrm);
