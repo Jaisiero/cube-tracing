@@ -173,3 +173,33 @@ daxa_b32 is_hit_from_ray(Ray ray, daxa_u32 instance_id, daxa_u32 primitive_id, o
 
     return hit;
 }
+
+
+void packed_intersection_info(Ray ray, daxa_f32 t_hit, daxa_u32 instance_id, daxa_u32 primitive_id, daxa_f32mat4x4 model, out daxa_f32vec3 world_pos, out daxa_f32vec3 world_nrm, out daxa_u32 actual_primitive_index)
+{
+
+    // Get world position from hit position
+    world_pos = ray.origin + ray.direction * t_hit;
+
+
+    actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
+
+    // Get aabb from primitive
+    Aabb aabb = deref(p.aabb_buffer).aabbs[actual_primitive_index];
+
+    // Get center of aabb
+    daxa_f32vec3 center = (aabb.minimum + aabb.maximum) * 0.5;
+
+    // Transform center to world space
+    center = (model * vec4(center, 1)).xyz;
+
+    // Computing the normal at hit position
+    world_nrm = normalize(world_pos - center);
+    {
+        daxa_f32vec3 abs_n = abs(world_nrm);
+        daxa_f32 max_c = max(max(abs_n.x, abs_n.y), abs_n.z);
+        world_nrm = (max_c == abs_n.x) ? daxa_f32vec3(sign(world_nrm.x), 0, 0) : (max_c == abs_n.y) ? daxa_f32vec3(0, sign(world_nrm.y), 0)
+                                                                                        : daxa_f32vec3(0, 0, sign(world_nrm.z));
+    }
+
+}

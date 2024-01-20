@@ -13,59 +13,110 @@ layout(location = 0) hitObjectAttributeNV vec3 hitValue;
 #endif
 
 
-#if defined(DIRECT_ILLUMINATION)
+#if defined(RIS_SELECTION)
 
 layout(location = 2) rayPayloadEXT HIT_INDIRECT_PAY_LOAD indirect_prd;
 
 void main()
 {
-
-    // Get world position from hit position
-    vec3 world_pos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-
-    // Get model matrix
-    mat4 model = mat4(
-        gl_ObjectToWorldEXT[0][0], gl_ObjectToWorldEXT[0][1], gl_ObjectToWorldEXT[0][2], 0,
-        gl_ObjectToWorldEXT[0][1], gl_ObjectToWorldEXT[1][1], gl_ObjectToWorldEXT[1][2], 0,
-        gl_ObjectToWorldEXT[2][0], gl_ObjectToWorldEXT[2][1], gl_ObjectToWorldEXT[2][2], 0,
-        gl_ObjectToWorldEXT[3][0], gl_ObjectToWorldEXT[3][1], gl_ObjectToWorldEXT[3][2], 1.0);
-
-
-    daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
-
-    // Get aabb from primitive
-    Aabb aabb = deref(p.aabb_buffer).aabbs[actual_primitive_index];
-
-    // Get center of aabb
-    vec3 center = (aabb.minimum + aabb.maximum) * 0.5;
-
-    // Transform center to world space
-    center = (model * vec4(center, 1)).xyz;
-
-    // Computing the normal at hit position
-    vec3 world_nrm = normalize(world_pos - center);
-    {
-        vec3 absN = abs(world_nrm);
-        daxa_f32 maxC = max(max(absN.x, absN.y), absN.z);
-        world_nrm = (maxC == absN.x) ? vec3(sign(world_nrm.x), 0, 0) : (maxC == absN.y) ? vec3(0, sign(world_nrm.y), 0)
-                                                                                        : vec3(0, 0, sign(world_nrm.z));
-    }
-
-
     // Ray info 
     Ray ray = Ray(
         gl_WorldRayOriginEXT,
         gl_WorldRayDirectionEXT);
 
+    // Get model matrix
+    daxa_f32mat4x4 model = mat4(
+        gl_ObjectToWorldEXT[0][0], gl_ObjectToWorldEXT[0][1], gl_ObjectToWorldEXT[0][2], 0,
+        gl_ObjectToWorldEXT[0][1], gl_ObjectToWorldEXT[1][1], gl_ObjectToWorldEXT[1][2], 0,
+        gl_ObjectToWorldEXT[2][0], gl_ObjectToWorldEXT[2][1], gl_ObjectToWorldEXT[2][2], 0,
+        gl_ObjectToWorldEXT[3][0], gl_ObjectToWorldEXT[3][1], gl_ObjectToWorldEXT[3][2], 1.0);
+
+    daxa_f32vec3 world_pos;
+    daxa_f32vec3 world_nrm;
+    daxa_f32 t_hit = gl_HitTEXT;
+    daxa_u32 instance_id = gl_InstanceCustomIndexEXT;
+    daxa_u32 primitive_id = gl_PrimitiveID;
+    daxa_u32 actual_primitive_index = 0;
     
-    // intersection info
+    packed_intersection_info(ray, t_hit, instance_id, primitive_id, model, world_pos, world_nrm, actual_primitive_index);
+
     HIT_INFO_INPUT hit = HIT_INFO_INPUT(
         daxa_f32vec3(0.0),
         // NOTE: In order to avoid self intersection we need to offset the ray origin
         world_pos + world_nrm * AVOID_VOXEL_COLLAIDE,
         world_nrm,
-        gl_InstanceCustomIndexEXT,
-        gl_PrimitiveID,
+        instance_id,
+        primitive_id,
+        prd.seed,
+        prd.depth);
+
+    daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
+
+    MATERIAL mat = get_material_from_material_index(mat_index);
+
+
+    // LIGHTS
+    daxa_u32 light_count = deref(p.status_buffer).light_count;
+
+    // OBJECTS
+    daxa_u32 object_count = deref(p.status_buffer).obj_count;
+
+    // Screen position
+    daxa_u32 screen_pos = gl_LaunchIDEXT.x + gl_LaunchSizeEXT.x * gl_LaunchIDEXT.y;
+    
+    // radiance
+    daxa_f32vec3 radiance = daxa_f32vec3(0.0);
+    // PDF for lights
+    daxa_f32 pdf = 1.0 / light_count;
+    daxa_f32 pdf_out = 1.0;
+
+    daxa_f32 p_hat = 0;
+    RESERVOIR reservoir = RIS(light_count, ray, hit, mat, pdf, p_hat);
+
+    // Store the reservoir
+    deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+
+
+    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(hit.world_hit, daxa_f32vec4(hit.world_nrm, t_hit), instance_id, primitive_id);
+
+    // Store normal
+    deref(p.di_buffer).DI_info[screen_pos] = di_info;
+}
+
+
+#elif defined(DIRECT_ILLUMINATION)
+
+layout(location = 2) rayPayloadEXT HIT_INDIRECT_PAY_LOAD indirect_prd;
+
+void main()
+{
+    // Ray info 
+    Ray ray = Ray(
+        gl_WorldRayOriginEXT,
+        gl_WorldRayDirectionEXT);
+
+    // Get model matrix
+    daxa_f32mat4x4 model = mat4(
+        gl_ObjectToWorldEXT[0][0], gl_ObjectToWorldEXT[0][1], gl_ObjectToWorldEXT[0][2], 0,
+        gl_ObjectToWorldEXT[0][1], gl_ObjectToWorldEXT[1][1], gl_ObjectToWorldEXT[1][2], 0,
+        gl_ObjectToWorldEXT[2][0], gl_ObjectToWorldEXT[2][1], gl_ObjectToWorldEXT[2][2], 0,
+        gl_ObjectToWorldEXT[3][0], gl_ObjectToWorldEXT[3][1], gl_ObjectToWorldEXT[3][2], 1.0);
+
+    daxa_f32vec3 world_pos;
+    daxa_f32vec3 world_nrm;
+    daxa_u32 instance_id = gl_InstanceCustomIndexEXT;
+    daxa_u32 primitive_id = gl_PrimitiveID;
+    daxa_u32 actual_primitive_index = 0;
+    
+    packed_intersection_info(ray, gl_HitTEXT, instance_id, primitive_id, model, world_pos, world_nrm, actual_primitive_index);
+
+    HIT_INFO_INPUT hit = HIT_INFO_INPUT(
+        daxa_f32vec3(0.0),
+        // NOTE: In order to avoid self intersection we need to offset the ray origin
+        world_pos + world_nrm * AVOID_VOXEL_COLLAIDE,
+        world_nrm,
+        instance_id,
+        primitive_id,
         prd.seed,
         prd.depth);
 

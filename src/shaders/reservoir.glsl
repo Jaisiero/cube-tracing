@@ -116,13 +116,15 @@ RESERVOIR RIS(daxa_u32 light_count, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL 
     }
 
     calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat);
+    // TODO: post-pone visibility test
+    // calculate_reservoir_weight(reservoir, ray, hit, mat, light_count, p_hat);
     
     return reservoir;
 }
 
 
 
-daxa_f32vec3 reservoir_direct_illumination(RESERVOIR reservoir, daxa_u32 light_count, daxa_u32 object_count, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL mat, daxa_f32mat4x4 instance_model) {
+daxa_f32vec3 reservoir_direct_illumination(inout RESERVOIR reservoir, daxa_u32 light_count, daxa_u32 object_count, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL mat, daxa_f32mat4x4 instance_model) {
     
     daxa_f32 pdf = 1.0 / light_count;
     daxa_f32 pdf_out = 1.0;
@@ -243,7 +245,7 @@ daxa_f32vec3 reservoir_direct_illumination(RESERVOIR reservoir, daxa_u32 light_c
             calculate_reservoir_weight_aggregation(spatial_reservoir, neighbor_reservoir, ray, hit, mat, light_count, p_hat);
         }
 
-        calculate_reservoir_weight(spatial_reservoir, ray, hit, mat, light_count, p_hat);
+        calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat);
 
         reservoir = spatial_reservoir;
     }
