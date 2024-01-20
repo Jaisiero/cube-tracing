@@ -115,11 +115,65 @@ RESERVOIR RIS(daxa_u32 light_count, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL 
         update_reservoir(reservoir, light_index, w, 1.0f, prd.seed);
     }
 
-    calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat);
-    // TODO: post-pone visibility test
-    // calculate_reservoir_weight(reservoir, ray, hit, mat, light_count, p_hat);
+    calculate_reservoir_weight(reservoir, ray, hit, mat, light_count, p_hat);
     
     return reservoir;
+}
+
+
+
+void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
+{
+
+    RESERVOIR temporal_reservoir;
+    initialise_reservoir(temporal_reservoir);
+
+    daxa_u32 prev_predicted_index = predicted_coord.x + predicted_coord.y * gl_LaunchSizeEXT.x;
+
+    daxa_f32 pdf_out = 1.0;
+    
+    // Calculate p_hat
+    daxa_f32 p_hat = calculate_phat(ray, hit, mat, light_count, deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)], pdf, pdf_out, false, false, false);
+
+    // Max screen pos
+    daxa_u32 max_screen_pos = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y - 1;
+
+    // Clamp screen pos for 
+    prev_predicted_index = min(max_screen_pos, prev_predicted_index);
+    
+    // Temporal reuse
+    {
+
+        DIRECT_ILLUMINATION_INFO di_info_previous = deref(p.previous_di_buffer).DI_info[prev_predicted_index];
+
+        // Normal from previous frame
+        daxa_f32vec3 normal_previous = di_info_previous.normal.xyz;
+
+        // Depth from previous frame
+        daxa_f32 depth_previous = di_info_previous.distance;
+
+        //some simple rejection based on normals' divergence, can be improved
+        bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && di_info_previous.instance_id == hit.instance_id && di_info_previous.primitive_id == hit.primitive_id;
+
+        if (valid_history)
+        {
+            //add current reservoir sample
+            update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
+
+            // Reservoir from previous frame
+            RESERVOIR reservoir_previous = deref(p.previous_reservoir_buffer).reservoirs[prev_predicted_index];
+
+            // NOTE: restrict influence from past samples.
+            reservoir_previous.M = min(INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
+
+            //add sample from previous frame
+            calculate_reservoir_weight_aggregation(temporal_reservoir, reservoir_previous, ray, hit, mat, light_count, p_hat);
+
+            //calculate the weight of this light
+            calculate_reservoir_weight(temporal_reservoir, ray, hit, mat, light_count, p_hat);
+        }
+    }
+    reservoir = temporal_reservoir;
 }
 
 

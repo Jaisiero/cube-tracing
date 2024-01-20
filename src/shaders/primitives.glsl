@@ -7,12 +7,10 @@
 
 
 daxa_f32mat4x4 get_geometry_previous_transform_from_instance_id(daxa_u32 instance_id) {
-    // TODO: Transpose before sending to shader
     return deref(p.instance_buffer).instances[instance_id].prev_transform;
 }
 
 daxa_f32mat4x4 get_geometry_transform_from_instance_id(daxa_u32 instance_id) {
-    // TODO: Transpose before sending to shader
     return deref(p.instance_buffer).instances[instance_id].transform;
 }
 

@@ -248,9 +248,7 @@ daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, LIGHT li
 
     daxa_f32vec3 l_pos , l_nor , Le;
 
-    if(calc_pdf) {
-        pdf_out = pdf;
-    }
+    pdf_out = pdf;
 
     // if(sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility) == false) {
     //     return vec3(0.0);
