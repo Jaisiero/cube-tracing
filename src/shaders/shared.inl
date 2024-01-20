@@ -287,6 +287,7 @@ DAXA_DECL_BUFFER_PTR(VELOCITIES)
 
 struct DIRECT_ILLUMINATION_INFO
 {
+    daxa_f32vec3 position;
     daxa_f32vec4 normal;
     daxa_u32 instance_id;
     daxa_u32 primitive_id;

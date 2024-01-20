@@ -122,11 +122,11 @@ RESERVOIR RIS(daxa_u32 light_count, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL 
 
 
 
-daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object_count, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL mat, daxa_f32mat4x4 instance_model) {
+daxa_f32vec3 reservoir_direct_illumination(RESERVOIR reservoir, daxa_u32 light_count, daxa_u32 object_count, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 screen_pos, daxa_u32 current_mat_index, MATERIAL mat, daxa_f32mat4x4 instance_model) {
     
-    daxa_f32 p_hat = 0;
     daxa_f32 pdf = 1.0 / light_count;
-    RESERVOIR reservoir = RIS(light_count, ray, hit, mat, pdf, p_hat);
+    daxa_f32 pdf_out = 1.0;
+    daxa_f32 p_hat = calculate_phat(ray, hit, mat, light_count, deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)], pdf, pdf_out, false, false, false);
 
     // Previous frame screen coord
     daxa_u32vec2 predicted_coord = get_previous_frame_pixel_coord(gl_LaunchIDEXT.xy, hit.world_hit, gl_LaunchSizeEXT.xy, hit.instance_id,  instance_model);
@@ -251,8 +251,6 @@ daxa_f32vec3 reservoir_direct_illumination(daxa_u32 light_count, daxa_u32 object
 
     // Get the light from the reservoir
     LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
-
-    daxa_f32 pdf_out = 1.0;
     
     // Add light radiance
     daxa_f32vec3 hit_value = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, false, false, false) * reservoir.W_y;

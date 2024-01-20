@@ -95,7 +95,7 @@ void main()
         call_scatter.primitive_id = hit.primitive_id;
 
         uint material_type = mat.type & MATERIAL_TYPE_MASK;
-        
+
         switch (material_type)
         {
         case MATERIAL_TYPE_METAL:
@@ -247,7 +247,10 @@ void main()
 
 #if RESERVOIR_ON == 1
 
-    radiance = reservoir_direct_illumination(light_count, object_count, ray, hit, screen_pos, mat_index, mat, model);
+    daxa_f32 p_hat = 0;
+    RESERVOIR reservoir = RIS(light_count, ray, hit, mat, pdf, p_hat);
+
+    radiance = reservoir_direct_illumination(reservoir, light_count, object_count, ray, hit, screen_pos, mat_index, mat, model);
 
 #else
 
@@ -285,7 +288,7 @@ void main()
 
     prd.hit_value += mat.emission;
 
-    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(daxa_f32vec4(hit.world_nrm, gl_HitTEXT), gl_InstanceCustomIndexEXT, gl_PrimitiveID);
+    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(hit.world_hit, daxa_f32vec4(hit.world_nrm, gl_HitTEXT), gl_InstanceCustomIndexEXT, gl_PrimitiveID);
 
     // Store normal
     deref(p.di_buffer).DI_info[screen_pos] = di_info;
