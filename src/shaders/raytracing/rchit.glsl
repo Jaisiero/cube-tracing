@@ -94,7 +94,9 @@ void main()
         call_scatter.instance_id = hit.instance_id;
         call_scatter.primitive_id = hit.primitive_id;
 
-        switch (mat.type & MATERIAL_TYPE_MASK)
+        uint material_type = mat.type & MATERIAL_TYPE_MASK;
+        
+        switch (material_type)
         {
         case MATERIAL_TYPE_METAL:
             executeCallableEXT(3, 4);
