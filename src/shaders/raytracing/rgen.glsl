@@ -117,12 +117,20 @@ void main()
         t_max,             // ray max range
         0                  // payload (location = 0)
     );
+
+    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.instance_id, prd.primitive_id);
     
     if(prd.distance == -1.0) {
         imageStore(daxa_image2D(p.swapchain), index, vec4(prd.hit_value, 1.0));
-    }
+    } else {
+        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_id);
 
-    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.instance_id, prd.primitive_id);
+        // Previous frame screen coord
+        daxa_f32vec2 motion_vector = get_motion_vector(index.xy, di_info.position, rt_size.xy, di_info.instance_id,  instance_model);
+
+        VELOCITY velocity = VELOCITY(motion_vector);
+        deref(p.velocity_buffer).velocities[screen_pos] = velocity;
+    }
 #endif // SER
 
     // Store the DI info
@@ -210,8 +218,6 @@ void main() {
     DIRECT_ILLUMINATION_INFO di_info = deref(p.di_buffer).DI_info[screen_pos];
     
     if(di_info.distance > 0.0) {
-
-        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_id);
         
         // Get sample info from reservoir
         RESERVOIR reservoir = deref(p.reservoir_buffer).reservoirs[screen_pos];
@@ -223,8 +229,14 @@ void main() {
         // Get material
         MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
 
-        // Previous frame screen coord
-        daxa_u32vec2 predicted_coord = get_previous_frame_pixel_coord(index.xy, di_info.position, rt_size.xy, di_info.instance_id,  instance_model);
+        VELOCITY velocity = deref(p.velocity_buffer).velocities[screen_pos];
+            
+        // X from current pixel position
+        daxa_f32vec2 Xi = daxa_f32vec2(index.xy) + 0.5;
+
+        daxa_f32vec2 Xi_1 = Xi + velocity.velocity;
+
+        daxa_u32vec2 predicted_coord = daxa_u32vec2(Xi_1);
 
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(daxa_f32vec3(0.0),
                                             // NOTE: In order to avoid self intersection we need to offset the ray origin
@@ -235,7 +247,14 @@ void main() {
                                             seed,
                                             max_depth);
 
-        TEMPORAL_REUSE(reservoir, predicted_coord, ray, hit, mat, light_count, pdf);
+        // NOTE: the fact that we are getting spatial reservoirs from the current frame
+        TEMPORAL_REUSE(reservoir,
+                       predicted_coord,
+                       rt_size,
+                       ray, hit,
+                       mat,
+                       light_count,
+                       pdf);
 
         deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
     }
@@ -249,7 +268,66 @@ void main() {
 
 #elif SPATIAL_REUSE_PASS == 1
 void main() {
+    const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
+    const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
 
+    // Camera setup
+    daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
+    daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
+    
+    daxa_u32 max_depth = deref(p.status_buffer).max_depth;
+    daxa_u32 frame_number = deref(p.status_buffer).frame_number;
+
+    daxa_u32 seed = tea(index.y * rt_size.x + index.x, frame_number * SAMPLES_PER_PIXEL);
+
+    // Ray setup
+    Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
+
+    // screen_pos is the index of the pixel in the screen
+    daxa_u32 screen_pos = index.y * rt_size.x + index.x;
+    
+     // Get hit info
+    DIRECT_ILLUMINATION_INFO di_info = deref(p.di_buffer).DI_info[screen_pos];
+    
+    if(di_info.distance > 0.0) {
+
+        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_id);
+        
+        // Get sample info from reservoir
+        RESERVOIR reservoir = deref(p.reservoir_buffer).reservoirs[screen_pos];
+
+        daxa_u32 light_count = deref(p.status_buffer).light_count;
+
+        daxa_f32 pdf = 1.0 / daxa_f32(light_count);
+
+        daxa_u32 current_mat_index = get_material_index_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
+        
+        // Get material
+        MATERIAL mat = get_material_from_material_index(current_mat_index);
+
+        VELOCITY velocity = deref(p.velocity_buffer).velocities[screen_pos];
+        // X from current pixel position
+        daxa_f32vec2 Xi = daxa_f32vec2(index.xy) + 0.5;
+
+        daxa_f32vec2 Xi_1 = Xi + velocity.velocity;
+
+        daxa_u32vec2 predicted_coord = daxa_u32vec2(Xi_1);
+
+        HIT_INFO_INPUT hit = HIT_INFO_INPUT(daxa_f32vec3(0.0),
+                                            // NOTE: In order to avoid self intersection we need to offset the ray origin
+                                            di_info.position.xyz,
+                                            di_info.normal.xyz,
+                                            di_info.instance_id,
+                                            di_info.primitive_id,
+                                            seed,
+                                            max_depth);
+
+                                            // (inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 current_mat_index, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
+
+        SPATIAL_REUSE(reservoir, predicted_coord, rt_size, ray, hit, current_mat_index, mat, light_count, pdf);
+
+        deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+    }
 }
 
 #elif THIRD_VISIBILITY_TEST_AND_SHADING_PASS == 1

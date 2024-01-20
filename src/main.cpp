@@ -1362,6 +1362,9 @@ namespace tests
                 auto rgen_restir_temp_reuse_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_temp_reuse_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"TEMPORAL_REUSE_PASS", "1"}};
 
+                auto rgen_restir_spatial_reuse_selection_compile_options = rt_shader_compile_options;
+                rgen_restir_spatial_reuse_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"SPATIAL_REUSE_PASS", "1"}};
+
                 auto rgen_restir_shading_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_shading_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"THIRD_VISIBILITY_TEST_AND_SHADING_PASS", "1"}};
 
@@ -1414,6 +1417,10 @@ namespace tests
                                           .source = daxa::ShaderFile{"rgen.glsl"},
                                           .compile_options = rgen_restir_temp_reuse_selection_compile_options,
                                       },
+                                        daxa::ShaderCompileInfo{
+                                            .source = daxa::ShaderFile{"rgen.glsl"},
+                                            .compile_options = rgen_restir_spatial_reuse_selection_compile_options,
+                                        },
                                       daxa::ShaderCompileInfo{
                                           .source = daxa::ShaderFile{"rgen.glsl"},
                                           .compile_options = rgen_restir_shading_selection_compile_options,
@@ -1495,28 +1502,28 @@ namespace tests
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 14,
+                            .general_shader_index = 4,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 15,
                         },
                         daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 16,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
-                            .closest_hit_shader_index = 12,
-                            .any_hit_shader_index = 5,
-                            .intersection_shader_index = 4,
+                            .closest_hit_shader_index = 13,
+                            .any_hit_shader_index = 6,
+                            .intersection_shader_index = 5,
                         },
                         // daxa::RayTracingShaderGroupInfo{
                         //     .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
-                        //     .closest_hit_shader_index = 13,
+                        //     .closest_hit_shader_index = 14,
                         //     .any_hit_shader_index = 3,
                         //     .intersection_shader_index = 2,
                         // },
-                        daxa::RayTracingShaderGroupInfo{
-                            .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 6,
-                        },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 7,
@@ -1536,6 +1543,10 @@ namespace tests
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 11,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 12,
                         },
                     },
                     .max_ray_recursion_depth = status.max_depth,
@@ -1803,6 +1814,37 @@ namespace tests
                     .height = height,
                     .depth = 1,
                     .raygen_shader_binding_table_offset = 3,
+                });
+
+                recorder.pipeline_barrier({
+                    .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                    .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
+                });
+                
+                recorder.push_constant(PushConstant{
+                    .size = {width, height},
+                    .tlas = tlas,
+                    .swapchain = swapchain_image_view,
+                    .camera_buffer = this->device.get_device_address(cam_buffer).value(),
+                    .status_buffer = this->device.get_device_address(status_buffer).value(),
+                    .instance_buffer = this->device.get_device_address(instance_buffer).value(),
+                    .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
+                    .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
+                    .materials_buffer = this->device.get_device_address(material_buffer).value(),
+                    .light_buffer = this->device.get_device_address(light_buffer).value(),
+                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
+                    .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
+                    .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
+                    .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
+                });
+
+                recorder.trace_rays({
+                    .width = width,
+                    .height = height,
+                    .depth = 1,
+                    .raygen_shader_binding_table_offset = 4,
                 });
                 
 

@@ -33,6 +33,13 @@ daxa_u32 get_material_index_from_primitive_index(daxa_u32 primitive_index) {
     return primitive.material_index;
 }
 
+daxa_u32 get_material_index_from_instance_and_primitive_id(daxa_u32 instance_id, daxa_u32 primitive_id) {
+    // Get material index from primitive
+    daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
+
+    return get_material_index_from_primitive_index(primitive_index);
+}
+
 MATERIAL get_material_from_material_index(daxa_u32 mat_index) {
     // Get material index from primitive
     return deref(p.materials_buffer).materials[mat_index];

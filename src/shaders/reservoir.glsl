@@ -122,13 +122,13 @@ RESERVOIR RIS(daxa_u32 light_count, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL 
 
 
 
-void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
+void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
 {
 
     RESERVOIR temporal_reservoir;
     initialise_reservoir(temporal_reservoir);
 
-    daxa_u32 prev_predicted_index = predicted_coord.x + predicted_coord.y * gl_LaunchSizeEXT.x;
+    daxa_u32 prev_predicted_index = predicted_coord.x + predicted_coord.y * rt_size.x;
 
     daxa_f32 pdf_out = 1.0;
     
@@ -136,7 +136,7 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, Ray
     daxa_f32 p_hat = calculate_phat(ray, hit, mat, light_count, deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)], pdf, pdf_out, false, false, false);
 
     // Max screen pos
-    daxa_u32 max_screen_pos = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y - 1;
+    daxa_u32 max_screen_pos = rt_size.x * rt_size.y - 1;
 
     // Clamp screen pos for 
     prev_predicted_index = min(max_screen_pos, prev_predicted_index);
@@ -175,6 +175,75 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, Ray
     }
     reservoir = temporal_reservoir;
 }
+
+
+void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 current_mat_index, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
+{
+        RESERVOIR spatial_reservoir;
+        initialise_reservoir(spatial_reservoir);
+
+        daxa_f32 pdf_out = 1.0;
+        
+        // Calculate p_hat
+        daxa_f32 p_hat = calculate_phat(ray, hit, mat, light_count, deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)], pdf, pdf_out, false, false, false);
+
+        //add previous samples
+        calculate_reservoir_weight_aggregation(spatial_reservoir, reservoir, ray, hit, mat, light_count, p_hat);
+
+        RESERVOIR neighbor_reservoir;
+
+        daxa_f32 spatial_influence_threshold = max(1.0, (INFLUENCE_FROM_THE_PAST_THRESHOLD) / NUM_OF_NEIGHBORS);
+
+        for (daxa_u32 i = 0; i < NUM_OF_NEIGHBORS; i++)
+        {
+            // Random offset
+            daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(prd.seed), rnd(prd.seed)) - 1;
+
+            // Scale offset
+            offset.x = predicted_coord.x + int(offset.x * NEIGHBORS_RADIUS);
+            offset.y = predicted_coord.y + int(offset.y * NEIGHBORS_RADIUS);
+
+            // Clamp offset
+            offset.x = min(rt_size.x - 1, max(0, min(rt_size.x - 1, offset.x)));
+            offset.y = min(rt_size.y - 1, max(0, min(rt_size.y - 1, offset.y)));
+
+            // Convert offset to u32
+            daxa_u32vec2 offset_u32 = daxa_u32vec2(offset);
+
+            // Convert offset to linear
+            daxa_u32 offset_u32_linear = offset_u32.y * rt_size.x + offset_u32.x;
+
+            // TODO: Should depth buffer be used?
+            // daxa_f32 neighbor_depth_linear = linearise_depth(deref(p.depth_buffer).depth[daxa_f32vec2(offset)].x);
+
+            DIRECT_ILLUMINATION_INFO neighbor_di_info = deref(p.di_buffer).DI_info[offset_u32_linear];
+
+            daxa_f32 neighbor_hit_dist = neighbor_di_info.distance;
+
+            daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(neighbor_di_info.instance_id, neighbor_di_info.primitive_id);
+
+            daxa_u32 neighbor_mat_index = get_material_index_from_primitive_index(current_primitive_index);
+
+            // TODO: Adjust dist threshold dynamically
+            if (
+                // (neighbor_depth_linear > 1.1f * depth_linear || neighbor_depth_linear < 0.9f * depth_linear)   ||
+                // abs(neighbor_hit_dist - gl_HitTEXT) > VOXEL_EXTENT ||
+                neighbor_mat_index != current_mat_index ||
+                dot(hit.world_nrm, neighbor_di_info.normal.xyz) < 0.906)
+            {
+                // skip this neighbour sample if not suitable
+                continue;
+            }
+
+            neighbor_reservoir = deref(p.reservoir_buffer).reservoirs[offset_u32_linear];
+
+            calculate_reservoir_weight_aggregation(spatial_reservoir, neighbor_reservoir, ray, hit, mat, light_count, p_hat);
+        }
+
+        calculate_reservoir_weight(spatial_reservoir, ray, hit, mat, light_count, p_hat);
+
+        reservoir = spatial_reservoir;
+    }
 
 
 
