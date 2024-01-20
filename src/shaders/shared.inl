@@ -56,6 +56,11 @@ struct HIT_PAY_LOAD
     daxa_f32vec3 hit_value;
     daxa_u32 depth;
     daxa_u32 seed;
+    daxa_f32vec3 world_hit;
+    daxa_f32 distance;
+    daxa_f32vec3 world_nrm;
+    daxa_u32 instance_id;
+    daxa_u32 primitive_id;
 };
 
 struct HIT_INDIRECT_PAY_LOAD
@@ -288,7 +293,8 @@ DAXA_DECL_BUFFER_PTR(VELOCITIES)
 struct DIRECT_ILLUMINATION_INFO
 {
     daxa_f32vec3 position;
-    daxa_f32vec4 normal;
+    daxa_f32 distance;
+    daxa_f32vec3 normal;
     daxa_u32 instance_id;
     daxa_u32 primitive_id;
 };

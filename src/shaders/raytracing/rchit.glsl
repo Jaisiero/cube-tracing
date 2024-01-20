@@ -15,10 +15,9 @@ layout(location = 0) hitObjectAttributeNV vec3 hitValue;
 
 #if defined(RIS_SELECTION)
 
-layout(location = 2) rayPayloadEXT HIT_INDIRECT_PAY_LOAD indirect_prd;
-
 void main()
 {
+
     // Ray info 
     Ray ray = Ray(
         gl_WorldRayOriginEXT,
@@ -33,12 +32,12 @@ void main()
 
     daxa_f32vec3 world_pos;
     daxa_f32vec3 world_nrm;
-    daxa_f32 t_hit = gl_HitTEXT;
+    daxa_f32 distance = gl_HitTEXT;
     daxa_u32 instance_id = gl_InstanceCustomIndexEXT;
     daxa_u32 primitive_id = gl_PrimitiveID;
     daxa_u32 actual_primitive_index = 0;
     
-    packed_intersection_info(ray, t_hit, instance_id, primitive_id, model, world_pos, world_nrm, actual_primitive_index);
+    packed_intersection_info(ray, distance, instance_id, primitive_id, model, world_pos, world_nrm, actual_primitive_index);
 
     HIT_INFO_INPUT hit = HIT_INFO_INPUT(
         daxa_f32vec3(0.0),
@@ -77,10 +76,13 @@ void main()
     deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
 
 
-    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(hit.world_hit, daxa_f32vec4(hit.world_nrm, t_hit), instance_id, primitive_id);
-
-    // Store normal
-    deref(p.di_buffer).DI_info[screen_pos] = di_info;
+    // prd.hit_value = reservoir.W_y;
+    prd.seed = prd.seed;
+    prd.world_hit = world_pos;
+    prd.world_nrm = world_nrm;
+    prd.distance = distance;
+    prd.instance_id = instance_id;
+    prd.primitive_id = primitive_id;
 }
 
 

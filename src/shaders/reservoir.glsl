@@ -156,7 +156,7 @@ daxa_f32vec3 reservoir_direct_illumination(inout RESERVOIR reservoir, daxa_u32 l
         daxa_f32vec3 normal_previous = di_info_previous.normal.xyz;
 
         // Depth from previous frame
-        daxa_f32 depth_previous = di_info_previous.normal.w;
+        daxa_f32 depth_previous = di_info_previous.distance;
 
         //some simple rejection based on normals' divergence, can be improved
         bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && di_info_previous.instance_id == hit.instance_id && di_info_previous.primitive_id == hit.primitive_id;
@@ -221,7 +221,7 @@ daxa_f32vec3 reservoir_direct_illumination(inout RESERVOIR reservoir, daxa_u32 l
 
             DIRECT_ILLUMINATION_INFO di_info_previous = deref(p.previous_di_buffer).DI_info[offset_u32_linear];
 
-            daxa_f32 neighbor_hit_dist = di_info_previous.normal.w;
+            daxa_f32 neighbor_hit_dist = di_info_previous.distance;
 
             daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(di_info_previous.instance_id, di_info_previous.primitive_id);
 

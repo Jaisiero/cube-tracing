@@ -1353,6 +1353,12 @@ namespace tests
                     .enable_debug_info = false,
                 };
 
+                auto rgen_restir_prepass_selection_compile_options = rt_shader_compile_options;
+                rgen_restir_prepass_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"RESTIR_PREPASS", "1"}};
+
+                auto rgen_restir_shading_selection_compile_options = rt_shader_compile_options;
+                rgen_restir_shading_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"THRID_VISIBILITY_TEST_AND_SHADING_PASS", "1"}};
+
                 auto shadow_miss_compile_options = rt_shader_compile_options;
                 shadow_miss_compile_options.defines = std::vector{daxa::ShaderDefine{"MISS_SHADOW", "1"}};
 
@@ -1374,6 +1380,9 @@ namespace tests
                 auto constant_medium_call_compile_options = rt_shader_compile_options;
                 constant_medium_call_compile_options.defines = std::vector{daxa::ShaderDefine{"CONSTANT_MEDIUM", "1"}};
 
+                auto ris_selection_compile_options = rt_shader_compile_options;
+                ris_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"RIS_SELECTION", "1"}};
+
                 auto direct_illumination_compile_options = rt_shader_compile_options;
                 direct_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"DIRECT_ILLUMINATION", "1"}};
                 if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
@@ -1387,10 +1396,14 @@ namespace tests
                 }
 
                 auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
-                    .ray_gen_infos = daxa::ShaderCompileInfo{
-                        .source = daxa::ShaderFile{"rgen.glsl"},
-                        .compile_options = rt_shader_compile_options,
-                    },
+                    .ray_gen_infos = {daxa::ShaderCompileInfo{
+                                          .source = daxa::ShaderFile{"rgen.glsl"},
+                                          .compile_options = rgen_restir_prepass_selection_compile_options,
+                                      },
+                                      daxa::ShaderCompileInfo{
+                                          .source = daxa::ShaderFile{"rgen.glsl"},
+                                          .compile_options = rgen_restir_shading_selection_compile_options,
+                                      }},
                     .intersection_infos = {
                         daxa::ShaderCompileInfo{
                             .source = daxa::ShaderFile{"rint.glsl"},
@@ -1432,7 +1445,7 @@ namespace tests
                     .closest_hit_infos = {
                         daxa::ShaderCompileInfo{
                             .source = daxa::ShaderFile{"rchit.glsl"},
-                            .compile_options = direct_illumination_compile_options,
+                            .compile_options = ris_selection_compile_options,
                         },
                         daxa::ShaderCompileInfo{
                             .source = daxa::ShaderFile{"rchit.glsl"},
@@ -1456,28 +1469,28 @@ namespace tests
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 11,
+                            .general_shader_index = 1,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 12,
                         },
                         daxa::RayTracingShaderGroupInfo{
-                            .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
-                            .closest_hit_shader_index = 9,
-                            .any_hit_shader_index = 2,
-                            .intersection_shader_index = 1,
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 13,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
                             .closest_hit_shader_index = 10,
-                            .any_hit_shader_index = 2,
-                            .intersection_shader_index = 1,
+                            .any_hit_shader_index = 3,
+                            .intersection_shader_index = 2,
                         },
-                        daxa::RayTracingShaderGroupInfo{
-                            .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 3,
-                        },
+                        // daxa::RayTracingShaderGroupInfo{
+                        //     .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
+                        //     .closest_hit_shader_index = 11,
+                        //     .any_hit_shader_index = 3,
+                        //     .intersection_shader_index = 2,
+                        // },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 4,
@@ -1497,6 +1510,10 @@ namespace tests
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 8,
+                        },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 9,
                         },
                     },
                     .max_ray_recursion_depth = status.max_depth,
@@ -1641,11 +1658,13 @@ namespace tests
                     .image_id = swapchain_image,
                 });
 
+                auto swapchain_image_view = swapchain_image.default_view(); 
+
                 recorder.set_pipeline(*rt_pipeline);
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
                     .tlas = tlas,
-                    .swapchain = swapchain_image.default_view(),
+                    .swapchain = swapchain_image_view,
                     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
                     .status_buffer = this->device.get_device_address(status_buffer).value(),
                     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
@@ -1655,10 +1674,10 @@ namespace tests
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
                     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
-                    .previous_di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_direct_illum_buffer).value() : this->device.get_device_address(direct_illum_buffer).value(),
-                    .di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(direct_illum_buffer).value() : this->device.get_device_address(previous_direct_illum_buffer).value(),
-                    .previous_reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
-                    .reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
+                    .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
+                    .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
                     // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
                     // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
                     // .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
@@ -1671,40 +1690,46 @@ namespace tests
                     .depth = 1,
                 });
 
-                // recorder.pipeline_barrier({
-                //     .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
-                //     .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                // });
+                recorder.pipeline_barrier({
+                    .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                    .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
+                });
+                
+                recorder.push_constant(PushConstant{
+                    .size = {width, height},
+                    .tlas = tlas,
+                    .swapchain = swapchain_image_view,
+                    .camera_buffer = this->device.get_device_address(cam_buffer).value(),
+                    .status_buffer = this->device.get_device_address(status_buffer).value(),
+                    .instance_buffer = this->device.get_device_address(instance_buffer).value(),
+                    .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
+                    .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
+                    .materials_buffer = this->device.get_device_address(material_buffer).value(),
+                    .light_buffer = this->device.get_device_address(light_buffer).value(),
+                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
+                    .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
+                    .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
+                    .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
+                    // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
+                    // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
+                    // .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
+                    // .aabb_buffer = this->device.get_device_address(gpu_aabb_buffer).value(),
+                });
 
-                // // recorder.set_pipeline(*compute_motion_vectors_pipeline);
-                // // recorder.push_constant(PushConstant{
-                // //     .size = {width, height},
-                // //     .tlas = tlas,
-                // //     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
-                // //     .status_buffer = this->device.get_device_address(status_buffer).value(),
-                // //     .instance_buffer = this->device.get_device_address(instance_buffer).value(),
-                // //     .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
-                // //     .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
-                // //     .materials_buffer = this->device.get_device_address(material_buffer).value(),
-                // //     .light_buffer = this->device.get_device_address(light_buffer).value(),
-                // //     .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
-                // //     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
-                // //     .previous_di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_direct_illum_buffer).value() : this->device.get_device_address(direct_illum_buffer).value(),
-                // //     .di_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(direct_illum_buffer).value() : this->device.get_device_address(previous_direct_illum_buffer).value(),
-                // //     .previous_reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(previous_reservoir_buffer).value() : this->device.get_device_address(reservoir_buffer).value(),
-                // //     .reservoir_buffer = (status.frame_number % 2) == 0 ? this->device.get_device_address(reservoir_buffer).value() : this->device.get_device_address(previous_reservoir_buffer).value(),
-                // // });
+                recorder.trace_rays({
+                    .width = width,
+                    .height = height,
+                    .depth = 1,
+                    .raygen_shader_binding_table_offset = 1,
+                });
+                
 
-                // // recorder.dispatch({
-                // //     .x = width,
-                // //     .y = height,
-                // //     .z = 1,
-                // // });
-
-                // // recorder.pipeline_barrier({
-                // //     .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
-                // //     .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                // // });
+                recorder.pipeline_barrier({
+                    .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                    .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                });
 
                 recorder.copy_buffer_to_buffer({
                     .src_buffer = cam_buffer,

@@ -6,6 +6,7 @@
 #include "prng.glsl"
 #include "primitives.glsl"
 #include "bounce.glsl"
+#include "mat.glsl"
 
 daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
     return max(dot(n, w_i), 0.0);

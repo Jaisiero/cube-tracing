@@ -8,6 +8,7 @@ DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
 #if DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_RAYGEN
 layout(location = 0) rayPayloadEXT HIT_PAY_LOAD prd;
+layout(location = 1) rayPayloadEXT bool is_shadowed;
 #elif DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_CLOSEST_HIT
 layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 layout(location = 1) rayPayloadEXT bool is_shadowed;
