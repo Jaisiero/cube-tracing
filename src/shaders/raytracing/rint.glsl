@@ -28,8 +28,10 @@ void main()
 
     daxa_f32vec3 pos;
     daxa_f32vec3 nor;
+    daxa_f32mat4x4 model;
+    daxa_f32mat4x4 inv_model;
 
-    t_hit = is_hit_from_ray(ray, gl_InstanceCustomIndexEXT, gl_PrimitiveID, t_hit, pos, nor, true, false) ? t_hit : -1.0;
+    t_hit = is_hit_from_ray(ray, gl_InstanceCustomIndexEXT, gl_PrimitiveID, t_hit, pos, nor, model, inv_model, true, false) ? t_hit : -1.0;
         
 
     // Report hit point

@@ -59,20 +59,6 @@ MATERIAL get_material_from_instance_and_primitive_id(daxa_u32 instance_id, daxa_
     return get_material_from_primitive_index(primitive_index);
 }
 
-
-// // Ray-AABB intersection
-// daxa_f32 hitAabb(const Aabb aabb, const Ray r)
-// {
-//     vec3 invDir = 1.0 / r.direction;
-//     vec3 tbot = invDir * (aabb.minimum - r.origin);
-//     vec3 ttop = invDir * (aabb.maximum - r.origin);
-//     vec3 tmin = min(ttop, tbot);
-//     vec3 tmax = max(ttop, tbot);
-//     daxa_f32 t0 = max(tmin.x, max(tmin.y, tmin.z));
-//     daxa_f32 t1 = min(tmax.x, min(tmax.y, tmax.z));
-//     return t1 > max(t0, 0.0) ? t0 : -1.0;
-// }
-
 // Credits: https://jcgt.org/published/0007/03/04/
 
 // vec3 box.radius:       independent half-length along the X, Y, and Z axes
@@ -151,19 +137,24 @@ daxa_b32 intersect_box(Box box, Ray ray, out daxa_f32 distance, out daxa_f32vec3
     return (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
 }
 
-daxa_b32 is_hit_from_ray(Ray ray, daxa_u32 instance_id, daxa_u32 primitive_id, out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor, const in daxa_b32 rayCanStartInBox, const in daxa_b32 oriented) {
+daxa_b32 is_hit_from_ray(Ray ray, daxa_u32 instance_id,
+                         daxa_u32 primitive_id, out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
+                         out daxa_f32mat4x4 model, out daxa_f32mat4x4 inv_model,
+                         const in daxa_b32 rayCanStartInBox, const in daxa_b32 oriented)
+{
     daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
 
     // Get aabb from primitive
     Aabb aabb = deref(p.aabb_buffer).aabbs[current_primitive_index];
 
     // Get model matrix from instance
-    daxa_f32mat4x4 model = get_geometry_transform_from_instance_id(instance_id);
+    model = get_geometry_transform_from_instance_id(instance_id);
 
-    daxa_f32mat4x4 inv_model = inverse(model);
+    inv_model = inverse(model);
 
-    ray.origin = (inv_model * vec4(ray.origin, 1)).xyz;
-    ray.direction = (inv_model * vec4(ray.direction, 0)).xyz;
+    Ray ray_object_space;
+    ray_object_space.origin = (inv_model * vec4(ray.origin, 1)).xyz;
+    ray_object_space.direction = (inv_model * vec4(ray.direction, 0)).xyz;
     
     daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
 
@@ -173,12 +164,11 @@ daxa_b32 is_hit_from_ray(Ray ray, daxa_u32 instance_id, daxa_u32 primitive_id, o
     Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
 
     daxa_f32vec3 normal = vec3(0.0f);
-    daxa_b32 hit = intersect_box(box, ray, t_hit, nor, rayCanStartInBox, oriented, safeInverse(ray.direction));
-    pos = ray.origin + ray.direction * t_hit;
+    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, rayCanStartInBox, oriented, safeInverse(ray_object_space.direction));
+    pos = ray_object_space.origin + ray_object_space.direction * t_hit;
 
     return hit;
 }
-
 
 void packed_intersection_info(Ray ray, daxa_f32 t_hit, daxa_u32 instance_id, daxa_u32 primitive_id, daxa_f32mat4x4 model, out daxa_f32vec3 world_pos, out daxa_f32vec3 world_nrm, out daxa_u32 actual_primitive_index)
 {

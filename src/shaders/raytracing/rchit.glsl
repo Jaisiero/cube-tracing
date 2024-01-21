@@ -63,11 +63,8 @@ void main()
     // Screen position
     daxa_u32 screen_pos = gl_LaunchIDEXT.x + gl_LaunchSizeEXT.x * gl_LaunchIDEXT.y;
     
-    // radiance
-    daxa_f32vec3 radiance = daxa_f32vec3(0.0);
     // PDF for lights
     daxa_f32 pdf = 1.0 / light_count;
-    daxa_f32 pdf_out = 1.0;
 
     daxa_f32 p_hat = 0;
     RESERVOIR reservoir = RIS(light_count, ray, hit, mat, pdf, p_hat);

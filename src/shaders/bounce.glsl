@@ -26,6 +26,8 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     daxa_f32vec3 int_nor = daxa_f32vec3(0.0);
     daxa_b32 is_hit = false;
     daxa_f32 t_hit = 0.0;
+    daxa_f32mat4x4 model;
+    daxa_f32mat4x4 inv_model;
     
     rayQueryEXT ray_query;
 
@@ -45,7 +47,7 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
             // Get primitive id
             primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, false);
 
-            if(is_hit_from_ray(ray, instance_id, primitive_id, t_hit, int_hit, int_nor, false, false)) {
+            if(is_hit_from_ray(ray, instance_id, primitive_id, t_hit, int_hit, int_nor, model, inv_model, false, false)) {
                 rayQueryGenerateIntersectionEXT(ray_query, t_hit);
 
                 daxa_u32 type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
@@ -71,6 +73,9 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
 
     if(is_hit) {
         intersected_mat = get_material_from_instance_and_primitive_id(instance_id, primitive_id);
+
+        int_hit = (model * vec4(int_hit, 1)).xyz;
+        int_nor = (model * vec4(int_nor, 0)).xyz;
     }
 
     return INTERSECT(is_hit, int_hit, int_nor, instance_id, primitive_id, intersected_mat);

@@ -13,7 +13,7 @@
 
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
-#define DYNAMIC_SUN_LIGHT 0
+#define DYNAMIC_SUN_LIGHT 1
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -295,8 +295,10 @@ struct DIRECT_ILLUMINATION_INFO
     daxa_f32vec3 position;
     daxa_f32 distance;
     daxa_f32vec3 normal;
+    daxa_u32 seed;
     daxa_u32 instance_id;
     daxa_u32 primitive_id;
+    daxa_f32 p_hat;
 };
 
 struct DIRECT_ILLUMINATION_BUFFER

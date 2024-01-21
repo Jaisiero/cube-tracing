@@ -206,14 +206,21 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         ray.direction = l.position - P;
 
         daxa_f32 t_hit = -1.0;
+        daxa_f32mat4x4 model;
+        daxa_f32mat4x4 inv_model;
 
-        vis = is_hit_from_ray(ray, l.instance_index, l.primitive_index, t_hit, l_pos, l_nor, true, false);
+        vis = is_hit_from_ray(ray, l.instance_index, l.primitive_index, t_hit, l_pos, l_nor, model, inv_model, true, false);
 
+        // TODO: point and normals are object space
         l_pos = l_pos + random_quad(l_nor, size, hit.seed);
         if(calc_pdf) {
             daxa_f32 area = size.x * size.y * 6.0;
             pdf /= area;
         }
+
+        daxa_f32vec4 l_pos_4 = model * vec4(l_pos, 1);
+        l_pos = l_pos_4.xyz / l_pos_4.w;
+        l_nor = (transpose(inv_model) * vec4(l_nor, 0)).xyz;
     } 
     else if (l.type == GEOMETRY_LIGHT_POINT)
     {
@@ -249,10 +256,7 @@ daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, LIGHT li
     daxa_f32vec3 l_pos , l_nor , Le;
 
     pdf_out = pdf;
-
-    // if(sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility) == false) {
-    //     return vec3(0.0);
-    // }
+    
     sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility);
 
     daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, ray.direction, wi);

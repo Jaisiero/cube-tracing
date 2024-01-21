@@ -31,7 +31,7 @@ layout(location = 4) callableDataInEXT HIT_SCATTER_PAY_LOAD call_scatter;
 // #define DEBUG_NORMALS 1
 
 // TODO: M by parameter?
-const daxa_u32 M = 1;
+const daxa_u32 M = 32;
 const daxa_f32 INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
-const daxa_f32 NUM_OF_NEIGHBORS = 15;
+const daxa_f32 NUM_OF_NEIGHBORS = 8;
 const daxa_f32 NEIGHBORS_RADIUS = 5.0f;

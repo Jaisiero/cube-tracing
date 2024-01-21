@@ -1355,6 +1355,9 @@ namespace tests
 
                 auto rgen_restir_prepass_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_prepass_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"RESTIR_PREPASS", "1"}};
+                if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
+                    rgen_restir_prepass_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
+                }
 
                 auto rgen_restir_first_vis_test_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_first_vis_test_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"FIRST_VISIBILITY_TEST", "1"}};
@@ -1394,15 +1397,15 @@ namespace tests
 
                 auto direct_illumination_compile_options = rt_shader_compile_options;
                 direct_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"DIRECT_ILLUMINATION", "1"}};
-                if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
-                    direct_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER_ON", "1"});
-                }
+                // if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
+                //     direct_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
+                // }
 
                 auto indirect_illumination_compile_options = rt_shader_compile_options;
                 indirect_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"INDIRECT_ILLUMINATION", "1"}};
-                if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
-                    indirect_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER_ON", "1"});
-                }
+                // if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
+                //     indirect_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
+                // }
 
                 auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
                     .ray_gen_infos = {daxa::ShaderCompileInfo{
