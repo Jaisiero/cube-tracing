@@ -318,7 +318,7 @@ void main() {
         di_info.seed = hit.seed;
         deref(p.di_buffer).DI_info[screen_pos].seed = di_info.seed;
 
-        deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+        deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos] = reservoir;
     }
 #endif // RESERVOIR_TEMPORAL_ON
 }
@@ -354,7 +354,7 @@ void main() {
         daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_id);
         
         // Get sample info from reservoir
-        RESERVOIR reservoir = deref(p.reservoir_buffer).reservoirs[screen_pos];
+        RESERVOIR reservoir = deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos];
 
         daxa_u32 light_count = deref(p.status_buffer).light_count;
 

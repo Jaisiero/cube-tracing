@@ -82,10 +82,11 @@ namespace tests
             daxa::BufferId light_buffer = {};
             size_t max_light_buffer_size = sizeof(LIGHT) * MAX_LIGHTS;
 
-            daxa::BufferId status_output_buffer = {};
-            size_t max_status_output_buffer_size = sizeof(STATUS_OUTPUT);
+            // daxa::BufferId status_output_buffer = {};
+            // size_t max_status_output_buffer_size = sizeof(STATUS_OUTPUT);
             
             daxa::BufferId previous_reservoir_buffer = {};
+            daxa::BufferId intermediate_reservoir_buffer = {};
             daxa::BufferId reservoir_buffer = {};
             size_t max_reservoir_buffer_size = sizeof(RESERVOIR) * MAX_RESERVOIRS;
 
@@ -140,8 +141,9 @@ namespace tests
                         device.destroy_sampler(sampler);
                     device.destroy_buffer(light_buffer);
                     device.destroy_buffer(status_buffer);
-                    device.destroy_buffer(status_output_buffer);
+                    // device.destroy_buffer(status_output_buffer);
                     device.destroy_buffer(previous_reservoir_buffer);
+                    device.destroy_buffer(intermediate_reservoir_buffer);
                     device.destroy_buffer(reservoir_buffer);
                     device.destroy_buffer(velocity_buffer);
                     device.destroy_buffer(previous_direct_illum_buffer);
@@ -331,6 +333,12 @@ namespace tests
                      recorder.copy_buffer_to_buffer({
                         .src_buffer = reservoir_staging_buffer,
                         .dst_buffer = previous_reservoir_buffer,
+                        .size = reservoir_size,
+                    });
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = reservoir_staging_buffer,
+                        .dst_buffer = intermediate_reservoir_buffer,
                         .size = reservoir_size,
                     });
 
@@ -869,14 +877,19 @@ namespace tests
                     .name = ("light_buffer"),
                 });
 
-                status_output_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_status_output_buffer_size,
-                    .name = ("status_output_buffer"),
-                });
+                // status_output_buffer = device.create_buffer(daxa::BufferInfo{
+                //     .size = max_status_output_buffer_size,
+                //     .name = ("status_output_buffer"),
+                // });
 
                 previous_reservoir_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_reservoir_buffer_size,
                     .name = ("previous_reservoir_buffer"),
+                });
+
+                intermediate_reservoir_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_reservoir_buffer_size,
+                    .name = ("intermediate_reservoir_buffer"),
                 });
 
                 reservoir_buffer = device.create_buffer(daxa::BufferInfo{
@@ -1708,11 +1721,12 @@ namespace tests
                     .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
-                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
                     .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
                     .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
                     .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .intermediate_reservoir_buffer = this->device.get_device_address(intermediate_reservoir_buffer).value(),
                     .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
                     // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
                     // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
@@ -1742,11 +1756,12 @@ namespace tests
                     .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
-                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
                     .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
                     .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
                     .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .intermediate_reservoir_buffer = this->device.get_device_address(intermediate_reservoir_buffer).value(),
                     .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
                 });
 
@@ -1773,11 +1788,12 @@ namespace tests
                     .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
-                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
                     .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
                     .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
                     .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .intermediate_reservoir_buffer = this->device.get_device_address(intermediate_reservoir_buffer).value(),
                     .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
                 });
 
@@ -1804,11 +1820,12 @@ namespace tests
                     .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
-                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
                     .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
                     .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
                     .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .intermediate_reservoir_buffer = this->device.get_device_address(intermediate_reservoir_buffer).value(),
                     .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
                 });
 
@@ -1835,11 +1852,12 @@ namespace tests
                     .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
                     .materials_buffer = this->device.get_device_address(material_buffer).value(),
                     .light_buffer = this->device.get_device_address(light_buffer).value(),
-                    .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
                     .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
                     .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
                     .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
+                    .intermediate_reservoir_buffer = this->device.get_device_address(intermediate_reservoir_buffer).value(),
                     .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
                 });
 
@@ -1943,102 +1961,102 @@ namespace tests
                 // defer { device.destroy_buffer(hit_distance_staging_buffer); };
 
 #if(PERFECT_PIXEL_ON == 1)
-                // Some Device to Host copy here
-                auto status_output_staging_buffer = device.create_buffer({
-                    .size = max_status_output_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("status_output_staging_buffer"),
-                });
-                defer { device.destroy_buffer(status_output_staging_buffer); };
+                // // Some Device to Host copy here
+                // auto status_output_staging_buffer = device.create_buffer({
+                //     .size = max_status_output_buffer_size,
+                //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                //     .name = ("status_output_staging_buffer"),
+                // });
+                // defer { device.destroy_buffer(status_output_staging_buffer); };
 
-                /// Record build commands:
-                auto exec_cmds = [&]()
-                {
-                    auto recorder = device.create_command_recorder({});
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::HOST_WRITE,
-                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                    });
+                // /// Record build commands:
+                // auto exec_cmds = [&]()
+                // {
+                //     auto recorder = device.create_command_recorder({});
+                //     recorder.pipeline_barrier({
+                //         .src_access = daxa::AccessConsts::HOST_WRITE,
+                //         .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                //     });
 
-                    // recorder.copy_buffer_to_buffer({
-                    //     .src_buffer = instance_level_buffer,
-                    //     .dst_buffer = instance_level_staging_buffer,
-                    //     .size = instance_level_buffer_size,
-                    // });
+                //     // recorder.copy_buffer_to_buffer({
+                //     //     .src_buffer = instance_level_buffer,
+                //     //     .dst_buffer = instance_level_staging_buffer,
+                //     //     .size = instance_level_buffer_size,
+                //     // });
                     
-                    // recorder.copy_buffer_to_buffer({
-                    //     .src_buffer = hit_distance_buffer,
-                    //     .dst_buffer = hit_distance_staging_buffer,
-                    //     .size = hit_distance_buffer_size,
-                    // });
+                //     // recorder.copy_buffer_to_buffer({
+                //     //     .src_buffer = hit_distance_buffer,
+                //     //     .dst_buffer = hit_distance_staging_buffer,
+                //     //     .size = hit_distance_buffer_size,
+                //     // });
 
-                    // recorder.copy_buffer_to_buffer({
-                    //     .src_buffer = instance_distance_buffer,
-                    //     .dst_buffer = instance_distance_staging_buffer,
-                    //     .size = instance_distance_buffer_size,
-                    // });
+                //     // recorder.copy_buffer_to_buffer({
+                //     //     .src_buffer = instance_distance_buffer,
+                //     //     .dst_buffer = instance_distance_staging_buffer,
+                //     //     .size = instance_distance_buffer_size,
+                //     // });
 
-                    // recorder.copy_buffer_to_buffer({
-                    //     .src_buffer = gpu_aabb_buffer,
-                    //     .dst_buffer = aabb_staging_buffer,
-                    //     .size = aabb_buffer_size,
-                    // });
+                //     // recorder.copy_buffer_to_buffer({
+                //     //     .src_buffer = gpu_aabb_buffer,
+                //     //     .dst_buffer = aabb_staging_buffer,
+                //     //     .size = aabb_buffer_size,
+                //     // });
                     
-                    recorder.copy_buffer_to_buffer({
-                        .src_buffer = status_output_buffer,
-                        .dst_buffer = status_output_staging_buffer,
-                        .size = max_status_output_buffer_size,
-                    });
+                //     recorder.copy_buffer_to_buffer({
+                //         .src_buffer = status_output_buffer,
+                //         .dst_buffer = status_output_staging_buffer,
+                //         .size = max_status_output_buffer_size,
+                //     });
 
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                        .dst_access = daxa::AccessConsts::HOST_READ,
-                    });
-                    return recorder.complete_current_commands();
-                }();
+                //     recorder.pipeline_barrier({
+                //         .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                //         .dst_access = daxa::AccessConsts::HOST_READ,
+                //     });
+                //     return recorder.complete_current_commands();
+                // }();
 
-                // WAIT FOR COMMANDS TO FINISH
-                {
-                    device.submit_commands({
-                        .command_lists = std::array{exec_cmds},
-                        // .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
-                        // .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
-                    });
+                // // WAIT FOR COMMANDS TO FINISH
+                // {
+                //     device.submit_commands({
+                //         .command_lists = std::array{exec_cmds},
+                //         // .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
+                //         // .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
+                //     });
 
-                    device.wait_idle();
-                    // daxa::TimelineSemaphore gpu_timeline = device.create_timeline_semaphore({
-                    //     .name = "timeline semaphpore",
-                    // });
+                //     device.wait_idle();
+                //     // daxa::TimelineSemaphore gpu_timeline = device.create_timeline_semaphore({
+                //     //     .name = "timeline semaphpore",
+                //     // });
 
-                    // usize cpu_timeline = 0;
+                //     // usize cpu_timeline = 0;
 
-                    // device.submit_commands({
-                    //     .command_lists = std::array{exec_cmds},
-                    //     .signal_timeline_semaphores = std::array{std::pair{gpu_timeline, cpu_timeline}}
-                    // });
+                //     // device.submit_commands({
+                //     //     .command_lists = std::array{exec_cmds},
+                //     //     .signal_timeline_semaphores = std::array{std::pair{gpu_timeline, cpu_timeline}}
+                //     // });
 
-                    // gpu_timeline.wait_for_value(cpu_timeline);
-                }
+                //     // gpu_timeline.wait_for_value(cpu_timeline);
+                // }
 
-                STATUS_OUTPUT status_output;
-
-
-                auto * status_buffer_ptr = device.get_host_address_as<Status>(status_output_staging_buffer).value();
-                std::memcpy(&status_output,
-                    status_buffer_ptr,
-                    max_status_output_buffer_size);
+                // STATUS_OUTPUT status_output;
 
 
-                std::cout << "status pixel [" << status.pixel.x << ", " << status.pixel.y << "]" << std::endl;
-                std::cout << "status out instance index " << status_output.instance_id << " primitive index " << status_output.primitive_id 
-                    << " distance " << status_output.hit_distance << " exit " << status_output.exit_distance
-                    << " position [" << status_output.hit_position.x << ", " << status_output.hit_position.y << ", " << status_output.hit_position.z << "]" 
-                    << " normal [" << status_output.hit_normal.x << ", " << status_output.hit_normal.y << ", " << status_output.hit_normal.z << "]"
-                    << " origin [" << status_output.origin.x << ", " << status_output.origin.y << ", " << status_output.origin.z << "]"
-                    << " direction [" << status_output.direction.x << ", " << status_output.direction.y << ", " << status_output.direction.z << "]" 
-                    << " primitive center [" << status_output.primitive_center.x << ", " << status_output.primitive_center.y << ", " << status_output.primitive_center.z << "]"
-                    << " material_index " << status_output.material_index << ", uv [" << status_output.uv.x << ", " << status_output.uv.y << "]" 
-                    << std::endl;
+                // auto * status_buffer_ptr = device.get_host_address_as<Status>(status_output_staging_buffer).value();
+                // std::memcpy(&status_output,
+                //     status_buffer_ptr,
+                //     max_status_output_buffer_size);
+
+
+                // std::cout << "status pixel [" << status.pixel.x << ", " << status.pixel.y << "]" << std::endl;
+                // std::cout << "status out instance index " << status_output.instance_id << " primitive index " << status_output.primitive_id 
+                //     << " distance " << status_output.hit_distance << " exit " << status_output.exit_distance
+                //     << " position [" << status_output.hit_position.x << ", " << status_output.hit_position.y << ", " << status_output.hit_position.z << "]" 
+                //     << " normal [" << status_output.hit_normal.x << ", " << status_output.hit_normal.y << ", " << status_output.hit_normal.z << "]"
+                //     << " origin [" << status_output.origin.x << ", " << status_output.origin.y << ", " << status_output.origin.z << "]"
+                //     << " direction [" << status_output.direction.x << ", " << status_output.direction.y << ", " << status_output.direction.z << "]" 
+                //     << " primitive center [" << status_output.primitive_center.x << ", " << status_output.primitive_center.y << ", " << status_output.primitive_center.z << "]"
+                //     << " material_index " << status_output.material_index << ", uv [" << status_output.uv.x << ", " << status_output.uv.y << "]" 
+                //     << std::endl;
 #endif // PERFECT_PIXEL_ON
                 
                 

@@ -244,7 +244,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
       continue;
     }
 
-    neighbor_reservoir = deref(p.reservoir_buffer).reservoirs[offset_u32_linear];
+    neighbor_reservoir = deref(p.intermediate_reservoir_buffer).reservoirs[offset_u32_linear];
 
     calculate_reservoir_aggregation(spatial_reservoir, neighbor_reservoir, ray, hit, mat, light_count, p_hat);
   }

@@ -240,21 +240,21 @@ struct LIGHTS
 DAXA_DECL_BUFFER_PTR(LIGHTS)
 
 
-struct STATUS_OUTPUT
-{
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
-    daxa_f32 hit_distance;
-    daxa_f32 exit_distance;
-    daxa_f32vec3 hit_position;
-    daxa_f32vec3 hit_normal;
-    daxa_f32vec3 origin;
-    daxa_f32vec3 direction;
-    daxa_f32vec3 primitive_center;
-    daxa_u32 material_index;
-    daxa_f32vec2 uv;
-};
-DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
+// struct STATUS_OUTPUT
+// {
+//     daxa_u32 instance_id;
+//     daxa_u32 primitive_id;
+//     daxa_f32 hit_distance;
+//     daxa_f32 exit_distance;
+//     daxa_f32vec3 hit_position;
+//     daxa_f32vec3 hit_normal;
+//     daxa_f32vec3 origin;
+//     daxa_f32vec3 direction;
+//     daxa_f32vec3 primitive_center;
+//     daxa_u32 material_index;
+//     daxa_f32vec2 uv;
+// };
+// DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
 
 
 struct RESERVOIR
@@ -378,11 +378,12 @@ struct PushConstant
     daxa_BufferPtr(Aabbs) aabb_buffer;
     daxa_BufferPtr(MATERIALS) materials_buffer;
     daxa_BufferPtr(LIGHTS) light_buffer;
-    daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer; 
+    // daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer; 
     daxa_RWBufferPtr(VELOCITIES) velocity_buffer;
     daxa_RWBufferPtr(DIRECT_ILLUMINATION_BUFFER) previous_di_buffer;
     daxa_RWBufferPtr(DIRECT_ILLUMINATION_BUFFER) di_buffer;
     daxa_RWBufferPtr(RESERVOIRS) previous_reservoir_buffer;
+    daxa_RWBufferPtr(RESERVOIRS) intermediate_reservoir_buffer;
     daxa_RWBufferPtr(RESERVOIRS) reservoir_buffer;
     // daxa_RWBufferPtr(HIT_DISTANCES) hit_distance_buffer;
     // daxa_RWBufferPtr(INSTANCE_LEVELS) instance_level_buffer;
