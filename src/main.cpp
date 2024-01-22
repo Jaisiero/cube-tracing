@@ -1378,6 +1378,10 @@ namespace tests
                 auto rgen_restir_temp_reuse_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_temp_reuse_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"TEMPORAL_REUSE_PASS", "1"}};
 
+                // It doesn't improve visual quality too much
+                // auto rgen_restir_second_vis_test_selection_compile_options = rt_shader_compile_options;
+                // rgen_restir_second_vis_test_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"SECOND_VISIBILITY_TEST", "1"}};
+
                 auto rgen_restir_spatial_reuse_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_spatial_reuse_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"SPATIAL_REUSE_PASS", "1"}};
 

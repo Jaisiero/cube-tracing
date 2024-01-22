@@ -34,4 +34,4 @@ layout(location = 4) callableDataInEXT HIT_SCATTER_PAY_LOAD call_scatter;
 const daxa_u32 M = 32;
 const daxa_f32 INFLUENCE_FROM_THE_PAST_THRESHOLD = 10.0f;
 const daxa_u32 NUM_OF_NEIGHBORS = 8;
-const daxa_f32 NEIGHBORS_RADIUS = 5.0f;
+const daxa_f32 NEIGHBORS_RADIUS = 10.0f;
