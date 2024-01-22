@@ -13,7 +13,7 @@
 
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
-#define DYNAMIC_SUN_LIGHT 1
+#define DYNAMIC_SUN_LIGHT 0
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -54,10 +54,12 @@ struct Ray
 struct HIT_PAY_LOAD
 {
     daxa_f32vec3 hit_value;
+    // daxa_f32vec3 throughput;
     daxa_u32 depth;
+    daxa_b32 done;
     daxa_u32 seed;
-    daxa_f32vec3 world_hit;
     daxa_f32 distance;
+    daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
     daxa_u32 instance_id;
     daxa_u32 primitive_id;
@@ -87,7 +89,7 @@ struct HIT_SCATTER_PAY_LOAD
     daxa_u32 seed;
     daxa_f32vec3 scatter_dir;
     daxa_u32 mat_idx;
-    daxa_i32 done;
+    daxa_b32 done;
     daxa_u32 instance_id;
     daxa_u32 primitive_id;
     daxa_f32 pdf;

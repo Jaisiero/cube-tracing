@@ -26,7 +26,7 @@ layout(location = 4) callableDataInEXT HIT_SCATTER_PAY_LOAD call_scatter;
 #define RESERVOIR_SPATIAL_ON 1
 
 #define MIS_ON 0
-#define INDIRECT_ILLUMINATION_ON 0
+#define INDIRECT_ILLUMINATION_ON 1
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
 

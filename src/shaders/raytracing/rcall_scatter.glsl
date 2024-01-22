@@ -12,13 +12,15 @@ void main()
 
     daxa_f32vec3 reflected = reflection(call_scatter.ray_dir, call_scatter.nrm);
     call_scatter.scatter_dir = reflected + min(mat.roughness, 1.0) * random_cosine_direction(call_scatter.seed);
-    call_scatter.done = (dot(call_scatter.scatter_dir, call_scatter.nrm) > 0.0f) ? 0 : 1;
+    call_scatter.done = (dot(call_scatter.scatter_dir, call_scatter.nrm) > 0.0f) ? false : true;
 }
 #elif defined(DIELECTRIC)
 
 void main()
 {
     MATERIAL mat = deref(p.materials_buffer).materials[call_scatter.mat_idx];
+
+    daxa_f32vec3 original_nrm = call_scatter.nrm;
 
     daxa_f32 etai_over_etat = mat.ior;
     if (dot(call_scatter.ray_dir, call_scatter.nrm) > 0.0f) {
@@ -35,38 +37,21 @@ void main()
         call_scatter.scatter_dir = reflection(call_scatter.ray_dir, call_scatter.nrm);
     } else {
         call_scatter.scatter_dir = refraction(call_scatter.ray_dir, call_scatter.nrm, etai_over_etat);
-
-        daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(call_scatter.instance_id, call_scatter.primitive_id);
         
-        Ray ray;
-        ray.origin = call_scatter.hit + call_scatter.scatter_dir * AVOID_VOXEL_COLLAIDE;
-        ray.direction = call_scatter.scatter_dir;
+        // Ray ray;
+        // // ray.origin = call_scatter.hit - call_scatter.nrm * AVOID_VOXEL_COLLAIDE * 4.0f;
+        // ray.origin = call_scatter.hit - original_nrm * AVOID_VOXEL_COLLAIDE * 4.0f;
+        // ray.direction = call_scatter.scatter_dir;
 
-        mat4 model = get_geometry_transform_from_instance_id(call_scatter.instance_id);
-        mat4 inv_model = inverse(model);
-
-        ray.origin = (inv_model * vec4(ray.origin, 1)).xyz;
-        ray.direction = (inv_model * vec4(ray.direction, 0)).xyz;
-
-        Aabb aabb = deref(p.aabb_buffer).aabbs[actual_primitive_index];
-
-        daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
-
-        // TODO: pass this as a parameter
-        daxa_f32vec3 half_extent = vec3(VOXEL_EXTENT * 0.5);
-
-        Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(model));
-
-        daxa_f32 t_max = 0.0f;
-        daxa_f32vec3 normal = vec3(0.0f);
+        // mat4 model = get_geometry_transform_from_instance_id(call_scatter.instance_id);
+        // mat4 inv_model = inverse(model);
+        // daxa_f32vec3 hit = vec3(0.0f);
+        // daxa_f32vec3 nrm = vec3(0.0f);
+        // daxa_f32 t_max = 0.0f;
         
-
-        if(intersect_box(box, ray, t_max, normal, true, false, safeInverse(ray.direction))){
-            call_scatter.hit = ray.origin + ray.direction * t_max + normal * AVOID_VOXEL_COLLAIDE;
-            call_scatter.nrm = normal;
-        } else {
-            call_scatter.scatter_dir = reflection(call_scatter.ray_dir, call_scatter.nrm);
-        }
+        // if(is_hit_from_ray(ray, call_scatter.instance_id, call_scatter.primitive_id, t_max, hit, nrm, model, inv_model, true, false)) {
+        //     call_scatter.hit = hit + call_scatter.scatter_dir * AVOID_VOXEL_COLLAIDE * 4.0f;
+        // } 
     }
 }
 

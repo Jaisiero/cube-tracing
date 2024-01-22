@@ -606,12 +606,15 @@ namespace tests
                         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
                         .flags = i < instance_count - CLOUD_INSTANCE_COUNT_X ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
                     });
+                    
+                    // Crear un daxa::Span a partir del vector
+                    daxa::Span<const daxa::BlasAabbGeometryInfo> geometry_span(aabb_geometries.at(i).data(), aabb_geometries.at(i).size());
 
                     /// Create Procedural Blas:
                     blas_build_infos.push_back(daxa::BlasBuildInfo{
                         .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_TRACE,       // Is also default
                         .dst_blas = {}, // Ignored in get_acceleration_structure_build_sizes.       // Is also default
-                        .geometries = aabb_geometries.at(i),
+                        .geometries = geometry_span,
                         .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
                     });
 
@@ -753,7 +756,7 @@ namespace tests
                 });
                 defer { device.destroy_buffer(material_staging_buffer); };
 
-                auto * material_buffer_ptr = device.get_host_address_as<PRIMITIVE>(material_staging_buffer).value();
+                auto * material_buffer_ptr = device.get_host_address_as<MATERIAL>(material_staging_buffer).value();
                 std::memcpy(material_buffer_ptr, 
                     materials.data(),
                     material_buffer_size);
@@ -1367,16 +1370,20 @@ namespace tests
                 };
 
                 auto rgen_restir_prepass_selection_compile_options = rt_shader_compile_options;
-                rgen_restir_prepass_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"RESTIR_PREPASS", "1"}};
+                rgen_restir_prepass_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"RESTIR_PREPASS_AND_FIRST_VISIBILITY_TEST", "1"}};
                 if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
                     rgen_restir_prepass_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
                 }
 
-                auto rgen_restir_first_vis_test_selection_compile_options = rt_shader_compile_options;
-                rgen_restir_first_vis_test_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"FIRST_VISIBILITY_TEST", "1"}};
+                // NOTE: splitting the restir prepass and the first visibility impacts performance
+                // auto rgen_restir_first_vis_test_selection_compile_options = rt_shader_compile_options;
+                // rgen_restir_first_vis_test_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"FIRST_VISIBILITY_TEST", "1"}};
 
                 auto rgen_restir_temp_reuse_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_temp_reuse_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"TEMPORAL_REUSE_PASS", "1"}};
+                if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
+                    rgen_restir_temp_reuse_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
+                }
 
                 // It doesn't improve visual quality too much
                 // auto rgen_restir_second_vis_test_selection_compile_options = rt_shader_compile_options;
@@ -1384,9 +1391,15 @@ namespace tests
 
                 auto rgen_restir_spatial_reuse_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_spatial_reuse_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"SPATIAL_REUSE_PASS", "1"}};
+                if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
+                    rgen_restir_spatial_reuse_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
+                }
 
                 auto rgen_restir_shading_selection_compile_options = rt_shader_compile_options;
                 rgen_restir_shading_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"THIRD_VISIBILITY_TEST_AND_SHADING_PASS", "1"}};
+                if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
+                    rgen_restir_shading_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
+                }
 
                 auto shadow_miss_compile_options = rt_shader_compile_options;
                 shadow_miss_compile_options.defines = std::vector{daxa::ShaderDefine{"MISS_SHADOW", "1"}};
@@ -1412,26 +1425,13 @@ namespace tests
                 auto ris_selection_compile_options = rt_shader_compile_options;
                 ris_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"RIS_SELECTION", "1"}};
 
-                auto direct_illumination_compile_options = rt_shader_compile_options;
-                direct_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"DIRECT_ILLUMINATION", "1"}};
-                // if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
-                //     direct_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
-                // }
-
                 auto indirect_illumination_compile_options = rt_shader_compile_options;
                 indirect_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"INDIRECT_ILLUMINATION", "1"}};
-                // if(invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER)) {
-                //     indirect_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
-                // }
 
                 auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
                     .ray_gen_infos = {daxa::ShaderCompileInfo{
                                           .source = daxa::ShaderFile{"rgen.glsl"},
                                           .compile_options = rgen_restir_prepass_selection_compile_options,
-                                      },
-                                      daxa::ShaderCompileInfo{
-                                          .source = daxa::ShaderFile{"rgen.glsl"},
-                                          .compile_options = rgen_restir_first_vis_test_selection_compile_options,
                                       },
                                       daxa::ShaderCompileInfo{
                                           .source = daxa::ShaderFile{"rgen.glsl"},
@@ -1522,28 +1522,28 @@ namespace tests
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 4,
+                            .general_shader_index = 14,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 15,
                         },
                         daxa::RayTracingShaderGroupInfo{
-                            .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 16,
+                            .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
+                            .closest_hit_shader_index = 12,
+                            .any_hit_shader_index = 5,
+                            .intersection_shader_index = 4,
                         },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
                             .closest_hit_shader_index = 13,
-                            .any_hit_shader_index = 6,
-                            .intersection_shader_index = 5,
+                            .any_hit_shader_index = 5,
+                            .intersection_shader_index = 4,
                         },
-                        // daxa::RayTracingShaderGroupInfo{
-                        //     .type = daxa::ShaderGroup::PROCEDURAL_HIT_GROUP,
-                        //     .closest_hit_shader_index = 14,
-                        //     .any_hit_shader_index = 3,
-                        //     .intersection_shader_index = 2,
-                        // },
+                        daxa::RayTracingShaderGroupInfo{
+                            .type = daxa::ShaderGroup::GENERAL,
+                            .general_shader_index = 6,
+                        },
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 7,
@@ -1563,10 +1563,6 @@ namespace tests
                         daxa::RayTracingShaderGroupInfo{
                             .type = daxa::ShaderGroup::GENERAL,
                             .general_shader_index = 11,
-                        },
-                        daxa::RayTracingShaderGroupInfo{
-                            .type = daxa::ShaderGroup::GENERAL,
-                            .general_shader_index = 12,
                         },
                     },
                     .max_ray_recursion_depth = status.max_depth,
@@ -1838,38 +1834,6 @@ namespace tests
                     .height = height,
                     .depth = 1,
                     .raygen_shader_binding_table_offset = 3,
-                });
-
-                recorder.pipeline_barrier({
-                    .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
-                    .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
-                });
-                
-                recorder.push_constant(PushConstant{
-                    .size = {width, height},
-                    .tlas = tlas,
-                    .swapchain = swapchain_image_view,
-                    .camera_buffer = this->device.get_device_address(cam_buffer).value(),
-                    .status_buffer = this->device.get_device_address(status_buffer).value(),
-                    .instance_buffer = this->device.get_device_address(instance_buffer).value(),
-                    .primitives_buffer = this->device.get_device_address(primitive_buffer).value(),
-                    .aabb_buffer = this->device.get_device_address(aabb_buffer).value(),
-                    .materials_buffer = this->device.get_device_address(material_buffer).value(),
-                    .light_buffer = this->device.get_device_address(light_buffer).value(),
-                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
-                    .velocity_buffer = this->device.get_device_address(velocity_buffer).value(),
-                    .previous_di_buffer = this->device.get_device_address(previous_direct_illum_buffer).value(),
-                    .di_buffer = this->device.get_device_address(direct_illum_buffer).value(),
-                    .previous_reservoir_buffer = this->device.get_device_address(previous_reservoir_buffer).value(),
-                    .intermediate_reservoir_buffer = this->device.get_device_address(intermediate_reservoir_buffer).value(),
-                    .reservoir_buffer = this->device.get_device_address(reservoir_buffer).value(),
-                });
-
-                recorder.trace_rays({
-                    .width = width,
-                    .height = height,
-                    .depth = 1,
-                    .raygen_shader_binding_table_offset = 4,
                 });
                 
 

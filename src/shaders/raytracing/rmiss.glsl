@@ -22,10 +22,10 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 
 void main()
 {
-    prd.hit_value = calculate_sky_color(
-                    deref(p.status_buffer).time, 
-                    deref(p.status_buffer).is_afternoon,
-                    gl_WorldRayDirectionEXT);
+    prd.hit_value *= calculate_sky_color(
+        deref(p.status_buffer).time,
+        deref(p.status_buffer).is_afternoon,
+        gl_WorldRayDirectionEXT);
 }
 
 #endif // MISS_SHADOW
