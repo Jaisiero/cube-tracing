@@ -263,6 +263,7 @@ struct RESERVOIR
     daxa_f32 W_y; // light weight
     daxa_f32 W_sum; // sum of all weights for all lights processed
     daxa_f32 M; // number of lights processed for this reservoir
+    daxa_f32 p_hat; // p_hat of the light
 };
 
 #define SCREEN_SIZE_X 3840
@@ -298,7 +299,6 @@ struct DIRECT_ILLUMINATION_INFO
     daxa_u32 seed;
     daxa_u32 instance_id;
     daxa_u32 primitive_id;
-    daxa_f32 p_hat;
 };
 
 struct DIRECT_ILLUMINATION_BUFFER

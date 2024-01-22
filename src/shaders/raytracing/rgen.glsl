@@ -242,12 +242,14 @@ void main() {
         calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
 
         di_info.seed = hit.seed;
-        di_info.p_hat = p_hat;
         deref(p.di_buffer).DI_info[screen_pos].seed = di_info.seed;
-        deref(p.di_buffer).DI_info[screen_pos].p_hat = di_info.p_hat;
-
+#if (RESERVOIR_TEMPORAL_ON == 1)
         // Update reservoir
         deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+#else
+        // Update reservoir
+        deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos] = reservoir;
+#endif // RESERVOIR_TEMPORAL_ON
     }
 
 }
@@ -312,8 +314,7 @@ void main() {
                        ray, hit,
                        mat,
                        light_count,
-                       pdf,
-                       di_info.p_hat);
+                       pdf);
 
         di_info.seed = hit.seed;
         deref(p.di_buffer).DI_info[screen_pos].seed = di_info.seed;
@@ -352,9 +353,14 @@ void main() {
     if(di_info.distance > 0.0) {
 
         daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_id);
-        
+    
+#if (RESERVOIR_TEMPORAL_ON == 1)
         // Get sample info from reservoir
         RESERVOIR reservoir = deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos];
+#else
+        // Get sample info from reservoir
+        RESERVOIR reservoir = deref(p.reservoir_buffer).reservoirs[screen_pos];
+#endif // RESERVOIR_TEMPORAL_ON
 
         daxa_u32 light_count = deref(p.status_buffer).light_count;
 
@@ -417,7 +423,12 @@ void main()
     DIRECT_ILLUMINATION_INFO di_info = deref(p.di_buffer).DI_info[screen_pos];
 
     // Get sample info from reservoir
-    RESERVOIR reservoir = deref(p.reservoir_buffer).reservoirs[screen_pos];
+    RESERVOIR reservoir = 
+#if (RESERVOIR_TEMPORAL_ON == 1) || (RESERVOIR_SPATIAL_ON == 0)
+        deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos];
+#else        
+    deref(p.reservoir_buffer).reservoirs[screen_pos];
+#endif // RESERVOIR_TEMPORAL_ON
     
 
     if(di_info.distance > 0.0) {
