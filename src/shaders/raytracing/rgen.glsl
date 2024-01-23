@@ -416,7 +416,7 @@ void main()
 #if INDIRECT_ILLUMINATION_ON == 1
         // prd.throughput = vec3(1.0);
         prd.seed = di_info.seed;
-        prd.depth = max_depth - 1;
+        prd.depth = max_depth;
         prd.world_hit = di_info.position;
         prd.distance = di_info.distance;
         prd.world_nrm = di_info.normal;
@@ -432,9 +432,7 @@ void main()
         daxa_f32 t_max = 10000.0;
         daxa_u32 cull_mask = 0xFF;
 
-        daxa_u32 bounces_count = max_depth;
-
-        for (daxa_u32 i = 0; i < bounces_count; i++)
+        for (; ;)
         {
 
             // #if SER == 1

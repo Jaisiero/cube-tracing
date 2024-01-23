@@ -193,17 +193,37 @@ namespace tests
             }
 
             // Generate min max by coord (x, y, z) where x, y, z are 0 to VOXEL_COUNT_BY_AXIS-1 where VOXEL_COUNT_BY_AXIS / 2 is the center at (0, 0, 0)
-            constexpr daxa_f32mat2x3 generate_min_max_by_coord(u32 x, u32 y, u32 z) const {
+            constexpr daxa_f32mat2x3 generate_min_max_by_coord(u32 x, u32 y, u32 z, daxa_f32 voxel_extent) const {
                 return daxa_f32mat2x3{
                     {
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + (x * VOXEL_EXTENT) + AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + (y * VOXEL_EXTENT) + AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + (z * VOXEL_EXTENT) + AVOID_VOXEL_COLLAIDE
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + (x * voxel_extent) + AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + (y * voxel_extent) + AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + (z * voxel_extent) + AVOID_VOXEL_COLLAIDE
                     },
                     {
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + ((x + 1) * VOXEL_EXTENT) - AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + ((y + 1) * VOXEL_EXTENT) - AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * VOXEL_EXTENT) + ((z + 1) * VOXEL_EXTENT) - AVOID_VOXEL_COLLAIDE
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + ((x + 1) * voxel_extent) - AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + ((y + 1) * voxel_extent) - AVOID_VOXEL_COLLAIDE,
+                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + ((z + 1) * voxel_extent) - AVOID_VOXEL_COLLAIDE
+                    }
+                };
+            }
+
+
+            constexpr daxa_f32vec3 generate_center_by_coord(u32 x, u32 y, u32 z, daxa_f32 chunck_extent) const {
+                return daxa_f32vec3{
+                    -((VOXEL_COUNT_BY_AXIS/ 2) * chunck_extent) + (x * chunck_extent) + (chunck_extent / 2),
+                    -((VOXEL_COUNT_BY_AXIS/ 2) * chunck_extent) + (y * chunck_extent) + (chunck_extent / 2),
+                    -((VOXEL_COUNT_BY_AXIS/ 2) * chunck_extent) + (z * chunck_extent) + (chunck_extent / 2)
+                };
+            }
+
+            constexpr daxa_f32mat2x3 generate_min_max_at_origin(daxa_f32 extent) {
+                return daxa_f32mat2x3{
+                    {
+                        daxa_f32vec3(-extent + AVOID_VOXEL_COLLAIDE, -extent + AVOID_VOXEL_COLLAIDE, -extent + AVOID_VOXEL_COLLAIDE),
+                    },
+                    {   
+                        daxa_f32vec3(extent - AVOID_VOXEL_COLLAIDE, extent - AVOID_VOXEL_COLLAIDE, extent - AVOID_VOXEL_COLLAIDE),
                     }
                 };
             }
@@ -450,12 +470,6 @@ namespace tests
                     abort();
                 }
 
-                // for(u32 i = 0; i < status.light_count; i++) {
-                //     lights[i].position.x += 0.005;
-                //     lights[i].position.y -= 0.005;
-                //     lights[i].position.z += 0.005;
-                // }
-
                 // Speed of time progression
                 float timeSpeed = 0.001;
 
@@ -497,7 +511,7 @@ namespace tests
                     return false;
                 }
 
-                this->max_current_primitive_count = CHUNK_VOXEL_COUNT * instance_count / 2;
+                this->max_current_primitive_count = instance_count * CHUNK_VOXEL_COUNT;
 
                 if(this->max_current_primitive_count > MAX_PRIMITIVES) {
                     std::cout << "max_current_primitive_count > MAX_PRIMITIVES" << std::endl;
@@ -531,12 +545,15 @@ namespace tests
                         for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                             for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
                                 
-                                if(random_float(0.0, 1.0) > 0.75) {
-                                    min_max.push_back(generate_min_max_by_coord(x, y, z));
+                                // if(random_float(0.0, 1.0) > 0.9828) {
+                                if(random_float(0.0, 1.0) > 0.9829) {
+                                    min_max.push_back(generate_min_max_by_coord(x, y, z, VOXEL_EXTENT));
                                 }
                             }
                         }
                     }
+                    // min_max.push_back(generate_min_max_by_coord(VOXEL_COUNT_BY_AXIS*0.5, VOXEL_COUNT_BY_AXIS*0.5, VOXEL_COUNT_BY_AXIS*0.5));
+                    // min_max.push_back(generate_min_max_at_origin(VOXEL_EXTENT));
 
                     u32 primitive_count_current_instance = min_max.size();
 
@@ -999,53 +1016,61 @@ namespace tests
                     u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
                     u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
 
-                    current_instance_count = instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X;
+                    daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
 
-                    if(current_instance_count > MAX_INSTANCES) {
-                        std::cout << "current_instance_count > MAX_INSTANCES" << std::endl;
+                    if(estimated_instance_count > MAX_INSTANCES) {
+                        std::cout << "estimated_instance_count > MAX_INSTANCES" << std::endl;
                         abort();
                     }
 
-                    if(current_instance_count == 0) {
-                        std::cout << "current_instance_count == 0" << std::endl;
+                    if(estimated_instance_count == 0) {
+                        std::cout << "estimated_instance_count == 0" << std::endl;
                         abort();
                     }
                     
-                    transforms.reserve(current_instance_count);
+                    transforms.reserve(estimated_instance_count);
 
                     // Centered around 0, 0, 0 positioning instances like a mirror
                     f32 x_axis_initial_position = ((INSTANCE_X_AXIS_COUNT) * AXIS_DISPLACEMENT / 2);
                     f32 z_axis_initial_position = ((INSTANCE_Z_AXIS_COUNT) * AXIS_DISPLACEMENT / 2);
 
 
-                    for(i32 x = -INSTANCE_X_AXIS_COUNT; x < (i32)INSTANCE_X_AXIS_COUNT; x++) {
-                        for(i32 z= -INSTANCE_Z_AXIS_COUNT; z < (i32)INSTANCE_Z_AXIS_COUNT; z++) {
-                            transforms.push_back(daxa_f32mat4x4{
-                                {1, 0, 0, (x * (AXIS_DISPLACEMENT))},
-                                {0, 1, 0, 0},
-                                {0, 0, 1, (z * (AXIS_DISPLACEMENT))},
-                                {0, 0, 0, 1},
-                            });
+                    for(i32 x_instance = -INSTANCE_X_AXIS_COUNT; x_instance < (i32)INSTANCE_X_AXIS_COUNT; x_instance++) {
+                        auto x_instance_displacement = (x_instance * (AXIS_DISPLACEMENT));
+                        for(i32 z_instance = -INSTANCE_Z_AXIS_COUNT; z_instance < (i32)INSTANCE_Z_AXIS_COUNT; z_instance++) {
+                            auto z_instance_displacement = (z_instance * (AXIS_DISPLACEMENT));
+                            for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
+                                for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
+                                    for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
+                                        if(random_float(0.0, 1.0) > 0.95) {
+                                            auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
+                                            transforms.push_back(daxa_f32mat4x4{
+                                                {1, 0, 0, x_instance_displacement + position_instance.x},
+                                                {0, 1, 0, position_instance.y},
+                                                {0, 0, 1, z_instance_displacement + position_instance.z},
+                                                {0, 0, 0, 1},
+                                            });
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    transforms.push_back(daxa_f32mat4x4{
-                        {1, 0, 0, -AXIS_DISPLACEMENT},
-                        {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
-                        {0, 0, 1, 0},
-                        {0, 0, 0, 1},
-                    });
+                    // transforms.push_back(daxa_f32mat4x4{
+                    //     {1, 0, 0, -AXIS_DISPLACEMENT},
+                    //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
+                    //     {0, 0, 1, 0},
+                    //     {0, 0, 0, 1},
+                    // });
 
-                    transforms.push_back(daxa_f32mat4x4{
-                        {1, 0, 0, 0},
-                        {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
-                        {0, 0, 1, 0},
-                        {0, 0, 0, 1},
-                    });
+                    // transforms.push_back(daxa_f32mat4x4{
+                    //     {1, 0, 0, 0},
+                    //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
+                    //     {0, 0, 1, 0},
+                    //     {0, 0, 0, 1},
+                    // });
 
-                    if(transforms.size() < current_instance_count) {
-                        std::cout << "transforms.size() != current_instance_count" << std::endl;
-                        abort();
-                    }
+                    current_instance_count = transforms.size();
 
                     // CHESSBOARD PATTERN TEXTURE
                     {

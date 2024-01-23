@@ -17,13 +17,14 @@
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
-
-#define VOXEL_EXTENT 0.125f
-#define HALF_VOXEL_EXTENT VOXEL_EXTENT * 0.5f
 // #define VOXEL_EXTENT 0.015625f
 #define AVOID_LIGHT_LEAKS 0.000
 #define VOXEL_COUNT_BY_AXIS 8 // 2^3
 #define CHUNK_VOXEL_COUNT VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS * VOXEL_COUNT_BY_AXIS
+// #define VOXEL_EXTENT 0.015625f
+#define VOXEL_EXTENT 0.03125f
+#define HALF_VOXEL_EXTENT VOXEL_EXTENT * 0.5f
+#define CHUNK_EXTENT VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS
 
 #define DAXA_PI 3.1415926535897932384626433832795f
 #define INV_DAXA_PI 0.31830988618379067153776752674503f
@@ -32,7 +33,8 @@
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
 #define MAX_DEPTH 3
 #define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
-#define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
+// #define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
+#define AVOID_VOXEL_COLLAIDE 1e-9f   // Delta ray offset for shadow rays
 
 #define PERLIN_FACTOR 500
 
