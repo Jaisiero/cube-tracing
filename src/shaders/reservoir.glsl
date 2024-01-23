@@ -14,6 +14,63 @@
 #extension GL_NV_shader_invocation_reorder : enable
 #endif 
 
+
+RESERVOIR get_reservoir_from_previous_frame_by_index(daxa_u32 reservoir_index) {
+    PREV_RESERVOIR_BUFFER prev_reservoir_buffer = PREV_RESERVOIR_BUFFER(deref(p.restir_buffer).previous_reservoir_address);
+    return prev_reservoir_buffer.reservoirs[reservoir_index];
+}
+
+void set_reservoir_from_previous_frame_by_index(daxa_u32 reservoir_index, RESERVOIR reservoir) {
+    PREV_RESERVOIR_BUFFER prev_reservoir_buffer = PREV_RESERVOIR_BUFFER(deref(p.restir_buffer).previous_reservoir_address);
+    prev_reservoir_buffer.reservoirs[reservoir_index] = reservoir;
+}
+
+RESERVOIR get_reservoir_from_intermediate_frame_by_index(daxa_u32 reservoir_index) {
+    INT_RESERVOIR_BUFFER int_reservoir_buffer = INT_RESERVOIR_BUFFER(deref(p.restir_buffer).intermediate_reservoir_address);
+    return int_reservoir_buffer.reservoirs[reservoir_index];
+}
+
+void set_reservoir_from_intermediate_frame_by_index(daxa_u32 reservoir_index, RESERVOIR reservoir) {
+    INT_RESERVOIR_BUFFER int_reservoir_buffer = INT_RESERVOIR_BUFFER(deref(p.restir_buffer).intermediate_reservoir_address);
+    int_reservoir_buffer.reservoirs[reservoir_index] = reservoir;
+}
+
+RESERVOIR get_reservoir_from_current_frame_by_index(daxa_u32 reservoir_index) {
+    RESERVOIR_BUFFER reservoir_buffer = RESERVOIR_BUFFER(deref(p.restir_buffer).reservoir_address);
+    return reservoir_buffer.reservoirs[reservoir_index];
+}
+
+void set_reservoir_from_current_frame_by_index(daxa_u32 reservoir_index, RESERVOIR reservoir) {
+    RESERVOIR_BUFFER reservoir_buffer = RESERVOIR_BUFFER(deref(p.restir_buffer).reservoir_address);
+    reservoir_buffer.reservoirs[reservoir_index] = reservoir;
+}
+
+DIRECT_ILLUMINATION_INFO get_di_from_previous_frame(daxa_u32 di_index) {
+    PREV_DI_BUFFER prev_di_buffer = PREV_DI_BUFFER(deref(p.restir_buffer).previous_di_address);
+    return prev_di_buffer.di_info[di_index];
+}
+
+void set_di_from_previous_frame(daxa_u32 di_index, DIRECT_ILLUMINATION_INFO di_info) {
+    PREV_DI_BUFFER prev_di_buffer = PREV_DI_BUFFER(deref(p.restir_buffer).previous_di_address);
+    prev_di_buffer.di_info[di_index] = di_info;
+}
+
+DIRECT_ILLUMINATION_INFO get_di_from_current_frame(daxa_u32 di_index) {
+    DI_BUFFER di_buffer = DI_BUFFER(deref(p.restir_buffer).di_address);
+    return di_buffer.di_info[di_index];
+}
+
+void set_di_from_current_frame(daxa_u32 di_index, DIRECT_ILLUMINATION_INFO di_info) {
+    DI_BUFFER di_buffer = DI_BUFFER(deref(p.restir_buffer).di_address);
+    di_buffer.di_info[di_index] = di_info;
+}
+
+void set_di_seed_from_current_frame(daxa_u32 di_index, daxa_u32 seed) {
+    DI_BUFFER di_buffer = DI_BUFFER(deref(p.restir_buffer).di_address);
+    di_buffer.di_info[di_index].seed = seed;
+}
+
+
 void initialise_reservoir(inout RESERVOIR reservoir)
 {
   reservoir.W_y = 0.0;
@@ -63,7 +120,7 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_
 
   if (is_reservoir_valid(reservoir))
   {
-    LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
+    LIGHT light = get_light_from_light_index(get_reservoir_light_index(reservoir));
 
     daxa_f32 pdf = 1.0;
     daxa_f32 pdf_out = 1.0;
@@ -99,7 +156,7 @@ void calculate_reservoir_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, in
 
   if (is_reservoir_valid(reservoir))
   {
-    LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
+    LIGHT light = get_light_from_light_index(get_reservoir_light_index(reservoir));
 
     daxa_f32 pdf = 1.0;
     daxa_f32 pdf_out = 1.0;
@@ -138,7 +195,7 @@ RESERVOIR RIS(daxa_u32 light_count, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL 
   {
     daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
-    LIGHT light = deref(p.light_buffer).lights[light_index];
+    LIGHT light = get_light_from_light_index(light_index);
 
     daxa_f32 current_pdf = 1.0;
     p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, current_pdf, true, false, false);
@@ -167,8 +224,7 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, dax
 
   // Temporal reuse
   {
-
-    DIRECT_ILLUMINATION_INFO di_info_previous = deref(p.previous_di_buffer).DI_info[prev_predicted_index];
+    DIRECT_ILLUMINATION_INFO di_info_previous = get_di_from_previous_frame(prev_predicted_index);
 
     // Normal from previous frame
     daxa_f32vec3 normal_previous = di_info_previous.normal.xyz;
@@ -187,7 +243,7 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, dax
       update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), reservoir.p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
 
       // Reservoir from previous frame
-      RESERVOIR reservoir_previous = deref(p.previous_reservoir_buffer).reservoirs[prev_predicted_index];
+      RESERVOIR reservoir_previous = get_reservoir_from_previous_frame_by_index(prev_predicted_index);
 
       // NOTE: restrict influence from past samples.
       reservoir_previous.M = min(INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
@@ -241,7 +297,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
     // TODO: Should depth buffer be used?
     // daxa_f32 neighbor_depth_linear = linearise_depth(deref(p.depth_buffer).depth[daxa_f32vec2(offset)].x);
 
-    DIRECT_ILLUMINATION_INFO neighbor_di_info = deref(p.di_buffer).DI_info[offset_u32_linear];
+    DIRECT_ILLUMINATION_INFO neighbor_di_info = get_di_from_current_frame(offset_u32_linear);
 
     daxa_f32 neighbor_hit_dist = neighbor_di_info.distance;
 
@@ -260,7 +316,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
       continue;
     }
 
-    neighbor_reservoir = deref(p.intermediate_reservoir_buffer).reservoirs[offset_u32_linear];
+    neighbor_reservoir = get_reservoir_from_intermediate_frame_by_index(offset_u32_linear);
 
     calculate_reservoir_aggregation(spatial_reservoir, neighbor_reservoir, ray, hit, mat, light_count);
   }

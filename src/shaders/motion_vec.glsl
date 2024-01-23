@@ -2,10 +2,9 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
 #include <daxa/daxa.inl>
+#include "motion_vectors.glsl"
 
 #include "shared.inl"
-
-DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
 layout(local_size_x = 8, local_size_y = 8) in;
 void main()
@@ -34,7 +33,7 @@ void main()
 
     if(prev_pos.w == 0.0 || pos.w == 0.0)
     {
-        deref(p.velocity_buffer).velocities[index.y * p.size.x + index.x] = VELOCITY(daxa_f32vec2(0.0, 0.0));
+        velocity_buffer_set_velocity(index, p.size, VELOCITY(daxa_f32vec2(0.0, 0.0)));
         return;
     }
 

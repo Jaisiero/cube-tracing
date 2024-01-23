@@ -7,15 +7,18 @@
 
 
 daxa_f32mat4x4 get_geometry_previous_transform_from_instance_id(daxa_u32 instance_id) {
-    return deref(p.instance_buffer).instances[instance_id].prev_transform;
+    INSTANCES_BUFFER instance_buffer = INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
+    return instance_buffer.instances[instance_id].prev_transform;
 }
 
 daxa_f32mat4x4 get_geometry_transform_from_instance_id(daxa_u32 instance_id) {
-    return deref(p.instance_buffer).instances[instance_id].transform;
+    INSTANCES_BUFFER instance_buffer = INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
+    return instance_buffer.instances[instance_id].transform;
 }
 
 daxa_u32 get_geometry_first_primitive_index_from_instance_id(daxa_u32 instance_id) {
-    return deref(p.instance_buffer).instances[instance_id].first_primitive_index;
+    INSTANCES_BUFFER instance_buffer = INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
+    return instance_buffer.instances[instance_id].first_primitive_index;
 }
 
 
@@ -26,11 +29,14 @@ daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(daxa_u32 ins
     return primitive_index + primitive_id;
 }
 
-daxa_u32 get_material_index_from_primitive_index(daxa_u32 primitive_index) {
-    // Get material index from primitive
-    PRIMITIVE primitive = deref(p.primitives_buffer).primitives[primitive_index];
+AABB get_aabb_from_primitive_index(daxa_u32 primitive_index) {
+    AABB_BUFFER aabb_buffer = AABB_BUFFER(deref(p.world_buffer).aabb_address);
+    return aabb_buffer.aabbs[primitive_index];
+}
 
-    return primitive.material_index;
+daxa_u32 get_material_index_from_primitive_index(daxa_u32 primitive_index) {
+    PRIMITIVE_BUFFER primitive_buffer = PRIMITIVE_BUFFER(deref(p.world_buffer).primitive_address);
+    return primitive_buffer.primitives[primitive_index].material_index;
 }
 
 daxa_u32 get_material_index_from_instance_and_primitive_id(daxa_u32 instance_id, daxa_u32 primitive_id) {
@@ -42,7 +48,8 @@ daxa_u32 get_material_index_from_instance_and_primitive_id(daxa_u32 instance_id,
 
 MATERIAL get_material_from_material_index(daxa_u32 mat_index) {
     // Get material index from primitive
-    return deref(p.materials_buffer).materials[mat_index];
+    MATERIAL_BUFFER material_buffer = MATERIAL_BUFFER(deref(p.world_buffer).material_address);
+    return material_buffer.materials[mat_index];
 }
 
 MATERIAL get_material_from_primitive_index(daxa_u32 primitive_index) {
@@ -145,7 +152,7 @@ daxa_b32 is_hit_from_ray(Ray ray, daxa_u32 instance_id,
     daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
 
     // Get aabb from primitive
-    Aabb aabb = deref(p.aabb_buffer).aabbs[current_primitive_index];
+    AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
 
     // Get model matrix from instance
     model = get_geometry_transform_from_instance_id(instance_id);
@@ -180,7 +187,7 @@ void packed_intersection_info(Ray ray, daxa_f32 t_hit, daxa_u32 instance_id, dax
     actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
 
     // Get aabb from primitive
-    Aabb aabb = deref(p.aabb_buffer).aabbs[actual_primitive_index];
+    AABB aabb = get_aabb_from_primitive_index(actual_primitive_index);
 
     // Get center of aabb
     daxa_f32vec3 center = (aabb.minimum + aabb.maximum) * 0.5;

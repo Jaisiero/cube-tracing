@@ -2,23 +2,17 @@
 #extension GL_EXT_ray_tracing : enable
 #include <daxa/daxa.inl>
 
-#include "shared.inl"
+#include "defines.glsl"
 #include "random.glsl"
-
-DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
-
-layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
+#include "primitives.glsl"
 
 void main()
 {
   // Get first primitive index from instance id
-  uint primitive_index = deref(p.instance_buffer).instances[gl_InstanceCustomIndexEXT].first_primitive_index;
-  // Get actual primitive index from offset and primitive id
-  uint actual_primitive_index = primitive_index + gl_PrimitiveID;
+  daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
 
   // Get material index from primitive
-  PRIMITIVE primitive = deref(p.primitives_buffer).primitives[actual_primitive_index];
-  MATERIAL mat = deref(p.materials_buffer).materials[primitive.material_index];
+  MATERIAL mat = get_material_from_primitive_index(actual_primitive_index);
 
   if (mat.illum != 4)
     return;

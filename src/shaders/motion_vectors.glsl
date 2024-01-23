@@ -3,6 +3,22 @@
 #extension GL_EXT_ray_tracing : enable
 #include <daxa/daxa.inl>
 #include "defines.glsl"
+#include "primitives.glsl"
+
+
+
+void velocity_buffer_set_velocity(daxa_u32vec2 pixel_coord, daxa_u32vec2 rt_size, VELOCITY velocity) {
+    daxa_u32 screen_pos = pixel_coord.x + pixel_coord.y * rt_size.x;
+    VELOCITY_BUFFER velocity_buffer = VELOCITY_BUFFER(deref(p.restir_buffer).velocity_address);
+    velocity_buffer.velocities[screen_pos] = velocity;
+}
+
+
+VELOCITY velocity_buffer_get_velocity(daxa_u32vec2 pixel_coord, daxa_u32vec2 rt_size) {
+    daxa_u32 screen_pos = pixel_coord.x + pixel_coord.y * rt_size.x;
+    VELOCITY_BUFFER velocity_buffer = VELOCITY_BUFFER(deref(p.restir_buffer).velocity_address);
+    return velocity_buffer.velocities[screen_pos];
+}
 
 
 // credits: Ray Tracing gems 2, cp. 25.2  https://link.springer.com/content/pdf/10.1007/978-1-4842-7185-8.pdf
@@ -51,16 +67,13 @@ daxa_u32vec2 get_previous_frame_pixel_coord(daxa_u32vec2 current_pixel_coord, da
     // Get T from the difference between the current and previous model matrices
     daxa_f32mat4x4 geometry_T = previous_model * inverse(instance_model);
 
-    // Get the screen position array index
-    daxa_u32 screen_pos = current_pixel_coord.x + current_pixel_coord.y * rt_size.x;
-
     // Calculate the motion vector
     daxa_f32vec2 Xi_1 = calculate_previous_frame_screen_space(world_hit, inv_prev_Mmvp, geometry_T);
 
     daxa_f32vec2 motion_vector = Xi_1 - (Xi / daxa_f32vec2(rt_size.xy));
 
     VELOCITY velocity = VELOCITY(motion_vector);
-    deref(p.velocity_buffer).velocities[screen_pos] = velocity;
+    velocity_buffer_set_velocity(current_pixel_coord, rt_size, velocity);
 
     // Return the previous uvec2 view position
     return daxa_u32vec2(Xi_1 * daxa_f32vec2(rt_size.xy));
@@ -83,9 +96,6 @@ daxa_f32vec2 get_motion_vector(daxa_u32vec2 current_pixel_coord, daxa_f32vec3 wo
 
     // Get T from the difference between the current and previous model matrices
     daxa_f32mat4x4 geometry_T = previous_model * inverse(instance_model);
-
-    // Get the screen position array index
-    daxa_u32 screen_pos = current_pixel_coord.x + current_pixel_coord.y * rt_size.x;
 
     // Calculate the motion vector
     daxa_f32vec2 Xi_1 = calculate_previous_frame_screen_space(world_hit, inv_prev_Mmvp, geometry_T);

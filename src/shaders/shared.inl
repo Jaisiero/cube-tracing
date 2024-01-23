@@ -5,8 +5,8 @@
 
 // #define MAX_LEVELS 2
 
-#define MAX_INSTANCES 1000
-#define MAX_PRIMITIVES 100000
+#define MAX_INSTANCES 65536
+#define MAX_PRIMITIVES 1048576
 #define MAX_MATERIALS 10000
 #define MAX_LIGHTS 400
 #define MAX_TEXTURES 100ULL
@@ -38,7 +38,7 @@
 
 #define SUN_MAX_INTENSITY 5000.0f
 
-struct Aabb
+struct AABB
 {
   daxa_f32vec3 minimum;
   daxa_f32vec3 maximum;
@@ -61,6 +61,7 @@ struct HIT_PAY_LOAD
     daxa_f32 distance;
     daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
+    daxa_f32vec3 ray_scatter_dir;
     daxa_u32 instance_id;
     daxa_u32 primitive_id;
 };
@@ -154,22 +155,20 @@ struct INSTANCE
     daxa_u32 primitive_count;
 };
 
-struct INSTANCES
+struct WORLD
 {
-    INSTANCE instances[MAX_INSTANCES];
+    daxa_u64 instance_address;
+    daxa_u64 primitive_address;
+    daxa_u64 aabb_address;
+    daxa_u64 material_address;
+    daxa_u64 light_address;
 };
-DAXA_DECL_BUFFER_PTR(INSTANCES)
+DAXA_DECL_BUFFER_PTR(WORLD)
 
 struct PRIMITIVE
 {
     daxa_u32 material_index;
 };
-
-struct PRIMITIVES
-{
-    PRIMITIVE primitives[MAX_PRIMITIVES];
-};
-DAXA_DECL_BUFFER_PTR(PRIMITIVES)
 
 
 
@@ -202,12 +201,6 @@ struct MATERIAL
     daxa_SamplerId   sampler_id;
 };
 
-struct MATERIALS
-{
-    MATERIAL materials[MAX_MATERIALS];
-};
-DAXA_DECL_BUFFER_PTR(MATERIALS)
-
 
 
 
@@ -235,12 +228,6 @@ struct LIGHT
     daxa_u32 type; // 0: point, 1: quad, 2: sphere
 };
 
-struct LIGHTS
-{
-    LIGHT lights[MAX_LIGHTS];
-};
-DAXA_DECL_BUFFER_PTR(LIGHTS)
-
 
 // struct STATUS_OUTPUT
 // {
@@ -259,6 +246,16 @@ DAXA_DECL_BUFFER_PTR(LIGHTS)
 // DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
 
 
+struct RESTIR {
+    daxa_u64 previous_reservoir_address;
+    daxa_u64 intermediate_reservoir_address;
+    daxa_u64 reservoir_address;
+    daxa_u64 previous_di_address;
+    daxa_u64 di_address;
+    daxa_u64 velocity_address;
+};
+DAXA_DECL_BUFFER_PTR(RESTIR)
+
 struct RESERVOIR
 {
     daxa_u32 Y; // index of most important light
@@ -274,40 +271,21 @@ struct RESERVOIR
 #define MAX_RESERVOIRS SCREEN_SIZE_X * SCREEN_SIZE_Y
 
 
-struct RESERVOIRS
-{
-    RESERVOIR reservoirs[MAX_RESERVOIRS];
-};
-DAXA_DECL_BUFFER_PTR(RESERVOIRS)
-
 struct VELOCITY
 {
     daxa_f32vec2 velocity;
 };
-
-
-struct VELOCITIES
-{
-    VELOCITY velocities[MAX_RESERVOIRS];
-};
-DAXA_DECL_BUFFER_PTR(VELOCITIES)
-
 
 struct DIRECT_ILLUMINATION_INFO
 {
     daxa_f32vec3 position;
     daxa_f32 distance;
     daxa_f32vec3 normal;
+    daxa_f32vec3 scatter_dir;
     daxa_u32 seed;
     daxa_u32 instance_id;
     daxa_u32 primitive_id;
 };
-
-struct DIRECT_ILLUMINATION_BUFFER
-{
-    DIRECT_ILLUMINATION_INFO DI_info[MAX_RESERVOIRS];
-};
-DAXA_DECL_BUFFER_PTR(DIRECT_ILLUMINATION_BUFFER)
 
 // struct INSTANCE_LEVEL
 // {
@@ -351,22 +329,11 @@ DAXA_DECL_BUFFER_PTR(DIRECT_ILLUMINATION_BUFFER)
 // };
 // DAXA_DECL_BUFFER_PTR(INSTANCE_DISTANCES)
 
-// struct PRIMITIVE_AABB
-// {
-//     Aabb aabb;
-// };
-
 // struct PRIMITIVE_AABBS
 // {
 //     PRIMITIVE_AABB aabbs[MAX_PRIMITIVES];
 // };
 // DAXA_DECL_BUFFER_PTR(PRIMITIVE_AABBS)
-
-struct Aabbs
-{
-    Aabb aabbs[MAX_PRIMITIVES];
-};
-DAXA_DECL_BUFFER_PTR(Aabbs)
 
 struct PushConstant
 {
@@ -375,18 +342,9 @@ struct PushConstant
     daxa_ImageViewId swapchain;
     daxa_BufferPtr(camera_view) camera_buffer;
     daxa_BufferPtr(Status) status_buffer;
-    daxa_BufferPtr(INSTANCES) instance_buffer;
-    daxa_BufferPtr(PRIMITIVES) primitives_buffer;
-    daxa_BufferPtr(Aabbs) aabb_buffer;
-    daxa_BufferPtr(MATERIALS) materials_buffer;
-    daxa_BufferPtr(LIGHTS) light_buffer;
+    daxa_BufferPtr(WORLD) world_buffer;
     // daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer; 
-    daxa_RWBufferPtr(VELOCITIES) velocity_buffer;
-    daxa_RWBufferPtr(DIRECT_ILLUMINATION_BUFFER) previous_di_buffer;
-    daxa_RWBufferPtr(DIRECT_ILLUMINATION_BUFFER) di_buffer;
-    daxa_RWBufferPtr(RESERVOIRS) previous_reservoir_buffer;
-    daxa_RWBufferPtr(RESERVOIRS) intermediate_reservoir_buffer;
-    daxa_RWBufferPtr(RESERVOIRS) reservoir_buffer;
+    daxa_RWBufferPtr(RESTIR) restir_buffer;
     // daxa_RWBufferPtr(HIT_DISTANCES) hit_distance_buffer;
     // daxa_RWBufferPtr(INSTANCE_LEVELS) instance_level_buffer;
     // daxa_RWBufferPtr(INSTANCE_DISTANCES) instance_distance_buffer;

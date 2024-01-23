@@ -138,7 +138,7 @@ void main()
 //         RESERVOIR reservoir = RIS(light_count, ray, hit, mat, pdf, p_hat);
 
 //         // Store the reservoir
-//         deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+//         set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
 
 //         // Previous frame screen coord
 //         daxa_f32vec2 motion_vector = get_motion_vector(index.xy, world_hit, rt_size.xy, instance_id,  model);
@@ -173,7 +173,7 @@ void main()
         0                  // payload (location = 0)
     );
 
-    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.seed, prd.instance_id, prd.primitive_id);
+    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_id, prd.primitive_id);
 
     daxa_b32 is_hit = di_info.distance > 0.0;
 // #if SER == 1
@@ -189,11 +189,11 @@ void main()
         daxa_f32vec2 motion_vector = get_motion_vector(index.xy, di_info.position, rt_size.xy, di_info.instance_id,  instance_model);
 
         VELOCITY velocity = VELOCITY(motion_vector);
-        deref(p.velocity_buffer).velocities[screen_pos] = velocity;
+        velocity_buffer_set_velocity(index, rt_size, velocity);
 
         {
             // Get sample info from reservoir
-            RESERVOIR reservoir = deref(p.reservoir_buffer).reservoirs[screen_pos];
+            RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
 
             // Get material
             MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
@@ -220,17 +220,17 @@ void main()
             di_info.seed = hit.seed;
 #if (RESERVOIR_TEMPORAL_ON == 1)
             // Update reservoir
-            deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+            set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
 #else
             // Update reservoir
-            deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos] = reservoir;
+            set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
 #endif // RESERVOIR_TEMPORAL_ON
         }
     }
 // #endif // SER
 
     // Store the DI info
-    deref(p.di_buffer).DI_info[screen_pos] = di_info;
+    set_di_from_current_frame(screen_pos, di_info);
 }
 
 #elif TEMPORAL_REUSE_PASS == 1
@@ -254,7 +254,7 @@ void main() {
     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
     
      // Get hit info
-    DIRECT_ILLUMINATION_INFO di_info = deref(p.di_buffer).DI_info[screen_pos];
+    DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
     
     daxa_b32 is_hit = di_info.distance > 0.0;
 // #if SER == 1
@@ -262,7 +262,7 @@ void main() {
 // #endif // SER
     if(is_hit) {
         // Get sample info from reservoir
-        RESERVOIR reservoir = deref(p.reservoir_buffer).reservoirs[screen_pos];
+        RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
 
         daxa_u32 light_count = deref(p.status_buffer).light_count;
 
@@ -271,7 +271,7 @@ void main() {
         // Get material
         MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
 
-        VELOCITY velocity = deref(p.velocity_buffer).velocities[screen_pos];
+        VELOCITY velocity = velocity_buffer_get_velocity(index, rt_size);
             
         // X from current pixel position
         daxa_f32vec2 Xi = daxa_f32vec2(index.xy) + 0.5;
@@ -299,75 +299,11 @@ void main() {
                        pdf);
 
         di_info.seed = hit.seed;
-        deref(p.di_buffer).DI_info[screen_pos].seed = di_info.seed;
+        set_di_seed_from_current_frame(screen_pos, di_info.seed);
 
-        deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos] = reservoir;
+        set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
     }
 #endif // RESERVOIR_TEMPORAL_ON
-}
-
-#elif SECOND_VISIBILITY_TEST == 1
-void main() {
-#if (RESERVOIR_TEMPORAL_ON == 1)
-    const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
-    const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
-
-    // Camera setup
-    daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
-    daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
-    
-    daxa_u32 max_depth = deref(p.status_buffer).max_depth;
-
-    // Ray setup
-    Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
-
-    // screen_pos is the index of the pixel in the screen
-    daxa_u32 screen_pos = index.y * rt_size.x + index.x;
-    
-    // Get hit info
-    DIRECT_ILLUMINATION_INFO di_info = deref(p.di_buffer).DI_info[screen_pos];
-
-    daxa_f32 p_hat = 0.0;
-
-    daxa_b32 is_hit = di_info.distance > 0.0;
-// #if SER == 1
-//     reorderThreadNV(daxa_u32(hit_value), 1);
-// #endif // SER
-    if(is_hit) {
-        // Get sample info from reservoir
-        RESERVOIR reservoir = deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos];
-
-        // Get material
-        MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
-
-        // Get light count
-        daxa_u32 light_count = deref(p.status_buffer).light_count;
-
-        HIT_INFO_INPUT hit = HIT_INFO_INPUT(daxa_f32vec3(0.0),
-            // NOTE: In order to avoid self intersection we need to offset the ray origin
-            di_info.position,
-            di_info.normal,
-            di_info.instance_id,
-            di_info.primitive_id,
-            di_info.seed,
-            max_depth);
-
-        daxa_f32vec3 radiance = vec3(0.0);
-
-        // Calculate reservoir radiance
-        calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
-
-        di_info.seed = hit.seed;
-        deref(p.di_buffer).DI_info[screen_pos].seed = di_info.seed;
-#if (RESERVOIR_SPATIAL_ON == 1)
-        // Update reservoir
-        deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos] = reservoir;
-#else
-        // Update reservoir
-        deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
-#endif // RESERVOIR_SPATIAL_ON
-#endif // RESERVOIR_TEMPORAL_ON
-    }
 }
 
 #elif SPATIAL_REUSE_PASS == 1
@@ -389,7 +325,7 @@ void main() {
     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
     
      // Get hit info
-    DIRECT_ILLUMINATION_INFO di_info = deref(p.di_buffer).DI_info[screen_pos];
+    DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
     
     daxa_b32 is_hit = di_info.distance > 0.0;
 // #if SER == 1
@@ -398,13 +334,8 @@ void main() {
     if(is_hit) {
         daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_id);
     
-#if (RESERVOIR_TEMPORAL_ON == 1)
         // Get sample info from reservoir
-        RESERVOIR reservoir = deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos];
-#else
-        // Get sample info from reservoir
-        RESERVOIR reservoir = deref(p.reservoir_buffer).reservoirs[screen_pos];
-#endif // RESERVOIR_TEMPORAL_ON
+        RESERVOIR reservoir = get_reservoir_from_intermediate_frame_by_index(screen_pos);
 
         daxa_u32 light_count = deref(p.status_buffer).light_count;
 
@@ -415,7 +346,7 @@ void main() {
         // Get material
         MATERIAL mat = get_material_from_material_index(current_mat_index);
 
-        VELOCITY velocity = deref(p.velocity_buffer).velocities[screen_pos];
+        VELOCITY velocity = velocity_buffer_get_velocity(index, rt_size);
         // X from current pixel position
         daxa_f32vec2 Xi = daxa_f32vec2(index.xy) + 0.5;
 
@@ -437,9 +368,9 @@ void main() {
         SPATIAL_REUSE(reservoir, index, rt_size, ray, hit, current_mat_index, mat, light_count, pdf);
         
         di_info.seed = hit.seed;
-        deref(p.di_buffer).DI_info[screen_pos].seed = di_info.seed;
+        set_di_seed_from_current_frame(screen_pos, di_info.seed);
 
-        deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+        set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
     }
 #endif // RESERVOIR_SPATIAL_ON
 }
@@ -464,14 +395,14 @@ void main()
     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
 
     // Get hit info
-    DIRECT_ILLUMINATION_INFO di_info = deref(p.di_buffer).DI_info[screen_pos];
+    DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
 
     // Get sample info from reservoir
     RESERVOIR reservoir = 
 #if (RESERVOIR_TEMPORAL_ON == 1) || (RESERVOIR_SPATIAL_ON == 0)
-        deref(p.intermediate_reservoir_buffer).reservoirs[screen_pos];
+        get_reservoir_from_intermediate_frame_by_index(screen_pos);
 #else        
-    deref(p.reservoir_buffer).reservoirs[screen_pos];
+        get_reservoir_from_current_frame_by_index(screen_pos);
 #endif // RESERVOIR_TEMPORAL_ON
 
     daxa_b32 is_hit = di_info.distance > 0.0;
@@ -481,19 +412,20 @@ void main()
     if (is_hit)
     {
         daxa_f32vec3 hit_value = vec3(0.0);
-// #if INDIRECT_ILLUMINATION_ON == 1
         prd.hit_value = vec3(1.0);
+#if INDIRECT_ILLUMINATION_ON == 1
         // prd.throughput = vec3(1.0);
         prd.seed = di_info.seed;
         prd.depth = max_depth - 1;
         prd.world_hit = di_info.position;
         prd.distance = di_info.distance;
         prd.world_nrm = di_info.normal;
+        prd.ray_scatter_dir = di_info.scatter_dir;
         prd.instance_id = di_info.instance_id;
         prd.primitive_id = di_info.primitive_id;
 
         daxa_f32vec3 ray_origin = prd.world_hit;
-        daxa_f32vec3 ray_direction = prd.world_nrm;
+        daxa_f32vec3 ray_direction = prd.ray_scatter_dir;
 
         daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
         daxa_f32 t_min = 0.0001;
@@ -530,10 +462,12 @@ void main()
                 break;
 
             ray_origin = prd.world_hit;
-            ray_direction = prd.world_nrm;
+            ray_direction = prd.ray_scatter_dir;
             prd.done = true; // Will stop if a reflective material isn't hit
         }
-// #endif // INDIRECT_ILLUMINATION_ON
+#else 
+        hit_value = vec3(1.0);        
+#endif // INDIRECT_ILLUMINATION_ON
 
         // Get material
         MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
@@ -558,8 +492,6 @@ void main()
         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
         daxa_f32 pdf_out = 0.0;
 
-        
-        LIGHT light = deref(p.light_buffer).lights[get_reservoir_light_index(reservoir)];
         hit_value *= radiance * reservoir.W_y;
             
         clamp(hit_value, 0.0, 0.99999999);
@@ -570,10 +502,9 @@ void main()
     }
 
     // Store the reservoir
-    deref(p.previous_reservoir_buffer).reservoirs[screen_pos] = reservoir;
+    set_reservoir_from_previous_frame_by_index(screen_pos, reservoir);
 
-    deref(p.previous_di_buffer).DI_info[screen_pos] = di_info;
-
+    set_di_from_previous_frame(screen_pos, di_info);
 }
 
 #else

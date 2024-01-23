@@ -8,7 +8,7 @@
 #if defined(METAL)
 void main()
 {
-    MATERIAL mat = deref(p.materials_buffer).materials[call_scatter.mat_idx];
+    MATERIAL mat = get_material_from_material_index(call_scatter.mat_idx);
 
     daxa_f32vec3 reflected = reflection(call_scatter.ray_dir, call_scatter.nrm);
     call_scatter.scatter_dir = reflected + min(mat.roughness, 1.0) * random_cosine_direction(call_scatter.seed);
@@ -18,7 +18,7 @@ void main()
 
 void main()
 {
-    MATERIAL mat = deref(p.materials_buffer).materials[call_scatter.mat_idx];
+    MATERIAL mat = get_material_from_material_index(call_scatter.mat_idx);
 
     daxa_f32vec3 original_nrm = call_scatter.nrm;
 

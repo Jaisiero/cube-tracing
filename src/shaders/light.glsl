@@ -8,6 +8,12 @@
 #include "bounce.glsl"
 #include "mat.glsl"
 
+
+LIGHT get_light_from_light_index(daxa_u32 light_index) {
+    LIGHT_BUFFER instance_buffer = LIGHT_BUFFER(deref(p.world_buffer).light_address);
+    return instance_buffer.lights[light_index];
+}
+
 daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
     return max(dot(n, w_i), 0.0);
 }

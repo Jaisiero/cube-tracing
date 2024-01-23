@@ -5,19 +5,6 @@
 #include "defines.glsl"
 #include "primitives.glsl"
 
-// Ray-AABB intersection
-float hitAabb(const Aabb aabb, const Ray r)
-{
-    vec3 invDir = 1.0 / r.direction;
-    vec3 tbot = invDir * (aabb.minimum - r.origin);
-    vec3 ttop = invDir * (aabb.maximum - r.origin);
-    vec3 tmin = min(ttop, tbot);
-    vec3 tmax = max(ttop, tbot);
-    float t0 = max(tmin.x, max(tmin.y, tmin.z));
-    float t1 = min(tmax.x, min(tmax.y, tmax.z));
-    return t1 > max(t0, 0.0) ? t0 : -1.0;
-}
-
 void main()
 {
     Ray ray;

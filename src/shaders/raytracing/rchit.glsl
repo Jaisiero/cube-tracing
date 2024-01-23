@@ -72,7 +72,7 @@ void main()
     RESERVOIR reservoir = RIS(light_count, ray, hit, mat, pdf, p_hat);
 
     // Store the reservoir
-    deref(p.reservoir_buffer).reservoirs[screen_pos] = reservoir;
+    set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
 
     
 
@@ -106,7 +106,8 @@ void main()
     prd.seed = call_scatter.seed;
     prd.done = call_scatter.done;
     prd.world_hit = call_scatter.hit;
-    prd.world_nrm = call_scatter.scatter_dir;
+    prd.world_nrm = world_nrm;
+    prd.ray_scatter_dir = call_scatter.scatter_dir;
 
     prd.distance = distance - AVOID_VOXEL_COLLAIDE;
     prd.instance_id = instance_id;
@@ -175,7 +176,8 @@ void main()
     prd.seed = call_scatter.seed;
     prd.done = call_scatter.done;
     prd.world_hit = call_scatter.hit;
-    prd.world_nrm = call_scatter.scatter_dir;
+    prd.world_nrm = world_nrm;
+    prd.ray_scatter_dir = call_scatter.scatter_dir;
 
     // LIGHTS
     daxa_u32 light_count = deref(p.status_buffer).light_count;
@@ -188,7 +190,7 @@ void main()
 
     daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
-    LIGHT light = deref(p.light_buffer).lights[light_index];
+    LIGHT light = get_light_from_light_index(light_index);
 
     daxa_f32 pdf = 1.0 / light_count;
     daxa_f32 pdf_out = 1.0;
