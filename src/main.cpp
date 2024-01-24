@@ -74,7 +74,7 @@ namespace tests
             size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
 
             daxa::BufferId aabb_buffer = {};
-            size_t max_aabb_buffer_size = sizeof(daxa_f32mat3x2) * MAX_PRIMITIVES;
+            size_t max_aabb_buffer_size = sizeof(AABB) * MAX_PRIMITIVES;
 
             u32 current_texture_count = 0;
             std::vector<daxa::ImageId> images = {};
@@ -544,9 +544,7 @@ namespace tests
                     for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
                         for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                             for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
-                                
-                                // if(random_float(0.0, 1.0) > 0.9828) {
-                                if(random_float(0.0, 1.0) > 0.9829) {
+                                if(random_float(0.0, 1.0) > 0.93) {
                                     min_max.push_back(generate_min_max_by_coord(x, y, z, VOXEL_EXTENT));
                                 }
                             }
@@ -576,9 +574,9 @@ namespace tests
                         return false;
                     }
 
-                    std::memcpy((device.get_host_address_as<daxa_f32mat3x2>(aabb_buffer).value() + current_primitive_count),
+                    std::memcpy((device.get_host_address_as<AABB>(aabb_buffer).value() + current_primitive_count),
                         min_max.data(), 
-                        instance.primitive_count * sizeof(daxa_f32mat3x2));
+                        instance.primitive_count * sizeof(AABB));
                     current_primitive_count += instance.primitive_count;
 
                     
@@ -625,8 +623,8 @@ namespace tests
                 // build procedural blas
                 for(u32 i = 0; i < instance_count; i++) {
                     aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
-                        .data = device.get_device_address(aabb_buffer).value() + (instances.at(i).first_primitive_index * sizeof(daxa_f32mat3x2)),
-                        .stride = sizeof(daxa_f32mat3x2),
+                        .data = device.get_device_address(aabb_buffer).value() + (instances.at(i).first_primitive_index * sizeof(AABB)),
+                        .stride = sizeof(AABB),
                         .count = instances.at(i).primitive_count,
                         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
                         .flags = i < instance_count - CLOUD_INSTANCE_COUNT_X ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
@@ -650,13 +648,13 @@ namespace tests
                         .name = "proc blas build scratch buffer",
                     });
                     defer { device.destroy_buffer(proc_blas_scratch_buffer); };
+                    blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = device.get_device_address(proc_blas_scratch_buffer).value();
 
                     this->proc_blas.push_back(device.create_blas({
                         .size = proc_build_size_info.acceleration_structure_size,
                         .name = "test procedural blas",
                     }));
                     blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = this->proc_blas.at(this->proc_blas.size() - 1);
-                    blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = device.get_device_address(proc_blas_scratch_buffer).value();
 
                     blas_instance_array.push_back(daxa_BlasInstanceData{
                         .transform = 
@@ -791,6 +789,10 @@ namespace tests
                 auto exec_cmds = [&]()
                 {
                     auto recorder = device.create_command_recorder({});
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::HOST_WRITE,
+                        .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
+                    });
                     recorder.build_acceleration_structures({
                         .blas_build_infos = blas_build_infos,
                     });
@@ -1042,7 +1044,8 @@ namespace tests
                             for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
                                 for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                                     for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
-                                        if(random_float(0.0, 1.0) > 0.95) {
+                                        // if(random_float(0.0, 1.0) > 0.95) {
+                                        if(random_float(0.0, 1.0) > 0.80) {
                                             auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
                                             transforms.push_back(daxa_f32mat4x4{
                                                 {1, 0, 0, x_instance_displacement + position_instance.x},
@@ -2110,7 +2113,7 @@ namespace tests
                 //             if(first_primitive_index + hit_distances[i].primitive_index < current_primitive_count) {
                 //                 daxa_f32vec3 center = primitives[first_primitive_index + hit_distances[i].primitive_index].center;
                 //                 std::cout << "  primitive center [" << translation.x + center.x << ", " <<  translation.y + center.y << ", " << translation.z + center.z << "]" << std::endl;
-                //                 daxa_f32mat3x2 min_max = daxa_f32mat3x2({center.x - VOXEL_EXTENT, center.y - VOXEL_EXTENT, center.z - VOXEL_EXTENT}, {center.x + VOXEL_EXTENT, center.y + VOXEL_EXTENT, center.z + VOXEL_EXTENT});
+                //                 AABB min_max = AABB({center.x - VOXEL_EXTENT, center.y - VOXEL_EXTENT, center.z - VOXEL_EXTENT}, {center.x + VOXEL_EXTENT, center.y + VOXEL_EXTENT, center.z + VOXEL_EXTENT});
                 //                 // std::cout << "primitive min [" << min_max.x.x << ", " << min_max.x.y << ", " << min_max.x.z << "]" << std::endl;
                 //                 // std::cout << "primitive max [" << min_max.y.x << ", " << min_max.y.y << ", " << min_max.y.z << "]" << std::endl;
                 //                 // print instance translation + primitive min + max
