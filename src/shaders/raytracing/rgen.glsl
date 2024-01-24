@@ -435,10 +435,130 @@ void main()
         for (; ;)
         {
 
-            // #if SER == 1
-            // //     reorderThreadNV(daxa_u32(hit_value), 1);
+#if SER == 1
+            hitObjectNV hit_object;
+            //Initialize to an empty hit object
+            hitObjectRecordEmptyNV(hit_object);
 
-            // #else
+            // Trace the ray
+            hitObjectTraceRayNV(hit_object,
+                                daxa_accelerationStructureEXT(p.tlas), // topLevelAccelerationStructure
+                                ray_flags,      // rayFlags
+                                cull_mask,      // cullMask
+                                1,             // sbtRecordOffset
+                                0,             // sbtRecordStride
+                                0,             // missIndex
+                                ray_origin,    // ray origin
+                                t_min,          // ray min range
+                                ray_direction, // ray direction
+                                t_max,          // ray max range
+                                0              // payload (location = 0)
+            );
+
+            daxa_u32 instance_id = MAX_PRIMITIVES;
+            daxa_u32 primitive_id = MAX_PRIMITIVES;
+            daxa_f32vec3 world_hit = vec3(0.0);
+            daxa_f32vec3 world_nrm = vec3(0.0);
+            daxa_f32 distance = -1.0;
+            daxa_f32mat4x4 model;
+            daxa_f32mat4x4 inv_model;
+
+            if (hitObjectIsHitNV(hit_object))
+            {
+                instance_id = hitObjectGetInstanceCustomIndexNV(hit_object);
+
+                primitive_id = hitObjectGetPrimitiveIndexNV(hit_object);
+
+                Ray bounce_ray = Ray(ray_origin, ray_direction);
+
+                distance = is_hit_from_ray(bounce_ray, instance_id, primitive_id, distance, world_hit, world_nrm, model, inv_model, true, false) ? distance : -1.0;
+
+                daxa_f32vec4 world_hit_4 = (model * vec4(world_hit, 1));
+                world_hit = (world_hit_4 / world_hit_4.w).xyz;
+                world_nrm = (transpose(inv_model) * vec4(world_nrm, 0)).xyz;
+                world_hit += world_nrm * AVOID_VOXEL_COLLAIDE;
+            }
+
+            if (distance > 0.0)
+            {
+                daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
+
+                daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
+
+                MATERIAL mat = get_material_from_material_index(mat_index);
+
+                daxa_u32 mat_type = mat.type & MATERIAL_TYPE_MASK;
+                // reorderThreadNV(mat_type, 2);
+                reorderThreadNV(hit_object, mat_type, 2);
+
+                // LIGHTS
+                daxa_u32 light_count = deref(p.status_buffer).light_count;
+
+                // // OBJECTS
+                // daxa_u32 object_count = deref(p.status_buffer).obj_count;
+
+                call_scatter.hit = world_hit;
+                call_scatter.nrm = world_nrm;
+                call_scatter.ray_dir = ray.direction;
+                call_scatter.seed = prd.seed;
+                call_scatter.scatter_dir = vec3(0.0);
+                call_scatter.done = false;
+                call_scatter.mat_idx = mat_index;
+                call_scatter.instance_id = instance_id;
+                call_scatter.primitive_id = primitive_id;
+
+                switch (mat_type)
+                {
+                case MATERIAL_TYPE_METAL:
+                    executeCallableEXT(3, 4);
+                    break;
+                case MATERIAL_TYPE_DIELECTRIC:
+                    executeCallableEXT(4, 4);
+                    break;
+                case MATERIAL_TYPE_CONSTANT_MEDIUM:
+                    executeCallableEXT(5, 4);
+                    break;
+                case MATERIAL_TYPE_LAMBERTIAN:
+                default:
+                    executeCallableEXT(2, 4);
+                    break;
+                }
+                prd.seed = call_scatter.seed;
+                prd.done = call_scatter.done;
+                prd.world_hit = call_scatter.hit;
+                prd.world_nrm = world_nrm;
+                prd.ray_scatter_dir = call_scatter.scatter_dir;
+
+                HIT_INFO_INPUT hit = HIT_INFO_INPUT(
+                    daxa_f32vec3(0.0),
+                    // NOTE: In order to avoid self intersection we need to offset the ray origin
+                    world_hit,
+                    world_nrm,
+                    instance_id,
+                    primitive_id,
+                    prd.seed,
+                    prd.depth);
+
+                daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
+                LIGHT light = get_light_from_light_index(light_index);
+
+                daxa_f32 pdf = 1.0 / light_count;
+                daxa_f32 pdf_out = 1.0;
+
+                daxa_f32vec3 radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, true, true, true);
+
+                prd.hit_value *= radiance;
+                prd.hit_value += mat.emission;
+            }
+            else
+            {
+                prd.done = true;
+                prd.hit_value *= calculate_sky_color(
+                    deref(p.status_buffer).time,
+                    deref(p.status_buffer).is_afternoon,
+                    ray.direction.xyz);
+            }
+#else
             traceRayEXT(daxa_accelerationStructureEXT(p.tlas),
                         ray_flags,     // rayFlags
                         cull_mask,     // cullMask
@@ -451,8 +571,7 @@ void main()
                         t_max,         // ray max range
                         0              // payload (location = 0)
             );
-            // #endif // SER
-
+#endif // SER            
             hit_value += prd.hit_value;
 
             prd.depth--;
@@ -494,8 +613,27 @@ void main()
             
         clamp(hit_value, 0.0, 0.99999999);
 
-        imageStore(daxa_image2D(p.swapchain), index, daxa_f32vec4(hit_value, 1.0));
-        
+        daxa_f32vec4 final_pixel;
+#if ACCUMULATOR_ON == 1
+        daxa_u32 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
+        if (num_accumulated_frames > 0)
+        {
+            vec4 previous_frame_pixel = imageLoad(daxa_image2D(p.swapchain), index);
+
+            vec4 current_frame_pixel = vec4(hit_value, 1.0f);
+
+            daxa_f32 weight = 1.0f / (num_accumulated_frames + 1.0f);
+            final_pixel = mix(previous_frame_pixel, current_frame_pixel, weight);
+        }
+        else
+        {
+            final_pixel = vec4(hit_value, 1.0f);
+        }
+#else
+        final_pixel = vec4(hit_value, 1.0f);
+#endif
+        imageStore(daxa_image2D(p.swapchain), index, final_pixel);
+
         di_info.seed = hit.seed;
     }
 

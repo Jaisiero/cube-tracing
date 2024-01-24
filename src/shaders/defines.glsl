@@ -9,6 +9,7 @@ DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 #if DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_RAYGEN
 layout(location = 0) rayPayloadEXT HIT_PAY_LOAD prd;
 layout(location = 1) rayPayloadEXT bool is_shadowed;
+layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
 #elif DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_CLOSEST_HIT
 layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 layout(location = 1) rayPayloadEXT bool is_shadowed;
@@ -21,6 +22,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #endif
 
 #define DEBUG_NORMALS_ON 0
+#define ACCUMULATOR_ON 0
 
 #define LIGHT_SAMPLING_ON 1
 #define RESERVOIR_ON 1

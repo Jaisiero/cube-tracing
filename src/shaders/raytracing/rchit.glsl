@@ -59,8 +59,8 @@ void main()
     // LIGHTS
     daxa_u32 light_count = deref(p.status_buffer).light_count;
 
-    // OBJECTS
-    daxa_u32 object_count = deref(p.status_buffer).obj_count;
+    // // OBJECTS
+    // daxa_u32 object_count = deref(p.status_buffer).obj_count;
 
     // Screen position
     daxa_u32 screen_pos = gl_LaunchIDEXT.x + gl_LaunchSizeEXT.x * gl_LaunchIDEXT.y;
@@ -182,11 +182,8 @@ void main()
     // LIGHTS
     daxa_u32 light_count = deref(p.status_buffer).light_count;
 
-    // OBJECTS
-    daxa_u32 object_count = deref(p.status_buffer).obj_count;
-
-    // Screen position
-    daxa_u32 screen_pos = gl_LaunchIDEXT.x + gl_LaunchSizeEXT.x * gl_LaunchIDEXT.y;
+    // // OBJECTS
+    // daxa_u32 object_count = deref(p.status_buffer).obj_count;
 
     daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
