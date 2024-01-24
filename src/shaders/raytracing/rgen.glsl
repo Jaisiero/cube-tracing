@@ -386,7 +386,8 @@ void main()
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
     
-    daxa_u32 max_depth = deref(p.status_buffer).max_depth;
+    // daxa_u32 max_depth = deref(p.status_buffer).max_depth;
+    daxa_u32 max_depth = 2;
 
     // Ray setup
     Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
@@ -526,7 +527,7 @@ void main()
                 prd.seed = call_scatter.seed;
                 prd.done = call_scatter.done;
                 prd.world_hit = call_scatter.hit;
-                prd.world_nrm = world_nrm;
+                prd.world_nrm = call_scatter.nrm;
                 prd.ray_scatter_dir = call_scatter.scatter_dir;
 
                 HIT_INFO_INPUT hit = HIT_INFO_INPUT(

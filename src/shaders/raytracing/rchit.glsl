@@ -176,7 +176,7 @@ void main()
     prd.seed = call_scatter.seed;
     prd.done = call_scatter.done;
     prd.world_hit = call_scatter.hit;
-    prd.world_nrm = world_nrm;
+    prd.world_nrm = call_scatter.nrm;
     prd.ray_scatter_dir = call_scatter.scatter_dir;
 
     // LIGHTS
