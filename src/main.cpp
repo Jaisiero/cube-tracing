@@ -22,8 +22,8 @@ namespace tests
         struct App : AppWindow<App>
         {
             const f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
-            const u32 INSTANCE_X_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the x axis)
-            const u32 INSTANCE_Z_AXIS_COUNT = 2; // 2^2 (mirrored on both sides of the z axis)
+            const u32 INSTANCE_X_AXIS_COUNT = 4; // 2^2 (mirrored on both sides of the x axis)
+            const u32 INSTANCE_Z_AXIS_COUNT = 4; // 2^2 (mirrored on both sides of the z axis)
             const u32 CLOUD_INSTANCE_COUNT = 1; // 2^1 (mirrored on both sides of the x axis)
             const u32 CLOUD_INSTANCE_COUNT_X = (CLOUD_INSTANCE_COUNT * 2);
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
@@ -53,6 +53,9 @@ namespace tests
             std::shared_ptr<daxa::ComputePipeline> compute_motion_vectors_pipeline = {};
             daxa::TlasId tlas = {};
             std::vector<daxa::BlasId> proc_blas = {};
+            daxa::BufferId proc_blas_scratch_buffer = {};
+            daxa_u64 proc_blas_scratch_buffer_size = MAX_INSTANCES * 1024 *  10; // TODO: is this a good stimation?
+            daxa_u64 proc_blas_scratch_buffer_offset = 0;
 
             // BUFFERS
             daxa::BufferId cam_buffer = {};
@@ -158,6 +161,7 @@ namespace tests
                     device.destroy_buffer(direct_illum_buffer);
                     device.destroy_buffer(restir_buffer);
                     device.destroy_buffer(world_buffer);
+                    device.destroy_buffer(proc_blas_scratch_buffer);
                     // DEBUGGING
                     // device.destroy_buffer(hit_distance_buffer);
                 }
@@ -643,12 +647,15 @@ namespace tests
 
                     daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
 
-                    auto proc_blas_scratch_buffer = device.create_buffer({
-                        .size = proc_build_size_info.build_scratch_size,
-                        .name = "proc blas build scratch buffer",
-                    });
-                    defer { device.destroy_buffer(proc_blas_scratch_buffer); };
-                    blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = device.get_device_address(proc_blas_scratch_buffer).value();
+                    blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
+
+                    proc_blas_scratch_buffer_offset += proc_build_size_info.build_scratch_size;
+
+                    if(proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size) {
+                        // TODO: Try to resize buffer
+                        std::cout << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
+                        abort();
+                    }
 
                     this->proc_blas.push_back(device.create_blas({
                         .size = proc_build_size_info.acceleration_structure_size,
@@ -668,6 +675,8 @@ namespace tests
 
                     ++current_instance_index;
                 }
+
+                proc_blas_scratch_buffer_offset = 0;
 
                 // Check if all instances were processed
                 if(current_instance_index != instance_count) {
@@ -1000,6 +1009,10 @@ namespace tests
                     .name = ("direct_illum_buffer"),
                 });
 
+                proc_blas_scratch_buffer = device.create_buffer({
+                    .size = proc_blas_scratch_buffer_size,
+                    .name = "proc blas build scratch buffer",
+                });
 
                 upload_world();
                 upload_restir();
