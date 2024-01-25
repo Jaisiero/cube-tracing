@@ -40,7 +40,7 @@ void main()
         
         Ray ray;
         // ray.origin = call_scatter.hit - call_scatter.nrm * AVOID_VOXEL_COLLAIDE * 4.0f;
-        ray.origin = call_scatter.hit + call_scatter.nrm * 0.0001 * 4.0f;
+        ray.origin = call_scatter.hit - original_nrm * AVOID_VOXEL_COLLAIDE * 2.0f;
         ray.direction = call_scatter.scatter_dir;
 
         mat4 model = get_geometry_transform_from_instance_id(call_scatter.instance_id);

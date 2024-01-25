@@ -58,8 +58,8 @@ void main()
     prd.world_hit = vec3(0.0);
     prd.distance = -1.0;
     prd.world_nrm = vec3(0.0);
-    prd.instance_id = MAX_INSTANCES;
-    prd.primitive_id = MAX_PRIMITIVES;
+    prd.instance_id = MAX_INSTANCES - 1;
+    prd.primitive_id = MAX_PRIMITIVES - 1;
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
     daxa_f32 t_min = 0.0001;
@@ -90,8 +90,8 @@ void main()
 //     );
 
 
-//     daxa_u32 instance_id = MAX_PRIMITIVES;
-//     daxa_u32 primitive_id = MAX_PRIMITIVES;
+//     daxa_u32 instance_id = MAX_PRIMITIVES - 1;
+//     daxa_u32 primitive_id = MAX_PRIMITIVES - 1;
 //     daxa_f32vec3 world_hit = vec3(0.0);
 //     daxa_f32vec3 world_nrm = vec3(0.0);
 //     daxa_f32 distance = -1.0;
@@ -456,8 +456,8 @@ void main()
                                 0              // payload (location = 0)
             );
 
-            daxa_u32 instance_id = MAX_PRIMITIVES;
-            daxa_u32 primitive_id = MAX_PRIMITIVES;
+            daxa_u32 instance_id = MAX_PRIMITIVES - 1;
+            daxa_u32 primitive_id = MAX_PRIMITIVES - 1;
             daxa_f32vec3 world_hit = vec3(0.0);
             daxa_f32vec3 world_nrm = vec3(0.0);
             daxa_f32 distance = -1.0;

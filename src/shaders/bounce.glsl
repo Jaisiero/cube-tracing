@@ -9,7 +9,7 @@
 // SCATTER
 INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
 {
-    // prd_indirect.instance_id = MAX_INSTANCES;
+    // prd_indirect.instance_id = MAX_INSTANCES - 1;
     // prd_indirect.seed = hit.seed;
     // prd_indirect.depth = hit.depth;
     daxa_f32 t_min = 0.0001;
@@ -20,7 +20,7 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     daxa_u32 flags = gl_RayFlagsNoneEXT;
 
     
-    daxa_u32 instance_id = MAX_INSTANCES;
+    daxa_u32 instance_id = MAX_INSTANCES - 1;
     daxa_u32 primitive_id = 0;
     daxa_f32vec3 int_hit = daxa_f32vec3(0.0);
     daxa_f32vec3 int_nor = daxa_f32vec3(0.0);

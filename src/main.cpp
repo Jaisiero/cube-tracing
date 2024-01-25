@@ -22,8 +22,8 @@ namespace tests
         struct App : AppWindow<App>
         {
             const f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
-            const u32 INSTANCE_X_AXIS_COUNT = 4; // 2^2 (mirrored on both sides of the x axis)
-            const u32 INSTANCE_Z_AXIS_COUNT = 4; // 2^2 (mirrored on both sides of the z axis)
+            const u32 INSTANCE_X_AXIS_COUNT = 1; // X^2 (mirrored on both sides of the x axis)
+            const u32 INSTANCE_Z_AXIS_COUNT = 1; // Z^2 (mirrored on both sides of the z axis)
             const u32 CLOUD_INSTANCE_COUNT = 1; // 2^1 (mirrored on both sides of the x axis)
             const u32 CLOUD_INSTANCE_COUNT_X = (CLOUD_INSTANCE_COUNT * 2);
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
@@ -54,8 +54,13 @@ namespace tests
             daxa::TlasId tlas = {};
             std::vector<daxa::BlasId> proc_blas = {};
             daxa::BufferId proc_blas_scratch_buffer = {};
-            daxa_u64 proc_blas_scratch_buffer_size = MAX_INSTANCES * 1024 *  10; // TODO: is this a good stimation?
+            daxa_u64 proc_blas_scratch_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
             daxa_u64 proc_blas_scratch_buffer_offset = 0;
+            daxa_u32 acceleration_structure_scratch_offset_alignment = 0;
+            daxa::BufferId proc_blas_buffer = {};
+            daxa_u64 proc_blas_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
+            daxa_u64 proc_blas_buffer_offset = 0;
+            const daxa_u32 ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
 
             // BUFFERS
             daxa::BufferId cam_buffer = {};
@@ -78,6 +83,10 @@ namespace tests
 
             daxa::BufferId aabb_buffer = {};
             size_t max_aabb_buffer_size = sizeof(AABB) * MAX_PRIMITIVES;
+            daxa::BufferId aabb_host_buffer = {};
+            size_t max_aabb_host_buffer_size = sizeof(AABB) * MAX_PRIMITIVES * 0.1;
+            daxa_u32 current_aabb_host_count = 0;
+            size_t aabb_buffer_offset = 0;
 
             u32 current_texture_count = 0;
             std::vector<daxa::ImageId> images = {};
@@ -145,6 +154,7 @@ namespace tests
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
                     device.destroy_buffer(aabb_buffer);
+                    device.destroy_buffer(aabb_host_buffer);
                     device.destroy_buffer(material_buffer);
                     for(auto image : images)
                         device.destroy_image(image);
@@ -162,6 +172,7 @@ namespace tests
                     device.destroy_buffer(restir_buffer);
                     device.destroy_buffer(world_buffer);
                     device.destroy_buffer(proc_blas_scratch_buffer);
+                    device.destroy_buffer(proc_blas_buffer);
                     // DEBUGGING
                     // device.destroy_buffer(hit_distance_buffer);
                 }
@@ -397,6 +408,7 @@ namespace tests
                     return recorder.complete_current_commands();
                 }();
                 device.submit_commands({.command_lists = std::array{exec_cmds}});
+                device.wait_idle();
             }
 
 
@@ -507,6 +519,25 @@ namespace tests
 
              }
 
+            void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size) {
+                 /// Record build commands:
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
+
+                     recorder.copy_buffer_to_buffer({
+                        .src_buffer = aabb_staging_buffer,
+                        .dst_buffer = aabb_buffer,
+                        .dst_offset = aabb_buffer_offset,
+                        .size = aabb_copy_size,
+                    });
+
+                    return recorder.complete_current_commands();
+                }();
+                device.submit_commands({.command_lists = std::array{exec_cmds}});
+                device.wait_idle();
+            }
+
             daxa_Bool8 build_tlas(u32 instance_count) {
                 daxa_Bool8 some_level_changed = false;
 
@@ -518,7 +549,7 @@ namespace tests
                 this->max_current_primitive_count = instance_count * CHUNK_VOXEL_COUNT;
 
                 if(this->max_current_primitive_count > MAX_PRIMITIVES) {
-                    std::cout << "max_current_primitive_count > MAX_PRIMITIVES" << std::endl;
+                    std::cout << "max_current_primitive_count: " << max_current_primitive_count <<  " MAX_PRIMITIVES: " << MAX_PRIMITIVES << std::endl;
                     return false;
                 }
 
@@ -531,6 +562,8 @@ namespace tests
                     device.destroy_tlas(tlas);
                 for(auto blas : this->proc_blas)
                     device.destroy_blas(blas);
+
+                proc_blas_buffer_offset = 0;
 
                 this->proc_blas.clear();
                 this->proc_blas.reserve(instance_count);
@@ -578,10 +611,20 @@ namespace tests
                         return false;
                     }
 
-                    std::memcpy((device.get_host_address_as<AABB>(aabb_buffer).value() + current_primitive_count),
+                    u64 current_primitive_size = (current_aabb_host_count + instance.primitive_count) * sizeof(AABB);
+
+                    if(current_primitive_size > max_aabb_host_buffer_size) {
+                        size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
+                        upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
+                        aabb_buffer_offset += aabb_copy_size;
+                        current_aabb_host_count = 0;
+                    }
+
+                    std::memcpy((device.get_host_address_as<AABB>(aabb_host_buffer).value() + current_aabb_host_count),
                         min_max.data(), 
                         instance.primitive_count * sizeof(AABB));
                     current_primitive_count += instance.primitive_count;
+                    current_aabb_host_count += instance.primitive_count;
 
                     
                     
@@ -608,9 +651,19 @@ namespace tests
                     instances.push_back(instance);
                 }
 
+                if(current_aabb_host_count > 0) {
+                    size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
+                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
+                    aabb_buffer_offset += aabb_copy_size;
+                    current_aabb_host_count = 0;
+                }
+
                 // Update status for shaders
                 status.obj_count = current_primitive_count;
 
+                
+                std::cout << "Num of instances: " << instance_count << std::endl;   
+                std::cout << "Num of cubes: " << current_primitive_count << std::endl;
                 
                 // reserve blas build infos
                 blas_build_infos.reserve(instance_count);
@@ -647,20 +700,40 @@ namespace tests
 
                     daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
 
-                    blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
+                    auto get_aligned = [&](u64 operand, u64 granularity) -> u64
+                    {
+                        return ((operand + (granularity - 1)) & ~(granularity - 1));
+                    };
 
-                    proc_blas_scratch_buffer_offset += proc_build_size_info.build_scratch_size;
+                    daxa_u32 scratch_alignment_size = get_aligned(proc_build_size_info.build_scratch_size, acceleration_structure_scratch_offset_alignment);
 
-                    if(proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size) {
+
+                    if((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size) {
                         // TODO: Try to resize buffer
                         std::cout << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
                         abort();
                     }
+                    blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
+                    proc_blas_scratch_buffer_offset += scratch_alignment_size;
 
-                    this->proc_blas.push_back(device.create_blas({
-                        .size = proc_build_size_info.acceleration_structure_size,
-                        .name = "test procedural blas",
+                    
+                    daxa_u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
+
+                    if((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size) {
+                        // TODO: Try to resize buffer
+                        std::cout << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
+                        abort();
+                    }
+                    this->proc_blas.push_back(device.create_blas_from_buffer({
+                        .blas_info = {.size = proc_build_size_info.acceleration_structure_size,
+                            .name = "test procedural blas",
+                        },
+                        .buffer_id = proc_blas_buffer,
+                        .offset = proc_blas_buffer_offset,
                     }));
+
+                    proc_blas_buffer_offset +=  build_aligment_size;
+
                     blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = this->proc_blas.at(this->proc_blas.size() - 1);
 
                     blas_instance_array.push_back(daxa_BlasInstanceData{
@@ -838,6 +911,7 @@ namespace tests
                     return recorder.complete_current_commands();
                 }();
                 device.submit_commands({.command_lists = std::array{exec_cmds}});
+                device.wait_idle();
                 /// NOTE:
                 /// No need to wait idle here.
                 /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
@@ -883,6 +957,253 @@ namespace tests
                 
             }
 
+
+            void upload_textures() {
+                // CHESSBOARD PATTERN TEXTURE
+                {
+                    daxa_u32 SIZE_X = 256;
+                    daxa_u32 SIZE_Y = 256;
+                    daxa_u32 SIZE_Z = 1;
+
+                    daxa_u32 image_stage_buffer_size = SIZE_X * SIZE_Y * SIZE_Z * 4;
+
+                    images.push_back(device.create_image({
+                        .dimensions = 2,
+                        .format = daxa::Format::R8G8B8A8_UNORM,
+                        .size = {SIZE_X, SIZE_Y, SIZE_Z},
+                        .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
+                        .name = "image_1",
+                    }));
+
+                    samplers.push_back(device.create_sampler({
+                        .magnification_filter = daxa::Filter::NEAREST,
+                        .minification_filter = daxa::Filter::NEAREST,
+                        .max_lod = 0.0f,
+                    }));
+
+                    auto image_staging_buffer = device.create_buffer({
+                        .size = image_stage_buffer_size,
+                        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                        .name = ("image_staging_buffer"),
+                    });
+                    defer { device.destroy_buffer(image_staging_buffer); };
+
+                    auto *image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
+
+                    // for(u32 i = 0; i < SIZE_X * SIZE_Y * SIZE_Z; i++) {
+                    //     image_staging_buffer_ptr[i * 4 + 0] = 255;
+                    //     image_staging_buffer_ptr[i * 4 + 1] = 255;
+                    //     image_staging_buffer_ptr[i * 4 + 2] = 255;
+                    //     image_staging_buffer_ptr[i * 4 + 3] = 255;
+                    // }
+
+                    // chessboard pattern for testing (black and white) 8x8 squares based on SIZE_X length
+                    for (u32 x = 0; x < SIZE_X; x++)
+                    {
+                        for (u32 y = 0; y < SIZE_Y; y++)
+                        {
+                            for (u32 z = 0; z < SIZE_Z; z++)
+                            {
+                                if ((x / 32) % 2 == 0)
+                                {
+                                    if ((y / 32) % 2 == 0)
+                                    {
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 255;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 255;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 255;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
+                                    }
+                                    else
+                                    {
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 0;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 0;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 0;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
+                                    }
+                                }
+                                else
+                                {
+                                    if ((y / 32) % 2 == 0)
+                                    {
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 0;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 0;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 0;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
+                                    }
+                                    else
+                                    {
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 255;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 255;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 255;
+                                        image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    auto exec_cmds = [&]()
+                    {
+                        auto recorder = device.create_command_recorder({});
+
+                        recorder.pipeline_barrier({
+                            .src_access = daxa::AccessConsts::HOST_WRITE,
+                            .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                        });
+
+                        recorder.copy_buffer_to_image({
+                            .buffer = image_staging_buffer,
+                            .image = images.at(images.size() - 1),
+                            .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
+                        });
+
+                        recorder.pipeline_barrier({
+                            .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                            .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                        });
+
+                        return recorder.complete_current_commands();
+                    }();
+                    device.submit_commands({.command_lists = std::array{exec_cmds}});
+                    ++current_texture_count;
+                }
+
+                // LOAD TEXTURE
+                {
+
+                    ImageTexture red_brick_wall = ImageTexture(RED_BRICK_WALL_IMAGE);
+                    daxa_u32 SIZE_X = red_brick_wall.get_width();
+                    daxa_u32 SIZE_Y = red_brick_wall.get_height();
+                    daxa_u32 SIZE_Z = 1;
+
+                    daxa_u32 image_stage_buffer_size = red_brick_wall.get_size();
+
+                    images.push_back(device.create_image({
+                        .dimensions = 2,
+                        .format = daxa::Format::R8G8B8A8_UNORM, // change to R8G8B8A8_UNORM and doesn't crash
+                        .size = {SIZE_X, SIZE_Y, SIZE_Z},
+                        .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
+                        .name = "image_2",
+                    }));
+
+                    // samplers.push_back(device.create_sampler({
+                    //     .magnification_filter = daxa::Filter::NEAREST,
+                    //     .minification_filter = daxa::Filter::NEAREST,
+                    //     .max_lod = 0.0f,
+                    // }));
+
+                    auto image_staging_buffer = device.create_buffer({
+                        .size = image_stage_buffer_size,
+                        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                        .name = ("image_staging_buffer"),
+                    });
+                    defer { device.destroy_buffer(image_staging_buffer); };
+
+                    auto *image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
+
+                    memcpy(
+                        image_staging_buffer_ptr,
+                        red_brick_wall.get_data(),
+                        image_stage_buffer_size);
+
+                    auto exec_cmds = [&]()
+                    {
+                        auto recorder = device.create_command_recorder({});
+
+                        recorder.pipeline_barrier({
+                            .src_access = daxa::AccessConsts::HOST_WRITE,
+                            .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                        });
+
+                        recorder.copy_buffer_to_image({
+                            .buffer = image_staging_buffer,
+                            .image = images.at(images.size() - 1),
+                            .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
+                        });
+
+                        recorder.pipeline_barrier({
+                            .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                            .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                        });
+
+                        return recorder.complete_current_commands();
+                    }();
+                    device.submit_commands({.command_lists = std::array{exec_cmds}});
+
+                    ++current_texture_count;
+                }
+
+                // LOAD TEXTURE
+                {
+                    // NoiseTexture perlin_texture = NoiseTexture();
+                    // daxa_u32 SIZE_X = perlin_texture.get_pixel_count();
+
+                    // daxa_u32 image_stage_buffer_size = perlin_texture.get_pixel_count_in_bytes();
+
+                    auto perlin_data = get_perm_noise_texture();
+
+                    daxa_u32 SIZE_X = 256;
+                    daxa_u32 SIZE_Y = 256;
+                    daxa_u32 SIZE_Z = 1;
+
+                    daxa_u32 image_stage_buffer_size = 256 * 256 * 4;
+
+                    images.push_back(device.create_image({
+                        .dimensions = 2,
+                        .format = daxa::Format::R8G8B8A8_UNORM, // change to R8G8B8A8_UNORM and doesn't crash
+                        .size = {SIZE_X, SIZE_Y, SIZE_Z},
+                        .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
+                        .name = "image_3",
+                    }));
+
+                    // samplers.push_back(device.create_sampler({
+                    //     .magnification_filter = daxa::Filter::NEAREST,
+                    //     .minification_filter = daxa::Filter::NEAREST,
+                    //     .max_lod = 0.0f,
+                    // }));
+
+                    auto image_staging_buffer = device.create_buffer({
+                        .size = image_stage_buffer_size,
+                        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                        .name = ("image_staging_buffer"),
+                    });
+                    defer { device.destroy_buffer(image_staging_buffer); };
+
+                    auto *image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
+
+                    memcpy(
+                        image_staging_buffer_ptr,
+                        perlin_data.get(),
+                        image_stage_buffer_size);
+
+                    auto exec_cmds = [&]()
+                    {
+                        auto recorder = device.create_command_recorder({});
+
+                        recorder.pipeline_barrier({
+                            .src_access = daxa::AccessConsts::HOST_WRITE,
+                            .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                        });
+
+                        recorder.copy_buffer_to_image({
+                            .buffer = image_staging_buffer,
+                            .image = images.at(images.size() - 1),
+                            .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
+                        });
+
+                        recorder.pipeline_barrier({
+                            .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                            .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                        });
+
+                        return recorder.complete_current_commands();
+                    }();
+                    device.submit_commands({.command_lists = std::array{exec_cmds}});
+
+                    ++current_texture_count;
+                }
+            }
+
             void initialize()
             {
                 daxa_ctx = daxa::create_instance({});
@@ -907,6 +1228,9 @@ namespace tests
                     std::cout << "Ray tracing is not supported" << std::endl;
                     abort();
                 }
+
+
+                acceleration_structure_scratch_offset_alignment = device.properties().acceleration_structure_properties.value().min_acceleration_structure_scratch_offset_alignment;
             
 
                 swapchain = device.create_swapchain({
@@ -953,8 +1277,13 @@ namespace tests
                 // GeometryType of each element of pGeometries must be the same
                 aabb_buffer = device.create_buffer({
                     .size = max_aabb_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = "aabb buffer",
+                });
+
+                aabb_host_buffer = device.create_buffer({
+                    .size = max_aabb_host_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = "aabb host buffer",
                 });
 
                 material_buffer = device.create_buffer(daxa::BufferInfo{
@@ -1014,6 +1343,11 @@ namespace tests
                     .name = "proc blas build scratch buffer",
                 });
 
+                proc_blas_buffer = device.create_buffer({
+                    .size = proc_blas_buffer_size,
+                    .name = "proc blas buffer",
+                });
+
                 upload_world();
                 upload_restir();
 
@@ -1034,7 +1368,7 @@ namespace tests
                     daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
 
                     if(estimated_instance_count > MAX_INSTANCES) {
-                        std::cout << "estimated_instance_count > MAX_INSTANCES" << std::endl;
+                        std::cout << "estimated_instance_count (" << estimated_instance_count << ") > MAX_INSTANCES (" << MAX_INSTANCES << ")." << std::endl;
                         abort();
                     }
 
@@ -1088,240 +1422,7 @@ namespace tests
 
                     current_instance_count = transforms.size();
 
-                    // CHESSBOARD PATTERN TEXTURE
-                    {
-                        daxa_u32 SIZE_X = 256;
-                        daxa_u32 SIZE_Y = 256;
-                        daxa_u32 SIZE_Z = 1;
-
-                        daxa_u32 image_stage_buffer_size = SIZE_X * SIZE_Y * SIZE_Z * 4;
-
-                        images.push_back(device.create_image({
-                            .dimensions = 2,
-                            .format = daxa::Format::R8G8B8A8_UNORM,
-                            .size = {SIZE_X, SIZE_Y, SIZE_Z},
-                            .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
-                            .name = "image_1",
-                        }));
-
-                        samplers.push_back(device.create_sampler({
-                            .magnification_filter = daxa::Filter::NEAREST,
-                            .minification_filter = daxa::Filter::NEAREST,
-                            .max_lod = 0.0f,
-                        }));
-
-                        auto image_staging_buffer = device.create_buffer({
-                            .size = image_stage_buffer_size,
-                            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                            .name = ("image_staging_buffer"),
-                        });
-                        defer { device.destroy_buffer(image_staging_buffer); };
-
-                        auto * image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
-
-                        // for(u32 i = 0; i < SIZE_X * SIZE_Y * SIZE_Z; i++) {
-                        //     image_staging_buffer_ptr[i * 4 + 0] = 255;
-                        //     image_staging_buffer_ptr[i * 4 + 1] = 255;
-                        //     image_staging_buffer_ptr[i * 4 + 2] = 255;
-                        //     image_staging_buffer_ptr[i * 4 + 3] = 255;
-                        // }
-
-                        // chessboard pattern for testing (black and white) 8x8 squares based on SIZE_X length
-                        for(u32 x = 0; x < SIZE_X; x++) {
-                            for(u32 y = 0; y < SIZE_Y; y++) {
-                                for(u32 z = 0; z < SIZE_Z; z++) {
-                                    if((x / 32) % 2 == 0) {
-                                        if((y / 32) % 2 == 0) {
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 255;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 255;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 255;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
-                                        } else {
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 0;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 0;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 0;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
-                                        }
-                                    } else {
-                                        if((y / 32) % 2 == 0) {
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 0;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 0;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 0;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
-                                        } else {
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 0] = 255;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 1] = 255;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 2] = 255;
-                                            image_staging_buffer_ptr[(x + y * SIZE_X + z * SIZE_X * SIZE_Y) * 4 + 3] = 255;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                                
-                        
-                        auto exec_cmds = [&]()
-                        {
-                            auto recorder = device.create_command_recorder({});
-
-                            recorder.pipeline_barrier({
-                                .src_access = daxa::AccessConsts::HOST_WRITE,
-                                .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                            });
-                            
-                            recorder.copy_buffer_to_image({
-                                .buffer = image_staging_buffer,
-                                .image = images.at(images.size() - 1),
-                                .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
-                            });
-                            
-                            recorder.pipeline_barrier({
-                                .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                                .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
-                            });
-
-                            return recorder.complete_current_commands();
-                        }();
-                        device.submit_commands({.command_lists = std::array{exec_cmds}});
-                        ++current_texture_count;
-                    }
-
-                    // LOAD TEXTURE
-                    {
-
-                        ImageTexture red_brick_wall = ImageTexture(RED_BRICK_WALL_IMAGE);
-                        daxa_u32 SIZE_X = red_brick_wall.get_width();
-                        daxa_u32 SIZE_Y = red_brick_wall.get_height();
-                        daxa_u32 SIZE_Z = 1;
-
-                        daxa_u32 image_stage_buffer_size = red_brick_wall.get_size();
-
-                        images.push_back(device.create_image({
-                            .dimensions = 2,
-                            .format = daxa::Format::R8G8B8A8_UNORM, // change to R8G8B8A8_UNORM and doesn't crash
-                            .size = {SIZE_X, SIZE_Y, SIZE_Z},
-                            .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
-                            .name = "image_2",
-                        }));
-
-                        // samplers.push_back(device.create_sampler({
-                        //     .magnification_filter = daxa::Filter::NEAREST,
-                        //     .minification_filter = daxa::Filter::NEAREST,
-                        //     .max_lod = 0.0f,
-                        // }));
-
-                        auto image_staging_buffer = device.create_buffer({
-                            .size = image_stage_buffer_size,
-                            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                            .name = ("image_staging_buffer"),
-                        });
-                        defer { device.destroy_buffer(image_staging_buffer); };
-
-                        auto * image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
-
-                        memcpy(
-                            image_staging_buffer_ptr,
-                            red_brick_wall.get_data(),
-                            image_stage_buffer_size
-                        );
-                        
-                        auto exec_cmds = [&]()
-                        {
-                            auto recorder = device.create_command_recorder({});
-
-                            recorder.pipeline_barrier({
-                                .src_access = daxa::AccessConsts::HOST_WRITE,
-                                .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                            });
-                            
-                            recorder.copy_buffer_to_image({
-                                .buffer = image_staging_buffer,
-                                .image = images.at(images.size() - 1),
-                                .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
-                            });
-                            
-                            recorder.pipeline_barrier({
-                                .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                                .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
-                            });
-
-                            return recorder.complete_current_commands();
-                        }();
-                        device.submit_commands({.command_lists = std::array{exec_cmds}});
-
-                        ++current_texture_count;
-                    }
-
-                    // LOAD TEXTURE
-                    {
-                        // NoiseTexture perlin_texture = NoiseTexture();
-                        // daxa_u32 SIZE_X = perlin_texture.get_pixel_count();
-
-                        // daxa_u32 image_stage_buffer_size = perlin_texture.get_pixel_count_in_bytes();
-
-                        auto perlin_data = get_perm_noise_texture();
-
-                        daxa_u32 SIZE_X = 256;
-                        daxa_u32 SIZE_Y = 256;
-                        daxa_u32 SIZE_Z = 1;
-
-                        daxa_u32 image_stage_buffer_size = 256 * 256 * 4;
-
-                        images.push_back(device.create_image({
-                            .dimensions = 2,
-                            .format = daxa::Format::R8G8B8A8_UNORM, // change to R8G8B8A8_UNORM and doesn't crash
-                            .size = {SIZE_X, SIZE_Y, SIZE_Z},
-                            .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE | daxa::ImageUsageFlagBits::TRANSFER_DST | daxa::ImageUsageFlagBits::SHADER_SAMPLED,
-                            .name = "image_3",
-                        }));
-
-                        // samplers.push_back(device.create_sampler({
-                        //     .magnification_filter = daxa::Filter::NEAREST,
-                        //     .minification_filter = daxa::Filter::NEAREST,
-                        //     .max_lod = 0.0f,
-                        // }));
-
-                        auto image_staging_buffer = device.create_buffer({
-                            .size = image_stage_buffer_size,
-                            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                            .name = ("image_staging_buffer"),
-                        });
-                        defer { device.destroy_buffer(image_staging_buffer); };
-
-                        auto * image_staging_buffer_ptr = device.get_host_address_as<uint8_t>(image_staging_buffer).value();
-
-                        memcpy(
-                            image_staging_buffer_ptr,
-                            perlin_data.get(),
-                            image_stage_buffer_size
-                        );
-                        
-                        auto exec_cmds = [&]()
-                        {
-                            auto recorder = device.create_command_recorder({});
-
-                            recorder.pipeline_barrier({
-                                .src_access = daxa::AccessConsts::HOST_WRITE,
-                                .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                            });
-                            
-                            recorder.copy_buffer_to_image({
-                                .buffer = image_staging_buffer,
-                                .image = images.at(images.size() - 1),
-                                .image_extent = {SIZE_X, SIZE_Y, SIZE_Z},
-                            });
-                            
-                            recorder.pipeline_barrier({
-                                .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                                .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
-                            });
-
-                            return recorder.complete_current_commands();
-                        }();
-                        device.submit_commands({.command_lists = std::array{exec_cmds}});
-
-                        ++current_texture_count;
-                    }
+                    upload_textures();
 
                     
                     current_material_count = MATERIAL_COUNT;
