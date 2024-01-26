@@ -218,6 +218,7 @@ void main()
             calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
 
             di_info.seed = hit.seed;
+#if RESERVOIR_ON == 1            
 #if (RESERVOIR_TEMPORAL_ON == 1)
             // Update reservoir
             set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
@@ -225,6 +226,7 @@ void main()
             // Update reservoir
             set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
 #endif // RESERVOIR_TEMPORAL_ON
+#endif // RESERVOIR_ON
         }
     }
 // #endif // SER
@@ -235,8 +237,8 @@ void main()
 
 #elif TEMPORAL_REUSE_PASS == 1
 
-void main() {
-    
+void main() { 
+#if RESERVOIR_ON == 1
 #if (RESERVOIR_TEMPORAL_ON == 1)
     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
@@ -304,10 +306,12 @@ void main() {
         set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
     }
 #endif // RESERVOIR_TEMPORAL_ON
+#endif // RESERVOIR_ON
 }
 
 #elif SPATIAL_REUSE_PASS == 1
 void main() {
+#if RESERVOIR_ON == 1
 #if (RESERVOIR_SPATIAL_ON == 1)
     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
@@ -373,6 +377,7 @@ void main() {
         set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
     }
 #endif // RESERVOIR_SPATIAL_ON
+#endif // RESERVOIR_ON
 }
 
 #elif THIRD_VISIBILITY_TEST_AND_SHADING_PASS == 1
@@ -398,6 +403,8 @@ void main()
     // Get hit info
     DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
 
+
+#if RESERVOIR_ON == 1
     // Get sample info from reservoir
     RESERVOIR reservoir = 
 #if (RESERVOIR_TEMPORAL_ON == 1) || (RESERVOIR_SPATIAL_ON == 0)
@@ -405,6 +412,7 @@ void main()
 #else        
         get_reservoir_from_current_frame_by_index(screen_pos);
 #endif // RESERVOIR_TEMPORAL_ON
+#endif // RESERVOIR_ON
 
     daxa_b32 is_hit = di_info.distance > 0.0;
     // #if SER == 1
@@ -609,12 +617,24 @@ void main()
 
         daxa_f32vec3 radiance = vec3(0.0);
 
-        calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
-
         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
         daxa_f32 pdf_out = 0.0;
 
+
+#if RESERVOIR_ON == 1
+        calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+
         hit_value *= radiance * reservoir.W_y;
+#else // RESERVOIR_ON
+        daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
+
+        LIGHT light = get_light_from_light_index(light_index);
+
+        radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, false, false, true);
+
+        hit_value *= radiance;
+#endif // RESERVOIR_ON
+
 
         di_info.seed = hit.seed;
 #endif // DEBUG_NORMALS_ON
@@ -644,8 +664,10 @@ void main()
 
     }
 
+#if RESERVOIR_ON == 1
     // Store the reservoir
     set_reservoir_from_previous_frame_by_index(screen_pos, reservoir);
+#endif // RESERVOIR_ON    
 
     set_di_from_previous_frame(screen_pos, di_info);
 }
