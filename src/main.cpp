@@ -28,10 +28,8 @@ namespace tests
             const u32 CLOUD_INSTANCE_COUNT_X = (CLOUD_INSTANCE_COUNT * 2);
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
             const u32 LAMBERTIAN_MATERIAL_COUNT = 80;
-            // const u32 METAL_MATERIAL_COUNT = 15;
-            const u32 METAL_MATERIAL_COUNT = 0;
-            // const u32 DIALECTRIC_MATERIAL_COUNT = 5;
-            const u32 DIALECTRIC_MATERIAL_COUNT = 0;
+            const u32 METAL_MATERIAL_COUNT = 15;
+            const u32 DIALECTRIC_MATERIAL_COUNT = 5;
             // const u32 EMISSIVE_MATERIAL_COUNT = 5;
             const u32 EMISSIVE_MATERIAL_COUNT = 0;
             const u32 CONSTANT_MEDIUM_MATERIAL_COUNT = 5;

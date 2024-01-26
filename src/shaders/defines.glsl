@@ -30,7 +30,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define RESERVOIR_SPATIAL_ON 1
 
 #define MIS_ON 0
-#define INDIRECT_ILLUMINATION_ON 0
+#define INDIRECT_ILLUMINATION_ON 1
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
 
