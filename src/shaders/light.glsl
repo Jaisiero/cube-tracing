@@ -38,8 +38,8 @@ daxa_b32 is_light_visible(Ray ray, LIGHT light, HIT_INFO_INPUT hit)
     daxa_f32vec3 color = vec3(0.0, 0.0, 0.0);
 
     if(dot(hit.world_nrm, L) > 0) {
-        daxa_f32 t_min   = 0.0001;
-        daxa_f32 t_max   = distance;
+        daxa_f32 t_min   = DELTA_RAY;
+        daxa_f32 t_max   = distance - DELTA_RAY;
         daxa_f32vec3  ray_origin = hit.world_hit;
         daxa_f32vec3  ray_dir = L;
         uint cull_mask = 0xff;
@@ -78,7 +78,6 @@ daxa_f32 balance_heuristic(daxa_f32 pdf , daxa_f32 pdf_other) {
 
 daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi) {
     daxa_f32vec3 color = vec3(0.0);
-    // TODO: just diffuse for now
     switch (mat.type & MATERIAL_TYPE_MASK)
     {
         case MATERIAL_TYPE_METAL: {
@@ -189,7 +188,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
     //     Le_out = vec3(0.0);
     //     return false;
     // }
-    daxa_b32 vis = false;
+    daxa_b32 vis = true;
 
     // if (l.type == GEOMETRY_LIGHT_SPEHERE)
     // {
@@ -208,7 +207,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
 
         Ray ray;
-        ray.origin = P + n * AVOID_VOXEL_COLLAIDE;
+        ray.origin = P + n * DELTA_RAY;
         ray.direction = l.position - P;
 
         daxa_f32 t_hit = -1.0;
@@ -234,14 +233,16 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         l_nor = normalize(P - l_pos);
     }
 
-
-    vis = daxa_b32(dot(P - l_pos, l_nor) > 0.0); // Light front side
-    vis = vis && daxa_b32(dot(P - l_pos, n) < 0.0);         // Behind the surface at P
-                                            // Shadow ray
+    daxa_f32vec3 l_wi = normalize(P - l_pos);
 
 
+    vis = daxa_b32(dot(l_wi, l_nor) > 0.0); // Light front side
+    vis = vis && daxa_b32(dot(l_wi, n) < 0.0);         // Behind the surface at P
+    //                                         // Shadow ray
 
-    Ray shadow_ray = Ray(P, l_pos - P);
+
+
+    Ray shadow_ray = Ray(P, l_nor);
 
     if(visibility) {
         vis = vis && is_light_visible(shadow_ray, l, hit);

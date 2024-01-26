@@ -28,8 +28,10 @@ namespace tests
             const u32 CLOUD_INSTANCE_COUNT_X = (CLOUD_INSTANCE_COUNT * 2);
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
             const u32 LAMBERTIAN_MATERIAL_COUNT = 80;
-            const u32 METAL_MATERIAL_COUNT = 15;
-            const u32 DIALECTRIC_MATERIAL_COUNT = 5;
+            // const u32 METAL_MATERIAL_COUNT = 15;
+            const u32 METAL_MATERIAL_COUNT = 0;
+            // const u32 DIALECTRIC_MATERIAL_COUNT = 5;
+            const u32 DIALECTRIC_MATERIAL_COUNT = 0;
             // const u32 EMISSIVE_MATERIAL_COUNT = 5;
             const u32 EMISSIVE_MATERIAL_COUNT = 0;
             const u32 CONSTANT_MEDIUM_MATERIAL_COUNT = 5;
@@ -436,13 +438,13 @@ namespace tests
                 lights.push_back(light);
 
                 LIGHT light2 = {};
-                light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0);
+                light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0001);
                 light2.emissive = daxa_f32vec3(3.0, 3.0, 3.0);
                 light2.type = GEOMETRY_LIGHT_POINT;
                 lights.push_back(light2);
 
                 LIGHT light3 = {};
-                light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0);
+                light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0001);
                 light3.emissive = daxa_f32vec3(4.0, 4.0, 4.0);
                 light3.type = GEOMETRY_LIGHT_POINT;
                 lights.push_back(light3);

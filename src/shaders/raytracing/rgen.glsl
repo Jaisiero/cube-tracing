@@ -126,7 +126,7 @@ void main()
 //         HIT_INFO_INPUT hit = HIT_INFO_INPUT(
 //             daxa_f32vec3(0.0),
 //             // NOTE: In order to avoid self intersection we need to offset the ray origin
-//             world_hit + world_nrm * AVOID_VOXEL_COLLAIDE,
+//             world_hit + world_nrm * DELTA_RAY,
 //             world_nrm,
 //             instance_id,
 //             primitive_id,
@@ -414,6 +414,10 @@ void main()
     {
         daxa_f32vec3 hit_value = vec3(0.0);
         prd.hit_value = vec3(1.0);
+
+#if(DEBUG_NORMALS_ON == 1)
+        hit_value = di_info.normal * 0.5 + 0.5;
+#else        
 #if INDIRECT_ILLUMINATION_ON == 1
         // prd.throughput = vec3(1.0);
         prd.seed = di_info.seed;
@@ -477,7 +481,7 @@ void main()
                 daxa_f32vec4 world_hit_4 = (model * vec4(world_hit, 1));
                 world_hit = (world_hit_4 / world_hit_4.w).xyz;
                 world_nrm = (transpose(inv_model) * vec4(world_nrm, 0)).xyz;
-                world_hit += world_nrm * AVOID_VOXEL_COLLAIDE;
+                world_hit += world_nrm * DELTA_RAY;
             }
 
             if (distance > 0.0)
@@ -611,6 +615,9 @@ void main()
         daxa_f32 pdf_out = 0.0;
 
         hit_value *= radiance * reservoir.W_y;
+
+        di_info.seed = hit.seed;
+#endif // DEBUG_NORMALS_ON
             
         clamp(hit_value, 0.0, 0.99999999);
 
@@ -635,7 +642,6 @@ void main()
 #endif
         imageStore(daxa_image2D(p.swapchain), index, final_pixel);
 
-        di_info.seed = hit.seed;
     }
 
     // Store the reservoir

@@ -39,8 +39,7 @@ void main()
         call_scatter.scatter_dir = refraction(call_scatter.ray_dir, call_scatter.nrm, etai_over_etat);
         
         Ray ray;
-        // ray.origin = call_scatter.hit - call_scatter.nrm * AVOID_VOXEL_COLLAIDE * 4.0f;
-        ray.origin = call_scatter.hit - original_nrm * AVOID_VOXEL_COLLAIDE * 2.0f;
+        ray.origin = call_scatter.hit + call_scatter.nrm * DELTA_RAY * 2.0f;
         ray.direction = call_scatter.scatter_dir;
 
         mat4 model = get_geometry_transform_from_instance_id(call_scatter.instance_id);
@@ -52,7 +51,7 @@ void main()
         if(is_hit_from_ray(ray, call_scatter.instance_id, call_scatter.primitive_id, t_max, hit, nrm, model, inv_model, true, false)) {
             daxa_f32vec4 pos_4 = model * vec4(hit, 1);
             call_scatter.hit = pos_4.xyz / pos_4.w;
-            call_scatter.hit += nrm * AVOID_VOXEL_COLLAIDE;
+            call_scatter.hit += nrm * DELTA_RAY;
             call_scatter.nrm = (transpose(inv_model) * vec4(nrm, 0)).xyz;
         } 
     }

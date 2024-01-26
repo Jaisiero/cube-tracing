@@ -36,8 +36,7 @@
 #define SAMPLES_PER_PIXEL 1
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
 #define MAX_DEPTH 3
-#define DELTA_RAY 0.0001f   // Delta ray offset for shadow rays
-// #define AVOID_VOXEL_COLLAIDE 1e-6f   // Delta ray offset for shadow rays
+#define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 1e-9f   // Delta ray offset for shadow rays
 
 #define PERLIN_FACTOR 500

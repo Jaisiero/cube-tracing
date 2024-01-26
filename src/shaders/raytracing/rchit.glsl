@@ -39,7 +39,7 @@ void main()
     
     packed_intersection_info(ray, distance, instance_id, primitive_id, model, world_pos, world_nrm, actual_primitive_index);
 
-    world_pos += world_nrm * AVOID_VOXEL_COLLAIDE;
+    world_pos += world_nrm * DELTA_RAY;
 
     HIT_INFO_INPUT hit = HIT_INFO_INPUT(
         daxa_f32vec3(0.0),
@@ -109,7 +109,7 @@ void main()
     prd.world_nrm = world_nrm;
     prd.ray_scatter_dir = call_scatter.scatter_dir;
 
-    prd.distance = distance - AVOID_VOXEL_COLLAIDE;
+    prd.distance = distance;
     prd.instance_id = instance_id;
     prd.primitive_id = primitive_id;
 }
@@ -140,7 +140,7 @@ void main()
     
     packed_intersection_info(ray, distance, instance_id, primitive_id, model, world_pos, world_nrm, actual_primitive_index);
 
-    world_pos += world_nrm * AVOID_VOXEL_COLLAIDE;
+    world_pos += world_nrm * DELTA_RAY;
 
     daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
 
