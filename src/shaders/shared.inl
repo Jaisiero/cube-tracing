@@ -49,6 +49,12 @@ struct AABB
   daxa_f32vec3 maximum;
 };
 
+struct INSTANCE_HIT
+{
+  daxa_u32 instance_id;
+  daxa_u32 primitive_id;
+};
+
 struct Ray
 {
   daxa_f32vec3 origin;
@@ -66,9 +72,9 @@ struct HIT_PAY_LOAD
     daxa_f32 distance;
     daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
+    daxa_u32 scatter_lobe;
     daxa_f32vec3 ray_scatter_dir;
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
+    INSTANCE_HIT instance_hit;
 };
 
 struct HIT_INDIRECT_PAY_LOAD
@@ -96,8 +102,7 @@ struct HIT_SCATTER_PAY_LOAD
     daxa_f32vec3 scatter_dir;
     daxa_u32 mat_idx;
     daxa_b32 done;
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
+    INSTANCE_HIT instance_hit;
     daxa_f32 pdf;
 };
 
@@ -109,8 +114,7 @@ struct HIT_INFO
   daxa_f32vec3 world_hit;
   daxa_f32vec3 world_nrm;
   daxa_f32vec3 obj_hit;
-  daxa_i32 instance_id;
-  daxa_i32 primitive_id;
+  INSTANCE_HIT instance_hit;
   daxa_f32vec3 primitive_center;
   daxa_u32 material_index;
   daxa_f32vec2 uv;
@@ -121,8 +125,7 @@ struct HIT_INFO_INPUT
   daxa_f32vec3 hit_value;
   daxa_f32vec3 world_hit;
   daxa_f32vec3 world_nrm;
-  daxa_u32 instance_id;
-  daxa_u32 primitive_id;
+  INSTANCE_HIT instance_hit;
   daxa_u32 seed;
   daxa_u32 depth;
 };
@@ -213,8 +216,7 @@ struct INTERSECT {
     daxa_b32 is_hit;
     daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
+    INSTANCE_HIT instance_hit;
     MATERIAL mat;
 };
 
@@ -228,16 +230,14 @@ struct LIGHT
 {
     daxa_f32vec3 position;
     daxa_f32vec3 emissive;
-    daxa_u32 instance_index;
-    daxa_u32 primitive_index;
+    INSTANCE_HIT instance_info;
     daxa_u32 type; // 0: point, 1: quad, 2: sphere
 };
 
 
 // struct STATUS_OUTPUT
 // {
-//     daxa_u32 instance_id;
-//     daxa_u32 primitive_id;
+//     INSTANCE_HIT instance_hit;
 //     daxa_f32 hit_distance;
 //     daxa_f32 exit_distance;
 //     daxa_f32vec3 hit_position;
@@ -270,6 +270,35 @@ struct RESERVOIR
     daxa_f32 p_hat; // p_hat of the light
 };
 
+
+// #if BPR// path reuse
+// static const int k_rc_attr_count = 2;
+// #else
+// static const int k_rc_attr_count = 1;
+// #endif
+
+// // credits: 
+// // 88/128 B
+// struct PATH_RESERVOIR
+// {
+//     daxa_f32 M = 0.f; // this is a float, because temporal history length is allowed to be a fraction. 
+//     daxa_f32 weight = 0.f; // during RIS and when used as a "RisState", this is w_sum; during RIS when used as an incoming reseroivr or after RIS, this is 1/p(y) * 1/M * w_sum
+//     ReSTIRPathFlags path_flags; // this is a path type indicator, see the struct definition for details
+//     daxa_u32 rc_random_seed; // saved random seed after rcVertex (due to the need of blending half-vector reuse and random number replay)
+//     daxa_f32vec3 F = 0.f; // cached integrand (always updated after a new path is chosen in RIS)
+//     daxa_f32 light_pdf; // NEE light pdf (might change after shift if transmission is included since light sampling considers "upperHemisphere" of the previous bounce)?
+//     daxa_f32vec3 cached_jacobian; // saved previous vertex scatter PDF, scatter PDF, and geometry term at rcVertex (used when rcVertex is not v2)
+//     daxa_u32 init_random_seed; // saved random seed at the first bounce (for recovering the random distance threshold for hybrid shift)
+//     INSTANCE_HIT rc_vertex_hit; // hitinfo of the reconnection vertex
+//     daxa_f32vec3 rc_vertex_wi[k_rc_attr_count]; // incident direction on reconnection vertex
+//     daxa_f32vec3 rc_vertex_irradiance[k_rc_attr_count]; // sampled irradiance on reconnection vertex
+
+// #if BPR
+//     daxa_f32 rcLightPdf; 
+//     daxa_f32vec3 rcVertexBSDFLightSamplingIrradiance;
+// #endif
+// };
+
 #define SCREEN_SIZE_X 3840
 #define SCREEN_SIZE_Y 2160
 
@@ -288,8 +317,8 @@ struct DIRECT_ILLUMINATION_INFO
     daxa_f32vec3 normal;
     daxa_f32vec3 scatter_dir;
     daxa_u32 seed;
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
+    INSTANCE_HIT instance_hit;
+    daxa_u32 scatter_lobe;
 };
 
 // struct INSTANCE_LEVEL

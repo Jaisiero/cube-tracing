@@ -22,11 +22,11 @@ daxa_u32 get_geometry_first_primitive_index_from_instance_id(daxa_u32 instance_i
 }
 
 
-daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(daxa_u32 instance_id, daxa_u32 primitive_id) {
+daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(INSTANCE_HIT instance_hit) {
     // Get first primitive index from instance id
-    uint primitive_index = get_geometry_first_primitive_index_from_instance_id(instance_id);
+    uint primitive_index = get_geometry_first_primitive_index_from_instance_id(instance_hit.instance_id);
     // Get actual primitive index from offset and primitive id
-    return primitive_index + primitive_id;
+    return primitive_index + instance_hit.primitive_id;
 }
 
 AABB get_aabb_from_primitive_index(daxa_u32 primitive_index) {
@@ -39,9 +39,9 @@ daxa_u32 get_material_index_from_primitive_index(daxa_u32 primitive_index) {
     return primitive_buffer.primitives[primitive_index].material_index;
 }
 
-daxa_u32 get_material_index_from_instance_and_primitive_id(daxa_u32 instance_id, daxa_u32 primitive_id) {
+daxa_u32 get_material_index_from_instance_and_primitive_id(INSTANCE_HIT instance_hit) {
     // Get material index from primitive
-    daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
+    daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
 
     return get_material_index_from_primitive_index(primitive_index);
 }
@@ -59,9 +59,9 @@ MATERIAL get_material_from_primitive_index(daxa_u32 primitive_index) {
     return get_material_from_material_index(mat_index);
 }
 
-MATERIAL get_material_from_instance_and_primitive_id(daxa_u32 instance_id, daxa_u32 primitive_id) {
+MATERIAL get_material_from_instance_and_primitive_id(INSTANCE_HIT instance_hit) {
 
-    daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
+    daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
 
     return get_material_from_primitive_index(primitive_index);
 }
@@ -144,18 +144,17 @@ daxa_b32 intersect_box(Box box, Ray ray, out daxa_f32 distance, out daxa_f32vec3
     return (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
 }
 
-daxa_b32 is_hit_from_ray(Ray ray, daxa_u32 instance_id,
-                         daxa_u32 primitive_id, out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
+daxa_b32 is_hit_from_ray(Ray ray, INSTANCE_HIT instance_hit, out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
                          out daxa_f32mat4x4 model, out daxa_f32mat4x4 inv_model,
                          const in daxa_b32 rayCanStartInBox, const in daxa_b32 oriented)
 {
-    daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
+    daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
 
     // Get aabb from primitive
     AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
 
     // Get model matrix from instance
-    model = get_geometry_transform_from_instance_id(instance_id);
+    model = get_geometry_transform_from_instance_id(instance_hit.instance_id);
 
     inv_model = inverse(model);
 
@@ -177,14 +176,14 @@ daxa_b32 is_hit_from_ray(Ray ray, daxa_u32 instance_id,
     return hit;
 }
 
-void packed_intersection_info(Ray ray, daxa_f32 t_hit, daxa_u32 instance_id, daxa_u32 primitive_id, daxa_f32mat4x4 model, out daxa_f32vec3 world_pos, out daxa_f32vec3 world_nrm, out daxa_u32 actual_primitive_index)
+void packed_intersection_info(Ray ray, daxa_f32 t_hit, INSTANCE_HIT instance_hit, daxa_f32mat4x4 model, out daxa_f32vec3 world_pos, out daxa_f32vec3 world_nrm, out daxa_u32 actual_primitive_index)
 {
 
     // Get world position from hit position
     world_pos = ray.origin + ray.direction * t_hit;
 
 
-    actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
+    actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
 
     // Get aabb from primitive
     AABB aabb = get_aabb_from_primitive_index(actual_primitive_index);

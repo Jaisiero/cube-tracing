@@ -214,7 +214,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         daxa_f32mat4x4 model;
         daxa_f32mat4x4 inv_model;
 
-        vis = is_hit_from_ray(ray, l.instance_index, l.primitive_index, t_hit, l_pos, l_nor, model, inv_model, true, false);
+        vis = is_hit_from_ray(ray, l.instance_info, t_hit, l_pos, l_nor, model, inv_model, true, false);
 
         // TODO: point and normals are object space
         l_pos = l_pos + random_quad(l_nor, size, hit.seed);

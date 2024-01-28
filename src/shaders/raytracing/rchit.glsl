@@ -33,11 +33,10 @@ void main()
     daxa_f32vec3 world_pos;
     daxa_f32vec3 world_nrm;
     daxa_f32 distance = gl_HitTEXT;
-    daxa_u32 instance_id = gl_InstanceCustomIndexEXT;
-    daxa_u32 primitive_id = gl_PrimitiveID;
     daxa_u32 actual_primitive_index = 0;
+    INSTANCE_HIT instance_hit = INSTANCE_HIT(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
     
-    packed_intersection_info(ray, distance, instance_id, primitive_id, model, world_pos, world_nrm, actual_primitive_index);
+    packed_intersection_info(ray, distance, instance_hit, model, world_pos, world_nrm, actual_primitive_index);
 
     world_pos += world_nrm * AVOID_VOXEL_COLLAIDE;
 
@@ -46,8 +45,7 @@ void main()
         // NOTE: In order to avoid self intersection we need to offset the ray origin
         world_pos,
         world_nrm,
-        instance_id,
-        primitive_id,
+        instance_hit,
         prd.seed,
         prd.depth);
 
@@ -83,8 +81,7 @@ void main()
     call_scatter.scatter_dir = vec3(0.0);
     call_scatter.done = false;
     call_scatter.mat_idx = mat_index;
-    call_scatter.instance_id = instance_id;
-    call_scatter.primitive_id = primitive_id;
+    call_scatter.instance_hit = instance_hit;
 
     daxa_u32 mat_type = mat.type & MATERIAL_TYPE_MASK;
     switch (mat_type)
@@ -110,8 +107,8 @@ void main()
     prd.ray_scatter_dir = call_scatter.scatter_dir;
 
     prd.distance = distance;
-    prd.instance_id = instance_id;
-    prd.primitive_id = primitive_id;
+    prd.instance_hit = instance_hit;
+    prd.scatter_lobe = mat_type;
 }
 
 #elif defined(INDIRECT_ILLUMINATION)
@@ -134,11 +131,10 @@ void main()
     daxa_f32vec3 world_pos;
     daxa_f32vec3 world_nrm;
     daxa_f32 distance = gl_HitTEXT;
-    daxa_u32 instance_id = gl_InstanceCustomIndexEXT;
-    daxa_u32 primitive_id = gl_PrimitiveID;
+    INSTANCE_HIT instance_hit = INSTANCE_HIT(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
     daxa_u32 actual_primitive_index = 0;
     
-    packed_intersection_info(ray, distance, instance_id, primitive_id, model, world_pos, world_nrm, actual_primitive_index);
+    packed_intersection_info(ray, distance, instance_hit, model, world_pos, world_nrm, actual_primitive_index);
 
     world_pos += world_nrm * AVOID_VOXEL_COLLAIDE;
 
@@ -153,8 +149,7 @@ void main()
     call_scatter.scatter_dir = vec3(0.0);
     call_scatter.done = false;
     call_scatter.mat_idx = mat_index;
-    call_scatter.instance_id = instance_id;
-    call_scatter.primitive_id = primitive_id;
+    call_scatter.instance_hit = instance_hit;
 
     daxa_u32 mat_type = mat.type & MATERIAL_TYPE_MASK;
     switch (mat_type)
@@ -200,16 +195,15 @@ void main()
         // NOTE: In order to avoid self intersection we need to offset the ray origin
         world_pos,
         world_nrm,
-        instance_id,
-        primitive_id,
+        instance_hit,
         prd.seed,
         prd.depth);
 
     radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, true, true, true);
 
     prd.distance = distance;
-    prd.instance_id = instance_id;
-    prd.primitive_id = primitive_id;
+    prd.instance_hit = instance_hit;
+    prd.scatter_lobe = mat_type;
     prd.seed = hit.seed;
 
     prd.hit_value *= radiance;

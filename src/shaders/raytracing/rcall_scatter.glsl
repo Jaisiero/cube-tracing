@@ -42,13 +42,13 @@ void main()
         ray.origin = call_scatter.hit + call_scatter.nrm * AVOID_VOXEL_COLLAIDE;
         ray.direction = call_scatter.scatter_dir;
 
-        mat4 model = get_geometry_transform_from_instance_id(call_scatter.instance_id);
+        mat4 model = get_geometry_transform_from_instance_id(call_scatter.instance_hit.instance_id);
         mat4 inv_model = inverse(model);
         daxa_f32vec3 hit = vec3(0.0f);
         daxa_f32vec3 nrm = vec3(0.0f);
         daxa_f32 t_max = 0.0f;
         
-        if(is_hit_from_ray(ray, call_scatter.instance_id, call_scatter.primitive_id, t_max, hit, nrm, model, inv_model, true, false)) {
+        if(is_hit_from_ray(ray, call_scatter.instance_hit, t_max, hit, nrm, model, inv_model, true, false)) {
             daxa_f32vec4 pos_4 = model * vec4(hit, 1);
             call_scatter.hit = pos_4.xyz / pos_4.w;
             call_scatter.hit += nrm * AVOID_VOXEL_COLLAIDE;

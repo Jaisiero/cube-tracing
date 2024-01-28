@@ -20,8 +20,7 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     daxa_u32 flags = gl_RayFlagsNoneEXT;
 
     
-    daxa_u32 instance_id = MAX_INSTANCES - 1;
-    daxa_u32 primitive_id = 0;
+    INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
     daxa_f32vec3 int_hit = daxa_f32vec3(0.0);
     daxa_f32vec3 int_nor = daxa_f32vec3(0.0);
     daxa_b32 is_hit = false;
@@ -42,12 +41,14 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
             gl_RayQueryCandidateIntersectionAABBEXT)
         {
             // get instance id
-            instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, false);
+            daxa_u32 instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, false);
 
             // Get primitive id
-            primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, false);
+            daxa_u32 primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, false);
 
-            if(is_hit_from_ray(ray, instance_id, primitive_id, t_hit, int_hit, int_nor, model, inv_model, false, false)) {
+            instance_hit = INSTANCE_HIT(instance_id, primitive_id);
+
+            if(is_hit_from_ray(ray, instance_hit, t_hit, int_hit, int_nor, model, inv_model, false, false)) {
                 rayQueryGenerateIntersectionEXT(ray_query, t_hit);
 
                 daxa_u32 type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
@@ -72,12 +73,12 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     MATERIAL intersected_mat;
 
     if(is_hit) {
-        intersected_mat = get_material_from_instance_and_primitive_id(instance_id, primitive_id);
+        intersected_mat = get_material_from_instance_and_primitive_id(instance_hit);
 
         int_hit = (model * vec4(int_hit, 1)).xyz;
         int_nor = (model * vec4(int_nor, 0)).xyz;
     }
 
-    return INTERSECT(is_hit, int_hit, int_nor, instance_id, primitive_id, intersected_mat);
+    return INTERSECT(is_hit, int_hit, int_nor, instance_hit, intersected_mat);
 }
 #endif // BOUNCE_GLSL

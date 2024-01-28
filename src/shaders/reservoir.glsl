@@ -234,8 +234,8 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, dax
 
     // some simple rejection based on normals' divergence, can be improved
     bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && 
-      di_info_previous.instance_id == hit.instance_id && 
-      di_info_previous.primitive_id == hit.primitive_id;
+      di_info_previous.instance_hit.instance_id == hit.instance_hit.instance_id && 
+      di_info_previous.instance_hit.primitive_id == hit.instance_hit.primitive_id;
 
     if (valid_history)
     {
@@ -301,7 +301,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
 
     daxa_f32 neighbor_hit_dist = neighbor_di_info.distance;
 
-    daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(neighbor_di_info.instance_id, neighbor_di_info.primitive_id);
+    daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(neighbor_di_info.instance_hit);
 
     daxa_u32 neighbor_mat_index = get_material_index_from_primitive_index(current_primitive_index);
 

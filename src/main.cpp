@@ -636,8 +636,7 @@ namespace tests
                             LIGHT surface_light = {};
                             surface_light.position = daxa_f32vec3( );
                             surface_light.emissive = materials[material_index].emission;
-                            surface_light.instance_index = i;
-                            surface_light.primitive_index = j;
+                            surface_light.instance_info = INSTANCE_HIT(i, j);
                             surface_light.type = GEOMETRY_LIGHT_CUBE;
                             lights.push_back(surface_light);
                             status.light_count++;

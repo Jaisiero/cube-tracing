@@ -58,8 +58,7 @@ void main()
     prd.world_hit = vec3(0.0);
     prd.distance = -1.0;
     prd.world_nrm = vec3(0.0);
-    prd.instance_id = MAX_INSTANCES - 1;
-    prd.primitive_id = MAX_PRIMITIVES - 1;
+    prd.instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
     daxa_f32 t_min = 0.0001;
@@ -173,7 +172,7 @@ void main()
         0                  // payload (location = 0)
     );
 
-    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_id, prd.primitive_id);
+    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_hit, prd.scatter_lobe);
 
     daxa_b32 is_hit = di_info.distance > 0.0;
 // #if SER == 1
@@ -183,10 +182,10 @@ void main()
     if(is_hit == false) {
         imageStore(daxa_image2D(p.swapchain), index, vec4(prd.hit_value, 1.0));
     } else {
-        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_id);
+        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_hit.instance_id);
 
         // Previous frame screen coord
-        daxa_f32vec2 motion_vector = get_motion_vector(index.xy, di_info.position, rt_size.xy, di_info.instance_id,  instance_model);
+        daxa_f32vec2 motion_vector = get_motion_vector(index.xy, di_info.position, rt_size.xy, di_info.instance_hit.instance_id, instance_model);
 
         VELOCITY velocity = VELOCITY(motion_vector);
         velocity_buffer_set_velocity(index, rt_size, velocity);
@@ -196,7 +195,7 @@ void main()
             RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
 
             // Get material
-            MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
+            MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_hit);
 
             // Get light count
             daxa_u32 light_count = deref(p.status_buffer).light_count;
@@ -205,8 +204,7 @@ void main()
                 // NOTE: In order to avoid self intersection we need to offset the ray origin
                 di_info.position,
                 di_info.normal,
-                di_info.instance_id,
-                di_info.primitive_id,
+                di_info.instance_hit,
                 di_info.seed,
                 max_depth);
 
@@ -271,7 +269,7 @@ void main() {
         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
         
         // Get material
-        MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
+        MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_hit);
 
         VELOCITY velocity = velocity_buffer_get_velocity(index, rt_size);
             
@@ -286,8 +284,7 @@ void main() {
                                             // NOTE: In order to avoid self intersection we need to offset the ray origin
                                             di_info.position.xyz,
                                             di_info.normal.xyz,
-                                            di_info.instance_id,
-                                            di_info.primitive_id,
+                                            di_info.instance_hit,
                                             di_info.seed,
                                             max_depth);
 
@@ -336,7 +333,7 @@ void main() {
 //     reorderThreadNV(daxa_u32(hit_value), 1);
 // #endif // SER
     if(is_hit) {
-        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_id);
+        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_hit.instance_id);
     
         // Get sample info from reservoir
         RESERVOIR reservoir = get_reservoir_from_intermediate_frame_by_index(screen_pos);
@@ -345,7 +342,7 @@ void main() {
 
         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
 
-        daxa_u32 current_mat_index = get_material_index_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
+        daxa_u32 current_mat_index = get_material_index_from_instance_and_primitive_id(di_info.instance_hit);
         
         // Get material
         MATERIAL mat = get_material_from_material_index(current_mat_index);
@@ -362,8 +359,7 @@ void main() {
                                             // NOTE: In order to avoid self intersection we need to offset the ray origin
                                             di_info.position.xyz,
                                             di_info.normal.xyz,
-                                            di_info.instance_id,
-                                            di_info.primitive_id,
+                                            di_info.instance_hit,
                                             di_info.seed,
                                             max_depth);
 
@@ -434,8 +430,7 @@ void main()
         prd.distance = di_info.distance;
         prd.world_nrm = di_info.normal;
         prd.ray_scatter_dir = di_info.scatter_dir;
-        prd.instance_id = di_info.instance_id;
-        prd.primitive_id = di_info.primitive_id;
+        prd.instance_hit = di_info.instance_hit;
 
         daxa_f32vec3 ray_origin = prd.world_hit;
         daxa_f32vec3 ray_direction = prd.ray_scatter_dir;
@@ -467,9 +462,7 @@ void main()
                                 t_max,          // ray max range
                                 0              // payload (location = 0)
             );
-
-            daxa_u32 instance_id = MAX_PRIMITIVES - 1;
-            daxa_u32 primitive_id = MAX_PRIMITIVES - 1;
+            INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
             daxa_f32vec3 world_hit = vec3(0.0);
             daxa_f32vec3 world_nrm = vec3(0.0);
             daxa_f32 distance = -1.0;
@@ -478,13 +471,16 @@ void main()
 
             if (hitObjectIsHitNV(hit_object))
             {
-                instance_id = hitObjectGetInstanceCustomIndexNV(hit_object);
 
-                primitive_id = hitObjectGetPrimitiveIndexNV(hit_object);
+                daxa_u32 instance_id = hitObjectGetInstanceCustomIndexNV(hit_object);
+
+                daxa_u32 primitive_id = hitObjectGetPrimitiveIndexNV(hit_object);
+
+                instance_hit = INSTANCE_HIT(instance_id, primitive_id);
 
                 Ray bounce_ray = Ray(ray_origin, ray_direction);
 
-                distance = is_hit_from_ray(bounce_ray, instance_id, primitive_id, distance, world_hit, world_nrm, model, inv_model, true, false) ? distance : -1.0;
+                distance = is_hit_from_ray(bounce_ray, instance_hit, distance, world_hit, world_nrm, model, inv_model, true, false) ? distance : -1.0;
 
                 daxa_f32vec4 world_hit_4 = (model * vec4(world_hit, 1));
                 world_hit = (world_hit_4 / world_hit_4.w).xyz;
@@ -494,7 +490,7 @@ void main()
 
             if (distance > 0.0)
             {
-                daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_id, primitive_id);
+                daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
 
                 daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
 
@@ -517,8 +513,7 @@ void main()
                 call_scatter.scatter_dir = vec3(0.0);
                 call_scatter.done = false;
                 call_scatter.mat_idx = mat_index;
-                call_scatter.instance_id = instance_id;
-                call_scatter.primitive_id = primitive_id;
+                call_scatter.instance_hit = instance_hit;
 
                 switch (mat_type)
                 {
@@ -547,8 +542,7 @@ void main()
                     // NOTE: In order to avoid self intersection we need to offset the ray origin
                     world_hit,
                     world_nrm,
-                    instance_id,
-                    primitive_id,
+                    instance_hit,
                     prd.seed,
                     prd.depth);
 
@@ -600,7 +594,7 @@ void main()
 #endif // INDIRECT_ILLUMINATION_ON
 
         // Get material
-        MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_id, di_info.primitive_id);
+        MATERIAL mat = get_material_from_instance_and_primitive_id(di_info.instance_hit);
 
         // Get light count
         daxa_u32 light_count = deref(p.status_buffer).light_count;
@@ -609,8 +603,7 @@ void main()
                                             // NOTE: In order to avoid self intersection we need to offset the ray origin
                                             di_info.position.xyz,
                                             di_info.normal.xyz,
-                                            di_info.instance_id,
-                                            di_info.primitive_id,
+                                            di_info.instance_hit,
                                             di_info.seed,
                                             max_depth);
         daxa_f32 p_hat = 0.0;
