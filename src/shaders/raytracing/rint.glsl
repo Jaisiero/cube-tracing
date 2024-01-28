@@ -20,7 +20,10 @@ void main()
 
     INSTANCE_HIT instance_hit = INSTANCE_HIT(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
 
-    t_hit = is_hit_from_ray(ray, instance_hit, t_hit, pos, nor, model, inv_model, true, false) ? t_hit : -1.0;
+    // TODO: pass this as a parameter
+    daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
+
+    t_hit = is_hit_from_ray(ray, instance_hit, half_extent, t_hit, pos, nor, model, inv_model, true, false) ? t_hit : -1.0;
         
 
     // Report hit point

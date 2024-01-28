@@ -138,6 +138,30 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_
   }
 }
 
+
+void calculate_reservoir_mis_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, daxa_u32 obj_count, inout daxa_f32 p_hat, out daxa_f32vec3 m_wi, out daxa_f32vec3 radiance)
+{
+
+  if (is_reservoir_valid(reservoir))
+  {
+    LIGHT light = get_light_from_light_index(get_reservoir_light_index(reservoir));
+
+    daxa_f32 pdf_out = 1.0;
+    
+    // calculate the radiance of this light
+    radiance = direct_mis(ray, hit, light_count, light, obj_count, mat, m_wi, pdf_out, false, true);
+
+    // calculate the weight of this light
+    p_hat = length(radiance);
+
+    // calculate the weight of this light
+    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
+
+    // keep track of p_hat
+    reservoir.p_hat = p_hat;
+  }
+}
+
 void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count) 
 {
 

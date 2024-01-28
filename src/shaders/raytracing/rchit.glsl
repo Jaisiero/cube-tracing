@@ -38,22 +38,22 @@ void main()
     
     packed_intersection_info(ray, distance, instance_hit, model, world_pos, world_nrm, actual_primitive_index);
 
-    world_pos += world_nrm * AVOID_VOXEL_COLLAIDE;
-
-    HIT_INFO_INPUT hit = HIT_INFO_INPUT(
-        daxa_f32vec3(0.0),
         // NOTE: In order to avoid self intersection we need to offset the ray origin
-        world_pos,
-        world_nrm,
-        instance_hit,
-        prd.seed,
-        prd.depth);
+    world_pos += world_nrm * DELTA_RAY;
 
     daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
 
     MATERIAL mat = get_material_from_material_index(mat_index);
 
+    HIT_INFO_INPUT hit = HIT_INFO_INPUT(
+        world_pos,
+        world_nrm,
+        instance_hit,
+        mat_index,
+        prd.seed,
+        prd.depth);
 
+#if RESERVOIR_ON == 1
     // LIGHTS
     daxa_u32 light_count = deref(p.status_buffer).light_count;
 
@@ -71,7 +71,7 @@ void main()
 
     // Store the reservoir
     set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
-
+#endif // RESERVOIR_ON
     
 
     call_scatter.hit = world_pos;
@@ -136,7 +136,7 @@ void main()
     
     packed_intersection_info(ray, distance, instance_hit, model, world_pos, world_nrm, actual_primitive_index);
 
-    world_pos += world_nrm * AVOID_VOXEL_COLLAIDE;
+    world_pos += world_nrm * DELTA_RAY;
 
     daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
 
@@ -191,11 +191,10 @@ void main()
     
     // intersection info
     HIT_INFO_INPUT hit = HIT_INFO_INPUT(
-        daxa_f32vec3(0.0),
-        // NOTE: In order to avoid self intersection we need to offset the ray origin
         world_pos,
         world_nrm,
         instance_hit,
+        mat_index,
         prd.seed,
         prd.depth);
 

@@ -29,10 +29,13 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define RESERVOIR_TEMPORAL_ON 1
 #define RESERVOIR_SPATIAL_ON 1
 
+#define INDIRECT_ILLUMINATION_ON 0
 #define MIS_ON 0
-#define INDIRECT_ILLUMINATION_ON 1
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
+
+#define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
+#define MAX_DISTANCE 1e9f // Max distance for shadow rays
 
 // TODO: M by parameter?
 const daxa_u32 M = 32;

@@ -17,7 +17,7 @@
 
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
-#define DYNAMIC_SUN_LIGHT 0
+#define DYNAMIC_SUN_LIGHT 1
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -36,12 +36,11 @@
 #define SAMPLES_PER_PIXEL 1
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
 #define MAX_DEPTH 3
-#define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 1e-9f   // Delta ray offset for shadow rays
 
 #define PERLIN_FACTOR 500
 
-#define SUN_MAX_INTENSITY 5000.0f
+#define SUN_MAX_INTENSITY 500.0f
 
 struct AABB
 {
@@ -122,10 +121,10 @@ struct HIT_INFO
 
 struct HIT_INFO_INPUT
 {
-  daxa_f32vec3 hit_value;
   daxa_f32vec3 world_hit;
   daxa_f32vec3 world_nrm;
   INSTANCE_HIT instance_hit;
+  daxa_u32 mat_idx;
   daxa_u32 seed;
   daxa_u32 depth;
 };

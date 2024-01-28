@@ -24,7 +24,7 @@ daxa_u32 get_geometry_first_primitive_index_from_instance_id(daxa_u32 instance_i
 
 daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(INSTANCE_HIT instance_hit) {
     // Get first primitive index from instance id
-    uint primitive_index = get_geometry_first_primitive_index_from_instance_id(instance_hit.instance_id);
+    daxa_u32 primitive_index = get_geometry_first_primitive_index_from_instance_id(instance_hit.instance_id);
     // Get actual primitive index from offset and primitive id
     return primitive_index + instance_hit.primitive_id;
 }
@@ -144,9 +144,10 @@ daxa_b32 intersect_box(Box box, Ray ray, out daxa_f32 distance, out daxa_f32vec3
     return (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
 }
 
-daxa_b32 is_hit_from_ray(Ray ray, INSTANCE_HIT instance_hit, out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
+daxa_b32 is_hit_from_ray(Ray ray, INSTANCE_HIT instance_hit, daxa_f32vec3 half_extent,
+                         out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
                          out daxa_f32mat4x4 model, out daxa_f32mat4x4 inv_model,
-                         const in daxa_b32 rayCanStartInBox, const in daxa_b32 oriented)
+                         const in daxa_b32 ray_can_start_in_box, const in daxa_b32 oriented)
 {
     daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
 
@@ -164,16 +165,52 @@ daxa_b32 is_hit_from_ray(Ray ray, INSTANCE_HIT instance_hit, out daxa_f32 t_hit,
     
     daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
 
-    // TODO: pass this as a parameter
-    daxa_f32vec3 half_extent = vec3(VOXEL_EXTENT * 0.5);
-
     Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
 
-    daxa_f32vec3 normal = vec3(0.0f);
-    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, rayCanStartInBox, oriented, safeInverse(ray_object_space.direction));
+    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray_object_space.direction));
     pos = ray_object_space.origin + ray_object_space.direction * t_hit;
 
     return hit;
+}
+
+daxa_b32 is_hit_from_origin(daxa_f32vec3 origin_world_space, INSTANCE_HIT instance_hit, daxa_f32vec3 half_extent,
+                            out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
+                            out daxa_f32mat4x4 model, out daxa_f32mat4x4 inv_model,
+                            const in daxa_b32 ray_can_start_in_box, const in daxa_b32 oriented)
+{
+    daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
+
+    // Get aabb from primitive
+    AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
+
+    // Get model matrix from instance
+    model = get_geometry_transform_from_instance_id(instance_hit.instance_id);
+
+    inv_model = inverse(model);
+    
+    daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
+
+    Ray ray_object_space;
+    ray_object_space.origin = (inv_model * vec4(origin_world_space, 1)).xyz;
+    // Ray needs to travel from origin to center of aabb
+    ray_object_space.direction = normalize(aabb_center - ray_object_space.origin);
+
+    Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
+
+    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray_object_space.direction));
+    pos = ray_object_space.origin + ray_object_space.direction * t_hit;
+
+    return hit;
+}
+
+
+void cube_like_normal(inout daxa_f32vec3 world_nrm) {
+    {
+        daxa_f32vec3 abs_n = abs(world_nrm);
+        daxa_f32 max_c = max(max(abs_n.x, abs_n.y), abs_n.z);
+        world_nrm = (max_c == abs_n.x) ? daxa_f32vec3(sign(world_nrm.x), 0, 0) : (max_c == abs_n.y) ? daxa_f32vec3(0, sign(world_nrm.y), 0)
+                                                                                        : daxa_f32vec3(0, 0, sign(world_nrm.z));
+    }
 }
 
 void packed_intersection_info(Ray ray, daxa_f32 t_hit, INSTANCE_HIT instance_hit, daxa_f32mat4x4 model, out daxa_f32vec3 world_pos, out daxa_f32vec3 world_nrm, out daxa_u32 actual_primitive_index)
@@ -196,11 +233,8 @@ void packed_intersection_info(Ray ray, daxa_f32 t_hit, INSTANCE_HIT instance_hit
 
     // Computing the normal at hit position
     world_nrm = normalize(world_pos - center);
-    {
-        daxa_f32vec3 abs_n = abs(world_nrm);
-        daxa_f32 max_c = max(max(abs_n.x, abs_n.y), abs_n.z);
-        world_nrm = (max_c == abs_n.x) ? daxa_f32vec3(sign(world_nrm.x), 0, 0) : (max_c == abs_n.y) ? daxa_f32vec3(0, sign(world_nrm.y), 0)
-                                                                                        : daxa_f32vec3(0, 0, sign(world_nrm.z));
-    }
+
+    // Normal should be cube like 
+    cube_like_normal(world_nrm);
 
 }
