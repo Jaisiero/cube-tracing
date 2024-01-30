@@ -49,7 +49,6 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
 
             daxa_f32vec3 radiance = direct_mis(ray, hit, light_count, light, object_count, i.mat, i, pdf_out, true, true);
 
-
             prd.hit_value *= radiance;
             prd.hit_value += i.mat.emission;
         }
@@ -61,9 +60,6 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
                 deref(p.status_buffer).is_afternoon,
                 ray_direction);
         }
-
-
-
 
 #else
         traceRayEXT(daxa_accelerationStructureEXT(p.tlas),
@@ -79,7 +75,6 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
                     0              // payload (location = 0)
         );
 #endif // SER
-        hit_value *= prd.hit_value;
 
         prd.depth--;
         if (prd.done == true || prd.depth == 0)
@@ -89,6 +84,7 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
         ray_direction = prd.ray_scatter_dir;
         prd.done = true; // Will stop if a reflective material isn't hit
     }
+    hit_value *= prd.hit_value;
 
 }
 

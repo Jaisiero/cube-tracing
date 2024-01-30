@@ -32,7 +32,7 @@ namespace tests
             const u32 METAL_MATERIAL_COUNT = 0;
             // const u32 DIALECTRIC_MATERIAL_COUNT = 5;
             const u32 DIALECTRIC_MATERIAL_COUNT = 0;
-            const u32 EMISSIVE_MATERIAL_COUNT = 3;
+            const u32 EMISSIVE_MATERIAL_COUNT = 5;
             const u32 CONSTANT_MEDIUM_MATERIAL_COUNT = 5;
             const u32 MATERIAL_COUNT = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
             const u32 MATERIAL_COUNT_UP_TO_DIALECTRIC = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT;
@@ -1503,7 +1503,7 @@ namespace tests
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {1.0, 1.0, 1.0},
                             .transmittance = {0.0, 0.0, 0.0},
-                            .emission = {random_float(10.0, 100.0), random_float(10.0, 100.0), random_float(10.0, 100.0)},
+                            .emission = {random_float(10.0, 50.0), random_float(10.0, 50.0), random_float(10.0, 50.0)},
                             .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),

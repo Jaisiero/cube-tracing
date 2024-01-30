@@ -317,7 +317,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
     daxa_f32vec3 wo = ray.direction;
 
     // Light sampling
-    if(sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, true, use_visibility)) {
+    if(sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, use_pdf, use_visibility)) {
         daxa_f32vec3 l_wi = normalize(l_pos - P);
         daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
         daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);

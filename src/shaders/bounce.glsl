@@ -16,7 +16,7 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     daxa_f32vec3 ray_origin = ray.origin;
     daxa_f32vec3 ray_dir = ray.direction;
     daxa_u32 cull_mask = 0xff;
-    daxa_u32 flags = gl_RayFlagsNoneEXT;
+    daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
 
     
     INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
@@ -28,11 +28,71 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     daxa_f32mat4x4 inv_model;
     daxa_u32 material_idx = 0;
     MATERIAL intersected_mat;
-    
+
+
+#if SER == 1
+
+    hitObjectNV hit_object;
+    // Initialize to an empty hit object
+    hitObjectRecordEmptyNV(hit_object);
+
+    // Trace the ray
+    hitObjectTraceRayNV(hit_object,
+                        daxa_accelerationStructureEXT(p.tlas), // topLevelAccelerationStructure
+                        ray_flags,                             // rayFlags
+                        cull_mask,                             // cullMask
+                        1,                                     // sbtRecordOffset
+                        0,                                     // sbtRecordStride
+                        0,                                     // missIndex
+                        ray_origin,                            // ray origin
+                        t_min,                                 // ray min range
+                        ray_dir,                         // ray direction
+                        t_max,                                 // ray max range
+                        0                                      // payload (location = 0)
+    );
+
+    if (hitObjectIsHitNV(hit_object))
+    {
+
+        daxa_u32 instance_id = hitObjectGetInstanceCustomIndexNV(hit_object);
+
+        daxa_u32 primitive_id = hitObjectGetPrimitiveIndexNV(hit_object);
+
+        instance_hit = INSTANCE_HIT(instance_id, primitive_id);
+
+        Ray bounce_ray = Ray(ray_origin, ray_dir);
+
+        // TODO: pass this as a parameter
+        daxa_f32vec3 half_extent = vec3(HALF_VOXEL_EXTENT);
+
+        distance = is_hit_from_ray(bounce_ray, instance_hit, half_extent, distance, int_hit, int_nor, model, inv_model, true, false) ? distance : -1.0;
+
+        daxa_f32vec4 int_hit_4 = (model * vec4(int_hit, 1));
+        int_hit = (int_hit_4 / int_hit_4.w).xyz;
+        int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
+        int_hit += int_nor * DELTA_RAY;
+    }
+
+    if (distance > 0.0)
+    {
+        is_hit = true;
+
+        daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
+
+        material_idx = get_material_index_from_primitive_index(actual_primitive_index);
+
+        intersected_mat = get_material_from_material_index(material_idx);
+
+        daxa_u32 mat_type = intersected_mat.type & MATERIAL_TYPE_MASK;
+        // reorderThreadNV(mat_type, 2);
+        // reorderThreadNV(hit_object, mat_type, 2);
+        // reorderThreadNV(hit_object);
+    }
+#else            
     rayQueryEXT ray_query;
 
     rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
-                          flags,
+                          ray_flags,
                           cull_mask, ray.origin, t_min, ray.direction, t_max);
 
     while (rayQueryProceedEXT(ray_query))
@@ -73,6 +133,7 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     }
 
     rayQueryTerminateEXT(ray_query);
+#endif // SER    
 
     // hit.seed = prd_indirect.seed;
     // hit.hit_value = prd_indirect.hit_value;

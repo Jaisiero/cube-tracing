@@ -300,8 +300,7 @@ void main()
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
     
-    // daxa_u32 max_depth = deref(p.status_buffer).max_depth;
-    daxa_u32 max_depth = 2;
+    daxa_u32 max_depth = deref(p.status_buffer).max_depth;
 
     // Ray setup
     Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
@@ -362,24 +361,37 @@ void main()
 
         INTERSECT i;
 #if RESERVOIR_ON == 1
-        calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
-        
-        i = INTERSECT(is_hit, di_info.distance, hit.position, hit.normal, hit.instance_hit, hit.mat_index, hit.scatter_dir);
 
+// TODO: MIS is very expensive and it is not working properly with reservoirs
+// #if MIS_ON == 1
+//         // Calculate radiance
+//         calculate_reservoir_mis_radiance(reservoir, ray, hit, mat, light_count, object_count, p_hat, i, radiance);
+//         // Build the intersect struct
+//         di_info.scatter_dir = i.scatter_dir;
+// #else
+        // Calculate reservoir radiance
+        calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+        // Build the intersect struct
+        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, current_mat_index, mat);
+// #endif // MIS_ON        
+        // Add the radiance to the hit value (reservoir radiance)
         hit_value *= radiance * reservoir.W_y;
 #else // RESERVOIR_ON
         daxa_u32 light_index = min(urnd_interval(hit.seed, 0, light_count), light_count - 1);
-
+        // Get light
         LIGHT light = get_light_from_light_index(light_index);
-
 #if MIS_ON == 1
+        // Calculate radiance
         radiance = direct_mis(ray, hit, light_count, light, object_count, mat, i, pdf_out, true, true);
+        // Build the intersect struct
         di_info.scatter_dir = i.scatter_dir;
 #else
+        // Calculate radiance
         radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
-        i = INTERSECT(is_hit, di_info.distance, hit.position, hit.normal, hit.instance_hit, hit.mat_index, hit.scatter_dir);
+        // Build the intersect struct
+        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, current_mat_index, mat);
 #endif // MIS_ON
-        
+        // Add the radiance to the hit value
         hit_value *= radiance;
 #endif // RESERVOIR_ON
 

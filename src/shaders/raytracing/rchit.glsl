@@ -7,7 +7,7 @@
 #include "reservoir.glsl"
 #include "light.glsl"
 
-#if SER_ON == 1
+#if SER == 1
 #extension GL_NV_shader_invocation_reorder : enable
 layout(location = 0) hitObjectAttributeNV vec3 hitValue;
 #endif
@@ -52,7 +52,7 @@ void main()
         mat_index,
         prd.seed,
         prd.depth);
-        
+
     daxa_u32 mat_type = mat.type & MATERIAL_TYPE_MASK;
 
 #if RESERVOIR_ON == 1
@@ -75,42 +75,54 @@ void main()
     set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
     
     prd.seed = hit.seed;
-#endif // RESERVOIR_ON
-    
 
-    // call_scatter.hit = world_pos;
-    // call_scatter.nrm = world_nrm;
-    // call_scatter.ray_dir = ray.direction;
-    // call_scatter.seed = hit.seed;
-    // call_scatter.scatter_dir = vec3(0.0);
-    // call_scatter.done = false;
-    // call_scatter.mat_idx = mat_index;
-    // call_scatter.instance_hit = instance_hit;
+#if INDIRECT_ILLUMINATION_ON == 1
+// TODO: MIS is very expensive and it is not working properly with reservoirs
+// #if MIS_ON == 1
+//     prd.world_hit = world_pos;
+//     prd.world_nrm = world_nrm;
+// #else 
+    call_scatter.hit = world_pos;
+    call_scatter.nrm = world_nrm;
+    call_scatter.ray_dir = ray.direction;
+    call_scatter.seed = hit.seed;
+    call_scatter.scatter_dir = vec3(0.0);
+    call_scatter.done = false;
+    call_scatter.mat_idx = mat_index;
+    call_scatter.instance_hit = instance_hit;
 
-    // switch (mat_type)
-    // {
-    // case MATERIAL_TYPE_METAL:
-    //     executeCallableEXT(3, 4);
-    //     break;
-    // case MATERIAL_TYPE_DIELECTRIC:
-    //     executeCallableEXT(4, 4);
-    //     break;
-    // case MATERIAL_TYPE_CONSTANT_MEDIUM:
-    //     executeCallableEXT(5, 4);
-    //     break;
-    // case MATERIAL_TYPE_LAMBERTIAN:
-    // default:
-    //     executeCallableEXT(2, 4);
-    //     break;
-    // }
-    // prd.seed = call_scatter.seed;
-    // prd.done = call_scatter.done;
-    // prd.world_hit = call_scatter.hit;
-    // prd.world_nrm = world_nrm;
-    // prd.ray_scatter_dir = call_scatter.scatter_dir;
+    switch (mat_type)
+    {
+    case MATERIAL_TYPE_METAL:
+        executeCallableEXT(3, 4);
+        break;
+    case MATERIAL_TYPE_DIELECTRIC:
+        executeCallableEXT(4, 4);
+        break;
+    case MATERIAL_TYPE_CONSTANT_MEDIUM:
+        executeCallableEXT(5, 4);
+        break;
+    case MATERIAL_TYPE_LAMBERTIAN:
+    default:
+        executeCallableEXT(2, 4);
+        break;
+    }
+    prd.seed = call_scatter.seed;
+    prd.done = call_scatter.done;
+    prd.world_hit = call_scatter.hit;
+    prd.world_nrm = world_nrm;
+    prd.ray_scatter_dir = call_scatter.scatter_dir;
+// #endif // MIS_ON
 
+#else 
     prd.world_hit = world_pos;
     prd.world_nrm = world_nrm;
+#endif // INDIRECT_ILLUMINATION_ON
+#else 
+    prd.world_hit = world_pos;
+    prd.world_nrm = world_nrm;
+#endif // RESERVOIR_ON
+    
 
     prd.distance = distance;
     prd.instance_hit = instance_hit;
