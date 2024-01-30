@@ -136,11 +136,8 @@ void main() {
 
         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
         
-        // Get material index
-        daxa_u32 current_mat_index = get_material_index_from_instance_and_primitive_id(di_info.instance_hit);
-        
         // Get material
-        MATERIAL mat = get_material_from_material_index(current_mat_index);
+        MATERIAL mat = get_material_from_material_index(di_info.mat_index);
 
         VELOCITY velocity = velocity_buffer_get_velocity(index, rt_size);
             
@@ -155,7 +152,7 @@ void main() {
                                             di_info.position.xyz,
                                             di_info.normal.xyz,
                                             di_info.instance_hit,
-                                            current_mat_index,
+                                            di_info.mat_index,
                                             di_info.seed,
                                             max_depth);
 
@@ -166,9 +163,8 @@ void main() {
     RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
 
   // TODO: re-check this
-    daxa_f32 predicted = (mix(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD, MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD,
-                                                       clamp(reservoir_previous.M, 1.0, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD)) /
-                                                   MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD);
+    // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
+    daxa_f32 predicted = 1.0 - (reservoir_previous.M / daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
 
     confidence = (reservoir_previous.W_y > 0.0) ? predicted
                                                 : 1.0;
@@ -249,12 +245,9 @@ void main() {
         daxa_u32 light_count = deref(p.status_buffer).light_count;
 
         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
-
-        // Get material index
-        daxa_u32 current_mat_index = get_material_index_from_instance_and_primitive_id(di_info.instance_hit);
         
         // Get material
-        MATERIAL mat = get_material_from_material_index(current_mat_index);
+        MATERIAL mat = get_material_from_material_index(di_info.mat_index);
 
         VELOCITY velocity = velocity_buffer_get_velocity(index, rt_size);
         // X from current pixel position
@@ -267,13 +260,11 @@ void main() {
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
                                             di_info.normal.xyz,
                                             di_info.instance_hit,
-                                            current_mat_index,
+                                            di_info.mat_index,
                                             di_info.seed,
                                             max_depth);
 
-                                            // (inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 current_mat_index, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
-
-        SPATIAL_REUSE(reservoir, index, rt_size, ray, hit, current_mat_index, mat, light_count, pdf);
+        SPATIAL_REUSE(reservoir, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf);
         
         di_info.seed = hit.seed;
         set_di_seed_from_current_frame(screen_pos, di_info.seed);
@@ -329,11 +320,8 @@ void main()
 #if(DEBUG_NORMALS_ON == 1)
         hit_value = di_info.normal * 0.5 + 0.5;
 #else        
-        // Get material index
-        daxa_u32 current_mat_index = get_material_index_from_instance_and_primitive_id(di_info.instance_hit);
-        
         // Get material
-        MATERIAL mat = get_material_from_material_index(current_mat_index);
+        MATERIAL mat = get_material_from_material_index(di_info.mat_index);
 
         // Get light count
         daxa_u32 light_count = deref(p.status_buffer).light_count;
@@ -343,7 +331,7 @@ void main()
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
                                             di_info.normal.xyz,
                                             di_info.instance_hit,
-                                            current_mat_index,
+                                            di_info.mat_index,
                                             di_info.seed,
                                             max_depth);
         daxa_f32 p_hat = 0.0;
@@ -367,7 +355,7 @@ void main()
         // Calculate reservoir radiance
         calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
         // Build the intersect struct
-        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, current_mat_index, mat);
+        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
 // #endif // MIS_ON        
         // Add the radiance to the hit value (reservoir radiance)
         hit_value *= radiance * reservoir.W_y;
@@ -384,7 +372,7 @@ void main()
         // Calculate radiance
         radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
         // Build the intersect struct
-        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, current_mat_index, mat);
+        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
 #endif // MIS_ON
         // Add the radiance to the hit value
         hit_value *= radiance;

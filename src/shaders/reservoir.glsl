@@ -345,11 +345,11 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, dax
   // add current reservoir sample
   update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), reservoir.p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
 
-  // TODO: re-check this
-  daxa_f32 influence = max(1.0, mix(clamp(reservoir_previous.M / reservoir.M, 0.0, 1.0), MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
+  // // TODO: re-check this
+  // daxa_f32 influence = max(1.0, mix(clamp(reservoir_previous.M / reservoir.M, 0.0, 1.0), MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
 
   // NOTE: restrict influence from past samples.
-  reservoir_previous.M = min(influence * reservoir.M, reservoir_previous.M);
+  reservoir_previous.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
 
   // add sample from previous frame
   calculate_reservoir_aggregation(temporal_reservoir, reservoir_previous, ray, hit, mat, light_count);
