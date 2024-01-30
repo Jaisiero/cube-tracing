@@ -241,7 +241,7 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_u32 object_count, daxa_f32 confidence, 
 
   confidence = clamp(confidence, 0.0, 1.0);
 
-  daxa_u32 NUM_OF_SAMPLES = max(daxa_u32(min(MAX_RIS_SAMPLE_COUNT * confidence, light_count)), 1);
+  daxa_u32 NUM_OF_SAMPLES = max(daxa_u32(min(MAX_RIS_SAMPLE_COUNT * confidence, light_count)), MIN_RIS_SAMPLE_COUNT);
 
   for (daxa_u32 l = 0; l < NUM_OF_SAMPLES; l++)
   {

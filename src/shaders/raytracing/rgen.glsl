@@ -163,7 +163,7 @@ void main() {
     // Reservoir from previous frame
     RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
 
-//   // TODO: re-check this
+  // TODO: re-check this
 //     // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
 //     daxa_f32 predicted = 1.0 - (reservoir_previous.M / daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
 

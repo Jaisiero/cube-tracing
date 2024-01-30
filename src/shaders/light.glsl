@@ -25,27 +25,73 @@ daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
 
 daxa_b32 is_light_visible(Ray ray, LIGHT light,  daxa_f32 distance) 
 {
-    daxa_f32 t_min   = DELTA_RAY;
-    daxa_f32 t_max   = distance - DELTA_RAY;
-    uint cull_mask = 0xff;
-    uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-    is_shadowed = true;
+    // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
-    traceRayEXT(
-        daxa_accelerationStructureEXT(p.tlas),
-        flags,  // rayFlags
-        cull_mask,   // cullMask
-        0,      // sbtRecordOffset
-        0,      // sbtRecordStride
-        1,      // missIndex
-        ray.origin, // ray origin
-        t_min,   // ray min range
-        ray.direction, // ray direction
-        t_max,   // ray max range
-        1       // payload (location = 1)
-    );
+    daxa_f32 t_min = DELTA_RAY;
+    daxa_f32 t_max = distance - DELTA_RAY;
+    daxa_u32 cull_mask = 0xff;
+    daxa_u32 ray_flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT;
 
-    return !is_shadowed;
+    INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
+    daxa_f32vec3 int_hit = daxa_f32vec3(0.0);
+    daxa_f32vec3 int_nor = daxa_f32vec3(0.0);
+    daxa_b32 is_hit = false;
+    daxa_f32 hit_distance = 0.0;
+    daxa_f32mat4x4 model;
+    daxa_f32mat4x4 inv_model;
+    daxa_u32 material_idx = 0;
+    MATERIAL intersected_mat;
+
+
+    rayQueryEXT ray_query;
+
+    rayQueryInitializeEXT(ray_query,
+                          daxa_accelerationStructureEXT(p.tlas),
+                          ray_flags,
+                          cull_mask, 
+                          ray.origin, t_min, 
+                          ray.direction, t_max);
+
+    while (rayQueryProceedEXT(ray_query))
+    {
+        daxa_u32 type = rayQueryGetIntersectionTypeEXT(ray_query, false);
+        if (type ==
+            gl_RayQueryCandidateIntersectionAABBEXT)
+        {
+            // get instance id
+            daxa_u32 instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, false);
+
+            // Get primitive id
+            daxa_u32 primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, false);
+
+            instance_hit = INSTANCE_HIT(instance_id, primitive_id);
+
+            daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
+
+            if(is_hit_from_ray(ray, instance_hit, half_extent, hit_distance, int_hit, int_nor, model, inv_model, false, false)) {
+                rayQueryGenerateIntersectionEXT(ray_query, hit_distance);
+
+                daxa_u32 type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
+
+                if (type_commited ==
+                    gl_RayQueryCommittedIntersectionGeneratedEXT)
+                {
+                    is_hit = true;
+            //         material_idx = get_material_index_from_instance_and_primitive_id(instance_hit);
+            //         intersected_mat = get_material_from_material_index(material_idx);
+        
+            //         daxa_f32vec4 int_hit_4 = model * vec4(int_hit, 1);
+            //         int_hit = int_hit_4.xyz / int_hit_4.w;
+            //         int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
+            //         break;
+                }
+            }
+        }
+    }
+
+    rayQueryTerminateEXT(ray_query);
+
+    return !is_hit;
 }
 
 
@@ -237,7 +283,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         l_pos = l_pos_4.xyz / l_pos_4.w;
         l_nor = (transpose(inv_model) * vec4(l_nor, 0)).xyz;
         // l_pos += l_nor * voxel_extent;
-        distance = length(P - l_pos);
+        distance = length(P - l_pos) - length(half_extent);
 
         if(calc_pdf) {
             daxa_f32 area = size.x * size.y * 6.0;
