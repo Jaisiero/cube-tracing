@@ -132,12 +132,13 @@ void main()
     HIT_INFO_INPUT hit = HIT_INFO_INPUT(
         world_pos,
         world_nrm,
+        prd.ray_scatter_dir,
         instance_hit,
         mat_index,
         prd.seed,
         prd.depth);
 
-    radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, true, true, true);
+    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
 
     prd.distance = distance;
     prd.instance_hit = instance_hit;

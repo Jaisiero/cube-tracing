@@ -106,12 +106,17 @@ daxa_b32 is_reservoir_valid(in RESERVOIR reservoir)
 
 daxa_f32vec3 calculate_radiance(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility)
 {
-  return calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, calc_pdf, use_pdf, use_visibility);
+  return calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, calc_pdf, use_pdf, use_visibility);
 }
 
 daxa_f32 calculate_phat(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility)
 {
-  return length(calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, calc_pdf, use_pdf, use_visibility));
+  return length(calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, calc_pdf, use_pdf, use_visibility));
+}
+
+daxa_f32 calculate_miss_phat(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count, LIGHT light, daxa_u32 object_count, MATERIAL mat, out daxa_f32 pdf_out, out INTERSECT i, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility)
+{
+  return length(direct_mis(ray, hit, light_count, light, object_count, mat, i, pdf_out, use_pdf, use_visibility));
 }
 
 // Use the reservoir to calculate the final radiance.
@@ -195,6 +200,27 @@ void calculate_reservoir_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, in
   }
 }
 
+void calculate_reservoir_miss_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32 p_hat, out INTERSECT i) 
+{
+
+  if (is_reservoir_valid(reservoir))
+  {
+    LIGHT light = get_light_from_light_index(get_reservoir_light_index(reservoir));
+
+    daxa_f32 pdf = 1.0;
+    daxa_f32 pdf_out = 1.0;
+    // get weight of this reservoir
+    p_hat = calculate_miss_phat(ray, hit, light_count, light, object_count, mat, pdf_out, i, false, false);
+    {
+      // calculate weight of the selected lights
+      reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
+
+      // keep track of p_hat
+      reservoir.p_hat = p_hat;
+    }
+  }
+}
+
 void calculate_reservoir_aggregation(inout RESERVOIR reservoir, RESERVOIR aggregation_reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count) 
 {
 
@@ -208,7 +234,7 @@ void calculate_reservoir_aggregation(inout RESERVOIR reservoir, RESERVOIR aggreg
   }
 }
 
-RESERVOIR RIS(daxa_u32 light_count, daxa_f32 confidence, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_f32 pdf, inout daxa_f32 p_hat)
+RESERVOIR RIS(daxa_u32 light_count, daxa_u32 object_count, daxa_f32 confidence, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_f32 pdf, inout daxa_f32 p_hat, out INTERSECT i)
 {
   RESERVOIR reservoir;
   initialise_reservoir(reservoir);
@@ -225,6 +251,7 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_f32 confidence, Ray ray, inout HIT_INFO
 
     daxa_f32 current_pdf = 1.0;
     p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, current_pdf, true, false, false);
+
     daxa_f32 w = p_hat / current_pdf;
     update_reservoir(reservoir, light_index, w, 1.0f, hit.seed);
   }
@@ -237,30 +264,25 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_f32 confidence, Ray ray, inout HIT_INFO
 
 
 
-RESERVOIR FIRST_GATHER(daxa_u32 light_count, daxa_u32 screen_pos, daxa_f32 confidence_index, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, inout daxa_f32 p_hat)
+RESERVOIR FIRST_GATHER(daxa_u32 light_count, daxa_u32 object_count, daxa_u32 screen_pos, daxa_f32 confidence_index, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, inout daxa_f32 p_hat, INTERSECT i)
 {
   // PDF for lights
   daxa_f32 pdf = 1.0 / light_count;
 
-  RESERVOIR reservoir = RIS(light_count, confidence_index, ray, hit, mat, pdf, p_hat);
-
-  // // Store the reservoir
-  // set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
+  RESERVOIR reservoir = RIS(light_count, object_count, confidence_index, ray, hit, mat, pdf, p_hat, i);
 
 #if INDIRECT_ILLUMINATION_ON == 1
-// TODO: MIS is very expensive and it is not working properly with reservoirs
-// #if MIS_ON == 1
-//     prd.world_hit = world_pos;
-//     prd.world_nrm = world_nrm;
-// #else 
-    call_scatter.hit = world_pos;
-    call_scatter.nrm = world_nrm;
+    call_scatter.hit = hit.world_hit;
+    call_scatter.nrm = hit.world_nrm;
     call_scatter.ray_dir = ray.direction;
     call_scatter.seed = hit.seed;
     call_scatter.scatter_dir = vec3(0.0);
     call_scatter.done = false;
-    call_scatter.mat_idx = mat_index;
-    call_scatter.instance_hit = instance_hit;
+    call_scatter.mat_idx = hit.mat_idx;
+    call_scatter.instance_hit = hit.instance_hit;
+
+
+    daxa_u32 mat_type = hit.mat_idx & MATERIAL_TYPE_MASK;
 
     switch (mat_type)
     {
@@ -278,16 +300,10 @@ RESERVOIR FIRST_GATHER(daxa_u32 light_count, daxa_u32 screen_pos, daxa_f32 confi
         executeCallableEXT(2, 4);
         break;
     }
-    prd.seed = call_scatter.seed;
-    prd.done = call_scatter.done;
-    prd.world_hit = call_scatter.hit;
-    prd.world_nrm = world_nrm;
-    prd.ray_scatter_dir = call_scatter.scatter_dir;
-// #endif // MIS_ON
-
-#else 
-    // prd.world_hit = world_pos;
-    // prd.world_nrm = world_nrm;
+    hit.seed = call_scatter.seed;
+    hit.world_hit = call_scatter.hit;
+    hit.world_nrm = call_scatter.nrm;
+    hit.scatter_dir = call_scatter.scatter_dir;
 #endif // INDIRECT_ILLUMINATION_ON
 
 

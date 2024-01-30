@@ -155,7 +155,7 @@ daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit, daxa_f
     }
 
     wi = call_scatter.scatter_dir;
-    hit = HIT_INFO_INPUT(call_scatter.hit, call_scatter.nrm, call_scatter.instance_hit, call_scatter.mat_idx, hit.depth, call_scatter.seed);
+    hit = HIT_INFO_INPUT(call_scatter.hit, call_scatter.nrm, call_scatter.scatter_dir, call_scatter.instance_hit, call_scatter.mat_idx, hit.depth, call_scatter.seed);
 
     return !call_scatter.done;
 }
@@ -270,7 +270,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
     return vis;
 }
 
-daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, LIGHT light, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility) {
+daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility) {
     // 2. Get light direction
     daxa_f32vec3 light_direction = normalize(light.position - hit.world_hit);
     daxa_f32vec3 surface_normal = normalize(hit.world_nrm);

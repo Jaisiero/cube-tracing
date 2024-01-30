@@ -129,10 +129,10 @@ void main() {
 //     reorderThreadNV(daxa_u32(hit_value), 1);
 // #endif // SER
     if(is_hit) {
-        // // Get sample info from reservoir
-        // RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
 
         daxa_u32 light_count = deref(p.status_buffer).light_count;
+        // OBJECTS
+        daxa_u32 object_count = deref(p.status_buffer).obj_count;
 
         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
         
@@ -151,6 +151,7 @@ void main() {
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(
                                             di_info.position.xyz,
                                             di_info.normal.xyz,
+                                            di_info.scatter_dir,
                                             di_info.instance_hit,
                                             di_info.mat_index,
                                             di_info.seed,
@@ -162,12 +163,12 @@ void main() {
     // Reservoir from previous frame
     RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
 
-  // TODO: re-check this
-    // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
-    daxa_f32 predicted = 1.0 - (reservoir_previous.M / daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
+//   // TODO: re-check this
+//     // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
+//     daxa_f32 predicted = 1.0 - (reservoir_previous.M / daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
 
-    confidence = (reservoir_previous.W_y > 0.0) ? predicted
-                                                : 1.0;
+//     confidence = (reservoir_previous.W_y > 0.0) ? predicted
+//                                                 : 1.0;
 
 #endif // RESERVOIR_TEMPORAL_ON
 
@@ -178,9 +179,10 @@ void main() {
 
             daxa_f32 p_hat = 0.0;
 
-            reservoir = FIRST_GATHER(light_count, screen_pos, confidence, ray, hit, mat, p_hat);
+            INTERSECT i;
 
-            // Calculate reservoir radiance
+            reservoir = FIRST_GATHER(light_count, object_count, screen_pos, confidence, ray, hit, mat, p_hat, i);
+
             calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
 
             di_info.seed = hit.seed;
@@ -259,6 +261,7 @@ void main() {
 
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
                                             di_info.normal.xyz,
+                                            di_info.scatter_dir,
                                             di_info.instance_hit,
                                             di_info.mat_index,
                                             di_info.seed,
@@ -330,6 +333,7 @@ void main()
 
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
                                             di_info.normal.xyz,
+                                            di_info.scatter_dir,
                                             di_info.instance_hit,
                                             di_info.mat_index,
                                             di_info.seed,
@@ -344,19 +348,11 @@ void main()
 
         INTERSECT i;
 #if RESERVOIR_ON == 1
-
-// TODO: MIS is very expensive and it is not working properly with reservoirs
-// #if MIS_ON == 1
-//         // Calculate radiance
-//         calculate_reservoir_mis_radiance(reservoir, ray, hit, mat, light_count, object_count, p_hat, i, radiance);
-//         // Build the intersect struct
-//         di_info.scatter_dir = i.scatter_dir;
-// #else
-        // Calculate reservoir radiance
+        //Calculate reservoir radiance
         calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
-        // Build the intersect struct
+        //Build the intersect struct
         i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
-// #endif // MIS_ON        
+      
         // Add the radiance to the hit value (reservoir radiance)
         hit_value *= radiance * reservoir.W_y;
 #else // RESERVOIR_ON

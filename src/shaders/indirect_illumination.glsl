@@ -33,6 +33,7 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(
             i.world_hit,
             i.world_nrm,
+            i.scatter_dir,
             i.instance_hit,
             i.material_idx,
             seed,
