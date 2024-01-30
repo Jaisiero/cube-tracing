@@ -96,46 +96,6 @@ void main()
 
         VELOCITY velocity = VELOCITY(motion_vector);
         velocity_buffer_set_velocity(index, rt_size, velocity);
-
-        {
-            // Get sample info from reservoir
-            // RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
-
-            // Get material index
-            daxa_u32 mat_idx = get_material_index_from_instance_and_primitive_id(di_info.instance_hit);
-            // Get material
-            MATERIAL mat = get_material_from_material_index(mat_idx);
-            // Get light count
-            daxa_u32 light_count = deref(p.status_buffer).light_count;
-
-            HIT_INFO_INPUT hit = HIT_INFO_INPUT(
-                di_info.position,
-                di_info.normal,
-                di_info.instance_hit,
-                mat_idx,
-                di_info.seed,
-                max_depth);
-
-            daxa_f32vec3 radiance = vec3(0.0);
-
-            daxa_f32 p_hat = 0.0;
-
-            RESERVOIR reservoir = FIRST_GATHER(light_count, screen_pos, 1.0, ray, hit, mat, p_hat);
-
-            // Calculate reservoir radiance
-            calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
-
-            di_info.seed = hit.seed;
-#if RESERVOIR_ON == 1            
-#if (RESERVOIR_TEMPORAL_ON == 1)
-            // Update reservoir
-            set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
-#else
-            // Update reservoir
-            set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
-#endif // RESERVOIR_TEMPORAL_ON
-#endif // RESERVOIR_ON
-        }
     }
 
     // Store the DI info
@@ -146,7 +106,6 @@ void main()
 
 void main() { 
 #if RESERVOIR_ON == 1
-#if (RESERVOIR_TEMPORAL_ON == 1)
     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
 
@@ -170,8 +129,8 @@ void main() {
 //     reorderThreadNV(daxa_u32(hit_value), 1);
 // #endif // SER
     if(is_hit) {
-        // Get sample info from reservoir
-        RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
+        // // Get sample info from reservoir
+        // RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
 
         daxa_u32 light_count = deref(p.status_buffer).light_count;
 
@@ -200,36 +159,51 @@ void main() {
                                             di_info.seed,
                                             max_depth);
 
+    daxa_f32 confidence = 1.0;
+
+#if (RESERVOIR_TEMPORAL_ON == 1)
+    // Reservoir from previous frame
+    RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
+
+  // TODO: re-check this
+    daxa_f32 predicted = (mix(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD, MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD,
+                                                       clamp(reservoir_previous.M, 1.0, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD)) /
+                                                   MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD);
+
+    confidence = (reservoir_previous.W_y > 0.0) ? predicted
+                                                : 1.0;
+
+#endif // RESERVOIR_TEMPORAL_ON
+
+        RESERVOIR reservoir;
+    
+        {
+            daxa_f32vec3 radiance = vec3(0.0);
+
+            daxa_f32 p_hat = 0.0;
+
+            reservoir = FIRST_GATHER(light_count, screen_pos, confidence, ray, hit, mat, p_hat);
+
+            // Calculate reservoir radiance
+            calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+
+            di_info.seed = hit.seed;
+        }
+
                                             
 
-        // RESERVOIR reservoir;
-        // initialise_reservoir(reservoir);
-        // {
-        //     daxa_f32vec3 radiance = vec3(0.0);
-
-        //     daxa_f32 p_hat = 0.0;
-
-        //     // daxa_f32 confidence = clamp(temp_reservoir.M / daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD), 0.0, 1.0);
-
-        //     reservoir = FIRST_GATHER(light_count, screen_pos, 1.0, ray, hit, mat, p_hat);
-
-        //     // Calculate reservoir radiance
-        //     calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
-
-        //     di_info.seed = hit.seed;
-        // }
-
-        // // RESERVOIR temp_reservoir;
-        // // initialise_reservoir(temp_reservoir);
-
-        // NOTE: the fact that we are getting spatial reservoirs from the current frame
-        TEMPORAL_REUSE(reservoir,
-                       predicted_coord,
-                       rt_size,
-                       ray, hit,
-                       mat,
-                       light_count,
-                       pdf);
+#if (RESERVOIR_TEMPORAL_ON == 1)
+        if(reservoir_previous.W_y > 0.0) {
+            TEMPORAL_REUSE(reservoir,
+                           reservoir_previous,
+                           predicted_coord,
+                           rt_size,
+                           ray,
+                           hit,
+                           mat,
+                           light_count);
+        }
+#endif // RESERVOIR_TEMPORAL_ON
 
         di_info.seed = hit.seed;
 
@@ -237,7 +211,6 @@ void main() {
 
         set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
     }
-#endif // RESERVOIR_TEMPORAL_ON
 #endif // RESERVOIR_ON
 }
 

@@ -219,14 +219,14 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_f32 confidence, Ray ray, inout HIT_INFO
 
   for (daxa_u32 l = 0; l < NUM_OF_SAMPLES; l++)
   {
-    daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
+    daxa_u32 light_index = min(urnd_interval(hit.seed, 0, light_count), light_count - 1);
 
     LIGHT light = get_light_from_light_index(light_index);
 
     daxa_f32 current_pdf = 1.0;
     p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, current_pdf, true, false, false);
     daxa_f32 w = p_hat / current_pdf;
-    update_reservoir(reservoir, light_index, w, 1.0f, prd.seed);
+    update_reservoir(reservoir, light_index, w, 1.0f, hit.seed);
   }
 
   calculate_reservoir_p_hat_and_weight(reservoir, ray, hit, mat, light_count, p_hat);
@@ -294,11 +294,11 @@ RESERVOIR FIRST_GATHER(daxa_u32 light_count, daxa_u32 screen_pos, daxa_f32 confi
   return reservoir;
 }
 
-void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
-{
 
-  RESERVOIR temporal_reservoir;
-  initialise_reservoir(temporal_reservoir);
+RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, HIT_INFO_INPUT hit)
+{
+  RESERVOIR reservoir_previous;
+  initialise_reservoir(reservoir_previous);
 
   daxa_u32 prev_predicted_index = predicted_coord.x + predicted_coord.y * rt_size.x;
 
@@ -325,26 +325,39 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, dax
 
     if (valid_history)
     {
-      // add current reservoir sample
-      update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), reservoir.p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
-
       // Reservoir from previous frame
-      RESERVOIR reservoir_previous = get_reservoir_from_previous_frame_by_index(prev_predicted_index);
-
-      daxa_f32 influence = clamp(reservoir_previous.M / reservoir.M, MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD);
-
-      // NOTE: restrict influence from past samples.
-      reservoir_previous.M = min(influence * reservoir.M, reservoir_previous.M);
-
-      // add sample from previous frame
-      calculate_reservoir_aggregation(temporal_reservoir, reservoir_previous, ray, hit, mat, light_count);
-
-      // calculate the weight of this light
-      calculate_reservoir_weight(temporal_reservoir, ray, hit, mat, light_count);
-      
-      reservoir = temporal_reservoir;
+      reservoir_previous = get_reservoir_from_previous_frame_by_index(prev_predicted_index);
     }
   }
+
+  return reservoir_previous;
+}
+
+
+
+
+void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count)
+{
+
+  RESERVOIR temporal_reservoir;
+  initialise_reservoir(temporal_reservoir);
+
+  // add current reservoir sample
+  update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), reservoir.p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
+
+  // TODO: re-check this
+  daxa_f32 influence = max(1.0, mix(clamp(reservoir_previous.M / reservoir.M, 0.0, 1.0), MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
+
+  // NOTE: restrict influence from past samples.
+  reservoir_previous.M = min(influence * reservoir.M, reservoir_previous.M);
+
+  // add sample from previous frame
+  calculate_reservoir_aggregation(temporal_reservoir, reservoir_previous, ray, hit, mat, light_count);
+
+  // calculate the weight of this light
+  calculate_reservoir_weight(temporal_reservoir, ray, hit, mat, light_count);
+  
+  reservoir = temporal_reservoir;
 }
 
 void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 current_mat_index, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
