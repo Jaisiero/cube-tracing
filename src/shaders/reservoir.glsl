@@ -208,12 +208,14 @@ void calculate_reservoir_aggregation(inout RESERVOIR reservoir, RESERVOIR aggreg
   }
 }
 
-RESERVOIR RIS(daxa_u32 light_count, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_f32 pdf, inout daxa_f32 p_hat)
+RESERVOIR RIS(daxa_u32 light_count, daxa_f32 confidence, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_f32 pdf, inout daxa_f32 p_hat)
 {
   RESERVOIR reservoir;
   initialise_reservoir(reservoir);
 
-  daxa_u32 NUM_OF_SAMPLES = min(M, light_count);
+  confidence = clamp(confidence, 0.0, 1.0);
+
+  daxa_u32 NUM_OF_SAMPLES = max(daxa_u32(min(MAX_RIS_SAMPLE_COUNT * confidence, light_count)), 1);
 
   for (daxa_u32 l = 0; l < NUM_OF_SAMPLES; l++)
   {
@@ -228,6 +230,66 @@ RESERVOIR RIS(daxa_u32 light_count, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL 
   }
 
   calculate_reservoir_p_hat_and_weight(reservoir, ray, hit, mat, light_count, p_hat);
+
+  return reservoir;
+}
+
+
+
+
+RESERVOIR FIRST_GATHER(daxa_u32 light_count, daxa_u32 screen_pos, daxa_f32 confidence_index, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, inout daxa_f32 p_hat)
+{
+  // PDF for lights
+  daxa_f32 pdf = 1.0 / light_count;
+
+  RESERVOIR reservoir = RIS(light_count, confidence_index, ray, hit, mat, pdf, p_hat);
+
+  // // Store the reservoir
+  // set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
+
+#if INDIRECT_ILLUMINATION_ON == 1
+// TODO: MIS is very expensive and it is not working properly with reservoirs
+// #if MIS_ON == 1
+//     prd.world_hit = world_pos;
+//     prd.world_nrm = world_nrm;
+// #else 
+    call_scatter.hit = world_pos;
+    call_scatter.nrm = world_nrm;
+    call_scatter.ray_dir = ray.direction;
+    call_scatter.seed = hit.seed;
+    call_scatter.scatter_dir = vec3(0.0);
+    call_scatter.done = false;
+    call_scatter.mat_idx = mat_index;
+    call_scatter.instance_hit = instance_hit;
+
+    switch (mat_type)
+    {
+    case MATERIAL_TYPE_METAL:
+        executeCallableEXT(3, 4);
+        break;
+    case MATERIAL_TYPE_DIELECTRIC:
+        executeCallableEXT(4, 4);
+        break;
+    case MATERIAL_TYPE_CONSTANT_MEDIUM:
+        executeCallableEXT(5, 4);
+        break;
+    case MATERIAL_TYPE_LAMBERTIAN:
+    default:
+        executeCallableEXT(2, 4);
+        break;
+    }
+    prd.seed = call_scatter.seed;
+    prd.done = call_scatter.done;
+    prd.world_hit = call_scatter.hit;
+    prd.world_nrm = world_nrm;
+    prd.ray_scatter_dir = call_scatter.scatter_dir;
+// #endif // MIS_ON
+
+#else 
+    // prd.world_hit = world_pos;
+    // prd.world_nrm = world_nrm;
+#endif // INDIRECT_ILLUMINATION_ON
+
 
   return reservoir;
 }
@@ -269,17 +331,20 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, dax
       // Reservoir from previous frame
       RESERVOIR reservoir_previous = get_reservoir_from_previous_frame_by_index(prev_predicted_index);
 
+      daxa_f32 influence = clamp(reservoir_previous.M / reservoir.M, MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD);
+
       // NOTE: restrict influence from past samples.
-      reservoir_previous.M = min(INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
+      reservoir_previous.M = min(influence * reservoir.M, reservoir_previous.M);
 
       // add sample from previous frame
       calculate_reservoir_aggregation(temporal_reservoir, reservoir_previous, ray, hit, mat, light_count);
 
       // calculate the weight of this light
       calculate_reservoir_weight(temporal_reservoir, ray, hit, mat, light_count);
+      
+      reservoir = temporal_reservoir;
     }
   }
-  reservoir = temporal_reservoir;
 }
 
 void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 current_mat_index, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)

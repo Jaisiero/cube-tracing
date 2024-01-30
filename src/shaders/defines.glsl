@@ -22,14 +22,14 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #endif
 
 #define DEBUG_NORMALS_ON 0
-#define ACCUMULATOR_ON 1
+#define ACCUMULATOR_ON 0
 
 #define LIGHT_SAMPLING_ON 1
-#define RESERVOIR_ON 0
+#define RESERVOIR_ON 1
 #define RESERVOIR_TEMPORAL_ON 1
 #define RESERVOIR_SPATIAL_ON 1
 
-#define INDIRECT_ILLUMINATION_ON 1
+#define INDIRECT_ILLUMINATION_ON 0
 #define MIS_ON 1
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
@@ -38,8 +38,9 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
 
 // TODO: M by parameter?
-const daxa_u32 M = 32;
-const daxa_f32 INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
+const daxa_u32 MAX_RIS_SAMPLE_COUNT = 32;
+const daxa_f32 MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD = 10.0f;
+const daxa_f32 MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
 const daxa_u32 NUM_OF_NEIGHBORS = 8;
 const daxa_f32 NEIGHBORS_RADIUS = 5.0f;
 

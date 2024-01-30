@@ -18,6 +18,7 @@
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 #define DYNAMIC_SUN_LIGHT 0
+#define SUN_MAX_INTENSITY 300.0f
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -39,8 +40,6 @@
 #define AVOID_VOXEL_COLLAIDE 1e-9f   // Delta ray offset for shadow rays
 
 #define PERLIN_FACTOR 500
-
-#define SUN_MAX_INTENSITY 500.0f
 
 struct AABB
 {
@@ -71,7 +70,7 @@ struct HIT_PAY_LOAD
     daxa_f32 distance;
     daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
-    daxa_u32 scatter_lobe;
+    daxa_u32 mat_index;
     daxa_f32vec3 ray_scatter_dir;
     INSTANCE_HIT instance_hit;
 };
@@ -331,7 +330,7 @@ struct DIRECT_ILLUMINATION_INFO
     daxa_f32vec3 scatter_dir;
     daxa_u32 seed;
     INSTANCE_HIT instance_hit;
-    daxa_u32 scatter_lobe;
+    daxa_u32 mat_index;
 };
 
 // struct INSTANCE_LEVEL

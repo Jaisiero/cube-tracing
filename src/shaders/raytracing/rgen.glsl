@@ -68,8 +68,6 @@ void main()
 
     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
 
-
-
     traceRayEXT(
         daxa_accelerationStructureEXT(p.tlas),
         ray_flags,         // rayFlags
@@ -84,7 +82,7 @@ void main()
         0                  // payload (location = 0)
     );
 
-    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_hit, prd.scatter_lobe);
+    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_hit, prd.mat_index);
 
     daxa_b32 is_hit = di_info.distance > 0.0;
 
@@ -101,7 +99,7 @@ void main()
 
         {
             // Get sample info from reservoir
-            RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
+            // RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
 
             // Get material index
             daxa_u32 mat_idx = get_material_index_from_instance_and_primitive_id(di_info.instance_hit);
@@ -121,6 +119,8 @@ void main()
             daxa_f32vec3 radiance = vec3(0.0);
 
             daxa_f32 p_hat = 0.0;
+
+            RESERVOIR reservoir = FIRST_GATHER(light_count, screen_pos, 1.0, ray, hit, mat, p_hat);
 
             // Calculate reservoir radiance
             calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
@@ -177,7 +177,6 @@ void main() {
 
         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
         
-        
         // Get material index
         daxa_u32 current_mat_index = get_material_index_from_instance_and_primitive_id(di_info.instance_hit);
         
@@ -201,6 +200,28 @@ void main() {
                                             di_info.seed,
                                             max_depth);
 
+                                            
+
+        // RESERVOIR reservoir;
+        // initialise_reservoir(reservoir);
+        // {
+        //     daxa_f32vec3 radiance = vec3(0.0);
+
+        //     daxa_f32 p_hat = 0.0;
+
+        //     // daxa_f32 confidence = clamp(temp_reservoir.M / daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD), 0.0, 1.0);
+
+        //     reservoir = FIRST_GATHER(light_count, screen_pos, 1.0, ray, hit, mat, p_hat);
+
+        //     // Calculate reservoir radiance
+        //     calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+
+        //     di_info.seed = hit.seed;
+        // }
+
+        // // RESERVOIR temp_reservoir;
+        // // initialise_reservoir(temp_reservoir);
+
         // NOTE: the fact that we are getting spatial reservoirs from the current frame
         TEMPORAL_REUSE(reservoir,
                        predicted_coord,
@@ -211,6 +232,7 @@ void main() {
                        pdf);
 
         di_info.seed = hit.seed;
+
         set_di_seed_from_current_frame(screen_pos, di_info.seed);
 
         set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);

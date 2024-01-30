@@ -42,91 +42,12 @@ void main()
     world_pos += world_nrm * DELTA_RAY;
 
     daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
-
-    MATERIAL mat = get_material_from_material_index(mat_index);
-
-    HIT_INFO_INPUT hit = HIT_INFO_INPUT(
-        world_pos,
-        world_nrm,
-        instance_hit,
-        mat_index,
-        prd.seed,
-        prd.depth);
-
-    daxa_u32 mat_type = mat.type & MATERIAL_TYPE_MASK;
-
-#if RESERVOIR_ON == 1
-    // LIGHTS
-    daxa_u32 light_count = deref(p.status_buffer).light_count;
-
-    // // OBJECTS
-    // daxa_u32 object_count = deref(p.status_buffer).obj_count;
-
-    // Screen position
-    daxa_u32 screen_pos = gl_LaunchIDEXT.x + gl_LaunchSizeEXT.x * gl_LaunchIDEXT.y;
     
-    // PDF for lights
-    daxa_f32 pdf = 1.0 / light_count;
-
-    daxa_f32 p_hat = 0;
-    RESERVOIR reservoir = RIS(light_count, ray, hit, mat, pdf, p_hat);
-
-    // Store the reservoir
-    set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
-    
-    prd.seed = hit.seed;
-
-#if INDIRECT_ILLUMINATION_ON == 1
-// TODO: MIS is very expensive and it is not working properly with reservoirs
-// #if MIS_ON == 1
-//     prd.world_hit = world_pos;
-//     prd.world_nrm = world_nrm;
-// #else 
-    call_scatter.hit = world_pos;
-    call_scatter.nrm = world_nrm;
-    call_scatter.ray_dir = ray.direction;
-    call_scatter.seed = hit.seed;
-    call_scatter.scatter_dir = vec3(0.0);
-    call_scatter.done = false;
-    call_scatter.mat_idx = mat_index;
-    call_scatter.instance_hit = instance_hit;
-
-    switch (mat_type)
-    {
-    case MATERIAL_TYPE_METAL:
-        executeCallableEXT(3, 4);
-        break;
-    case MATERIAL_TYPE_DIELECTRIC:
-        executeCallableEXT(4, 4);
-        break;
-    case MATERIAL_TYPE_CONSTANT_MEDIUM:
-        executeCallableEXT(5, 4);
-        break;
-    case MATERIAL_TYPE_LAMBERTIAN:
-    default:
-        executeCallableEXT(2, 4);
-        break;
-    }
-    prd.seed = call_scatter.seed;
-    prd.done = call_scatter.done;
-    prd.world_hit = call_scatter.hit;
-    prd.world_nrm = world_nrm;
-    prd.ray_scatter_dir = call_scatter.scatter_dir;
-// #endif // MIS_ON
-
-#else 
     prd.world_hit = world_pos;
     prd.world_nrm = world_nrm;
-#endif // INDIRECT_ILLUMINATION_ON
-#else 
-    prd.world_hit = world_pos;
-    prd.world_nrm = world_nrm;
-#endif // RESERVOIR_ON
-    
-
     prd.distance = distance;
     prd.instance_hit = instance_hit;
-    prd.scatter_lobe = mat_type;
+    prd.mat_index = mat_index;
 }
 
 #elif defined(INDIRECT_ILLUMINATION)
@@ -220,7 +141,7 @@ void main()
 
     prd.distance = distance;
     prd.instance_hit = instance_hit;
-    prd.scatter_lobe = mat_type;
+    prd.mat_index = mat_index;
     prd.seed = hit.seed;
 
     prd.hit_value *= radiance;
