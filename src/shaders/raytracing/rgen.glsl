@@ -13,6 +13,7 @@ layout(location = 0) hitObjectAttributeNV vec3 hit_value;
 #include "defines.glsl"
 #include "prng.glsl"
 #include "reservoir.glsl"
+#include "indirect_illumination.glsl"
 
 
 Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size, daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj) {
@@ -359,8 +360,11 @@ void main()
         daxa_f32 pdf_out = 0.0; 
 
 
+        INTERSECT i;
 #if RESERVOIR_ON == 1
         calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+        
+        i = INTERSECT(is_hit, di_info.distance, hit.position, hit.normal, hit.instance_hit, hit.mat_index, hit.scatter_dir);
 
         hit_value *= radiance * reservoir.W_y;
 #else // RESERVOIR_ON
@@ -368,184 +372,26 @@ void main()
 
         LIGHT light = get_light_from_light_index(light_index);
 
+#if MIS_ON == 1
+        radiance = direct_mis(ray, hit, light_count, light, object_count, mat, i, pdf_out, true, true);
+        di_info.scatter_dir = i.scatter_dir;
+#else
         radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
+        i = INTERSECT(is_hit, di_info.distance, hit.position, hit.normal, hit.instance_hit, hit.mat_index, hit.scatter_dir);
+#endif // MIS_ON
         
         hit_value *= radiance;
 #endif // RESERVOIR_ON
 
 
         di_info.seed = hit.seed;
+        
 
-#if INDIRECT_ILLUMINATION_ON == 1
-        // prd.throughput = vec3(1.0);
-        prd.seed = di_info.seed;
-        prd.depth = max_depth;
-        prd.world_hit = di_info.position;
-        prd.distance = di_info.distance;
-        prd.world_nrm = di_info.normal;
-        prd.ray_scatter_dir = di_info.scatter_dir;
-        prd.instance_hit = di_info.instance_hit;
-
-        daxa_f32vec3 ray_origin = prd.world_hit;
-        daxa_f32vec3 ray_direction = prd.ray_scatter_dir;
-
-        daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
-        daxa_f32 t_min = DELTA_RAY;
-        daxa_f32 t_max = MAX_DISTANCE - DELTA_RAY;
-        daxa_u32 cull_mask = 0xFF;
-
-        for (; ;)
-        {
-
-#if SER == 1
-            hitObjectNV hit_object;
-            //Initialize to an empty hit object
-            hitObjectRecordEmptyNV(hit_object);
-
-            // Trace the ray
-            hitObjectTraceRayNV(hit_object,
-                                daxa_accelerationStructureEXT(p.tlas), // topLevelAccelerationStructure
-                                ray_flags,      // rayFlags
-                                cull_mask,      // cullMask
-                                1,             // sbtRecordOffset
-                                0,             // sbtRecordStride
-                                0,             // missIndex
-                                ray_origin,    // ray origin
-                                t_min,          // ray min range
-                                ray_direction, // ray direction
-                                t_max,          // ray max range
-                                0              // payload (location = 0)
-            );
-            INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
-            daxa_f32vec3 world_hit = vec3(0.0);
-            daxa_f32vec3 world_nrm = vec3(0.0);
-            daxa_f32 distance = -1.0;
-            daxa_f32mat4x4 model;
-            daxa_f32mat4x4 inv_model;
-
-            if (hitObjectIsHitNV(hit_object))
-            {
-
-                daxa_u32 instance_id = hitObjectGetInstanceCustomIndexNV(hit_object);
-
-                daxa_u32 primitive_id = hitObjectGetPrimitiveIndexNV(hit_object);
-
-                instance_hit = INSTANCE_HIT(instance_id, primitive_id);
-
-                Ray bounce_ray = Ray(ray_origin, ray_direction);
-                
-                // TODO: pass this as a parameter
-                daxa_f32vec3 half_extent = vec3(HALF_VOXEL_EXTENT);
-
-                distance = is_hit_from_ray(bounce_ray, instance_hit, half_extent, distance, world_hit, world_nrm, model, inv_model, true, false) ? distance : -1.0;
-
-                daxa_f32vec4 world_hit_4 = (model * vec4(world_hit, 1));
-                world_hit = (world_hit_4 / world_hit_4.w).xyz;
-                world_nrm = (transpose(inv_model) * vec4(world_nrm, 0)).xyz;
-                world_hit += world_nrm * DELTA_RAY;
-            }
-
-            if (distance > 0.0)
-            {
-                daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
-
-                daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
-
-                MATERIAL mat = get_material_from_material_index(mat_index);
-
-                daxa_u32 mat_type = mat.type & MATERIAL_TYPE_MASK;
-                // reorderThreadNV(mat_type, 2);
-                reorderThreadNV(hit_object, mat_type, 2);
-
-                // LIGHTS
-                daxa_u32 light_count = deref(p.status_buffer).light_count;
-
-                // // OBJECTS
-                // daxa_u32 object_count = deref(p.status_buffer).obj_count;
-
-                call_scatter.hit = world_hit;
-                call_scatter.nrm = world_nrm;
-                call_scatter.ray_dir = ray.direction;
-                call_scatter.seed = prd.seed;
-                call_scatter.scatter_dir = vec3(0.0);
-                call_scatter.done = false;
-                call_scatter.mat_idx = mat_index;
-                call_scatter.instance_hit = instance_hit;
-
-                switch (mat_type)
-                {
-                case MATERIAL_TYPE_METAL:
-                    executeCallableEXT(3, 4);
-                    break;
-                case MATERIAL_TYPE_DIELECTRIC:
-                    executeCallableEXT(4, 4);
-                    break;
-                case MATERIAL_TYPE_CONSTANT_MEDIUM:
-                    executeCallableEXT(5, 4);
-                    break;
-                case MATERIAL_TYPE_LAMBERTIAN:
-                default:
-                    executeCallableEXT(2, 4);
-                    break;
-                }
-                prd.seed = call_scatter.seed;
-                prd.done = call_scatter.done;
-                prd.world_hit = call_scatter.hit;
-                prd.world_nrm = call_scatter.nrm;
-                prd.ray_scatter_dir = call_scatter.scatter_dir;
-
-                HIT_INFO_INPUT hit = HIT_INFO_INPUT(
-                    world_hit,
-                    world_nrm,
-                    instance_hit,
-                    mat_index,
-                    prd.seed,
-                    prd.depth);
-
-                daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
-                LIGHT light = get_light_from_light_index(light_index);
-
-                daxa_f32 pdf = 1.0 / light_count;
-                daxa_f32 pdf_out = 1.0;
-
-                daxa_f32vec3 radiance = calculate_sampled_light(ray, hit, light, mat, light_count, pdf, pdf_out, true, true, true);
-
-                prd.hit_value *= radiance;
-                prd.hit_value += mat.emission;
-            }
-            else
-            {
-                prd.done = true;
-                prd.hit_value *= calculate_sky_color(
-                    deref(p.status_buffer).time,
-                    deref(p.status_buffer).is_afternoon,
-                    ray.direction.xyz);
-            }
-#else
-            traceRayEXT(daxa_accelerationStructureEXT(p.tlas),
-                        ray_flags,     // rayFlags
-                        cull_mask,     // cullMask
-                        1,             // sbtRecordOffset
-                        0,             // sbtRecordStride
-                        0,             // missIndex
-                        ray_origin,    // ray origin
-                        t_min,         // ray min range
-                        ray_direction, // ray direction
-                        t_max,         // ray max range
-                        0              // payload (location = 0)
-            );
-#endif // SER            
-            hit_value *= prd.hit_value;
-
-            prd.depth--;
-            if (prd.done == true || prd.depth == 0)
-                break;
-
-            ray_origin = prd.world_hit;
-            ray_direction = prd.ray_scatter_dir;
-            prd.done = true; // Will stop if a reflective material isn't hit
-        } 
+#if INDIRECT_ILLUMINATION_ON == 1        
+        indirect_illumination(i, di_info.seed, max_depth, light_count, object_count, hit_value);
 #endif // INDIRECT_ILLUMINATION_ON
+
+
 
         hit_value += mat.emission;
 

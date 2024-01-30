@@ -52,6 +52,8 @@ void main()
         mat_index,
         prd.seed,
         prd.depth);
+        
+    daxa_u32 mat_type = mat.type & MATERIAL_TYPE_MASK;
 
 #if RESERVOIR_ON == 1
     // LIGHTS
@@ -71,40 +73,44 @@ void main()
 
     // Store the reservoir
     set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
+    
+    prd.seed = hit.seed;
 #endif // RESERVOIR_ON
     
 
-    call_scatter.hit = world_pos;
-    call_scatter.nrm = world_nrm;
-    call_scatter.ray_dir = ray.direction;
-    call_scatter.seed = prd.seed;
-    call_scatter.scatter_dir = vec3(0.0);
-    call_scatter.done = false;
-    call_scatter.mat_idx = mat_index;
-    call_scatter.instance_hit = instance_hit;
+    // call_scatter.hit = world_pos;
+    // call_scatter.nrm = world_nrm;
+    // call_scatter.ray_dir = ray.direction;
+    // call_scatter.seed = hit.seed;
+    // call_scatter.scatter_dir = vec3(0.0);
+    // call_scatter.done = false;
+    // call_scatter.mat_idx = mat_index;
+    // call_scatter.instance_hit = instance_hit;
 
-    daxa_u32 mat_type = mat.type & MATERIAL_TYPE_MASK;
-    switch (mat_type)
-    {
-    case MATERIAL_TYPE_METAL:
-        executeCallableEXT(3, 4);
-        break;
-    case MATERIAL_TYPE_DIELECTRIC:
-        executeCallableEXT(4, 4);
-        break;
-    case MATERIAL_TYPE_CONSTANT_MEDIUM:
-        executeCallableEXT(5, 4);
-        break;
-    case MATERIAL_TYPE_LAMBERTIAN:
-    default:
-        executeCallableEXT(2, 4);
-        break;
-    }
-    prd.seed = call_scatter.seed;
-    prd.done = call_scatter.done;
-    prd.world_hit = call_scatter.hit;
+    // switch (mat_type)
+    // {
+    // case MATERIAL_TYPE_METAL:
+    //     executeCallableEXT(3, 4);
+    //     break;
+    // case MATERIAL_TYPE_DIELECTRIC:
+    //     executeCallableEXT(4, 4);
+    //     break;
+    // case MATERIAL_TYPE_CONSTANT_MEDIUM:
+    //     executeCallableEXT(5, 4);
+    //     break;
+    // case MATERIAL_TYPE_LAMBERTIAN:
+    // default:
+    //     executeCallableEXT(2, 4);
+    //     break;
+    // }
+    // prd.seed = call_scatter.seed;
+    // prd.done = call_scatter.done;
+    // prd.world_hit = call_scatter.hit;
+    // prd.world_nrm = world_nrm;
+    // prd.ray_scatter_dir = call_scatter.scatter_dir;
+
+    prd.world_hit = world_pos;
     prd.world_nrm = world_nrm;
-    prd.ray_scatter_dir = call_scatter.scatter_dir;
 
     prd.distance = distance;
     prd.instance_hit = instance_hit;

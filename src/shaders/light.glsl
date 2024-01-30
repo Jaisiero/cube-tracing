@@ -302,7 +302,7 @@ daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, LIGHT li
     return result;
 }
 
-daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count, LIGHT light, daxa_u32 object_count, MATERIAL mat, out daxa_f32vec3 m_wi,  out daxa_f32 pdf_out, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility) {
+daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count, LIGHT light, daxa_u32 object_count, MATERIAL mat, out INTERSECT i,  out daxa_f32 pdf_out, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility) {
     daxa_f32vec3 result = vec3(0.0);
     daxa_f32vec3 Le, l_pos, l_nor;
     daxa_f32 l_pdf, m_pdf;
@@ -332,6 +332,8 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         pdf_out += l_pdf;
     }
 
+    daxa_f32vec3 m_wi = vec3(0.0);
+
     daxa_f32 m_pdf_2 = 1.0;
     daxa_f32 l_pdf_2 = 1.0 / daxa_f32(light_count);
 
@@ -339,7 +341,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         // Material sampling
         if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, light_count))
         {
-            INTERSECT i = intersect(Ray(P, m_wi), hit);
+            i = intersect(Ray(P, m_wi), hit);
             if (i.is_hit && i.mat.emission != vec3(0.0))
             {
                 daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);

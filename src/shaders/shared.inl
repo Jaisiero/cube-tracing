@@ -17,7 +17,7 @@
 
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
-#define DYNAMIC_SUN_LIGHT 1
+#define DYNAMIC_SUN_LIGHT 0
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -129,6 +129,17 @@ struct HIT_INFO_INPUT
   daxa_u32 depth;
 };
 
+struct HIT_INFO_OUTPUT
+{
+    daxa_f32vec3 world_hit;
+    daxa_f32vec3 world_nrm;
+    INSTANCE_HIT instance_hit;
+    daxa_f32vec3 scatter_dir;
+    daxa_u32 mat_idx;
+    daxa_u32 seed;
+    daxa_u32 depth;
+};
+
 
 struct camera_view{ 
     daxa_f32mat4x4 inv_view;
@@ -213,9 +224,12 @@ struct MATERIAL
 
 struct INTERSECT {
     daxa_b32 is_hit;
+    daxa_f32 distance;
     daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
+    daxa_f32vec3 scatter_dir;
     INSTANCE_HIT instance_hit;
+    daxa_u32 material_idx;
     MATERIAL mat;
 };
 

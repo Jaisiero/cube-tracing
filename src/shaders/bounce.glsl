@@ -3,7 +3,6 @@
 #define BOUNCE_GLSL
 #include <daxa/daxa.inl>
 #include "shared.inl"
-#include "primitives.glsl"
 #extension GL_EXT_ray_query : enable
 
 // SCATTER
@@ -24,9 +23,10 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     daxa_f32vec3 int_hit = daxa_f32vec3(0.0);
     daxa_f32vec3 int_nor = daxa_f32vec3(0.0);
     daxa_b32 is_hit = false;
-    daxa_f32 t_hit = 0.0;
+    daxa_f32 distance = 0.0;
     daxa_f32mat4x4 model;
     daxa_f32mat4x4 inv_model;
+    daxa_u32 material_idx = 0;
     MATERIAL intersected_mat;
     
     rayQueryEXT ray_query;
@@ -51,8 +51,8 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
 
             daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
-            if(is_hit_from_ray(ray, instance_hit, half_extent, t_hit, int_hit, int_nor, model, inv_model, false, false)) {
-                rayQueryGenerateIntersectionEXT(ray_query, t_hit);
+            if(is_hit_from_ray(ray, instance_hit, half_extent, distance, int_hit, int_nor, model, inv_model, false, false)) {
+                rayQueryGenerateIntersectionEXT(ray_query, distance);
 
                 daxa_u32 type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
 
@@ -60,7 +60,8 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
                     gl_RayQueryCommittedIntersectionGeneratedEXT)
                 {
                     is_hit = true;
-                    intersected_mat = get_material_from_instance_and_primitive_id(instance_hit);
+                    material_idx = get_material_index_from_instance_and_primitive_id(instance_hit);
+                    intersected_mat = get_material_from_material_index(material_idx);
         
                     daxa_f32vec4 int_hit_4 = model * vec4(int_hit, 1);
                     int_hit = int_hit_4.xyz / int_hit_4.w;
@@ -79,6 +80,6 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     // daxa_f32vec3 intersected_hit = prd_indirect.hit;
     // daxa_f32vec3 intersected_nrm = prd_indirect.nrm;
 
-    return INTERSECT(is_hit, int_hit, int_nor, instance_hit, intersected_mat);
+    return INTERSECT(is_hit, distance, int_hit, int_nor, ray.direction, instance_hit, material_idx, intersected_mat);
 }
 #endif // BOUNCE_GLSL
