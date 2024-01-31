@@ -22,7 +22,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #endif
 
 #define DEBUG_NORMALS_ON 0
-#define ACCUMULATOR_ON 0
+#define ACCUMULATOR_ON 1
 
 #define LIGHT_SAMPLING_ON 1
 #define RESERVOIR_ON 1

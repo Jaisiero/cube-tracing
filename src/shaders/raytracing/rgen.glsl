@@ -68,6 +68,56 @@ void main()
 
     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
 
+
+#if SER == 1
+    daxa_f32mat4x4 model;
+    daxa_f32mat4x4 inv_model;
+
+    hitObjectNV hit_object;
+    // Initialize to an empty hit object
+    hitObjectRecordEmptyNV(hit_object);
+
+    // Trace the ray
+    hitObjectTraceRayNV(hit_object,
+                        daxa_accelerationStructureEXT(p.tlas), // topLevelAccelerationStructure
+                        ray_flags,                             // rayFlags
+                        cull_mask,                             // cullMask
+                        1,                                     // sbtRecordOffset
+                        0,                                     // sbtRecordStride
+                        0,                                     // missIndex
+                        ray.origin.xyz,                        // ray origin
+                        t_min,                                 // ray min range
+                        ray.direction.xyz,                     // ray direction
+                        t_max,                                 // ray max range
+                        0                                      // payload (location = 0)
+    );
+
+    // reorderThreadNV(hit_object);
+
+
+    if (hitObjectIsHitNV(hit_object))
+    {
+
+        daxa_u32 instance_id = hitObjectGetInstanceCustomIndexNV(hit_object);
+
+        daxa_u32 primitive_id = hitObjectGetPrimitiveIndexNV(hit_object);
+
+        prd.instance_hit = INSTANCE_HIT(instance_id, primitive_id);
+
+        // TODO: pass this as a parameter
+        daxa_f32vec3 half_extent = vec3(HALF_VOXEL_EXTENT);
+
+        prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, prd.distance, prd.world_hit, prd.world_nrm, model, inv_model, true, false) ? prd.distance : -1.0;
+
+        daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
+        prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
+        prd.world_nrm = (transpose(inv_model) * vec4(prd.world_nrm, 0)).xyz;
+        prd.world_hit += prd.world_nrm * DELTA_RAY;
+
+        prd.mat_index = get_material_index_from_instance_and_primitive_id(prd.instance_hit);
+    }
+
+#else
     traceRayEXT(
         daxa_accelerationStructureEXT(p.tlas),
         ray_flags,         // rayFlags
@@ -81,6 +131,7 @@ void main()
         t_max,             // ray max range
         0                  // payload (location = 0)
     );
+#endif // SER
 
     DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_hit, prd.mat_index);
 
@@ -163,12 +214,12 @@ void main() {
     // Reservoir from previous frame
     RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
 
-  // TODO: re-check this
-//     // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
-//     daxa_f32 predicted = 1.0 - (reservoir_previous.M / daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
+    // TODO: re-check this
+    // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
+    daxa_f32 predicted = 1.0 - (reservoir_previous.M / reservoir_previous.M  * daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
 
-//     confidence = (reservoir_previous.W_y > 0.0) ? predicted
-//                                                 : 1.0;
+    confidence = (reservoir_previous.W_y > 0.0) ? predicted
+                                                : 1.0;
 
 #endif // RESERVOIR_TEMPORAL_ON
 
@@ -391,7 +442,7 @@ void main()
         clamp(hit_value, 0.0, 0.99999999);
 
         daxa_f32vec4 final_pixel;
-#if ACCUMULATOR_ON == 1
+#if (ACCUMULATOR_ON == 1 && RESERVOIR_ON == 0)
         daxa_u32 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {

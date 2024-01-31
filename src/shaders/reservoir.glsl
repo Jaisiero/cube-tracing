@@ -363,6 +363,8 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, dax
 
   // // TODO: re-check this
   // daxa_f32 influence = max(1.0, mix(clamp(reservoir_previous.M / reservoir.M, 0.0, 1.0), MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
+  // NOTE: It is recommended to check the visibility function of the previous frame.
+  calculate_reservoir_p_hat_and_weight(reservoir_previous, ray, hit, mat, light_count, reservoir_previous.p_hat);
 
   // NOTE: restrict influence from past samples.
   reservoir_previous.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
