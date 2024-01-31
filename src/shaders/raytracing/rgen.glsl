@@ -202,7 +202,7 @@ void main()
 
             di_info.seed = hit.seed;
 
-            set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
+            set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
 
             set_di_seed_from_current_frame(screen_pos, di_info.seed);
         }
@@ -216,7 +216,6 @@ void main()
 
 void main() { 
 #if RESERVOIR_ON == 1
-#if (RESERVOIR_TEMPORAL_ON == 1)
     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
 
@@ -267,11 +266,12 @@ void main() {
                                             di_info.mat_index,
                                             di_info.seed,
                                             max_depth);
+
+        RESERVOIR reservoir = get_reservoir_from_intermediate_frame_by_index(screen_pos);
+
+#if (RESERVOIR_TEMPORAL_ON == 1)
         // Reservoir from previous frame
         RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
-
-        RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
-
         if(reservoir_previous.W_y > 0.0) {
             TEMPORAL_REUSE(reservoir,
                            reservoir_previous,
@@ -282,6 +282,7 @@ void main() {
                            mat,
                            light_count);
         }
+#endif // RESERVOIR_TEMPORAL_ON
 
         di_info.seed = hit.seed;
 
@@ -289,7 +290,6 @@ void main() {
 
         set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
     }
-#endif // RESERVOIR_TEMPORAL_ON
 #endif // RESERVOIR_ON
 }
 
