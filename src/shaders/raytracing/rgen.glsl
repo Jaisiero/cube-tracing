@@ -147,6 +147,65 @@ void main()
 
         VELOCITY velocity = VELOCITY(motion_vector);
         velocity_buffer_set_velocity(index, rt_size, velocity);
+        
+
+        daxa_u32 light_count = deref(p.status_buffer).light_count;
+        // OBJECTS
+        daxa_u32 object_count = deref(p.status_buffer).obj_count;
+
+        daxa_f32 pdf = 1.0 / daxa_f32(light_count);
+        
+        // Get material
+        MATERIAL mat = get_material_from_material_index(di_info.mat_index);
+            
+        // X from current pixel position
+        daxa_f32vec2 Xi = daxa_f32vec2(index.xy) + 0.5;
+
+        daxa_f32vec2 Xi_1 = Xi + velocity.velocity;
+
+        daxa_u32vec2 predicted_coord = daxa_u32vec2(Xi_1);
+
+        HIT_INFO_INPUT hit = HIT_INFO_INPUT(
+                                            di_info.position.xyz,
+                                            di_info.normal.xyz,
+                                            di_info.scatter_dir,
+                                            di_info.instance_hit,
+                                            di_info.mat_index,
+                                            di_info.seed,
+                                            max_depth);
+
+        daxa_f32 confidence = 1.0;
+
+#if (RESERVOIR_TEMPORAL_ON == 1)
+        // Reservoir from previous frame
+        RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
+
+        // TODO: re-check this
+        // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
+        daxa_f32 predicted = 1.0 - (reservoir_previous.M / reservoir_previous.M * daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
+
+        confidence = (reservoir_previous.W_y > 0.0) ? predicted
+                                                    : 1.0;
+
+#endif // RESERVOIR_TEMPORAL_ON
+
+        {
+            daxa_f32vec3 radiance = vec3(0.0);
+
+            daxa_f32 p_hat = 0.0;
+
+            INTERSECT i;
+
+            RESERVOIR reservoir = FIRST_GATHER(light_count, object_count, screen_pos, confidence, ray, hit, mat, p_hat, i);
+
+            calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+
+            di_info.seed = hit.seed;
+
+            set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
+
+            set_di_seed_from_current_frame(screen_pos, di_info.seed);
+        }
     }
 
     // Store the DI info
@@ -157,6 +216,7 @@ void main()
 
 void main() { 
 #if RESERVOIR_ON == 1
+#if (RESERVOIR_TEMPORAL_ON == 1)
     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
 
@@ -207,41 +267,11 @@ void main() {
                                             di_info.mat_index,
                                             di_info.seed,
                                             max_depth);
+        // Reservoir from previous frame
+        RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
 
-    daxa_f32 confidence = 1.0;
+        RESERVOIR reservoir = get_reservoir_from_current_frame_by_index(screen_pos);
 
-#if (RESERVOIR_TEMPORAL_ON == 1)
-    // Reservoir from previous frame
-    RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
-
-    // TODO: re-check this
-    // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
-    daxa_f32 predicted = 1.0 - (reservoir_previous.M / reservoir_previous.M  * daxa_f32(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
-
-    confidence = (reservoir_previous.W_y > 0.0) ? predicted
-                                                : 1.0;
-
-#endif // RESERVOIR_TEMPORAL_ON
-
-        RESERVOIR reservoir;
-    
-        {
-            daxa_f32vec3 radiance = vec3(0.0);
-
-            daxa_f32 p_hat = 0.0;
-
-            INTERSECT i;
-
-            reservoir = FIRST_GATHER(light_count, object_count, screen_pos, confidence, ray, hit, mat, p_hat, i);
-
-            calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
-
-            di_info.seed = hit.seed;
-        }
-
-                                            
-
-#if (RESERVOIR_TEMPORAL_ON == 1)
         if(reservoir_previous.W_y > 0.0) {
             TEMPORAL_REUSE(reservoir,
                            reservoir_previous,
@@ -252,7 +282,6 @@ void main() {
                            mat,
                            light_count);
         }
-#endif // RESERVOIR_TEMPORAL_ON
 
         di_info.seed = hit.seed;
 
@@ -260,6 +289,7 @@ void main() {
 
         set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
     }
+#endif // RESERVOIR_TEMPORAL_ON
 #endif // RESERVOIR_ON
 }
 
