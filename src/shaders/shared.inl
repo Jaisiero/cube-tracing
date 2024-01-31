@@ -18,8 +18,8 @@
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 
-#define DYNAMIC_SUN_LIGHT 0
-#define SUN_MAX_INTENSITY 300.0f
+#define DYNAMIC_SUN_LIGHT 1
+#define SUN_MAX_INTENSITY 5000.0f
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -334,6 +334,7 @@ struct DIRECT_ILLUMINATION_INFO
     daxa_u32 seed;
     INSTANCE_HIT instance_hit;
     daxa_u32 mat_index;
+    daxa_f32 confidence;
 };
 
 // struct INSTANCE_LEVEL

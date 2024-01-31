@@ -107,7 +107,9 @@ void main()
         // TODO: pass this as a parameter
         daxa_f32vec3 half_extent = vec3(HALF_VOXEL_EXTENT);
 
-        prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, prd.distance, prd.world_hit, prd.world_nrm, model, inv_model, true, false) ? prd.distance : -1.0;
+        daxa_f32 distance = -1.0;
+
+        prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, distance, prd.world_hit, prd.world_nrm, model, inv_model, true, false) ? distance : -1.0;
 
         daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
         prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
@@ -115,6 +117,11 @@ void main()
         prd.world_hit += prd.world_nrm * DELTA_RAY;
 
         prd.mat_index = get_material_index_from_instance_and_primitive_id(prd.instance_hit);
+    }  else {
+        prd.hit_value *= calculate_sky_color(
+            deref(p.status_buffer).time,
+            deref(p.status_buffer).is_afternoon,
+            ray.direction);
     }
 
 #else
@@ -133,7 +140,7 @@ void main()
     );
 #endif // SER
 
-    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_hit, prd.mat_index);
+    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_hit, prd.mat_index, 1.0);
 
     daxa_b32 is_hit = di_info.distance > 0.0;
 
@@ -189,6 +196,8 @@ void main()
                                                     : 1.0;
 
 #endif // RESERVOIR_TEMPORAL_ON
+
+        di_info.confidence = confidence;
 
         {
             daxa_f32vec3 radiance = vec3(0.0);
@@ -343,7 +352,9 @@ void main() {
                                             di_info.seed,
                                             max_depth);
 
-        SPATIAL_REUSE(reservoir, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf);
+        daxa_f32 confidence = di_info.confidence;
+
+        SPATIAL_REUSE(reservoir, confidence, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf);
         
         di_info.seed = hit.seed;
         set_di_seed_from_current_frame(screen_pos, di_info.seed);

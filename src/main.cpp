@@ -664,6 +664,8 @@ namespace tests
 
                 std::cout << "Num of instances: " << instance_count << std::endl;
                 std::cout << "Num of cubes: " << current_primitive_count << std::endl;
+                std::cout << "Num of lights: " << status.light_count << std::endl;
+                std::cout << "Num of materials: " << current_material_count << std::endl;
 
                 // reserve blas build infos
                 blas_build_infos.reserve(instance_count);
@@ -1503,7 +1505,7 @@ namespace tests
                             .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
                             .specular = {1.0, 1.0, 1.0},
                             .transmittance = {0.0, 0.0, 0.0},
-                            .emission = {random_float(10.0, 50.0), random_float(10.0, 50.0), random_float(10.0, 50.0)},
+                            .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
                             .shininess = random_float(0.0, 4.0),
                             .roughness = random_float(0.0, 1.0),
                             .ior = random_float(1.0, 2.65),

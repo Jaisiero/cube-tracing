@@ -384,12 +384,12 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, dax
   reservoir = temporal_reservoir;
 }
 
-void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 current_mat_index, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
+void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 current_mat_index, MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf)
 {
   RESERVOIR spatial_reservoir;
   initialise_reservoir(spatial_reservoir);
 
-  // daxa_f32 pdf_out = 1.0;
+  confidence = clamp(confidence, 0.0, 1.0);
 
   // add previous samples
   calculate_reservoir_aggregation(spatial_reservoir, reservoir, ray, hit, mat, light_count);
@@ -399,16 +399,19 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
   // daxa_f32 spatial_influence_threshold = max(1.0, (INFLUENCE_FROM_THE_PAST_THRESHOLD) / NUM_OF_NEIGHBORS);
 
   // Heuristically determine the radius of the spatial reuse based on distance to the camera
-  daxa_f32 spatial_herustic_radius = mix(NEIGHBORS_RADIUS, 0.0, clamp(hit.distance / 100.0, 0.0, 1.0));
+  daxa_f32 spatial_heuristic_radius = mix(MAX_NEIGHBORS_RADIUS, MIN_NEIGHBORS_RADIUS, clamp(hit.distance / MAX_DISTANCE, 0.0, 1.0));
 
-  for (daxa_u32 i = 0; i < NUM_OF_NEIGHBORS; i++)
+  // Heuristically determine the number of neighbors based on the confidence index
+  daxa_u32 spatial_heuristic_num_of_neighbors = daxa_u32(mix(MIN_NUM_OF_NEIGHBORS, MAX_NUM_OF_NEIGHBORS, confidence));
+
+  for (daxa_u32 i = 0; i < spatial_heuristic_num_of_neighbors; i++)
   {
     // Random offset
     daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(prd.seed), rnd(prd.seed)) - 1;
 
     // Scale offset
-    offset.x = predicted_coord.x + int(offset.x * spatial_herustic_radius);
-    offset.y = predicted_coord.y + int(offset.y * spatial_herustic_radius);
+    offset.x = predicted_coord.x + int(offset.x * spatial_heuristic_radius);
+    offset.y = predicted_coord.y + int(offset.y * spatial_heuristic_radius);
 
     // Clamp offset
     offset.x = min(rt_size.x - 1, max(0, min(rt_size.x - 1, offset.x)));
