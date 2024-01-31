@@ -43,7 +43,7 @@ const daxa_u32 MAX_RIS_SAMPLE_COUNT = 32;
 const daxa_f32 MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD = 10.0f;
 const daxa_f32 MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
 const daxa_u32 NUM_OF_NEIGHBORS = 8;
-const daxa_f32 NEIGHBORS_RADIUS = 5.0f;
+const daxa_f32 NEIGHBORS_RADIUS = 10.0f;
 
 layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[MAX_INSTANCES]; }; // Positions of an object
 layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[MAX_PRIMITIVES]; }; // Primitive data

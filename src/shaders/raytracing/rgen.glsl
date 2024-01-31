@@ -168,6 +168,7 @@ void main()
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(
                                             di_info.position.xyz,
                                             di_info.normal.xyz,
+                                            di_info.distance,
                                             di_info.scatter_dir,
                                             di_info.instance_hit,
                                             di_info.mat_index,
@@ -261,6 +262,7 @@ void main() {
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(
                                             di_info.position.xyz,
                                             di_info.normal.xyz,
+                                            di_info.distance,
                                             di_info.scatter_dir,
                                             di_info.instance_hit,
                                             di_info.mat_index,
@@ -332,16 +334,9 @@ void main() {
         // Get material
         MATERIAL mat = get_material_from_material_index(di_info.mat_index);
 
-        VELOCITY velocity = velocity_buffer_get_velocity(index, rt_size);
-        // X from current pixel position
-        daxa_f32vec2 Xi = daxa_f32vec2(index.xy) + 0.5;
-
-        daxa_f32vec2 Xi_1 = Xi + velocity.velocity;
-
-        daxa_u32vec2 predicted_coord = daxa_u32vec2(Xi_1);
-
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
                                             di_info.normal.xyz,
+                                            di_info.distance,
                                             di_info.scatter_dir,
                                             di_info.instance_hit,
                                             di_info.mat_index,
@@ -385,7 +380,7 @@ void main()
 #if RESERVOIR_ON == 1
     // Get sample info from reservoir
     RESERVOIR reservoir = 
-#if (RESERVOIR_TEMPORAL_ON == 1) || (RESERVOIR_SPATIAL_ON == 0)
+#if (RESERVOIR_TEMPORAL_ON == 1) && (RESERVOIR_SPATIAL_ON == 0)
         get_reservoir_from_intermediate_frame_by_index(screen_pos);
 #else        
         get_reservoir_from_current_frame_by_index(screen_pos);
@@ -414,6 +409,7 @@ void main()
 
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
                                             di_info.normal.xyz,
+                                            di_info.distance,
                                             di_info.scatter_dir,
                                             di_info.instance_hit,
                                             di_info.mat_index,

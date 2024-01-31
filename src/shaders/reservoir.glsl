@@ -378,6 +378,8 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, dax
 
   // calculate the weight of this light
   calculate_reservoir_weight(temporal_reservoir, ray, hit, mat, light_count);
+
+  calculate_reservoir_p_hat_and_weight(temporal_reservoir, ray, hit, mat, light_count, p_hat);
   
   reservoir = temporal_reservoir;
 }
@@ -387,10 +389,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
   RESERVOIR spatial_reservoir;
   initialise_reservoir(spatial_reservoir);
 
-  daxa_f32 pdf_out = 1.0;
-
-  // Calculate p_hat
-  daxa_f32 p_hat = 0.0;
+  // daxa_f32 pdf_out = 1.0;
 
   // add previous samples
   calculate_reservoir_aggregation(spatial_reservoir, reservoir, ray, hit, mat, light_count);
@@ -399,14 +398,17 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
 
   // daxa_f32 spatial_influence_threshold = max(1.0, (INFLUENCE_FROM_THE_PAST_THRESHOLD) / NUM_OF_NEIGHBORS);
 
+  // Heuristically determine the radius of the spatial reuse based on distance to the camera
+  daxa_f32 spatial_herustic_radius = mix(NEIGHBORS_RADIUS, 0.0, clamp(hit.distance / 100.0, 0.0, 1.0));
+
   for (daxa_u32 i = 0; i < NUM_OF_NEIGHBORS; i++)
   {
     // Random offset
     daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(prd.seed), rnd(prd.seed)) - 1;
 
     // Scale offset
-    offset.x = predicted_coord.x + int(offset.x * NEIGHBORS_RADIUS);
-    offset.y = predicted_coord.y + int(offset.y * NEIGHBORS_RADIUS);
+    offset.x = predicted_coord.x + int(offset.x * spatial_herustic_radius);
+    offset.y = predicted_coord.y + int(offset.y * spatial_herustic_radius);
 
     // Clamp offset
     offset.x = min(rt_size.x - 1, max(0, min(rt_size.x - 1, offset.x)));
@@ -425,9 +427,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
 
     daxa_f32 neighbor_hit_dist = neighbor_di_info.distance;
 
-    daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(neighbor_di_info.instance_hit);
-
-    daxa_u32 neighbor_mat_index = get_material_index_from_primitive_index(current_primitive_index);
+    daxa_u32 neighbor_mat_index = neighbor_di_info.mat_index;
 
     // TODO: Adjust dist threshold dynamically
     if (
@@ -446,6 +446,11 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_u32vec2 predicted_coord, daxa
   }
 
   calculate_reservoir_weight(spatial_reservoir, ray, hit, mat, light_count);
+
+  // Calculate p_hat
+  daxa_f32 p_hat = 0.0;
+
+  calculate_reservoir_p_hat_and_weight(spatial_reservoir, ray, hit, mat, light_count, p_hat);
 
   reservoir = spatial_reservoir;
 }

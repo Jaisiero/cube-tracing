@@ -201,7 +201,7 @@ daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit, daxa_f
     }
 
     wi = call_scatter.scatter_dir;
-    hit = HIT_INFO_INPUT(call_scatter.hit, call_scatter.nrm, call_scatter.scatter_dir, call_scatter.instance_hit, call_scatter.mat_idx, hit.depth, call_scatter.seed);
+    hit = HIT_INFO_INPUT(call_scatter.hit, call_scatter.nrm, hit.distance, call_scatter.scatter_dir, call_scatter.instance_hit, call_scatter.mat_idx, hit.depth, call_scatter.seed);
 
     return !call_scatter.done;
 }

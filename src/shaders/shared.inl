@@ -123,6 +123,7 @@ struct HIT_INFO_INPUT
 {
   daxa_f32vec3 world_hit;
   daxa_f32vec3 world_nrm;
+  daxa_f32 distance;
   daxa_f32vec3 scatter_dir;
   INSTANCE_HIT instance_hit;
   daxa_u32 mat_idx;

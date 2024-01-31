@@ -132,6 +132,7 @@ void main()
     HIT_INFO_INPUT hit = HIT_INFO_INPUT(
         world_pos,
         world_nrm,
+        distance,
         prd.ray_scatter_dir,
         instance_hit,
         mat_index,
