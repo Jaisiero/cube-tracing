@@ -34,6 +34,8 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
 
+#define KNOW_LIGHT_POSITION 1
+
 #define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
 

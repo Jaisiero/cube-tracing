@@ -244,6 +244,30 @@ namespace tests
                 };
             }
 
+            constexpr daxa_f32vec3 daxa_f32mat4x4_multiply_by_daxa_f32vec4(daxa_f32mat4x4 const & mat, daxa_f32vec4 const & vec) {
+                return daxa_f32vec3{
+                    mat.x.x * vec.x + mat.y.x * vec.y + mat.z.x * vec.z + mat.w.x * vec.w,
+                    mat.x.y * vec.x + mat.y.y * vec.y + mat.z.y * vec.z + mat.w.y * vec.w,
+                    mat.x.z * vec.x + mat.y.z * vec.y + mat.z.z * vec.z + mat.w.z * vec.w,
+                };
+            }
+
+            constexpr daxa_f32vec3 daxa_f32vec3_add_daxa_f32vec3(daxa_f32vec3 const & vec1, daxa_f32vec3 const & vec2) {
+                return daxa_f32vec3{
+                    vec1.x + vec2.x,
+                    vec1.y + vec2.y,
+                    vec1.z + vec2.z,
+                };
+            }
+
+            constexpr daxa_f32vec3 daxa_f32vec3_multiply_by_scalar(daxa_f32vec3 const & vec, daxa_f32 const & scalar) {
+                return daxa_f32vec3{
+                    vec.x * scalar,
+                    vec.y * scalar,
+                    vec.z * scalar,
+                };
+            }
+
             void change_random_material_primitives() {
                 if(primitives.size() == 0) {
                     return;
@@ -612,6 +636,30 @@ namespace tests
                         return false;
                     }
 
+                    // push primitives
+                    for(u32 j = 0; j < instance.primitive_count; j++) {
+
+                        daxa_u32 material_index = (i < instance_count - CLOUD_INSTANCE_COUNT_X) ? random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1) : random_uint(current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT, current_material_count - 1);
+                        if(material_index >= MATERIAL_COUNT_UP_TO_DIALECTRIC && material_index < MATERIAL_COUNT_UP_TO_EMISSIVE) {
+                            daxa_f32mat2x3 aabb = min_max.at(j);
+                            LIGHT surface_light = {};
+                            daxa_f32vec3 center = daxa_f32vec3_multiply_by_scalar(daxa_f32vec3_add_daxa_f32vec3(aabb.x, aabb.y), 0.5);
+                            surface_light.position = daxa_f32mat4x4_multiply_by_daxa_f32vec4(instance.transform, 
+                                daxa_f32vec4(center.x, center.y, center.z, 1.0));
+                            surface_light.emissive = materials[material_index].emission;
+                            surface_light.instance_info = INSTANCE_HIT(i, j);
+                            surface_light.type = GEOMETRY_LIGHT_CUBE;
+                            lights.push_back(surface_light);
+                            status.light_count++;
+                        }
+
+                        primitives.push_back(PRIMITIVE{
+                            .material_index = material_index,
+                        });
+                    }
+
+                    
+                    // push AABB primitives
                     u64 current_primitive_size = (current_aabb_host_count + instance.primitive_count) * sizeof(AABB);
 
                     if(current_primitive_size > max_aabb_host_buffer_size) {
@@ -626,27 +674,6 @@ namespace tests
                         instance.primitive_count * sizeof(AABB));
                     current_primitive_count += instance.primitive_count;
                     current_aabb_host_count += instance.primitive_count;
-
-
-
-                    // push primitives
-                    for(u32 j = 0; j < instance.primitive_count; j++) {
-
-                        daxa_u32 material_index = (i < instance_count - CLOUD_INSTANCE_COUNT_X) ? random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1) : random_uint(current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT, current_material_count - 1);
-                        if(material_index >= MATERIAL_COUNT_UP_TO_DIALECTRIC && material_index < MATERIAL_COUNT_UP_TO_EMISSIVE) {
-                            LIGHT surface_light = {};
-                            // surface_light.position = daxa_f32vec3(random_float(-1.0, 1.0), random_float(-1.0, 1.0), random_float(-1.0, 1.0));
-                            surface_light.emissive = materials[material_index].emission;
-                            surface_light.instance_info = INSTANCE_HIT(i, j);
-                            surface_light.type = GEOMETRY_LIGHT_CUBE;
-                            lights.push_back(surface_light);
-                            status.light_count++;
-                        }
-
-                        primitives.push_back(PRIMITIVE{
-                            .material_index = material_index,
-                        });
-                    }
 
                     instances.push_back(instance);
                 }

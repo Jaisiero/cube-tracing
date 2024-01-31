@@ -269,6 +269,19 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         // TODO: pass this as a parameter
         daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
+
+#if KNOW_LIGHT_POSITION == 1
+        vis = is_hit_from_origin_with_geometry_center(P, l.position,
+            half_extent, distance, 
+            l_pos, l_nor, false);
+
+        // TODO: config voxel extent by parameter
+        daxa_f32 voxel_extent = VOXEL_EXTENT;
+        daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
+        l_pos = l_pos + random_quad(l_nor, size, hit.seed);
+        
+        distance = length(P - l_pos) - length(half_extent);
+#else
         vis = is_hit_from_origin(P, l.instance_info,
             half_extent, distance, 
             l_pos, l_nor, 
@@ -284,6 +297,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         l_nor = (transpose(inv_model) * vec4(l_nor, 0)).xyz;
         // l_pos += l_nor * voxel_extent;
         distance = length(P - l_pos) - length(half_extent);
+#endif // 0        
 
         if(calc_pdf) {
             daxa_f32 area = size.x * size.y * 6.0;

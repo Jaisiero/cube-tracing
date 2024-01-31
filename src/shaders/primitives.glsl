@@ -203,6 +203,25 @@ daxa_b32 is_hit_from_origin(daxa_f32vec3 origin_world_space, INSTANCE_HIT instan
     return hit;
 }
 
+daxa_b32 is_hit_from_origin_with_geometry_center(daxa_f32vec3 origin_world_space, daxa_f32vec3 aabb_center,
+                                                 daxa_f32vec3 half_extent,
+                                                 out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
+                                                 const in daxa_b32 oriented)
+{
+
+    Ray ray_world_space;
+    ray_world_space.origin = origin_world_space;
+    // Ray needs to travel from origin to center of aabb
+    ray_world_space.direction = normalize(aabb_center - ray_world_space.origin);
+
+    Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(1.0));
+
+    daxa_b32 hit = intersect_box(box, ray_world_space, t_hit, nor, false, oriented, safeInverse(ray_world_space.direction));
+    pos = ray_world_space.origin + ray_world_space.direction * t_hit;
+
+    return hit;
+}
+
 
 void cube_like_normal(inout daxa_f32vec3 world_nrm) {
     {
