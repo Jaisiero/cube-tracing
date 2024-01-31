@@ -330,11 +330,8 @@ daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL
     sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility);
 
     daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wi, wo);
-    // daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
-    daxa_f32 cos_theta = 1.0;
-    // daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
-
-    daxa_f32 G = 1.0;
+    daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
+    daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
 
     daxa_f32vec3 result = vec3(0.0);
     
