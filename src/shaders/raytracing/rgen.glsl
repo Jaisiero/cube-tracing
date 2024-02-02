@@ -184,6 +184,7 @@ void main()
 
         daxa_f32 confidence = 1.0;
 
+#if RESERVOIR_ON == 1
 #if (RESERVOIR_TEMPORAL_ON == 1)
         // Reservoir from previous frame
         RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
@@ -213,9 +214,9 @@ void main()
             di_info.seed = hit.seed;
 
             set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
-
-            set_di_seed_from_current_frame(screen_pos, di_info.seed);
         }
+#endif // RESERVOIR_ON
+        set_di_seed_from_current_frame(screen_pos, di_info.seed);
     }
 
     // Store the DI info
@@ -376,7 +377,10 @@ void main()
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
     
+    // TODO: check if we can reduce it to 1 or 2
     daxa_u32 max_depth = deref(p.status_buffer).max_depth;
+    // daxa_u32 max_depth = 1;
+
 
     // Ray setup
     Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
@@ -399,13 +403,14 @@ void main()
 #endif // RESERVOIR_ON
 
     daxa_b32 is_hit = di_info.distance > 0.0;
-    // #if SER == 1
-    //     reorderThreadNV(daxa_u32(hit_value), 1);
-    // #endif // SER
+// #if SER == 1
+//     reorderThreadNV(daxa_u32(hit_value), 1);
+// #endif // SER
     if (is_hit)
     {
-        daxa_f32vec3 hit_value = vec3(1.0);
+        daxa_f32vec3 hit_value = vec3(0.0);
         prd.hit_value = vec3(1.0);
+        daxa_f32vec3 throughput = vec3(1.0);
 
 #if(DEBUG_NORMALS_ON == 1)
         hit_value = di_info.normal * 0.5 + 0.5;
@@ -442,7 +447,7 @@ void main()
         i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
       
         // Add the radiance to the hit value (reservoir radiance)
-        hit_value *= radiance * reservoir.W_y;
+        hit_value += radiance * reservoir.W_y;
 #else // RESERVOIR_ON
         daxa_u32 light_index = min(urnd_interval(hit.seed, 0, light_count), light_count - 1);
         // Get light
@@ -459,7 +464,7 @@ void main()
         i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
 #endif // MIS_ON
         // Add the radiance to the hit value
-        hit_value *= radiance;
+        hit_value += radiance;
 #endif // RESERVOIR_ON
 
 
@@ -467,7 +472,7 @@ void main()
         
 
 #if INDIRECT_ILLUMINATION_ON == 1        
-        indirect_illumination(i, di_info.seed, max_depth, light_count, object_count, hit_value);
+        indirect_illumination(i, di_info.seed, max_depth, light_count, object_count, throughput);
 #endif // INDIRECT_ILLUMINATION_ON
 
 
@@ -499,14 +504,13 @@ void main()
 #endif
         imageStore(daxa_image2D(p.swapchain), index, final_pixel);
 
-    }
-
 #if RESERVOIR_ON == 1
-    // Store the reservoir
-    set_reservoir_from_previous_frame_by_index(screen_pos, reservoir);
+        // Store the reservoir
+        set_reservoir_from_previous_frame_by_index(screen_pos, reservoir);
 #endif // RESERVOIR_ON    
 
-    set_di_from_previous_frame(screen_pos, di_info);
+        set_di_from_previous_frame(screen_pos, di_info);
+    }
 }
 
 #else

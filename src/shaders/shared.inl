@@ -42,6 +42,11 @@
 
 #define PERLIN_FACTOR 500
 
+#define SCREEN_SIZE_X 3840
+#define SCREEN_SIZE_Y 2160
+
+#define MAX_RESERVOIRS SCREEN_SIZE_X * SCREEN_SIZE_Y
+
 struct AABB
 {
   daxa_f32vec3 minimum;
@@ -273,6 +278,9 @@ struct RESTIR {
     daxa_u64 previous_di_address;
     daxa_u64 di_address;
     daxa_u64 velocity_address;
+    daxa_u64 pixel_reconnection_data_address;
+    daxa_u64 output_path_reservoir_address;
+    daxa_u64 temporal_path_reservoir_address;
 };
 DAXA_DECL_BUFFER_PTR(RESTIR)
 
@@ -286,39 +294,134 @@ struct RESERVOIR
 };
 
 
-// #if BPR// path reuse
-// static const int k_rc_attr_count = 2;
-// #else
-// static const int k_rc_attr_count = 1;
-// #endif
 
-// // credits: 
-// // 88/128 B
-// struct PATH_RESERVOIR
+
+// credits: Generalized Resampled Importance Sampling: Foundations of ReSTIR - Daqi 2022
+struct RECONNECTION_DATA
+{
+    INSTANCE_HIT instance_hit;
+    daxa_f32vec3 rc_prev_wo;
+    daxa_f32vec3 path_throughput;
+};
+
+#define RCDATA_PAD_SIZE 2U
+#define MAX_RESTIR_PT_NEIGHBOR_COUNT 3U
+#define RCDATA_PATH_NUM MAX_RESTIR_PT_NEIGHBOR_COUNT * 2U // 2 for each depth cause we need to evaluate that the reconnection is bijective
+
+
+struct PIXEL_RECONNECTION_DATA 
+{
+    RECONNECTION_DATA data[RCDATA_PATH_NUM];
+};
+
+
+#if BPR// path reuse
+const int K_RC_ATTR_COUNT = 2;
+#else
+const int K_RC_ATTR_COUNT = 1;
+#endif
+
+
+// TODO: not sure if this is needed
+// struct PATH_REUSE_MIS_WEIGHT
 // {
-//     daxa_f32 M = 0.f; // this is a float, because temporal history length is allowed to be a fraction. 
-//     daxa_f32 weight = 0.f; // during RIS and when used as a "RisState", this is w_sum; during RIS when used as an incoming reseroivr or after RIS, this is 1/p(y) * 1/M * w_sum
-//     ReSTIRPathFlags path_flags; // this is a path type indicator, see the struct definition for details
-//     daxa_u32 rc_random_seed; // saved random seed after rcVertex (due to the need of blending half-vector reuse and random number replay)
-//     daxa_f32vec3 F = 0.f; // cached integrand (always updated after a new path is chosen in RIS)
-//     daxa_f32 light_pdf; // NEE light pdf (might change after shift if transmission is included since light sampling considers "upperHemisphere" of the previous bounce)?
-//     daxa_f32vec3 cached_jacobian; // saved previous vertex scatter PDF, scatter PDF, and geometry term at rcVertex (used when rcVertex is not v2)
-//     daxa_u32 init_random_seed; // saved random seed at the first bounce (for recovering the random distance threshold for hybrid shift)
-//     INSTANCE_HIT rc_vertex_hit; // hitinfo of the reconnection vertex
-//     daxa_f32vec3 rc_vertex_wi[k_rc_attr_count]; // incident direction on reconnection vertex
-//     daxa_f32vec3 rc_vertex_irradiance[k_rc_attr_count]; // sampled irradiance on reconnection vertex
-
-// #if BPR
-//     daxa_f32 rcLightPdf; 
-//     daxa_f32vec3 rcVertexBSDFLightSamplingIrradiance;
-// #endif
+//     float rc_BSDF_MIS_weight;
+//     float rc_NEE_MIS_weight;
 // };
 
-#define SCREEN_SIZE_X 3840
-#define SCREEN_SIZE_Y 2160
+// 88/128 B
+struct PATH_RESERVOIR
+{
+    daxa_f32 M; // this is a float, because temporal history length is allowed to be a fraction. 
+    daxa_f32 weight; // during RIS and when used as a "RisState", this is w_sum; during RIS when used as an incoming reseroivr or after RIS, this is 1/p(y) * 1/M * w_sum
+    daxa_i32 path_flags; // this is a path type indicator, see the struct definition for details
+    daxa_u32 rc_random_seed; // saved random seed after rcVertex (due to the need of blending half-vector reuse and random number replay)
+    daxa_f32vec3 F; // cached integrand (always updated after a new path is chosen in RIS)
+    daxa_f32 light_pdf; // NEE light pdf (might change after shift if transmission is included since light sampling considers "upperHemisphere" of the previous bounce)?
+    daxa_f32vec3 cached_jacobian; // saved previous vertex scatter PDF, scatter PDF, and geometry term at rcVertex (used when rcVertex is not v2)
+    daxa_u32 init_random_seed; // saved random seed at the first bounce (for recovering the random distance threshold for hybrid shift)
+    INSTANCE_HIT rc_vertex_hit; // hitinfo of the reconnection vertex
+    daxa_f32vec3 rc_vertex_wi[K_RC_ATTR_COUNT]; // incident direction on reconnection vertex
+    daxa_f32vec3 rc_vertex_irradiance[K_RC_ATTR_COUNT]; // sampled irradiance on reconnection vertex
 
-#define MAX_RESERVOIRS SCREEN_SIZE_X * SCREEN_SIZE_Y
+#if BPR
+    daxa_f32 rc_light_pdf; 
+    daxa_f32vec3 rc_vertex_BSDF_light_sampling_irradiance;
+#endif
+};
 
+/// Builds a Path and a PathPrefix.
+struct PATH_BUILDER
+{
+    INSTANCE_HIT rc_vertex_hit;
+    daxa_f32vec3 rc_vertex_wi[K_RC_ATTR_COUNT];
+    daxa_u32 cached_random_seed;
+    // TinyUniformSampleGenerator sg;
+    daxa_u32 rc_vertex_length;
+    daxa_u32 path_flags; // this is a path type indicator, see the struct definition for details
+    daxa_f32vec3 cached_jacobian;
+};
+
+/** Live state for the path tracer.
+ */
+struct PATH_STATE
+{
+    daxa_u32 id; ///< Path ID encodes (pixel, sampleIdx) with 12 bits each for pixel x|y and 8 bits for sample index.
+
+    // daxa_u16
+    daxa_u32
+        flags; ///< Flags indicating the current status. This can be multiple PathFlags flags OR'ed together.
+    // daxa_u16
+    daxa_u32
+        length; ///< Path length (0 at origin, 1 at first secondary hit, etc.).
+    // daxa_u16
+    daxa_u32
+        rejected_hits; ///< Number of false intersections rejected along the path. This is used as a safeguard to avoid deadlock in pathological cases.
+    // daxa_f16
+    daxa_f32
+        scene_length;         ///< Path length in scene units (0.f at primary hit).
+    daxa_u32 bounce_counters; ///< Packed counters for different types of bounces (see BounceType).
+
+    // Scatter ray
+    daxa_f32vec3 origin; ///< Origin of the scatter ray.
+    daxa_f32vec3 dir;    ///< Scatter ray normalized direction.
+    daxa_f32vec3 pdf;    ///< Pdf for generating the scatter ray.
+    daxa_f32vec3 normal; ///< Shading normal at the scatter ray origin.
+    INSTANCE_HIT hit;    ///< Hit information for the scatter ray. This is populated at committed triangle hits.
+
+    daxa_f32vec3 thp;       ///< Path throughput.
+    daxa_f32vec3 prefix_thp; /// daqi: used for computing rcVertexIrradiance[1]
+
+    // daxa_f32vec3 rc_vertex_path_tree_irradiance; // TODO: for volume rendering
+
+    daxa_f32vec3 L;            ///< Accumulated path contribution.
+    // daxa_f32vec3 L_delta_direct; // daqi: save the direct lighting on delta surfaces
+
+    // daxa_f32      russianRoulettePdf = 1.f;
+    daxa_f32vec3 shared_scatter_dir;
+    daxa_f32 prev_scatter_pdf;
+
+    INSTANCE_HIT rc_prev_vertex_hit; // daqi: save the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
+    daxa_f32vec3 rc_prev_vertex_wo;  // daqi: save the outgoing direction at the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
+
+    daxa_f32 hit_dist; // for NRD
+
+    // InteriorList interiorList;      ///< Interior list. Keeping track of a stack of materials with medium properties.
+    // SampleGenerator sg;             ///< Sample generator state. Typically 4-16B.
+
+    PATH_BUILDER path_builder; ///< Importance samples the path from the path tree.
+    PATH_RESERVOIR path_reservoir;
+
+    // TODO: pack those as flags
+    daxa_b32 enable_random_replay;    // daqi: indicate the pathtracer is doing random number replay (being called from resampling stage)
+    daxa_b32 random_replay_is_NEE;     // daqi: indicate the base path is a NEE path, therefore the random replay should also terminates as a NEE path
+    daxa_b32 random_replay_is_escaped; // daqi: indicate the base path is a escaped path, therefore the random replay should also terminates as a escaped path
+    daxa_u32 random_replay_length;    // daqi: the length of the random replay (same as the path length of the base path)
+    daxa_b32 use_hybrid_shift;
+    // this is used for hybrid shift or hybrid shift is being MIS'ed with (at both initial candidate generation and resampling)
+    daxa_b32 is_replay_for_hybrid_shift;        // daqi: indicate that a random number replay is done with the hybrid shift in mind (invalidated if invertibility is violated)
+    daxa_b32 is_last_vertex_classified_as_rough; // daqi: remembers if last vertex is classified as a diffuse vertex (used for specularskip in hybrid shift)
+};
 
 struct VELOCITY
 {

@@ -29,7 +29,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define RESERVOIR_TEMPORAL_ON 1
 #define RESERVOIR_SPATIAL_ON 1
 
-#define INDIRECT_ILLUMINATION_ON 0
+#define INDIRECT_ILLUMINATION_ON 1
 #define MIS_ON 1
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
@@ -61,3 +61,8 @@ layout(buffer_reference, scalar) buffer RESERVOIR_BUFFER {RESERVOIR reservoirs[M
 layout(buffer_reference, scalar) buffer VELOCITY_BUFFER {VELOCITY velocities[MAX_RESERVOIRS]; }; // Velocities
 layout(buffer_reference, scalar) buffer PREV_DI_BUFFER {DIRECT_ILLUMINATION_INFO di_info[MAX_RESERVOIRS]; }; // Direct illumination info
 layout(buffer_reference, scalar) buffer DI_BUFFER {DIRECT_ILLUMINATION_INFO di_info[MAX_RESERVOIRS]; }; // Direct illumination info
+
+
+layout(buffer_reference, scalar) buffer PIXEL_RECONNECTION_DATA_BUFFER {PIXEL_RECONNECTION_DATA reconnections[MAX_RESERVOIRS]; }; // Pixel reconnection data
+layout(buffer_reference, scalar) buffer OUTPUT_PATH_RESERVOIR_BUFFER {PATH_RESERVOIR path_reservoirs[MAX_RESERVOIRS]; }; // Path reservoirs
+layout(buffer_reference, scalar) buffer TEMPORAL_PATH_RESERVOIR_BUFFER {PATH_RESERVOIR path_reservoirs[MAX_RESERVOIRS]; }; // Path reservoirs

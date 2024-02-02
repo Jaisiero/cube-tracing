@@ -7,7 +7,7 @@
 #include "light.glsl"
 #extension GL_EXT_ray_query : enable
 
-void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 hit_value) {
+void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
     // prd.throughput = vec3(1.0);
     prd.seed = seed;
     prd.depth = max_depth;
@@ -53,6 +53,7 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
 
             prd.hit_value *= radiance;
             prd.hit_value += i.mat.emission;
+            prd.done = false;
         }
         else
         {
@@ -86,7 +87,7 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
         ray_direction = prd.ray_scatter_dir;
         prd.done = true; // Will stop if a reflective material isn't hit
     }
-    hit_value *= prd.hit_value;
+    throughput *= prd.hit_value;
 
 }
 

@@ -118,6 +118,13 @@ namespace tests
             daxa::BufferId direct_illum_buffer = {};
             size_t max_direct_illum_buffer_size = sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS;
 
+            daxa::BufferId pixel_reconnection_data_buffer = {};
+            size_t max_pixel_reconnection_data_buffer_size = sizeof(PIXEL_RECONNECTION_DATA) * MAX_RESERVOIRS;
+
+            daxa::BufferId output_path_reservoir_buffer = {};
+            daxa::BufferId temporal_path_reservoir_buffer = {};
+            size_t max_output_path_reservoir_buffer_size = sizeof(PATH_RESERVOIR) * MAX_RESERVOIRS;
+
             // DEBUGGING
             // daxa::BufferId hit_distance_buffer = {};
             // size_t max_hit_distance_buffer_size = sizeof(HIT_DISTANCE) * WIDTH_RES * HEIGHT_RES;
@@ -170,6 +177,9 @@ namespace tests
                     device.destroy_buffer(velocity_buffer);
                     device.destroy_buffer(previous_direct_illum_buffer);
                     device.destroy_buffer(direct_illum_buffer);
+                    device.destroy_buffer(pixel_reconnection_data_buffer);
+                    device.destroy_buffer(output_path_reservoir_buffer);
+                    device.destroy_buffer(temporal_path_reservoir_buffer);
                     device.destroy_buffer(restir_buffer);
                     device.destroy_buffer(world_buffer);
                     device.destroy_buffer(proc_blas_scratch_buffer);
@@ -376,7 +386,8 @@ namespace tests
 
             void load_reservoirs() {
 
-                const daxa_u32 reservoir_buffer_size = static_cast<u32>(std::max(std::max(sizeof(RESERVOIR), sizeof(DIRECT_ILLUMINATION_INFO)), sizeof(VELOCITY)) * MAX_RESERVOIRS);
+                const daxa_u32 reservoir_buffer_size = 
+                    static_cast<u32>(std::max(std::max(std::max(std::max(sizeof(RESERVOIR), sizeof(DIRECT_ILLUMINATION_INFO)), sizeof(VELOCITY)), sizeof(PIXEL_RECONNECTION_DATA)), sizeof(PATH_RESERVOIR)) * MAX_RESERVOIRS);
 
                 auto reservoir_staging_buffer = device.create_buffer({
                     .size = reservoir_buffer_size,
@@ -394,6 +405,10 @@ namespace tests
                 const daxa_u32 velocity_buffer_size = static_cast<u32>(sizeof(VELOCITY) * MAX_RESERVOIRS);
 
                 const daxa_u32 direct_illum_buffer_size = static_cast<u32>(sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS);
+
+                const daxa_u32 pixel_reconnection_data_buffer_size = static_cast<u32>(sizeof(PIXEL_RECONNECTION_DATA) * MAX_RESERVOIRS);
+
+                const daxa_u32 path_reservoir_buffer_size = static_cast<u32>(sizeof(PATH_RESERVOIR) * MAX_RESERVOIRS);
 
                 /// Record build commands:
                 auto exec_cmds = [&]()
@@ -428,6 +443,24 @@ namespace tests
                         .src_buffer = reservoir_staging_buffer,
                         .dst_buffer = previous_direct_illum_buffer,
                         .size = direct_illum_buffer_size,
+                    });
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = reservoir_staging_buffer,
+                        .dst_buffer = pixel_reconnection_data_buffer,
+                        .size = pixel_reconnection_data_buffer_size,
+                    });
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = reservoir_staging_buffer,
+                        .dst_buffer = output_path_reservoir_buffer,
+                        .size = path_reservoir_buffer_size,
+                    });
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = reservoir_staging_buffer,
+                        .dst_buffer = temporal_path_reservoir_buffer,
+                        .size = path_reservoir_buffer_size,
                     });
 
                     return recorder.complete_current_commands();
@@ -978,6 +1011,9 @@ namespace tests
                 restir.previous_di_address = device.get_device_address(previous_direct_illum_buffer).value();
                 restir.di_address = device.get_device_address(direct_illum_buffer).value();
                 restir.velocity_address = device.get_device_address(velocity_buffer).value();
+                restir.pixel_reconnection_data_address = device.get_device_address(pixel_reconnection_data_buffer).value();
+                restir.output_path_reservoir_address = device.get_device_address(output_path_reservoir_buffer).value();
+                restir.temporal_path_reservoir_address = device.get_device_address(temporal_path_reservoir_buffer).value();
 
                 // copy restir to buffer
                 std::memcpy(restir_buffer_ptr,
@@ -1365,6 +1401,21 @@ namespace tests
                 direct_illum_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_direct_illum_buffer_size,
                     .name = ("direct_illum_buffer"),
+                });
+
+                pixel_reconnection_data_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_pixel_reconnection_data_buffer_size,
+                    .name = ("pixel_reconnection_data_buffer"),
+                });
+
+                output_path_reservoir_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_output_path_reservoir_buffer_size,
+                    .name = ("output_path_reservoir_buffer"),
+                });
+
+                temporal_path_reservoir_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_output_path_reservoir_buffer_size,
+                    .name = ("temporal_path_reservoir_buffer"),
                 });
 
                 proc_blas_scratch_buffer = device.create_buffer({
