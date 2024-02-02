@@ -29,6 +29,11 @@ daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(INSTANCE_HIT
     return primitive_index + instance_hit.primitive_id;
 }
 
+INSTANCE get_instance_from_instance_id(daxa_u32 instance_id) {
+    INSTANCES_BUFFER instance_buffer = INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
+    return instance_buffer.instances[instance_id];
+}
+
 AABB get_aabb_from_primitive_index(daxa_u32 primitive_index) {
     AABB_BUFFER aabb_buffer = AABB_BUFFER(deref(p.world_buffer).aabb_address);
     return aabb_buffer.aabbs[primitive_index];
@@ -149,13 +154,15 @@ daxa_b32 is_hit_from_ray(Ray ray, INSTANCE_HIT instance_hit, daxa_f32vec3 half_e
                          out daxa_f32mat4x4 model, out daxa_f32mat4x4 inv_model,
                          const in daxa_b32 ray_can_start_in_box, const in daxa_b32 oriented)
 {
-    daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
+    INSTANCE instance = get_instance_from_instance_id(instance_hit.instance_id);
+
+    daxa_u32 current_primitive_index = instance.first_primitive_index + instance_hit.primitive_id;
 
     // Get aabb from primitive
     AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
 
     // Get model matrix from instance
-    model = get_geometry_transform_from_instance_id(instance_hit.instance_id);
+    model = instance.transform;
 
     inv_model = inverse(model);
 

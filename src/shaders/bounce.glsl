@@ -29,8 +29,8 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     daxa_u32 material_idx = 0;
     MATERIAL intersected_mat;
 
-
-#if SER == 1
+// #if SER == 1
+#if 0
 
     hitObjectNV hit_object;
     // Initialize to an empty hit object
@@ -71,10 +71,7 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
         int_hit = (int_hit_4 / int_hit_4.w).xyz;
         int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
         int_hit += int_nor * DELTA_RAY;
-    }
-
-    if (distance > 0.0)
-    {
+        
         is_hit = true;
 
         daxa_u32 actual_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
@@ -82,11 +79,6 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
         material_idx = get_material_index_from_primitive_index(actual_primitive_index);
 
         intersected_mat = get_material_from_material_index(material_idx);
-
-        daxa_u32 mat_type = intersected_mat.type & MATERIAL_TYPE_MASK;
-        // reorderThreadNV(mat_type, 2);
-        // reorderThreadNV(hit_object, mat_type, 2);
-        // reorderThreadNV(hit_object);
     }
 #else            
     rayQueryEXT ray_query;
@@ -126,6 +118,7 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
                     daxa_f32vec4 int_hit_4 = model * vec4(int_hit, 1);
                     int_hit = int_hit_4.xyz / int_hit_4.w;
                     int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
+                    int_hit += int_nor * DELTA_RAY;
                     break;
                 }
             }

@@ -486,8 +486,15 @@ namespace tests
 #if DYNAMIC_SUN_LIGHT == 1
                 light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2);
 #else
+#if SUN_MIDDAY == 1
                 light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY, SUN_MAX_INTENSITY, SUN_MAX_INTENSITY);
                 status.time = 1.0;
+                status.is_afternoon = true;
+#else
+                light.emissive = daxa_f32vec3(0.0, 0.0, 0.0);
+                status.time = 0.0;
+                status.is_afternoon = false;
+#endif
 
 #endif // DYNAMIC_SUN_LIGHT
                 light.type = GEOMETRY_LIGHT_POINT;

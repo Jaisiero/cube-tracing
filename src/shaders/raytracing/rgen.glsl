@@ -69,9 +69,13 @@ void main()
     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
 
 
+    daxa_b32 is_hit = false;
+
+
 #if SER == 1
     daxa_f32mat4x4 model;
     daxa_f32mat4x4 inv_model;
+    daxa_f32 distance = -1.0;
 
     hitObjectNV hit_object;
     // Initialize to an empty hit object
@@ -142,7 +146,7 @@ void main()
 
     DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_hit, prd.mat_index, 1.0);
 
-    daxa_b32 is_hit = di_info.distance > 0.0;
+    is_hit = di_info.distance > 0.0;
 
     if(is_hit == false) {
         imageStore(daxa_image2D(p.swapchain), index, vec4(prd.hit_value, 1.0));
@@ -410,7 +414,7 @@ void main()
     {
         daxa_f32vec3 hit_value = vec3(0.0);
         prd.hit_value = vec3(1.0);
-        daxa_f32vec3 throughput = vec3(1.0);
+        daxa_f32vec3 throughput = vec3(0.0);
 
 #if(DEBUG_NORMALS_ON == 1)
         hit_value = di_info.normal * 0.5 + 0.5;
@@ -473,6 +477,7 @@ void main()
 
 #if INDIRECT_ILLUMINATION_ON == 1        
         indirect_illumination(i, di_info.seed, max_depth, light_count, object_count, throughput);
+        hit_value += throughput;
 #endif // INDIRECT_ILLUMINATION_ON
 
 

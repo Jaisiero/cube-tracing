@@ -16,19 +16,10 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
     prd.world_nrm = i.world_nrm;
     prd.ray_scatter_dir = i.scatter_dir;
     prd.instance_hit = i.instance_hit;
-
-    daxa_f32vec3 ray_origin = i.world_hit;
-    daxa_f32vec3 ray_direction = i.scatter_dir;
-
-    daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
-    daxa_f32 t_min = DELTA_RAY;
-    daxa_f32 t_max = MAX_DISTANCE - DELTA_RAY;
-    daxa_u32 cull_mask = 0xFF;
+    // prd.done = true;
 
     for (;;)
     {
-
-#if SER == 1
 
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(
             i.world_hit,
@@ -39,9 +30,9 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
             i.material_idx,
             seed,
             max_depth);
+        Ray ray = Ray(i.world_hit, i.scatter_dir);
 
         if(i.is_hit) {
-            Ray ray = Ray(ray_origin, ray_direction);
             
             daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
@@ -61,33 +52,16 @@ void indirect_illumination(INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_
             prd.hit_value *= calculate_sky_color(
                 deref(p.status_buffer).time,
                 deref(p.status_buffer).is_afternoon,
-                ray_direction);
+                ray.direction);
         }
-
-#else
-        traceRayEXT(daxa_accelerationStructureEXT(p.tlas),
-                    ray_flags,     // rayFlags
-                    cull_mask,     // cullMask
-                    1,             // sbtRecordOffset
-                    0,             // sbtRecordStride
-                    0,             // missIndex
-                    ray_origin,    // ray origin
-                    t_min,         // ray min range
-                    ray_direction, // ray direction
-                    t_max,         // ray max range
-                    0              // payload (location = 0)
-        );
-#endif // SER
 
         prd.depth--;
         if (prd.done == true || prd.depth == 0)
             break;
-
-        ray_origin = prd.world_hit;
-        ray_direction = prd.ray_scatter_dir;
+            
         prd.done = true; // Will stop if a reflective material isn't hit
     }
-    throughput *= prd.hit_value;
+    throughput += prd.hit_value;
 
 }
 
