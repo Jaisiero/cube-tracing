@@ -149,6 +149,34 @@ daxa_b32 intersect_box(Box box, Ray ray, out daxa_f32 distance, out daxa_f32vec3
     return (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
 }
 
+
+
+daxa_b32 is_hit_from_ray_providing_model(Ray ray, INSTANCE_HIT instance_hit, daxa_f32vec3 half_extent,
+                         out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
+                         daxa_f32mat4x4 model, daxa_f32mat4x4 inv_model,
+                         const in daxa_b32 ray_can_start_in_box, const in daxa_b32 oriented)
+{
+    INSTANCE instance = get_instance_from_instance_id(instance_hit.instance_id);
+
+    daxa_u32 current_primitive_index = instance.first_primitive_index + instance_hit.primitive_id;
+
+    // Get aabb from primitive
+    AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
+
+    Ray ray_object_space;
+    ray_object_space.origin = (inv_model * vec4(ray.origin, 1)).xyz;
+    ray_object_space.direction = (inv_model * vec4(ray.direction, 0)).xyz;
+    
+    daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
+
+    Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
+
+    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray_object_space.direction));
+    pos = ray_object_space.origin + ray_object_space.direction * t_hit;
+
+    return hit;
+}
+
 daxa_b32 is_hit_from_ray(Ray ray, INSTANCE_HIT instance_hit, daxa_f32vec3 half_extent,
                          out daxa_f32 t_hit, out daxa_f32vec3 pos, out daxa_f32vec3 nor,
                          out daxa_f32mat4x4 model, out daxa_f32mat4x4 inv_model,

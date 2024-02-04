@@ -271,42 +271,6 @@ RESERVOIR FIRST_GATHER(daxa_u32 light_count, daxa_u32 object_count, daxa_u32 scr
 
   RESERVOIR reservoir = RIS(light_count, object_count, confidence_index, ray, hit, mat, pdf, p_hat, i);
 
-#if INDIRECT_ILLUMINATION_ON == 1
-    call_scatter.hit = hit.world_hit;
-    call_scatter.nrm = hit.world_nrm;
-    call_scatter.ray_dir = ray.direction;
-    call_scatter.seed = hit.seed;
-    call_scatter.scatter_dir = vec3(0.0);
-    call_scatter.done = false;
-    call_scatter.mat_idx = hit.mat_idx;
-    call_scatter.instance_hit = hit.instance_hit;
-
-
-    daxa_u32 mat_type = hit.mat_idx & MATERIAL_TYPE_MASK;
-
-    switch (mat_type)
-    {
-    case MATERIAL_TYPE_METAL:
-        executeCallableEXT(3, 4);
-        break;
-    case MATERIAL_TYPE_DIELECTRIC:
-        executeCallableEXT(4, 4);
-        break;
-    case MATERIAL_TYPE_CONSTANT_MEDIUM:
-        executeCallableEXT(5, 4);
-        break;
-    case MATERIAL_TYPE_LAMBERTIAN:
-    default:
-        executeCallableEXT(2, 4);
-        break;
-    }
-    hit.seed = call_scatter.seed;
-    hit.world_hit = call_scatter.hit;
-    hit.world_nrm = call_scatter.nrm;
-    hit.scatter_dir = call_scatter.scatter_dir;
-#endif // INDIRECT_ILLUMINATION_ON
-
-
   return reservoir;
 }
 

@@ -115,6 +115,7 @@ void main()
 
         prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, distance, prd.world_hit, prd.world_nrm, model, inv_model, true, false) ? distance : -1.0;
 
+
         daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
         prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
         prd.world_nrm = (transpose(inv_model) * vec4(prd.world_nrm, 0)).xyz;
