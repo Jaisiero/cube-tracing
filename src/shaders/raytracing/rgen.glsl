@@ -476,7 +476,7 @@ void main()
         
 
 #if INDIRECT_ILLUMINATION_ON == 1        
-        indirect_illumination(i, di_info.seed, max_depth, light_count, object_count, throughput);
+        indirect_illumination(index, rt_size, i, di_info.seed, max_depth, light_count, object_count, throughput);
         hit_value += throughput;
 #endif // INDIRECT_ILLUMINATION_ON
 
@@ -490,14 +490,14 @@ void main()
 
         daxa_f32vec4 final_pixel;
 #if (ACCUMULATOR_ON == 1 && RESERVOIR_ON == 0)
-        daxa_u32 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
+        daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {
             vec4 previous_frame_pixel = imageLoad(daxa_image2D(p.swapchain), index);
 
             vec4 current_frame_pixel = vec4(hit_value, 1.0f);
 
-            daxa_f32 weight = 1.0f / (num_accumulated_frames + 1.0f);
+            daxa_f32 weight = daxa_f32(1.0f / (double(num_accumulated_frames) + 1.0f));
             final_pixel = mix(previous_frame_pixel, current_frame_pixel, weight);
         }
         else

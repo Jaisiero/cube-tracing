@@ -364,7 +364,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
     daxa_f32vec3 Le, l_pos, l_nor;
     daxa_f32 l_pdf, m_pdf;
 
-    pdf_out = 0.0;
+    pdf_out = 1.0;
 
     l_pdf = 1.0 / daxa_f32(light_count);
     m_pdf = 1.0;
@@ -386,7 +386,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         } else {
             result += brdf * mis_weight * G * cos_theta * Le;
         }
-        pdf_out += l_pdf;
+        pdf_out *= l_pdf;
     }
 
     daxa_f32vec3 m_wi = vec3(0.0);
@@ -415,7 +415,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
                 {
                     result += brdf * cos_theta * mis_weight * Le;
                 }
-                pdf_out += m_pdf_2;
+                pdf_out *= m_pdf_2;
             }
         }
     }

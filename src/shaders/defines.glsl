@@ -49,6 +49,26 @@ const daxa_u32 MAX_NUM_OF_NEIGHBORS = 8;
 const daxa_f32 MIN_NEIGHBORS_RADIUS = 5.0f;
 const daxa_f32 MAX_NEIGHBORS_RADIUS = 10.0f;
 
+
+
+
+// PATH FLAGS
+const daxa_u32 PATH_FLAG_ACTIVE = 0x1;
+const daxa_u32 PATH_FLAG_TERMINATED = 0x2;
+const daxa_u32 PATH_FLAG_TRANSMISSION = 0x4;
+const daxa_u32 PATH_FLAG_SPECULAR = 0x8;
+// const daxa_u32 PATH_FLAG_DELTA = 0x10;
+// const daxa_u32 PATH_FLAG_VOLUME = 0x20;
+// const daxa_u32 PATH_FLAG_INSIDE_DIELECTRIC_VOLUME = 0x40;
+// const daxa_u32 PATH_FLAG_LIGHT_SAMPLED_UPPER = 0x80;
+// const daxa_u32 PATH_FLAG_LIGHT_SAMPLED_LOWER = 0x100;
+const daxa_u32 PATH_FLAG_DIFFUSE_PRIMARY_HIT = 0x200;
+const daxa_u32 PATH_FLAG_FREE_PATH = 0x400;
+const daxa_u32 PATH_FLAG_SPECULAR_BOUNCE = 0x800;
+const daxa_u32 PATH_FLAG_SPECULAR_PRIMARY_HIT = 0x1000;
+
+
+
 layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[MAX_INSTANCES]; }; // Positions of an object
 layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[MAX_PRIMITIVES]; }; // Primitive data
 layout(buffer_reference, scalar) buffer AABB_BUFFER {AABB aabbs[MAX_PRIMITIVES]; }; // Positions of a primitive
