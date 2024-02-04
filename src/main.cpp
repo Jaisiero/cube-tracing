@@ -2030,28 +2030,28 @@ namespace tests
                     .depth = 1,
                 });
 
-                recorder.pipeline_barrier({
-                    .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
-                    .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
-                });
+                // recorder.pipeline_barrier({
+                //     .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                //     .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
+                // });
 
-                recorder.push_constant(PushConstant{
-                    .size = {width, height},
-                    .tlas = tlas,
-                    .swapchain = swapchain_image_view,
-                    .camera_buffer = this->device.get_device_address(cam_buffer).value(),
-                    .status_buffer = this->device.get_device_address(status_buffer).value(),
-                    .world_buffer = this->device.get_device_address(world_buffer).value(),
-                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
-                    .restir_buffer = this->device.get_device_address(restir_buffer).value(),
-                });
+                // recorder.push_constant(PushConstant{
+                //     .size = {width, height},
+                //     .tlas = tlas,
+                //     .swapchain = swapchain_image_view,
+                //     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
+                //     .status_buffer = this->device.get_device_address(status_buffer).value(),
+                //     .world_buffer = this->device.get_device_address(world_buffer).value(),
+                //     // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
+                //     .restir_buffer = this->device.get_device_address(restir_buffer).value(),
+                // });
 
-                recorder.trace_rays({
-                    .width = width,
-                    .height = height,
-                    .depth = 1,
-                    .raygen_shader_binding_table_offset = 1,
-                });
+                // recorder.trace_rays({
+                //     .width = width,
+                //     .height = height,
+                //     .depth = 1,
+                //     .raygen_shader_binding_table_offset = 1,
+                // });
 
                 recorder.pipeline_barrier({
                     .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
