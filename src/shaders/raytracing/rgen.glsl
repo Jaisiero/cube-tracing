@@ -70,11 +70,11 @@ void main()
 
 
     daxa_b32 is_hit = false;
+    daxa_f32mat4x4 model;
+    daxa_f32mat4x4 inv_model;
 
 
 #if SER == 1
-    daxa_f32mat4x4 model;
-    daxa_f32mat4x4 inv_model;
     daxa_f32 distance = -1.0;
 
     hitObjectNV hit_object;
@@ -152,10 +152,12 @@ void main()
     if(is_hit == false) {
         imageStore(daxa_image2D(p.swapchain), index, vec4(prd.hit_value, 1.0));
     } else {
-        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_hit.instance_id);
+#if SER == 0        
+        model = get_geometry_transform_from_instance_id(di_info.instance_hit.instance_id);
+#endif // SER
 
         // Previous frame screen coord
-        daxa_f32vec2 motion_vector = get_motion_vector(index.xy, di_info.position, rt_size.xy, di_info.instance_hit.instance_id, instance_model);
+        daxa_f32vec2 motion_vector = get_motion_vector(index.xy, di_info.position, rt_size.xy, di_info.instance_hit.instance_id, model);
 
         VELOCITY velocity = VELOCITY(motion_vector);
         velocity_buffer_set_velocity(index, rt_size, velocity);
@@ -229,6 +231,7 @@ void main()
                                hit,
                                mat,
                                light_count);
+                di_info.seed = hit.seed;
             }
 
 #endif // RESERVOIR_TEMPORAL_ON
@@ -236,7 +239,6 @@ void main()
             set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
         }
 #endif // RESERVOIR_ON
-        set_di_seed_from_current_frame(screen_pos, di_info.seed);
     }
 
     // Store the DI info

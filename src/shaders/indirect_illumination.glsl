@@ -104,7 +104,11 @@ void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size,
         }
 
         prd.depth--;
-        if (prd.done == true || prd.depth == 0)
+        daxa_b32 done = prd.done || prd.depth == 0;
+// #if SER == 1
+//     reorderThreadNV(daxa_u32(done), 1);
+// #endif // SER
+        if (done)
             break;
             
         prd.done = true; // Will stop if a reflective material isn't hit
