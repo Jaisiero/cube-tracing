@@ -14,17 +14,13 @@ struct PATH_STATE
     daxa_u32 id; ///< Path ID encodes (pixel, sampleIdx) with 12 bits each for pixel x|y and 8 bits for sample index.
 
     // daxa_u16
-    daxa_u32
-        flags; ///< Flags indicating the current status. This can be multiple PathFlags flags OR'ed together.
+    daxa_u32 flags; ///< Flags indicating the current status. This can be multiple PathFlags flags OR'ed together.
     // daxa_u16
-    daxa_u32
-        length; ///< Path length (0 at origin, 1 at first secondary hit, etc.).
+    daxa_u32 path_length; ///< Path length (0 at origin, 1 at first secondary hit, etc.).
     // daxa_u16
-    daxa_u32
-        rejected_hits; ///< Number of false intersections rejected along the path. This is used as a safeguard to avoid deadlock in pathological cases.
+    daxa_u32 rejected_hits; ///< Number of false intersections rejected along the path. This is used as a safeguard to avoid deadlock in pathological cases.
     // daxa_f16
-    daxa_f32
-        scene_length;         ///< Path length in scene units (0.f at primary hit).
+    daxa_f32 scene_length;         ///< Path length in scene units (0.f at primary hit).
     daxa_u32 bounce_counters; ///< Packed counters for different types of bounces (see BounceType).
 
     // Scatter ray
@@ -42,7 +38,7 @@ struct PATH_STATE
     daxa_f32vec3 L;            ///< Accumulated path contribution.
     // daxa_f32vec3 L_delta_direct; // daqi: save the direct lighting on delta surfaces
 
-    // daxa_f32      russianRoulettePdf = 1.f;
+    daxa_f32      russian_roulette_PDF;
     daxa_f32vec3 shared_scatter_dir;
     daxa_f32 prev_scatter_pdf;
 
@@ -69,13 +65,51 @@ struct PATH_STATE
 };
 
 
+void path_set_flag(inout PATH_STATE path, daxa_u32 flag, daxa_b32 value) {
+    if(value) {
+        path.flags |= flag;
+    } else {
+        path.flags &= ~flag;
+    }
+}
+
+
+daxa_b32 path_is_active(PATH_STATE path) {
+    return (path.flags & PATH_FLAG_ACTIVE) != 0;
+}
+
+daxa_b32 path_is_terminated(PATH_STATE path) {
+    return !path_is_active(path);
+}
+
 void path_set_active(inout PATH_STATE path) {
-    path.flags |= PATH_FLAG_ACTIVE;
+    path_set_flag(path, PATH_FLAG_ACTIVE, true);
+}
+
+daxa_b32 path_is_hit(PATH_STATE path) {
+    return (path.flags & PATH_FLAG_HIT) != 0;
 }
 
 void path_set_hit(inout PATH_STATE path, INSTANCE_HIT instance) {
     path.hit = instance;
+    path_set_flag(path, PATH_FLAG_HIT, true);
 }
+
+daxa_f32vec3 path_reservoir_get_current_thp(PATH_STATE path) {
+    return path.thp * path.prefix_thp;
+}
+
+void record_prefix_thp(inout PATH_STATE path) {
+    path.prefix_thp = path.thp;
+    path.thp = daxa_f32vec3(1.f);
+}
+
+
+void path_set_light_sampled(inout PATH_STATE path, daxa_b32 upper, daxa_b32 lower) {
+    path_set_flag(path, PATH_FLAG_LIGHT_SAMPLED_UPPER, upper);
+    path_set_flag(path, PATH_FLAG_LIGHT_SAMPLED_LOWER, lower);
+}
+
 
 
 void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed) {
@@ -100,5 +134,9 @@ void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_si
 
     path_builder_init(path.path_builder, seed);
     path_reservoir_initialise(path.path_reservoir);
+
+
+    path.russian_roulette_PDF = 1.f;
+    path.prev_scatter_pdf = 1.f;
 }
 

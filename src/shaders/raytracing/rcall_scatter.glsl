@@ -72,7 +72,11 @@ void main()
 
 void main()
 {
+#if (COSINE_HEMISPHERE_SAMPLING == 1)
     call_scatter.scatter_dir = call_scatter.nrm + random_cosine_direction(call_scatter.seed);
+#else // Uniform sampling
+    call_scatter.scatter_dir = random_on_hemisphere(call_scatter.seed, call_scatter.nrm);
+#endif
     // Catch degenerate scatter direction
     if (normal_near_zero(call_scatter.scatter_dir))
         call_scatter.scatter_dir = call_scatter.nrm;

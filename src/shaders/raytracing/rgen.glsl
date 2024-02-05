@@ -392,17 +392,10 @@ void main()
         daxa_u32 light_index = min(urnd_interval(hit.seed, 0, light_count), light_count - 1);
         // Get light
         LIGHT light = get_light_from_light_index(light_index);
-#if MIS_ON == 1
-        // Calculate radiance
-        radiance = direct_mis(ray, hit, light_count, light, object_count, mat, i, pdf_out, true, true);
-        // Build the intersect struct
-        di_info.scatter_dir = i.scatter_dir;
-#else
         // Calculate radiance
         radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
         // Build the intersect struct
         i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
-#endif // MIS_ON
         // Add the radiance to the hit value
         hit_value += radiance;
 #endif // RESERVOIR_ON
@@ -412,7 +405,7 @@ void main()
         
 
 #if INDIRECT_ILLUMINATION_ON == 1        
-        indirect_illumination(index, rt_size, i, di_info.seed, max_depth, light_count, object_count, throughput);
+        indirect_illumination(index, rt_size, ray, mat, i, di_info.seed, max_depth, light_count, object_count, throughput);
         hit_value += throughput;
 #endif // INDIRECT_ILLUMINATION_ON
 

@@ -30,11 +30,13 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define RESERVOIR_SPATIAL_ON 1
 
 #define INDIRECT_ILLUMINATION_ON 1
-#define MIS_ON 1
+#define MIS_ON 0
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
 
-#define KNOW_LIGHT_POSITION 1
+#define KNOWN_LIGHT_POSITION 1
+
+#define COSINE_HEMISPHERE_SAMPLING 0
 
 #define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
@@ -50,18 +52,21 @@ const daxa_f32 MIN_NEIGHBORS_RADIUS = 5.0f;
 const daxa_f32 MAX_NEIGHBORS_RADIUS = 10.0f;
 
 
+const daxa_f32 NEAR_FIELD_DISTANCE = HALF_VOXEL_EXTENT * 0.05f;
+const daxa_f32 SPECULAR_ROUGHNESS_THRESHOLD = 0.2f;
+
 
 
 // PATH FLAGS
 const daxa_u32 PATH_FLAG_ACTIVE = 0x1;
-const daxa_u32 PATH_FLAG_TERMINATED = 0x2;
+const daxa_u32 PATH_FLAG_HIT = 0x2;
 const daxa_u32 PATH_FLAG_TRANSMISSION = 0x4;
 const daxa_u32 PATH_FLAG_SPECULAR = 0x8;
 // const daxa_u32 PATH_FLAG_DELTA = 0x10;
 // const daxa_u32 PATH_FLAG_VOLUME = 0x20;
 // const daxa_u32 PATH_FLAG_INSIDE_DIELECTRIC_VOLUME = 0x40;
-// const daxa_u32 PATH_FLAG_LIGHT_SAMPLED_UPPER = 0x80;
-// const daxa_u32 PATH_FLAG_LIGHT_SAMPLED_LOWER = 0x100;
+const daxa_u32 PATH_FLAG_LIGHT_SAMPLED_UPPER = 0x80;
+const daxa_u32 PATH_FLAG_LIGHT_SAMPLED_LOWER = 0x100;
 const daxa_u32 PATH_FLAG_DIFFUSE_PRIMARY_HIT = 0x200;
 const daxa_u32 PATH_FLAG_FREE_PATH = 0x400;
 const daxa_u32 PATH_FLAG_SPECULAR_BOUNCE = 0x800;

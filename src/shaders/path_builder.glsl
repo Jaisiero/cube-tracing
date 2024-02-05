@@ -33,8 +33,12 @@ void path_builder_finilize(inout PATH_RESERVOIR reservoir)
     reservoir.M = 1.0;
 }
 
-daxa_b32 path_builder_add_escape_vertex(inout PATH_BUILDER path_builder, daxa_u32 path_length, daxa_f32vec3 wi, daxa_f32vec3 path_weight, daxa_f32vec3 postfix_weight, daxa_b32 use_hybrid_fhift,
-                                        daxa_f32 russian_roulette_PDF, daxa_f32 mis_weight, daxa_f32 light_pdf, daxa_u32 light_type, inout PATH_RESERVOIR path_reservoir, daxa_b32 force_add)
+daxa_b32 path_builder_add_escape_vertex(inout PATH_BUILDER path_builder, daxa_u32 path_length,
+                                        daxa_f32vec3 wi, daxa_f32vec3 path_weight,
+                                        daxa_f32vec3 postfix_weight, daxa_b32 use_hybrid_fhift,
+                                        daxa_f32 russian_roulette_PDF, daxa_f32 mis_weight,
+                                        daxa_f32 light_pdf, daxa_u32 light_type,
+                                        inout PATH_RESERVOIR path_reservoir, daxa_b32 force_add)
 {
     daxa_b32 selected = false;
 

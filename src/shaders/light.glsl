@@ -106,6 +106,12 @@ daxa_f32 balance_heuristic(daxa_f32 pdf , daxa_f32 pdf_other) {
     return pdf / (pdf + pdf_other);
 }
 
+daxa_f32 power_heuristic(daxa_f32 pdf , daxa_f32 pdf_other) {
+    daxa_f32 f = pdf * pdf;
+    daxa_f32 g = pdf_other * pdf_other;
+    return f / (f + g);
+}
+
 daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi) {
     daxa_f32vec3 color = vec3(0.0);
     switch (mat.type & MATERIAL_TYPE_MASK)
@@ -159,7 +165,12 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa
         }
         break;
         default: {
+#if COSINE_HEMISPHERE_SAMPLING == 1
+            pdf *= (INV_DAXA_PI) * dot(wi, n);
+#else
             pdf *= (INV_DAXA_PI);
+#endif
+
         }
         break;
     }
@@ -270,7 +281,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
 
-#if KNOW_LIGHT_POSITION == 1
+#if KNOWN_LIGHT_POSITION == 1
         vis = is_hit_from_origin_with_geometry_center(P, l.position,
             half_extent, distance, 
             l_pos, l_nor, false);
@@ -378,7 +389,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         daxa_f32vec3 l_wi = normalize(l_pos - P);
         daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
         daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);
-        daxa_f32 mis_weight = balance_heuristic(l_pdf, m_pdf * G);
+        daxa_f32 mis_weight = power_heuristic(l_pdf, m_pdf * G);
         daxa_f32 cos_theta = get_cos_theta(n, l_wi);
         daxa_f32vec3 brdf = evaluate_material(mat, n, wo, l_wi);
         if(use_pdf) {
@@ -403,7 +414,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
             {
                 daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);
                 daxa_f32 light_pdf = sample_lights_pdf(hit, i, light_count);
-                daxa_f32 mis_weight = balance_heuristic(m_pdf_2 * G, light_pdf);
+                daxa_f32 mis_weight = power_heuristic(m_pdf_2 * G, light_pdf);
                 daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
                 daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
                 daxa_f32 cos_theta = get_cos_theta(m_wi, n);
