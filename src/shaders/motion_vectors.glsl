@@ -79,7 +79,16 @@ daxa_u32vec2 get_previous_frame_pixel_coord(daxa_u32vec2 current_pixel_coord, da
     return daxa_u32vec2(Xi_1 * daxa_f32vec2(rt_size.xy));
 }
 
-
+/**
+ * @brief Get the motion vector object from the current pixel position
+ * 
+ * @param current_pixel_coord  The current pixel position
+ * @param world_hit This is the world position of the hit
+ * @param rt_size The size of the render frame
+ * @param instance_id instance id to get the object's previous model matrix
+ * @param instance_model The current model matrix of the object
+ * @return daxa_f32vec2 
+ */
 
 daxa_f32vec2 get_motion_vector(daxa_u32vec2 current_pixel_coord, daxa_f32vec3 world_hit, daxa_u32vec2 rt_size, daxa_u32 instance_id, daxa_f32mat4x4 instance_model) {
     // X from current pixel position

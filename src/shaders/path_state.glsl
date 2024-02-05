@@ -33,7 +33,7 @@ struct PATH_STATE
     daxa_f32vec3 thp;       ///< Path throughput.
     daxa_f32vec3 prefix_thp; /// daqi: used for computing rcVertexIrradiance[1]
 
-    daxa_f32vec3 rc_vertex_path_tree_irradiance;
+    // daxa_f32vec3 rc_vertex_path_tree_irradiance;
 
     daxa_f32vec3 L;            ///< Accumulated path contribution.
     // daxa_f32vec3 L_delta_direct; // daqi: save the direct lighting on delta surfaces
@@ -117,7 +117,7 @@ void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_si
     path.id = index.x | (index.y << 12);
     path.thp = daxa_f32vec3(1.f);
     path.prefix_thp = daxa_f32vec3(1.f);
-    path.rc_vertex_path_tree_irradiance = daxa_f32vec3(0.f);
+    // path.rc_vertex_path_tree_irradiance = daxa_f32vec3(0.f);
 
     // path.L_delta_direct = daxa_f32vec3(0.f);
     path.enable_random_replay = false;

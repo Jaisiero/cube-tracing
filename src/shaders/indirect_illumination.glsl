@@ -107,8 +107,7 @@ daxa_b32 path_handle_emissive_hit(inout PATH_STATE path, MATERIAL mat) {
 
 daxa_b32 path_handle_sample_light(inout PATH_STATE path, MATERIAL mat, INTERSECT i, daxa_u32 seed) {
     
-
-
+    // TODO: complete this function
     daxa_b32 valid_sample = false;
     // {
     //     // Setup path vertex.
@@ -194,6 +193,7 @@ daxa_b32 path_handle_sample_light(inout PATH_STATE path, MATERIAL mat, INTERSECT
 daxa_b32 path_handle_primary_hit(inout PATH_STATE path, MATERIAL mat, INTERSECT i, daxa_u32 seed) {
     
 
+    // TODO: complete this function
     // save as previous path origin to compute distance between vertices
     daxa_f32vec3 prev_path_origin = path.origin;
 
@@ -244,8 +244,76 @@ daxa_b32 path_handle_primary_hit(inout PATH_STATE path, MATERIAL mat, INTERSECT 
 }
 
 
-void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
+void indirect_illumination_path(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
     
+
+    PATH_STATE path;
+    generate_path(path, index, rt_size, i.instance_hit, ray, seed);
+
+    // path_handle_emissive_hit(path, mat);
+
+    path_handle_primary_hit(path, mat, i, seed);
+
+    next_vertex(i, seed);
+
+    // TODO: Do something with path here for primary hit
+
+    for (;;)
+    {
+
+        HIT_INFO_INPUT hit = HIT_INFO_INPUT(
+            i.world_hit,
+            i.world_nrm,
+            i.distance,
+            i.wi,
+            i.instance_hit,
+            i.material_idx,
+            seed,
+            max_depth);
+        Ray scattered_ray = Ray(i.world_hit, i.wi);
+
+        if (i.is_hit)
+        {
+
+            daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
+
+            LIGHT light = get_light_from_light_index(light_index);
+
+            daxa_f32 pdf_out = 1.0;
+
+            // TODO: Handle hit path here for subsequent hits
+
+            // daxa_f32vec3 radiance = direct_mis(scattered_ray, hit, light_count, light, object_count, i.mat, i, pdf_out, true, true);
+
+            // prd.hit_value *= radiance;
+            prd.hit_value += i.mat.emission;
+            prd.done = false;
+        }
+        else
+        {
+            // TODO: Handle miss path here for subsequent hits
+
+            prd.done = true;
+            prd.hit_value *= calculate_sky_color(
+                deref(p.status_buffer).time,
+                deref(p.status_buffer).is_afternoon,
+                ray.direction);
+        }
+
+        prd.depth--;
+        daxa_b32 done = prd.done || prd.depth == 0;
+        if (done)
+            break;
+
+        prd.done = true; // Will stop if a reflective material isn't hit
+    }
+    throughput += prd.hit_value;
+}
+
+
+
+
+void indirect_illumination_pt(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
     
     // prd.throughput = vec3(1.0);
     prd.seed = seed;
@@ -258,19 +326,7 @@ void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size,
     prd.instance_hit = i.instance_hit;
     // prd.done = true;
 
-    PATH_STATE path;
-    generate_path(path, index, rt_size, i.instance_hit, ray, seed);
-
-    // path_handle_emissive_hit(path, mat);
-
-    path_handle_primary_hit(path, mat, i, seed);
-
-    
-
     next_vertex(i, seed);
-
-
-    // TODO: Do something with path here for primary hit
 
     for (;;)
     {
@@ -294,8 +350,6 @@ void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size,
 
             daxa_f32 pdf_out = 1.0;
 
-            // TODO: Handle hit path here for subsequent hits
-
             daxa_f32vec3 radiance = direct_mis(scattered_ray, hit, light_count, light, object_count, i.mat, i, pdf_out, true, true);
 
             prd.hit_value *= radiance;
@@ -304,8 +358,6 @@ void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size,
         }
         else
         {
-            // TODO: Handle miss path here for subsequent hits
-
             prd.done = true;
             prd.hit_value *= calculate_sky_color(
                 deref(p.status_buffer).time,
@@ -327,4 +379,15 @@ void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size,
 
 }
 
+
+
+
+
+void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
+#if RESTIR_PT_ON == 1
+    indirect_illumination_path(index, rt_size, ray, mat, i, seed, max_depth, light_count, object_count, throughput);
+#else
+    indirect_illumination_pt(index, rt_size, ray, mat, i, seed, max_depth, light_count, object_count, throughput);
+#endif
+}
 #endif // INDIRECT_ILLUMINATION_GLSL

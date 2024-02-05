@@ -25,9 +25,10 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define ACCUMULATOR_ON 1
 
 #define LIGHT_SAMPLING_ON 1
-#define RESERVOIR_ON 1
-#define RESERVOIR_TEMPORAL_ON 1
-#define RESERVOIR_SPATIAL_ON 1
+#define RESTIR_DI_ON 1
+#define RESTIR_DI_TEMPORAL_ON 1
+#define RESTIR_DI_SPATIAL_ON 1
+#define RESTIR_PT_ON 0
 
 #define INDIRECT_ILLUMINATION_ON 1
 #define MIS_ON 0
@@ -37,6 +38,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define KNOWN_LIGHT_POSITION 1
 
 #define COSINE_HEMISPHERE_SAMPLING 0
+#define USE_POWER_HEURISTIC 1
 
 #define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays

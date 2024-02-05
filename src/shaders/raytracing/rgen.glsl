@@ -191,8 +191,8 @@ void main()
 
         daxa_f32 confidence = 1.0;
 
-#if RESERVOIR_ON == 1
-#if (RESERVOIR_TEMPORAL_ON == 1)
+#if RESTIR_DI_ON == 1
+#if (RESTIR_DI_TEMPORAL_ON == 1)
         // Reservoir from previous frame
         RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
 
@@ -203,7 +203,7 @@ void main()
         confidence = (reservoir_previous.W_y > 0.0) ? predicted
                                                     : 1.0;
 
-#endif // RESERVOIR_TEMPORAL_ON
+#endif // RESTIR_DI_TEMPORAL_ON
 
         di_info.confidence = confidence;
 
@@ -221,7 +221,7 @@ void main()
             di_info.seed = hit.seed;
 
 
-#if (RESERVOIR_TEMPORAL_ON == 1)
+#if (RESTIR_DI_TEMPORAL_ON == 1)
             if(reservoir_previous.W_y > 0.0) {
                 TEMPORAL_REUSE(reservoir,
                                reservoir_previous,
@@ -234,11 +234,11 @@ void main()
                 di_info.seed = hit.seed;
             }
 
-#endif // RESERVOIR_TEMPORAL_ON
+#endif // RESTIR_DI_TEMPORAL_ON
 
             set_reservoir_from_intermediate_frame_by_index(screen_pos, reservoir);
         }
-#endif // RESERVOIR_ON
+#endif // RESTIR_DI_ON
     }
 
     // Store the DI info
@@ -247,8 +247,8 @@ void main()
 
 #elif SPATIAL_REUSE_PASS == 1
 void main() {
-#if RESERVOIR_ON == 1
-#if (RESERVOIR_SPATIAL_ON == 1)
+#if RESTIR_DI_ON == 1
+#if (RESTIR_DI_SPATIAL_ON == 1)
     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
 
@@ -302,8 +302,8 @@ void main() {
 
         set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
     }
-#endif // RESERVOIR_SPATIAL_ON
-#endif // RESERVOIR_ON
+#endif // RESTIR_DI_SPATIAL_ON
+#endif // RESTIR_DI_ON
 }
 
 #elif THIRD_VISIBILITY_TEST_AND_SHADING_PASS == 1
@@ -332,15 +332,15 @@ void main()
     DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
 
 
-#if RESERVOIR_ON == 1
+#if RESTIR_DI_ON == 1
     // Get sample info from reservoir
     RESERVOIR reservoir = 
-#if (RESERVOIR_TEMPORAL_ON == 1) && (RESERVOIR_SPATIAL_ON == 0)
+#if (RESTIR_DI_TEMPORAL_ON == 1) && (RESTIR_DI_SPATIAL_ON == 0)
         get_reservoir_from_intermediate_frame_by_index(screen_pos);
 #else        
         get_reservoir_from_current_frame_by_index(screen_pos);
-#endif // RESERVOIR_TEMPORAL_ON
-#endif // RESERVOIR_ON
+#endif // RESTIR_DI_TEMPORAL_ON
+#endif // RESTIR_DI_ON
 
     daxa_b32 is_hit = di_info.distance > 0.0;
 // #if SER == 1
@@ -380,7 +380,7 @@ void main()
 
 
         INTERSECT i;
-#if RESERVOIR_ON == 1
+#if RESTIR_DI_ON == 1
         //Calculate reservoir radiance
         calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
         //Build the intersect struct
@@ -388,7 +388,7 @@ void main()
       
         // Add the radiance to the hit value (reservoir radiance)
         hit_value += radiance * reservoir.W_y;
-#else // RESERVOIR_ON
+#else // RESTIR_DI_ON
         daxa_u32 light_index = min(urnd_interval(hit.seed, 0, light_count), light_count - 1);
         // Get light
         LIGHT light = get_light_from_light_index(light_index);
@@ -398,7 +398,7 @@ void main()
         i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
         // Add the radiance to the hit value
         hit_value += radiance;
-#endif // RESERVOIR_ON
+#endif // RESTIR_DI_ON
 
 
         di_info.seed = hit.seed;
@@ -418,7 +418,7 @@ void main()
         clamp(hit_value, 0.0, 0.99999999);
 
         daxa_f32vec4 final_pixel;
-#if (ACCUMULATOR_ON == 1 && RESERVOIR_ON == 0)
+#if (ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0)
         daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {
@@ -438,10 +438,10 @@ void main()
 #endif
         imageStore(daxa_image2D(p.swapchain), index, final_pixel);
 
-#if RESERVOIR_ON == 1
+#if RESTIR_DI_ON == 1
         // Store the reservoir
         set_reservoir_from_previous_frame_by_index(screen_pos, reservoir);
-#endif // RESERVOIR_ON    
+#endif // RESTIR_DI_ON    
 
         set_di_from_previous_frame(screen_pos, di_info);
     }

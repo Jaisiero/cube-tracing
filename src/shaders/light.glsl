@@ -153,22 +153,22 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa
     switch (mat.type & MATERIAL_TYPE_MASK)
     {
         case MATERIAL_TYPE_METAL: {
-            pdf *= (INV_DAXA_PI);
+            pdf *= (INV_DAXA_2PI);
         }
         break;
         case MATERIAL_TYPE_DIELECTRIC: {
-            pdf *= (INV_DAXA_PI);
+            pdf *= (INV_DAXA_2PI);
         }
         break;
         case MATERIAL_TYPE_CONSTANT_MEDIUM: {
-            pdf *= 1.0;
+            pdf *= INV_DAXA_4PI;
         }
         break;
         default: {
 #if COSINE_HEMISPHERE_SAMPLING == 1
             pdf *= (INV_DAXA_PI) * dot(wi, n);
 #else
-            pdf *= (INV_DAXA_PI);
+            pdf *= (INV_DAXA_2PI);
 #endif
 
         }
@@ -389,7 +389,13 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         daxa_f32vec3 l_wi = normalize(l_pos - P);
         daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
         daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);
-        daxa_f32 mis_weight = power_heuristic(l_pdf, m_pdf * G);
+        daxa_f32 mis_weight = 
+#if USE_POWER_HEURISTIC == 1
+            power_heuristic(l_pdf, m_pdf * G);
+#else
+            balance_heuristic(l_pdf, m_pdf);
+#endif
+                    
         daxa_f32 cos_theta = get_cos_theta(n, l_wi);
         daxa_f32vec3 brdf = evaluate_material(mat, n, wo, l_wi);
         if(use_pdf) {
@@ -414,7 +420,12 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
             {
                 daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);
                 daxa_f32 light_pdf = sample_lights_pdf(hit, i, light_count);
-                daxa_f32 mis_weight = power_heuristic(m_pdf_2 * G, light_pdf);
+                daxa_f32 mis_weight = 
+#if USE_POWER_HEURISTIC == 1
+                    power_heuristic(m_pdf_2 * G, light_pdf);
+#else
+                    balance_heuristic(m_pdf_2 * G, light_pdf);
+#endif
                 daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
                 daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
                 daxa_f32 cos_theta = get_cos_theta(m_wi, n);
