@@ -415,7 +415,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         // Material sampling
         if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, light_count))
         {
-            i = intersect(Ray(P, m_wi), hit);
+            i = intersect(Ray(P, m_wi));
             if (i.is_hit && i.mat.emission != vec3(0.0))
             {
                 daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);

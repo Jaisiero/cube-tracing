@@ -16,7 +16,7 @@ struct PATH_VERTEX
 };
 
 
-daxa_b32 next_vertex(INTERSECT i, inout daxa_u32 seed) {
+daxa_b32 generate_scatter_ray(INTERSECT i, inout daxa_u32 seed) {
 
     call_scatter.hit = i.world_hit;
     call_scatter.nrm = i.world_nrm;
@@ -52,6 +52,76 @@ daxa_b32 next_vertex(INTERSECT i, inout daxa_u32 seed) {
     i.wi = call_scatter.scatter_dir;
 
     return !prd.done;
+}
+
+
+
+daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, INTERSECT i) {
+
+    daxa_b32 valid = generate_scatter_ray(i, path.seed);
+
+    if(valid) {
+        // TODO: weight is always albedo for now because it is always a diffuse material
+        daxa_f32vec3 weight = i.mat.diffuse;
+        daxa_f32 pdf = sample_material_pdf(i.mat, i.world_nrm, i.wo, i.wi);
+
+        path.dir = i.wi;
+        
+        if(path.path_length == 0 ) {
+            // TODO: set diffuse primary hit for now
+            path_set_diffuse_primary_hit(path, true);
+        }
+
+        path.thp *= weight;
+
+        path.pdf = pdf;
+
+
+        if(path.path_length == path.path_builder.rc_vertex_length) {
+            path.path_builder.cached_jacobian.y = pdf;
+        }
+
+        path.prev_scatter_pdf = pdf;
+
+        if(pdf <= 0.0) {
+            return false;
+        }
+
+        // TODO: clear event flags.
+
+        // TODO: Handle other reflexions here (pathtracer:357)
+        path_increment_bounces(path, BOUNCE_TYPE_DIFFUSE);
+
+
+        path.normal = i.world_nrm;
+
+        valid = any(greaterThan(path.thp,daxa_f32vec3(0.0)));
+
+        if(valid) {
+            if(path.path_length <= path.path_builder.rc_vertex_length) {
+               path_record_prefix_thp(path);
+            }
+        }
+
+    }
+
+    return valid;
+}
+
+void path_next_vertex(inout PATH_STATE path) {
+
+    INTERSECT i = intersect(Ray(path.origin, path.dir));
+
+    if(i.is_hit) {
+        path_set_hit(path, i.instance_hit);
+        path.path_length++;
+        path.scene_length += i.distance;
+    }
+    else {
+        path_clear_hit(path);
+        path.scene_length = HLF_MAX;
+    }
+
 }
 
 
@@ -189,70 +259,22 @@ daxa_b32 path_handle_sample_light(inout PATH_STATE path, MATERIAL mat, INTERSECT
 }
 
 
-daxa_b32 path_handle_primary_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 seed) {
+daxa_b32 path_handle_primary_hit(inout PATH_STATE path, INTERSECT i) {
     
 
     // TODO: complete this function
-    // save as previous path origin to compute distance between vertices
-    daxa_f32vec3 prev_path_origin = path.origin;
-
     // Compute origin for rays traced from this path vertex.
     path.origin = i.world_hit;
 
 
     path_set_light_sampled(path, false, false);
 
-    // generate kNEESamples light samples
-    // cache (NEE sampling) seed for temporal validation (only possible for non early direction reuse since it uses the cachedRandomSeed slot)
-    if (path.path_length == path.path_builder.rc_vertex_length)
+    if (path.path_length == 0)
     {
-        path.path_builder.cached_random_seed = path.seed;
+        path.path_reservoir.init_random_seed = path.seed;
     }
 
-    daxa_b32 valid = next_vertex(i, seed);
-
-    if(valid) {
-        // TODO: weight is always albedo for now because it is always a diffuse material
-        daxa_f32vec3 weight = i.mat.diffuse;
-        daxa_f32 pdf = sample_material_pdf(i.mat, i.world_nrm, i.wo, i.wi);
-
-        path.dir = i.wi;
-        
-        // TODO: set diffuse primary hit for now
-        path_set_diffuse_primary_hit(path, true);
-
-        path.thp *= weight;
-
-        path.pdf = pdf;
-
-
-        if(path.path_length == path.path_builder.rc_vertex_length) {
-            path.path_builder.cached_jacobian.y = pdf;
-        }
-
-        path.prev_scatter_pdf = pdf;
-
-        if(pdf <= 0.0) {
-            return false;
-        }
-
-        // TODO: clear event flags.
-
-        // TODO: Handle other reflexions here (pathtracer:357)
-        path_increment_bounces(path, BOUNCE_TYPE_DIFFUSE);
-
-
-        path.normal = i.world_nrm;
-
-        valid = any(greaterThan(path.thp,daxa_f32vec3(0.0)));
-
-        if(valid) {
-            if(path.path_length <= path.path_builder.rc_vertex_length) {
-               path_record_prefix_thp(path);
-            }
-        }
-
-    }
+    daxa_b32 valid = path_generate_scatter_ray(path, i);
 
     // TODO: Check if (pathtracer:1403) necessary here
 
@@ -261,115 +283,110 @@ daxa_b32 path_handle_primary_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 se
 }
 
 
-void indirect_illumination_restir_path_tracing(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
+void path_handle_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 light_count, daxa_u32 object_count) {
+
+    // Upon hit:
+    // - Load vertex/material data
+    // - Compute volume absorption
+    // - Compute MIS weight if path.length > 0 and emissive hit
+    // - Add emitted radiance
+    // - Sample light(s) using shadow rays
+    // - Sample scatter ray or terminate
+
+    // TODO: Sample emissive (add escape vertex) (pathtracer:1034)
+    // path_handle_emissive_hit(path, mat);
+
+    // TODO: check if the path is terminated (more bounces) (pathtracer:1123)
+
+    // TODO: Go forward hit (pathtracer:1130)
+
+    // TODO: Check if rc_vertex (pathtracer:1165)
+
+    // TODO: Sample light (add NEE vertex) (pathtracer:1265)
+
+    // daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
+
+    // LIGHT light = get_light_from_light_index(light_index);
+
+    // daxa_f32 pdf_out = 1.0;
+
+    // // daxa_f32vec3 radiance = direct_mis(scattered_ray, hit, light_count, light, object_count, i.mat, i, pdf_out, true, true);
+
+    // // prd.hit_value *= radiance;
+    // // prd.hit_value += i.mat.emission;
+
+    // TODO: Russian roulette (pathtracer:1378)
+
+    // TODO: Scatter ray (pathtracer:1400)
+    daxa_b32 valid = path_generate_scatter_ray(path, i);
+
+    // TODO: forbid current vertex being rcVertex if conditions are not met (pathtracer:1403)
+
+    // TODO: cache seed for temporal validation (pathtracer:1427)
+
+    // TODO: save the incoming direction on rcVertex (pathtracer:1433)
+
+    // TODO: save more things afterwards
+
+    // TODO: if path is terminated, break (pathtracer:1456)
+
+    // TODO: Check if last bounce for replay only (pathtracer:1459)
+
+    // TODO: Check other things to invalidate the path (pathtracer:1462)
+
+    // TODO: If not valid, terminate path (pathtracer:1467)
+
+    prd.done = false;
+}
+
+
+void path_handle_miss(inout PATH_STATE path, INTERSECT i, daxa_u32 seed) {
+    // TODO: Handle miss path here for subsequent hits
+    // Upon miss:
+    // - Compute MIS weight if previous path vertex sampled a light
+    // - Evaluate environment map
+    // - Write guiding data
+    // - Terminate the path
+
+    prd.done = true;
+    prd.hit_value *= calculate_sky_color(
+        deref(p.status_buffer).time,
+        deref(p.status_buffer).is_afternoon,
+        i.wo);
+}
+
+void indirect_illumination_restir_path_tracing(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
     
 
     PATH_STATE path;
     generate_path(path, index, rt_size, i.instance_hit, ray, seed);
 
-    path_handle_primary_hit(path, i, seed);
+    path_handle_primary_hit(path, i);
+
+    max_depth = max(1, max_depth);
 
     // TODO: Do something with path here for primary hit
 
-    for (;;)
+    do
     {
+        path_next_vertex(path);
 
-        HIT_INFO_INPUT hit = HIT_INFO_INPUT(
-            i.world_hit,
-            i.world_nrm,
-            i.distance,
-            i.wo,
-            i.instance_hit,
-            i.material_idx,
-            seed,
-            max_depth);
-        Ray scattered_ray = Ray(i.world_hit, i.wo);
-
-        if (i.is_hit)
-        {
-            // Upon hit:
-            // - Load vertex/material data
-            // - Compute volume absorption
-            // - Compute MIS weight if path.length > 0 and emissive hit
-            // - Add emitted radiance
-            // - Sample light(s) using shadow rays
-            // - Sample scatter ray or terminate
-
-            // TODO: Sample emissive (add escape vertex) (pathtracer:1034)
-            // path_handle_emissive_hit(path, mat);
-
-            // TODO: check if the path is terminated (more bounces) (pathtracer:1123)
-
-            // TODO: Go forward hit (pathtracer:1130)
-
-            // TODO: Check if rc_vertex (pathtracer:1165)
-
-            // TODO: Sample light (add NEE vertex) (pathtracer:1265) 
-
-            daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
-
-            LIGHT light = get_light_from_light_index(light_index);
-
-            daxa_f32 pdf_out = 1.0;
-
-
-            // daxa_f32vec3 radiance = direct_mis(scattered_ray, hit, light_count, light, object_count, i.mat, i, pdf_out, true, true);
-
-            // prd.hit_value *= radiance;
-            // prd.hit_value += i.mat.emission;
-
-
-            // TODO: Russian roulette (pathtracer:1378)
-
-
-            // TODO: Scatter ray (pathtracer:1400)
-
-
-            // TODO: forbid current vertex being rcVertex if conditions are not met (pathtracer:1403)
-
-            // TODO: cache seed for temporal validation (pathtracer:1427)
-
-            // TODO: save the incoming direction on rcVertex (pathtracer:1433)
-
-            // TODO: save more things afterwards
-
-            // TODO: if path is terminated, break (pathtracer:1456)
-
-            // TODO: Check if last bounce for replay only (pathtracer:1459)
-
-            // TODO: Check other things to invalidate the path (pathtracer:1462)
-
-            // TODO: If not valid, terminate path (pathtracer:1467)
-
-            prd.done = false;
+        if (path_is_hit(path))
+        {   
+            path_handle_hit(path, i, light_count, object_count);
         }
         else
         {
-            // TODO: Handle miss path here for subsequent hits
-            // Upon miss:
-            // - Compute MIS weight if previous path vertex sampled a light
-            // - Evaluate environment map
-            // - Write guiding data
-            // - Terminate the path
-
-            prd.done = true;
-            prd.hit_value *= calculate_sky_color(
-                deref(p.status_buffer).time,
-                deref(p.status_buffer).is_afternoon,
-                ray.direction);
+            path_handle_miss(path, i, seed);
         }
 
-        prd.depth--;
-        daxa_b32 done = prd.done || prd.depth == 0;
+        max_depth--;
+        daxa_b32 done = path_is_terminated(path) || max_depth == 0;
         if (done)
             break;
-            
-            
-
-
-        prd.done = true; // Will stop if a reflective material isn't hit
-    }
-    throughput += prd.hit_value;
+    } while(path_is_active(path));
+    // TODO: Check this
+    throughput += path.thp + path.prefix_thp;
 }
 
 
@@ -388,7 +405,7 @@ void indirect_illumination_path_tracing(const daxa_i32vec2 index, const daxa_u32
     prd.instance_hit = i.instance_hit;
     // prd.done = true;
 
-    next_vertex(i, seed);
+    generate_scatter_ray(i, seed);
 
     for (;;)
     {
@@ -447,7 +464,7 @@ void indirect_illumination_path_tracing(const daxa_i32vec2 index, const daxa_u32
 
 void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
 #if RESTIR_PT_ON == 1
-    indirect_illumination_restir_path_tracing(index, rt_size, ray, mat, i, seed, max_depth, light_count, object_count, throughput);
+    indirect_illumination_restir_path_tracing(index, rt_size, ray, i, seed, max_depth, light_count, object_count, throughput);
 #else
     indirect_illumination_path_tracing(index, rt_size, ray, mat, i, seed, max_depth, light_count, object_count, throughput);
 #endif

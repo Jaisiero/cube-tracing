@@ -6,11 +6,8 @@
 #extension GL_EXT_ray_query : enable
 
 // SCATTER
-INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
+INTERSECT intersect(Ray ray)
 {
-    // prd_indirect.instance_id = MAX_INSTANCES - 1;
-    // prd_indirect.seed = hit.seed;
-    // prd_indirect.depth = hit.depth;
     daxa_f32 t_min = DELTA_RAY;
     daxa_f32 t_max = MAX_DISTANCE - DELTA_RAY;
     daxa_f32vec3 ray_origin = ray.origin;
@@ -127,12 +124,6 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
 
     rayQueryTerminateEXT(ray_query);
 #endif // SER    
-
-    // hit.seed = prd_indirect.seed;
-    // hit.hit_value = prd_indirect.hit_value;
-    // primitive_id = prd_indirect.primitive_id;
-    // daxa_f32vec3 intersected_hit = prd_indirect.hit;
-    // daxa_f32vec3 intersected_nrm = prd_indirect.nrm;
 
     return INTERSECT(is_hit, distance, int_hit, int_nor, ray.direction, daxa_f32vec3(0), instance_hit, material_idx, intersected_mat);
 }

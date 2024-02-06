@@ -30,7 +30,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define RESTIR_DI_SPATIAL_ON 1
 #define RESTIR_PT_ON 0
 
-#define INDIRECT_ILLUMINATION_ON 1
+#define INDIRECT_ILLUMINATION_ON 0
 #define MIS_ON 0
 #define CALLABLE_ON 1
 // #define DEBUG_NORMALS 1
@@ -42,6 +42,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 
 #define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
+#define HLF_MAX 6.5504e+4F // max value for half float
 
 // TODO: M by parameter?
 const daxa_u32 MIN_RIS_SAMPLE_COUNT = 4;

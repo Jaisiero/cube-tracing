@@ -95,6 +95,10 @@ void path_set_hit(inout PATH_STATE path, INSTANCE_HIT instance) {
     path_set_flag(path, PATH_FLAG_HIT, true);
 }
 
+void path_clear_hit(inout PATH_STATE path) {
+    path_set_flag(path, PATH_FLAG_HIT, false);
+}
+
 daxa_f32vec3 path_reservoir_get_current_thp(PATH_STATE path) {
     return path.thp * path.prefix_thp;
 }
