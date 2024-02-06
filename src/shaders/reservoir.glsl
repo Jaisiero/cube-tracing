@@ -241,7 +241,7 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_u32 object_count, daxa_f32 confidence, 
 
   confidence = clamp(confidence, 0.0, 1.0);
 
-  daxa_u32 NUM_OF_SAMPLES = max(daxa_u32(min(MAX_RIS_SAMPLE_COUNT * confidence, light_count)), MIN_RIS_SAMPLE_COUNT);
+  daxa_u32 NUM_OF_SAMPLES = max(daxa_u32(min(MAX_RIS_SAMPLE_COUNT * (1.0 - confidence), light_count)), MIN_RIS_SAMPLE_COUNT);
 
   for (daxa_u32 l = 0; l < NUM_OF_SAMPLES; l++)
   {
@@ -366,7 +366,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
   daxa_f32 spatial_heuristic_radius = mix(MAX_NEIGHBORS_RADIUS, MIN_NEIGHBORS_RADIUS, clamp(hit.distance / MAX_DISTANCE, 0.0, 1.0));
 
   // Heuristically determine the number of neighbors based on the confidence index
-  daxa_u32 spatial_heuristic_num_of_neighbors = daxa_u32(mix(MIN_NUM_OF_NEIGHBORS, MAX_NUM_OF_NEIGHBORS, confidence));
+  daxa_u32 spatial_heuristic_num_of_neighbors = daxa_u32(mix(MAX_NUM_OF_NEIGHBORS, MIN_NUM_OF_NEIGHBORS, confidence));
 
   for (daxa_u32 i = 0; i < spatial_heuristic_num_of_neighbors; i++)
   {

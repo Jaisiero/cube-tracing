@@ -134,6 +134,6 @@ INTERSECT intersect(Ray ray, inout HIT_INFO_INPUT hit)
     // daxa_f32vec3 intersected_hit = prd_indirect.hit;
     // daxa_f32vec3 intersected_nrm = prd_indirect.nrm;
 
-    return INTERSECT(is_hit, distance, int_hit, int_nor, ray.direction, instance_hit, material_idx, intersected_mat);
+    return INTERSECT(is_hit, distance, int_hit, int_nor, ray.direction, daxa_f32vec3(0), instance_hit, material_idx, intersected_mat);
 }
 #endif // BOUNCE_GLSL

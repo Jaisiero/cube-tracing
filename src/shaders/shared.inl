@@ -237,8 +237,8 @@ struct INTERSECT {
     daxa_f32 distance;
     daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
+    daxa_f32vec3 wo;
     daxa_f32vec3 wi;
-    // daxa_f32vec3 wo;
     INSTANCE_HIT instance_hit;
     daxa_u32 material_idx;
     MATERIAL mat;

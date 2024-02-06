@@ -189,7 +189,7 @@ void main()
                                             di_info.seed,
                                             max_depth);
 
-        daxa_f32 confidence = 1.0;
+        daxa_f32 confidence = 0.0;
 
 #if RESTIR_DI_ON == 1
 #if (RESTIR_DI_TEMPORAL_ON == 1)
@@ -198,10 +198,10 @@ void main()
 
         // TODO: re-check this
         // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
-        daxa_f32 predicted = 1.0 - clamp((reservoir_previous.M / daxa_f32(MAX_RIS_SAMPLE_COUNT)), 0.0, 1.0);
+        daxa_f32 predicted = clamp(reservoir_previous.M / (MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD *  daxa_f32(MAX_RIS_SAMPLE_COUNT)), 0.0, 1.0);
 
         confidence = (reservoir_previous.W_y > 0.0) ? predicted
-                                                    : 1.0;
+                                                    : 0.0;
 
 #endif // RESTIR_DI_TEMPORAL_ON
 
@@ -247,63 +247,63 @@ void main()
 
 #elif SPATIAL_REUSE_PASS == 1
 void main() {
-#if RESTIR_DI_ON == 1
-#if (RESTIR_DI_SPATIAL_ON == 1)
-    const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
-    const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
+// #if RESTIR_DI_ON == 1
+// #if (RESTIR_DI_SPATIAL_ON == 1)
+//     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
+//     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
 
-    // Camera setup
-    daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
-    daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
+//     // Camera setup
+//     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
+//     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
     
-    daxa_u32 max_depth = deref(p.status_buffer).max_depth;
+//     daxa_u32 max_depth = deref(p.status_buffer).max_depth;
 
-    // Ray setup
-    Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
+//     // Ray setup
+//     Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
 
-    // screen_pos is the index of the pixel in the screen
-    daxa_u32 screen_pos = index.y * rt_size.x + index.x;
+//     // screen_pos is the index of the pixel in the screen
+//     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
     
-     // Get hit info
-    DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
+//      // Get hit info
+//     DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
     
-    daxa_b32 is_hit = di_info.distance > 0.0;
-// #if SER == 1
-//     reorderThreadNV(daxa_u32(hit_value), 1);
-// #endif // SER
-    if(is_hit) {
-        daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_hit.instance_id);
+//     daxa_b32 is_hit = di_info.distance > 0.0;
+// // #if SER == 1
+// //     reorderThreadNV(daxa_u32(hit_value), 1);
+// // #endif // SER
+//     if(is_hit) {
+//         daxa_f32mat4x4 instance_model = get_geometry_transform_from_instance_id(di_info.instance_hit.instance_id);
     
-        // Get sample info from reservoir
-        RESERVOIR reservoir = get_reservoir_from_intermediate_frame_by_index(screen_pos);
+//         // Get sample info from reservoir
+//         RESERVOIR reservoir = get_reservoir_from_intermediate_frame_by_index(screen_pos);
 
-        daxa_u32 light_count = deref(p.status_buffer).light_count;
+//         daxa_u32 light_count = deref(p.status_buffer).light_count;
 
-        daxa_f32 pdf = 1.0 / daxa_f32(light_count);
+//         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
         
-        // Get material
-        MATERIAL mat = get_material_from_material_index(di_info.mat_index);
+//         // Get material
+//         MATERIAL mat = get_material_from_material_index(di_info.mat_index);
 
-        HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
-                                            di_info.normal.xyz,
-                                            di_info.distance,
-                                            di_info.scatter_dir,
-                                            di_info.instance_hit,
-                                            di_info.mat_index,
-                                            di_info.seed,
-                                            max_depth);
+//         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
+//                                             di_info.normal.xyz,
+//                                             di_info.distance,
+//                                             di_info.scatter_dir,
+//                                             di_info.instance_hit,
+//                                             di_info.mat_index,
+//                                             di_info.seed,
+//                                             max_depth);
 
-        daxa_f32 confidence = di_info.confidence;
+//         daxa_f32 confidence = di_info.confidence;
 
-        SPATIAL_REUSE(reservoir, confidence, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf);
+//         SPATIAL_REUSE(reservoir, confidence, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf);
         
-        di_info.seed = hit.seed;
-        set_di_seed_from_current_frame(screen_pos, di_info.seed);
+//         di_info.seed = hit.seed;
+//         set_di_seed_from_current_frame(screen_pos, di_info.seed);
 
-        set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
-    }
-#endif // RESTIR_DI_SPATIAL_ON
-#endif // RESTIR_DI_ON
+//         set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
+//     }
+// #endif // RESTIR_DI_SPATIAL_ON
+// #endif // RESTIR_DI_ON
 }
 
 #elif THIRD_VISIBILITY_TEST_AND_SHADING_PASS == 1
@@ -335,11 +335,7 @@ void main()
 #if RESTIR_DI_ON == 1
     // Get sample info from reservoir
     RESERVOIR reservoir = 
-#if (RESTIR_DI_TEMPORAL_ON == 1) && (RESTIR_DI_SPATIAL_ON == 0)
         get_reservoir_from_intermediate_frame_by_index(screen_pos);
-#else        
-        get_reservoir_from_current_frame_by_index(screen_pos);
-#endif // RESTIR_DI_TEMPORAL_ON
 #endif // RESTIR_DI_ON
 
     daxa_b32 is_hit = di_info.distance > 0.0;
@@ -381,13 +377,19 @@ void main()
 
         INTERSECT i;
 #if RESTIR_DI_ON == 1
+        daxa_f32 confidence = di_info.confidence;
+
+        RESERVOIR spatial_reservoir = reservoir;
+        // TODO: artifacts when using spatial reuse
+        // SPATIAL_REUSE(spatial_reservoir, confidence, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf);
+
         //Calculate reservoir radiance
-        calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+        calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance);
         //Build the intersect struct
-        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
+        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, ray.direction, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
       
         // Add the radiance to the hit value (reservoir radiance)
-        hit_value += radiance * reservoir.W_y;
+        hit_value += radiance * spatial_reservoir.W_y;
 #else // RESTIR_DI_ON
         daxa_u32 light_index = min(urnd_interval(hit.seed, 0, light_count), light_count - 1);
         // Get light
@@ -395,7 +397,7 @@ void main()
         // Calculate radiance
         radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
         // Build the intersect struct
-        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
+        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, ray.direction, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
         // Add the radiance to the hit value
         hit_value += radiance;
 #endif // RESTIR_DI_ON

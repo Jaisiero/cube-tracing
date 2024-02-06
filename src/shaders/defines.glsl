@@ -75,6 +75,13 @@ const daxa_u32 PATH_FLAG_SPECULAR_BOUNCE = 0x800;
 const daxa_u32 PATH_FLAG_SPECULAR_PRIMARY_HIT = 0x1000;
 
 
+// BOUNCE TYPES
+const daxa_u32 BOUNCE_TYPE_DIFFUSE = 0;
+const daxa_u32 BOUNCE_TYPE_SPECULAR = 1;
+// const daxa_u32 BOUNCE_TYPE_TRANSMISSION = 2;
+// const daxa_u32 BOUNCE_TYPE_VOLUME = 3;
+
+
 
 layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[MAX_INSTANCES]; }; // Positions of an object
 layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[MAX_PRIMITIVES]; }; // Primitive data

@@ -26,7 +26,7 @@ struct PATH_STATE
     // Scatter ray
     daxa_f32vec3 origin; ///< Origin of the scatter ray.
     daxa_f32vec3 dir;    ///< Scatter ray normalized direction.
-    daxa_f32vec3 pdf;    ///< Pdf for generating the scatter ray.
+    daxa_f32 pdf;    ///< Pdf for generating the scatter ray.
     daxa_f32vec3 normal; ///< Shading normal at the scatter ray origin.
     INSTANCE_HIT hit;    ///< Hit information for the scatter ray. This is populated at committed triangle hits.
 
@@ -99,7 +99,7 @@ daxa_f32vec3 path_reservoir_get_current_thp(PATH_STATE path) {
     return path.thp * path.prefix_thp;
 }
 
-void record_prefix_thp(inout PATH_STATE path) {
+void path_record_prefix_thp(inout PATH_STATE path) {
     path.prefix_thp = path.thp;
     path.thp = daxa_f32vec3(1.f);
 }
@@ -110,6 +110,16 @@ void path_set_light_sampled(inout PATH_STATE path, daxa_b32 upper, daxa_b32 lowe
     path_set_flag(path, PATH_FLAG_LIGHT_SAMPLED_LOWER, lower);
 }
 
+void path_set_diffuse_primary_hit(inout PATH_STATE path, daxa_b32 value) {
+    path_set_flag(path, PATH_FLAG_DIFFUSE_PRIMARY_HIT, value);
+}
+
+
+void path_increment_bounces(inout PATH_STATE path, daxa_u32 bounce_type) {
+    const daxa_u32 shift = bounce_type << 3;
+    // We assume that bounce counters cannot overflow.
+    path.bounce_counters += (1 << shift);
+}
 
 
 void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed) {

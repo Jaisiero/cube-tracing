@@ -8,7 +8,7 @@
 
 daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
 #if (COSINE_HEMISPHERE_SAMPLING == 1)
-    float cos_theta = dot(normal, light_dir);
+    daxa_f32 cos_theta = dot(normal, light_dir);
     return mat.diffuse * cos_theta * INV_DAXA_PI;
 #else     
     return mat.diffuse * INV_DAXA_PI;
@@ -40,7 +40,7 @@ daxa_f32vec3 get_dialectric_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3
 
 
 daxa_f32vec3 get_constant_medium_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
-    return mat.diffuse;
+    return mat.diffuse * INV_DAXA_4PI;
 }
 
 
