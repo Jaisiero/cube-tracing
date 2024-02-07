@@ -118,7 +118,7 @@ void path_builder_mark_escape_vertex_as_rc_vertex(inout PATH_BUILDER path_builde
                                                   daxa_f32 prev_scatter_pdf, daxa_f32 geometry_factor)
 {
     path_reservoir_insert_rc_vertex_length(path_reservoir, daxa_i32(path_length));
-    // TODO: path_reservoir_init_from_hit_info(path_reservoir, hit);
+    // TODO: path_reservoir_path_init_from_hit_info(path_reservoir, hit);
     path_builder.rc_vertex_hit = hit;
     // path_reservoir_insert_is_delta_event(path_reservoir, is_delta, true);
     // path_reservoir_insert_is_transmission_event(path_reservoir, is_transmission, true);

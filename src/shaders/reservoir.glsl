@@ -136,7 +136,7 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_
     p_hat = length(radiance);
 
     // calculate the weight of this light
-    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
+    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat))  : 0.0;
 
     // keep track of p_hat
     reservoir.p_hat = p_hat;
@@ -160,7 +160,7 @@ void calculate_reservoir_mis_radiance(inout RESERVOIR reservoir, Ray ray, inout 
     p_hat = length(radiance);
 
     // calculate the weight of this light
-    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
+    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat)) : 0.0;
 
     // keep track of p_hat
     reservoir.p_hat = p_hat;
@@ -176,7 +176,7 @@ void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, inout HIT_IN
     daxa_f32 pdf_out = 1.0;
 
     // calculate weight of the selected lights
-    reservoir.W_y = reservoir.p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / reservoir.p_hat : 0.0;
+    reservoir.W_y = reservoir.p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * reservoir.p_hat)) : 0.0;
   }
 }
 
@@ -193,7 +193,7 @@ void calculate_reservoir_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, in
     p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, pdf_out, false, false, false);
 
     // calculate weight of the selected lights
-    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
+    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat)): 0.0;
 
     // keep track of p_hat
     reservoir.p_hat = p_hat;

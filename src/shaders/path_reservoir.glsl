@@ -67,6 +67,11 @@ void path_reservoir_insert_light_type(inout PATH_RESERVOIR reservoir, daxa_u32 l
     reservoir.path_flags |= ((daxa_i32(light_type) & 3) << 18);
 }
 
+void path_init_from_hit_info(inout PATH_RESERVOIR reservoir, INSTANCE_HIT hit)
+{
+    reservoir.rc_vertex_hit = hit;
+}
+
 
 void path_reservoir_initialise(inout PATH_RESERVOIR reservoir)
 {
@@ -84,16 +89,26 @@ void path_reservoir_initialise(inout PATH_RESERVOIR reservoir)
   reservoir.rc_vertex_irradiance[0] = daxa_f32vec3(0.0);
 }
 
-float to_scalar(daxa_f32vec3 color)
+daxa_f32 path_F_to_scalar(daxa_f32vec3 color)
 {
   return dot(color, daxa_f32vec3(0.299, 0.587, 0.114)); // luminance
 }
+
+// Credits: falcor
+/** Returns a relative luminance of an input linear RGB color in the ITU-R BT.709 color space
+    \param RGBColor linear HDR RGB color in the ITU-R BT.709 color space
+*/
+daxa_f32 path_luminance(daxa_f32vec3 rgb)
+{
+    return dot(rgb, daxa_f32vec3(0.2126f, 0.7152f, 0.0722f));
+}
+
 
 daxa_b32 path_reservoir_update(inout PATH_RESERVOIR reservoir, daxa_f32vec3 in_F, daxa_f32 p, inout daxa_u32 seed)
 {
   reservoir.M += 1.0;
 
-  daxa_f32 w = to_scalar(in_F) / p;
+  daxa_f32 w = path_F_to_scalar(in_F) / p;
 
   if (isnan(w) || w == 0.f) return false;
   
@@ -108,12 +123,9 @@ daxa_b32 path_reservoir_update(inout PATH_RESERVOIR reservoir, daxa_f32vec3 in_F
   return false;
 }
 
-// daxa_u32 get_reservoir_light_index(in RESERVOIR reservoir)
-// {
-//   return reservoir.Y;
-// }
-
-// daxa_b32 is_reservoir_valid(in RESERVOIR reservoir)
-// {
-//   return reservoir.M > 0.0;
-// }
+void path_reservoir_finalize_RIS(inout PATH_RESERVOIR reservoir) 
+{
+    daxa_f32 p_hat = path_F_to_scalar(reservoir.F);
+    if (p_hat == 0.f || reservoir.M == 0.f) reservoir.weight = 0.f;
+    else reservoir.weight = reservoir.weight / (p_hat * reservoir.M);
+}

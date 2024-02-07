@@ -43,6 +43,38 @@ daxa_f32vec3 get_constant_medium_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f3
     return mat.diffuse * INV_DAXA_4PI;
 }
 
+daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi) {
+    daxa_f32vec3 color = vec3(0.0);
+    switch (mat.type & MATERIAL_TYPE_MASK)
+    {
+        case MATERIAL_TYPE_METAL: {
+            color = get_metal_BRDF(mat, n, wi, wo);
+        }
+        break;
+        case MATERIAL_TYPE_DIELECTRIC: {
+            color = get_dialectric_BRDF(mat, n, wi, wo);
+        }
+        break;
+        case MATERIAL_TYPE_CONSTANT_MEDIUM: {
+            color = get_constant_medium_BRDF(mat, n, wi, wo);
+        }
+        break;
+        default: {
+            color = get_diffuse_BRDF(mat, n, wi, wo);
+        }
+        break;
+    }
+
+    return color;
+}
+
+
+daxa_f32vec3 eval_bsdf_cosine(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi)  {
+    daxa_f32 cos_theta = dot(n, wi);
+    daxa_f32vec3 color = evaluate_material(mat, n, wo, wi);
+    return color * cos_theta;
+}
+
 
 // Credit: https://gamedev.stackexchange.com/questions/92015/optimized-linear-to-srgb-glsl
 daxa_f32vec4 fromLinear(daxa_f32vec4 linear_RGB)

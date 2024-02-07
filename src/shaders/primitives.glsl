@@ -71,6 +71,11 @@ MATERIAL get_material_from_instance_and_primitive_id(INSTANCE_HIT instance_hit) 
     return get_material_from_primitive_index(primitive_index);
 }
 
+
+daxa_b32 classify_as_rough(MATERIAL material, daxa_f32 roughness_threshold) {
+    return material.roughness > roughness_threshold;
+}
+
 // Credits: https://jcgt.org/published/0007/03/04/
 
 // vec3 box.radius:       independent half-length along the X, Y, and Z axes

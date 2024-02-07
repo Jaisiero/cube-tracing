@@ -8,11 +8,6 @@
 #include "bounce.glsl"
 #include "mat.glsl"
 
-daxa_f32vec3 safe(daxa_f32vec3 point, daxa_f32vec3 normal) {
-    // Ajustar el punto ligeramente en la dirección opuesta a la normal
-    return point - normal * DELTA_RAY;
-}
-
 
 LIGHT get_light_from_light_index(daxa_u32 light_index) {
     LIGHT_BUFFER instance_buffer = LIGHT_BUFFER(deref(p.world_buffer).light_address);
@@ -112,29 +107,21 @@ daxa_f32 power_heuristic(daxa_f32 pdf , daxa_f32 pdf_other) {
     return f / (f + g);
 }
 
-daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi) {
-    daxa_f32vec3 color = vec3(0.0);
-    switch (mat.type & MATERIAL_TYPE_MASK)
-    {
-        case MATERIAL_TYPE_METAL: {
-            color = get_metal_BRDF(mat, n, wi, wo);
-        }
-        break;
-        case MATERIAL_TYPE_DIELECTRIC: {
-            color = get_dialectric_BRDF(mat, n, wi, wo);
-        }
-        break;
-        case MATERIAL_TYPE_CONSTANT_MEDIUM: {
-            color = get_constant_medium_BRDF(mat, n, wi, wo);
-        }
-        break;
-        default: {
-            color = get_diffuse_BRDF(mat, n, wi, wo);
-        }
-        break;
-    }
+daxa_f32 power_exp_heuristic(daxa_f32 pdf , daxa_f32 pdf_other, daxa_f32 exp) {
+    daxa_f32 f = pow(pdf, exp);
+    daxa_f32 g = pow(pdf_other, exp);
+    return f / (f + g);
+}
 
-    return color;
+daxa_f32 eval_mis(daxa_f32 nf, daxa_f32 f_pdf, daxa_f32 ng, daxa_f32 g_pdf, daxa_f32 exp)
+{
+#if USE_POWER_HEURISTIC == 1
+    return power_heuristic(f_pdf, g_pdf);
+#elif USE_POWER_EXP_HEURISTIC == 1
+    return power_exp_heuristic(f_pdf, g_pdf, exp);
+#else
+    return balance_heuristic(f_pdf, g_pdf);
+#endif
 }
 
 
@@ -181,7 +168,7 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa
 
 daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit, daxa_f32vec3 wo, inout daxa_f32vec3 wi, out daxa_f32 pdf, daxa_u32 object_count)
 {
-    pdf = 1.0 / daxa_f32(object_count);
+    pdf = sample_material_pdf(mat, hit.world_nrm, wo, wi);
 
     call_scatter.hit = hit.world_hit;
     call_scatter.nrm = hit.world_nrm;
@@ -348,23 +335,53 @@ daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL
     daxa_f32vec3 wi = normalize(ray.direction);
     daxa_f32vec3 wo = -wi;
 
-    daxa_f32vec3 l_pos , l_nor , Le;
+    daxa_f32vec3 l_pos, l_nor, Le;
 
     pdf_out = pdf;
-    
-    sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility);
-
-    daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wi, wo);
-    daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
-    daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
 
     daxa_f32vec3 result = vec3(0.0);
     
-    if(use_pdf) {
-        result = brdf * Le * G * cos_theta / pdf_out;
-    } else {
-        result = brdf * Le * G * cos_theta;
+    if(sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility)) {
+        daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wi, wo);
+        daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
+        daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
+        
+        if(use_pdf) {
+            result = brdf * Le * G * cos_theta / pdf_out;
+        } else {
+            result = brdf * Le * G * cos_theta;
+        
+        }
+    }
+
+    return result;
+}
+
+
+daxa_f32vec3 calculate_sampled_light_and_get_light_info(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, out daxa_f32vec3 l_pos, out daxa_f32vec3 l_nor, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility) {
+    // 2. Get light direction
+    daxa_f32vec3 light_direction = normalize(light.position - hit.world_hit);
+    daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
+    daxa_f32vec3 wi = normalize(ray.direction);
+    daxa_f32vec3 wo = -wi;
+
+    daxa_f32vec3 Le;
+
+    pdf_out = pdf;
+
+    daxa_f32vec3 result = vec3(0.0);
     
+    if(sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility)) {
+        daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wi, wo);
+        daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
+        daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
+        
+        if(use_pdf) {
+            result = brdf * Le * G * cos_theta / pdf_out;
+        } else {
+            result = brdf * Le * G * cos_theta;
+        
+        }
     }
 
     return result;
@@ -389,13 +406,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         daxa_f32vec3 l_wi = normalize(l_pos - P);
         daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
         daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);
-        daxa_f32 mis_weight = 
-#if USE_POWER_HEURISTIC == 1
-            power_heuristic(l_pdf, m_pdf * G);
-#else
-            balance_heuristic(l_pdf, m_pdf);
-#endif
-                    
+        daxa_f32 mis_weight = eval_mis(1, l_pdf, 1, m_pdf * G, 2.0);
         daxa_f32 cos_theta = get_cos_theta(n, l_wi);
         daxa_f32vec3 brdf = evaluate_material(mat, n, wo, l_wi);
         if(use_pdf) {
@@ -413,19 +424,14 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
 
     if(use_visibility) {
         // Material sampling
-        if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, light_count))
+        if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, object_count))
         {
             i = intersect(Ray(P, m_wi));
             if (i.is_hit && i.mat.emission != vec3(0.0))
             {
                 daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);
                 daxa_f32 light_pdf = sample_lights_pdf(hit, i, light_count);
-                daxa_f32 mis_weight = 
-#if USE_POWER_HEURISTIC == 1
-                    power_heuristic(m_pdf_2 * G, light_pdf);
-#else
-                    balance_heuristic(m_pdf_2 * G, light_pdf);
-#endif
+                daxa_f32 mis_weight = eval_mis(1, m_pdf_2 * G, 1, light_pdf, 2.0);
                 daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
                 daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
                 daxa_f32 cos_theta = get_cos_theta(m_wi, n);

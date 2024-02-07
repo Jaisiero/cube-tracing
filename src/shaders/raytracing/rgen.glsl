@@ -317,10 +317,8 @@ void main()
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
     
-    // TODO: check if we can reduce it to 1 or 2
+    // TODO: check if we can reduce this to 1 or 2
     daxa_u32 max_depth = deref(p.status_buffer).max_depth;
-    // daxa_u32 max_depth = 1;
-
 
     // Ray setup
     Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
@@ -416,6 +414,11 @@ void main()
         hit_value += mat.emission;
 
 #endif // DEBUG_NORMALS_ON
+
+        // Replace NaN components with zero.
+        if(isinf(hit_value.x) || isnan(hit_value.x)) hit_value.x = 0.0;
+        if(isinf(hit_value.y) || isnan(hit_value.y)) hit_value.y = 0.0;
+        if(isinf(hit_value.z) || isnan(hit_value.z)) hit_value.z = 0.0;
             
         clamp(hit_value, 0.0, 0.99999999);
 

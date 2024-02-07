@@ -82,6 +82,10 @@ daxa_b32 path_is_terminated(PATH_STATE path) {
     return !path_is_active(path);
 }
 
+void path_terminate(inout PATH_STATE path) {
+    path_set_flag(path, PATH_FLAG_ACTIVE, false);
+}
+
 void path_set_active(inout PATH_STATE path) {
     path_set_flag(path, PATH_FLAG_ACTIVE, true);
 }
@@ -99,7 +103,20 @@ void path_clear_hit(inout PATH_STATE path) {
     path_set_flag(path, PATH_FLAG_HIT, false);
 }
 
-daxa_f32vec3 path_reservoir_get_current_thp(PATH_STATE path) {
+daxa_u32 get_bounces(PATH_STATE path, daxa_u32 bounce_type) {
+    return (path.bounce_counters >> (bounce_type << 3)) & 0xff;
+}
+
+daxa_b32 path_is_specular_bounce(PATH_STATE path) {
+    return (path.flags & PATH_FLAG_SPECULAR_BOUNCE) != 0;
+}
+
+daxa_b32 path_has_finished_surface_bounces(PATH_STATE path) {
+    // TODO: check more lobe types
+    return get_bounces(path, BOUNCE_TYPE_DIFFUSE) + get_bounces(path, BOUNCE_TYPE_SPECULAR) > 0;
+}
+
+daxa_f32vec3 path_get_current_thp(PATH_STATE path) {
     return path.thp * path.prefix_thp;
 }
 
@@ -128,7 +145,7 @@ void path_increment_bounces(inout PATH_STATE path, daxa_u32 bounce_type) {
 
 void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed) {
     path_set_active(path);
-    path.id = index.x | (index.y << 12);
+    path.id = index.y * rt_size.x + index.x;
     path.thp = daxa_f32vec3(1.f);
     path.prefix_thp = daxa_f32vec3(1.f);
     // path.rc_vertex_path_tree_irradiance = daxa_f32vec3(0.f);
