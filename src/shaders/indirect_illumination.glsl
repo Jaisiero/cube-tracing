@@ -24,7 +24,7 @@ struct LIGHT_SAMPLER
 };
 
 
-daxa_b32 generate_scatter_ray(INTERSECT i, inout daxa_u32 seed) {
+daxa_b32 generate_scatter_ray(inout INTERSECT i, inout daxa_u32 seed) {
 
     call_scatter.hit = i.world_hit;
     call_scatter.nrm = i.world_nrm;
@@ -59,12 +59,12 @@ daxa_b32 generate_scatter_ray(INTERSECT i, inout daxa_u32 seed) {
     i.world_nrm = call_scatter.nrm;
     i.wi = call_scatter.scatter_dir;
 
-    return !prd.done;
+    return !call_scatter.done;
 }
 
 
 
-daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, INTERSECT i) {
+daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, inout INTERSECT i) {
 
     daxa_b32 valid = generate_scatter_ray(i, path.seed);
 
@@ -103,7 +103,7 @@ daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, INTERSECT i) {
 
         path.normal = i.world_nrm;
 
-        valid = any(greaterThan(path.thp,daxa_f32vec3(0.0)));
+        valid = any(greaterThan(path.thp, daxa_f32vec3(0.0)));
 
         if(valid) {
             if(path.path_length <= path.path_builder.rc_vertex_length) {
@@ -292,7 +292,7 @@ daxa_b32 path_handle_emissive_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 l
     {
         // insert path flags
 
-        // daqi: ideally, this should use a smaller nearFieldDistance than the default threshold
+        //  ideally, this should use a smaller nearFieldDistance than the default threshold
         daxa_b32 is_far_field = length(i.world_hit - path.origin) >= NEAR_FIELD_DISTANCE;
         daxa_b32 is_last_vertex_acceptable_for_rc_prev = path.is_last_vertex_classified_as_rough;
 
@@ -408,8 +408,7 @@ daxa_b32 path_handle_sample_light(inout PATH_STATE path, INTERSECT i, daxa_u32 l
 }
 
 
-daxa_b32 path_handle_primary_hit(inout PATH_STATE path, INTERSECT i) {
-    
+daxa_b32 path_handle_primary_hit(inout PATH_STATE path, inout INTERSECT i) {
 
     // TODO: complete this function
     // Compute origin for rays traced from this path vertex.
@@ -432,59 +431,9 @@ daxa_b32 path_handle_primary_hit(inout PATH_STATE path, INTERSECT i) {
 }
 
 
-void path_handle_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 light_count, daxa_u32 object_count) {
 
-    // Upon hit:
-    // - Load vertex/material data
-    // - Compute volume absorption
-    // - Compute MIS weight if path.length > 0 and emissive hit
-    // - Add emitted radiance
-    // - Sample light(s) using shadow rays
-    // - Sample scatter ray or terminate
-
-    daxa_b32 compute_emissive = true;
-
-    if(path.path_length == 1) compute_emissive = false;
-
-    // daqi: when doing random number replay, we will terminate the path when the length reaches the base path length and
-    // when the path types match. In this case, if the base path is a escaped path (as opposed to an NEE path), we should terminate when we
-    // find that offset path can also be an escaped path
-    daxa_b32 terminate_random_replay_for_escape = path.enable_random_replay && path.path_length - 1 == path.random_replay_length && path.random_replay_is_escaped && path.random_replay_length >= 1;
-
-    // TODO: Sample emissive (add escape vertex) (pathtracer:1034)
-    if (compute_emissive && any(greaterThan(i.mat.emission, daxa_f32vec3(0.f))))
-    {
-        path_handle_emissive_hit(path, i, light_count, terminate_random_replay_for_escape);
-    }
-
-    // Terminate after scatter ray on last vertex has been processed.
-    if (path_has_finished_surface_bounces(path) || terminate_random_replay_for_escape)
-    {
-        path_terminate(path);
-        return;
-    }
-
-    daxa_f32vec3 prev_path_origin = path.origin;
-
-    // Compute origin for rays traced from this path vertex.
-    path.origin = i.world_hit;
-
-    // TODO: Some lobe stuff (pathtracer:1136)
-
-    // when doing random number replay, we will terminate the path when the length reaches the base path length and
-    // when the path types match. In this case, if the base path is a NEE path (as opposed to an escaped path), we should terminate when we
-    // find that offset path can also be an NEE path
-    daxa_b32 terminate_random_replay_for_NEE = path.enable_random_replay && path.path_length == path.random_replay_length && path.random_replay_is_NEE;
-
-    daxa_b32 is_rc_vertex = false;
-
-    daxa_b32 is_far_field = length(path.origin - prev_path_origin) >= NEAR_FIELD_DISTANCE;
-    // TODO: check separate BSDF (multiple lobes) (pathtracer:1160)
-    daxa_b32 is_current_vertex_classified_as_rough = classify_as_rough(i.mat, SPECULAR_ROUGHNESS_THRESHOLD);
-    daxa_b32 is_last_vertex_acceptable_for_rc_prev = path.is_last_vertex_classified_as_rough;
-
-    // TODO: Check if rc_vertex (pathtracer:1165)
-    // //  if we are not doing a hybrid shift replay, we should check if current vertex satisfy the condition to be used as a rcVertex
+daxa_b32 path_check_rc_vertex(inout PATH_STATE path, INTERSECT i, daxa_f32vec3 prev_path_origin, daxa_b32 is_far_field, daxa_b32 is_current_vertex_classified_as_rough, daxa_b32 is_last_vertex_acceptable_for_rc_prev, out daxa_b32 is_rc_vertex) {
+    //  if we are not doing a hybrid shift replay, we should check if current vertex satisfy the condition to be used as a rcVertex
     if (!path.is_replay_for_hybrid_shift)
     {
         daxa_b32 can_connect = (path.path_length >= 1 && path.path_length < path.path_builder.rc_vertex_length &&
@@ -518,7 +467,7 @@ void path_handle_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 light_count, d
         daxa_b32 invertible = true;
         daxa_b32 should_terminate = false;
 
-        // daqi: check situation where invertibility is violated
+        //  check situation where invertibility is violated
         if (path.path_length >= 1 && path.path_length <= path.path_builder.rc_vertex_length - 1)
         {
             // TODO: separate BSDF (pathtracer:1202)
@@ -583,23 +532,94 @@ void path_handle_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 light_count, d
         }
 
         if (!path_is_active(path))
-            return;
+            return false;
     }
+
+    return true;
+}
+
+void path_handle_hit(inout PATH_STATE path, inout INTERSECT i, daxa_u32 light_count, daxa_u32 object_count) {
+
+    // Upon hit:
+    // - Load vertex/material data
+    // - Compute volume absorption
+    // - Compute MIS weight if path.length > 0 and emissive hit
+    // - Add emitted radiance
+    // - Sample light(s) using shadow rays
+    // - Sample scatter ray or terminate
+
+    daxa_b32 compute_emissive = true;
+
+    if(path.path_length == 1) compute_emissive = false;
+
+        
+    // // TODO: temporary
+    // if(path.path_length == 3) {
+    //     path.path_reservoir.weight = 1.0;
+    //     path.path_reservoir.F = path.thp;
+    //     path_terminate(path);
+    // }
+
+    //  when doing random number replay, we will terminate the path when the length reaches the base path length and
+    // when the path types match. In this case, if the base path is a escaped path (as opposed to an NEE path), we should terminate when we
+    // find that offset path can also be an escaped path
+    daxa_b32 terminate_random_replay_for_escape = 
+        path.enable_random_replay && 
+        path.path_length - 1 == path.random_replay_length && 
+        path.random_replay_is_escaped && 
+        path.random_replay_length >= 1;
+
+    // Sample emissive (add escape vertex) (pathtracer:1034)
+    if (compute_emissive && any(greaterThan(i.mat.emission, daxa_f32vec3(0.f))))
+    {
+        path_handle_emissive_hit(path, i, light_count, terminate_random_replay_for_escape);
+    }
+
+    // Terminate after scatter ray on last vertex has been processed.
+    if (path_has_finished_surface_bounces(path) || terminate_random_replay_for_escape)
+    {
+        path_terminate(path);
+        return;
+    }
+
+    daxa_f32vec3 prev_path_origin = path.origin;
+
+    // Compute origin for rays traced from this path vertex.
+    path.origin = i.world_hit;
+
+    // TODO: Some lobe stuff (pathtracer:1136)
+
+    // when doing random number replay, we will terminate the path when the length reaches the base path length and
+    // when the path types match. In this case, if the base path is a NEE path (as opposed to an escaped path), we should terminate when we
+    // find that offset path can also be an NEE path
+    daxa_b32 terminate_random_replay_for_NEE = 
+        path.enable_random_replay && 
+        path.path_length == path.random_replay_length && 
+        path.random_replay_is_NEE;
+
+    daxa_b32 is_rc_vertex = false;
+
+    daxa_b32 is_far_field = length(path.origin - prev_path_origin) >= NEAR_FIELD_DISTANCE;
+    // TODO: check separate BSDF (multiple lobes) (pathtracer:1160)
+    daxa_b32 is_current_vertex_classified_as_rough = classify_as_rough(i.mat, SPECULAR_ROUGHNESS_THRESHOLD);
+    daxa_b32 is_last_vertex_acceptable_for_rc_prev = path.is_last_vertex_classified_as_rough;
+
+    // Check if rc_vertex (pathtracer:1165)
+    path_check_rc_vertex(path, i, prev_path_origin, is_far_field, is_current_vertex_classified_as_rough, is_last_vertex_acceptable_for_rc_prev, is_rc_vertex);
 
     path_set_light_sampled(path, false, false);
 
-    // TODO: Sample light (add NEE vertex) (pathtracer:1265)
-
+    // Sample light (add NEE vertex) (pathtracer:1265)
     path_handle_sample_light(path, i, light_count, terminate_random_replay_for_NEE, is_rc_vertex);
 
-    // daqi: terminate the path if the bounce of random replay reaches the desired bounce and the base path is an NEE path
+    //  terminate the path if the bounce of random replay reaches the desired bounce and the base path is an NEE path
     if (terminate_random_replay_for_NEE)
     {
         path_terminate(path);
         return;
     }
 
-    // TODO: Russian roulette (pathtracer:1378)
+    // Russian roulette (pathtracer:1378)
     // Russian roulette to terminate paths early.
     // TODO: check if this is handled correctly in ReSTIR PT
     daxa_b32 use_russian_roulette = false;
@@ -616,34 +636,46 @@ void path_handle_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 light_count, d
         }
     }
 
-    // TODO: Scatter ray (pathtracer:1400)
+    // Scatter ray (pathtracer:1400)
     daxa_b32 valid = path_generate_scatter_ray(path, i);
-
 
 
     // TODO: forbid current vertex being rcVertex if conditions are not met (pathtracer:1403)
 
+    // cache seed for temporal validation (only possible for non early direction reuse since it uses the cachedRandomSeed slot) (pathtracer:1427)
+    if (path.path_length == path.path_builder.rc_vertex_length)
+    {
+        path.path_builder.cached_random_seed = path.seed;
+    }
 
+    // TODO: check this
+    daxa_b32 BPR = false;
 
+    // save the incoming direction on rcVertex (pathtracer:1433)
+    if (is_rc_vertex && valid && (daxa_i32(path.path_length > 1) == 0 || BPR == false))
+    {
+        path.path_builder.rc_vertex_wi[0] = path.dir;
+    }
 
-    // TODO: cache seed for temporal validation (pathtracer:1427)
+    path.is_last_vertex_classified_as_rough = is_current_vertex_classified_as_rough;
+    
+    // TODO: save more things afterwards (do we need them?) (pathtracer:1441)
 
-    // TODO: save the incoming direction on rcVertex (pathtracer:1433)
+    // if path is terminated, return (pathtracer:1456)
+    if (!path_is_active(path)) return;
 
-    // TODO: save more things afterwards
+    // Check if last bounce for replay only (pathtracer:1459)
+    const daxa_b32 is_last_vertex = path_has_finished_surface_bounces(path);
 
-    // TODO: if path is terminated, break (pathtracer:1456)
+    if(is_last_vertex) valid = false;
 
-    // TODO: Check if last bounce for replay only (pathtracer:1459)
+    // TODO: Check other things to invalidate the path (caustics) (pathtracer:1465)
 
-    // TODO: Check other things to invalidate the path (pathtracer:1462)
-
-    // TODO: If not valid, terminate path (pathtracer:1467)
-
-    // prd.done = false;
+    // If not valid, terminate path (pathtracer:1467)
+    if(!valid) path_terminate(path);
 }
 
-void path_handle_miss(inout PATH_STATE path, INTERSECT i, daxa_u32 seed) {
+void path_handle_miss(inout PATH_STATE path, inout INTERSECT i, daxa_u32 seed) {
     // TODO: Handle miss path here for subsequent hits
     // Upon miss:
     // - Compute MIS weight if previous path vertex sampled a light
@@ -651,11 +683,13 @@ void path_handle_miss(inout PATH_STATE path, INTERSECT i, daxa_u32 seed) {
     // - Write guiding data
     // - Terminate the path
 
-    prd.done = true;
-    prd.hit_value *= calculate_sky_color(
-        deref(p.status_buffer).time,
-        deref(p.status_buffer).is_afternoon,
-        i.wo);
+
+    // prd.hit_value *= calculate_sky_color(
+    //     deref(p.status_buffer).time,
+    //     deref(p.status_buffer).is_afternoon,
+    //     i.wo);
+
+    path_terminate(path);
 }
 
 
@@ -665,6 +699,8 @@ void path_finalize(inout PATH_STATE path) {
 
 
 daxa_f32vec3 path_output(inout PATH_STATE path) {
+
+    path_reservoir_finalize_RIS(path.path_reservoir);
     
     // Write color directly to frame buffer.
     daxa_f32vec3 color = path.path_reservoir.F * path.path_reservoir.weight;
@@ -678,35 +714,35 @@ daxa_f32vec3 path_output(inout PATH_STATE path) {
 }
 
 void indirect_illumination_restir_path_tracing(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
-    PATH_STATE path;
-    generate_path(path, index, rt_size, i.instance_hit, ray, seed);
-
-    path_handle_primary_hit(path, i);
-
+    
     max_depth = max(1, max_depth);
 
-    // TODO: Do something with path here for primary hit
+    PATH_STATE path;
+    generate_path(path, index, rt_size, i.instance_hit, ray, seed, max_depth);
 
-    do
-    {
-        path_next_vertex(path, i);
+    if(path_handle_primary_hit(path, i)) {
+        // TODO: Do something with path here for primary hit
 
-        if (path_is_hit(path))
-        {   
-            path_handle_hit(path, i, light_count, object_count);
-        }
-        else
+        do
         {
-            path_handle_miss(path, i, seed);
-        }
+            path_next_vertex(path, i);
 
-        max_depth--;
-        daxa_b32 done = path_is_terminated(path) || max_depth == 0;
-        if (done)
-            break;
-    } while(path_is_active(path));
+            if (path_is_hit(path))
+            {   
+                path_handle_hit(path, i, light_count, object_count);
+            }
+            else
+            {
+                path_handle_miss(path, i, seed);
+            }
+        } while(path_is_active(path));
+    }
 
     path_finalize(path);
+
+    // TODO: temporary
+    // path.path_reservoir.weight = 1.0;
+    // path.path_reservoir.F = path.thp;
 
     throughput = path_output(path);
 }

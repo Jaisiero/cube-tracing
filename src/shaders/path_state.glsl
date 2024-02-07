@@ -13,6 +13,8 @@ struct PATH_STATE
 {
     daxa_u32 id; ///< Path ID encodes (pixel, sampleIdx) with 12 bits each for pixel x|y and 8 bits for sample index.
 
+    daxa_u32 max_depth; ///< Maximum path depth.
+
     // daxa_u16
     daxa_u32 flags; ///< Flags indicating the current status. This can be multiple PathFlags flags OR'ed together.
     // daxa_u16
@@ -31,19 +33,19 @@ struct PATH_STATE
     INSTANCE_HIT hit;    ///< Hit information for the scatter ray. This is populated at committed triangle hits.
 
     daxa_f32vec3 thp;       ///< Path throughput.
-    daxa_f32vec3 prefix_thp; /// daqi: used for computing rcVertexIrradiance[1]
+    daxa_f32vec3 prefix_thp; ///  used for computing rcVertexIrradiance[1]
 
     // daxa_f32vec3 rc_vertex_path_tree_irradiance;
 
     daxa_f32vec3 L;            ///< Accumulated path contribution.
-    // daxa_f32vec3 L_delta_direct; // daqi: save the direct lighting on delta surfaces
+    // daxa_f32vec3 L_delta_direct; //  save the direct lighting on delta surfaces
 
     daxa_f32      russian_roulette_PDF;
     daxa_f32vec3 shared_scatter_dir;
     daxa_f32 prev_scatter_pdf;
 
-    INSTANCE_HIT rc_prev_vertex_hit; // daqi: save the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
-    daxa_f32vec3 rc_prev_vertex_wo;  // daqi: save the outgoing direction at the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
+    INSTANCE_HIT rc_prev_vertex_hit; //  save the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
+    daxa_f32vec3 rc_prev_vertex_wo;  //  save the outgoing direction at the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
 
     daxa_f32 hit_dist; // for NRD
 
@@ -54,14 +56,14 @@ struct PATH_STATE
     PATH_RESERVOIR path_reservoir;
 
     // TODO: pack those as flags
-    daxa_b32 enable_random_replay;    // daqi: indicate the pathtracer is doing random number replay (being called from resampling stage)
-    daxa_b32 random_replay_is_NEE;     // daqi: indicate the base path is a NEE path, therefore the random replay should also terminates as a NEE path
-    daxa_b32 random_replay_is_escaped; // daqi: indicate the base path is a escaped path, therefore the random replay should also terminates as a escaped path
-    daxa_u32 random_replay_length;    // daqi: the length of the random replay (same as the path length of the base path)
+    daxa_b32 enable_random_replay;    //  indicate the pathtracer is doing random number replay (being called from resampling stage)
+    daxa_b32 random_replay_is_NEE;     //  indicate the base path is a NEE path, therefore the random replay should also terminates as a NEE path
+    daxa_b32 random_replay_is_escaped; //  indicate the base path is a escaped path, therefore the random replay should also terminates as a escaped path
+    daxa_u32 random_replay_length;    //  the length of the random replay (same as the path length of the base path)
     daxa_b32 use_hybrid_shift;
     // this is used for hybrid shift or hybrid shift is being MIS'ed with (at both initial candidate generation and resampling)
-    daxa_b32 is_replay_for_hybrid_shift;        // daqi: indicate that a random number replay is done with the hybrid shift in mind (invalidated if invertibility is violated)
-    daxa_b32 is_last_vertex_classified_as_rough; // daqi: remembers if last vertex is classified as a diffuse vertex (used for specularskip in hybrid shift)
+    daxa_b32 is_replay_for_hybrid_shift;        //  indicate that a random number replay is done with the hybrid shift in mind (invalidated if invertibility is violated)
+    daxa_b32 is_last_vertex_classified_as_rough; //  remembers if last vertex is classified as a diffuse vertex (used for specularskip in hybrid shift)
 };
 
 
@@ -112,8 +114,13 @@ daxa_b32 path_is_specular_bounce(PATH_STATE path) {
 }
 
 daxa_b32 path_has_finished_surface_bounces(PATH_STATE path) {
+    daxa_u32 diffuse_bounces = get_bounces(path, BOUNCE_TYPE_DIFFUSE);
+    // daxa_u32 specular_bounces =  get_bounces(path, BOUNCE_TYPE_SPECULAR);
     // TODO: check more lobe types
-    return get_bounces(path, BOUNCE_TYPE_DIFFUSE) + get_bounces(path, BOUNCE_TYPE_SPECULAR) > 0;
+
+    return diffuse_bounces 
+        // + specular_bounces
+        > path.max_depth; // TODO: check this by parameter
 }
 
 daxa_f32vec3 path_get_current_thp(PATH_STATE path) {
@@ -143,31 +150,49 @@ void path_increment_bounces(inout PATH_STATE path, daxa_u32 bounce_type) {
 }
 
 
-void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed) {
-    path_set_active(path);
+
+
+void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed, daxa_u32 max_depth) {
     path.id = index.y * rt_size.x + index.x;
+    path.max_depth = max_depth;
+    path.flags = 0;
+    path.path_length = 0;
+    path_set_active(path);
+    path.rejected_hits = 0;
+    path.bounce_counters = 0;
+
+    path.origin = ray.origin;
+    path.dir = ray.direction;
+    path.pdf = 0.f;
+    path.normal = daxa_f32vec3(0.f);
+
     path.thp = daxa_f32vec3(1.f);
     path.prefix_thp = daxa_f32vec3(1.f);
     // path.rc_vertex_path_tree_irradiance = daxa_f32vec3(0.f);
 
-    // path.L_delta_direct = daxa_f32vec3(0.f);
-    path.enable_random_replay = false;
-    path.use_hybrid_shift = false;
-    path.is_last_vertex_classified_as_rough = true;
-    path.is_replay_for_hybrid_shift = false;
+    path.L = daxa_f32vec3(0.f);
+
+    path.russian_roulette_PDF = 1.f;
+    path.shared_scatter_dir = daxa_f32vec3(0.f);
+    path.prev_scatter_pdf = 1.f;
 
     path_set_hit(path, instance);
+    path.rc_prev_vertex_wo = daxa_f32vec3(0.f);
 
-    path.origin = ray.origin;
-    path.dir = ray.direction;
+    path.hit_dist = 0.f;
 
     path.seed = seed;
 
     path_builder_init(path.path_builder, seed);
     path_reservoir_initialise(path.path_reservoir);
 
-
-    path.russian_roulette_PDF = 1.f;
-    path.prev_scatter_pdf = 1.f;
+    // path.L_delta_direct = daxa_f32vec3(0.f);
+    path.enable_random_replay = false;
+    path.random_replay_is_NEE = false;
+    path.random_replay_is_escaped = false;
+    path.random_replay_length = 0;
+    path.use_hybrid_shift = false;
+    path.is_replay_for_hybrid_shift = false;
+    path.is_last_vertex_classified_as_rough = true;
 }
 
