@@ -44,7 +44,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
 #define HLF_MAX 6.5504e+4F // max value for half float
-#define HLF_MIN 6.097555160522461e-05F  // min normalized positive value
+#define FLT_MIN 1.175494351e-38F  // min normalized positive value
 
 // TODO: M by parameter?
 const daxa_u32 MIN_RIS_SAMPLE_COUNT = 4;

@@ -25,14 +25,14 @@ void set_temporal_path_reservoir_by_index(daxa_u32 reservoir_index, PATH_RESERVO
     temporal_path_reservoir_buffer.path_reservoirs[reservoir_index] = reservoir;
 }
 
-PIXEL_RECONNECTION_DATA get_reconnection_data_from_current_frame(daxa_u32 pixel_index) {
+RECONNECTION_DATA get_reconnection_data_from_current_frame(daxa_u32 pixel_index, daxa_u32 slot) {
     PIXEL_RECONNECTION_DATA_BUFFER reconnection_data_buffer = PIXEL_RECONNECTION_DATA_BUFFER(deref(p.restir_buffer).pixel_reconnection_data_address);
-    return reconnection_data_buffer.reconnections[pixel_index];
+    return reconnection_data_buffer.reconnections[pixel_index].data[slot];
 }
 
-void set_reconnection_data_from_current_frame(daxa_u32 pixel_index, PIXEL_RECONNECTION_DATA reconnection_info) {
+void set_reconnection_data_from_current_frame(daxa_u32 pixel_index, daxa_u32 slot, RECONNECTION_DATA reconnection_info) {
     PIXEL_RECONNECTION_DATA_BUFFER reconnection_data_buffer = PIXEL_RECONNECTION_DATA_BUFFER(deref(p.restir_buffer).pixel_reconnection_data_address);
-    reconnection_data_buffer.reconnections[pixel_index] = reconnection_info;
+    reconnection_data_buffer.reconnections[pixel_index].data[slot] = reconnection_info;
 }
 
 // maximum length: 15
@@ -47,6 +47,11 @@ void path_reservoir_insert_rc_vertex_length(inout PATH_RESERVOIR reservoir, daxa
 {
     reservoir.path_flags &= ~0xF0;
     reservoir.path_flags |= (rc_vertex_length & 0xF) << 4;
+}
+
+daxa_u32 path_reservoir_get_reconnection_length(inout PATH_RESERVOIR reservoir)
+{
+    return (reservoir.path_flags >> 4) & 0xF;
 }
 
 void path_reservoir_insert_last_vertex_nee(inout PATH_RESERVOIR reservoir, daxa_b32 last_vertex_nee)
