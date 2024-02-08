@@ -59,6 +59,20 @@ daxa_u32 path_reservoir_get_reconnection_length(daxa_i32 path_flags)
     return (path_flags >> 4) & 0xF;
 }
 
+
+void path_reservoir_insert_is_delta_event(inout PATH_RESERVOIR reservoir, daxa_b32 is_delta, daxa_b32 before_rc_vertex)
+{
+    reservoir.path_flags &= (before_rc_vertex ? ~(0x100) : ~(0x200));
+    if (is_delta) reservoir.path_flags |= 1 << (before_rc_vertex ? 20 : 21);
+}
+
+void path_reservoir_insert_is_transmission_event(inout PATH_RESERVOIR reservoir, daxa_b32 is_transmission, daxa_b32 before_rc_vertex)
+{
+    reservoir.path_flags &= (before_rc_vertex ? ~(0x400) : ~(0x800));
+    if (is_transmission) reservoir.path_flags |= 1 << (before_rc_vertex ? 22 : 23);
+}
+
+
 void path_reservoir_insert_last_vertex_nee(inout PATH_RESERVOIR reservoir, daxa_b32 last_vertex_nee)
 {
     reservoir.path_flags &= ~0x10000;
@@ -143,4 +157,12 @@ void path_reservoir_finalize_RIS(inout PATH_RESERVOIR reservoir)
     daxa_f32 p_hat = path_F_to_scalar(reservoir.F);
     if (p_hat == 0.f || reservoir.M == 0.f) reservoir.weight = 0.f;
     else reservoir.weight = reservoir.weight / (p_hat * reservoir.M);
+}
+
+
+void path_reservoir_finalize_GRIS(inout PATH_RESERVOIR reservoir) 
+{
+    daxa_f32 p_hat = path_F_to_scalar(reservoir.F);
+    if (p_hat == 0.f) reservoir.weight = 0.f;
+    else reservoir.weight = reservoir.weight / p_hat;
 }

@@ -284,18 +284,19 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params, inout PATH_STATE pa
     daxa_f32 mis_weight = 1.f;
     daxa_f32vec3 Lr = daxa_f32vec3(0.0);
 
-    // If NEE and MIS are enabled, and we've already sampled emissive lights,
-    // then we need to evaluate the MIS weight here to account for the remaining contribution.
-    light_pdf = path_evaluate_emissive(i, params.light_count);
+    daxa_b32 primary_hit = path.path_length == 0;
 
-    mis_weight = eval_mis(1, path.pdf, 1, light_pdf, 2.0);
+    if(!primary_hit) {
+        // If NEE and MIS are enabled, and we've already sampled emissive lights,
+        // then we need to evaluate the MIS weight here to account for the remaining contribution.
+        light_pdf = path_evaluate_emissive(i, params.light_count);
 
-    // Acumulate emitted radiance weighted by path throughput and mis weight
-    Lr = path_get_current_thp(path) * i.mat.emission * mis_weight;
+        mis_weight = eval_mis(1, path.pdf, 1, light_pdf, 2.0);
+
+        Lr = path_get_current_thp(path) * i.mat.emission * mis_weight;
+    }
 
     attenuated_emission = path_get_current_thp(path) * i.mat.emission;
-
-    path.L += Lr;
     
     // daqi: Since ScreenSpaceReSTIR cannot handle transmission and delta reflection, we must include the contribution in the color buffer 
     if (!path.enable_random_replay || terminate_random_replay_for_escape)
@@ -346,8 +347,11 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params, inout PATH_STATE pa
                     // set rcVertexLength to current length (this will make rcVertexLength = reseroivr.pathLength + 1)
                     daxa_f32 geometry_factor = geom_fact_sa(i.world_hit, i.world_hit, i.world_nrm);
 
-                    path_builder_mark_escape_vertex_as_rc_vertex(path.path_builder, path.path_length, path.path_reservoir, 
-                        path.hit, path_is_specular_bounce(path), 
+                    path_builder_mark_escape_vertex_as_rc_vertex(path.path_builder, path.path_length, 
+                        path.path_reservoir, path.hit, 
+                        path_is_specular_bounce(path),    
+                        path_is_delta_event(path),
+                        path_is_transmission_event(path), 
                         light_pdf, GEOMETRY_LIGHT_CUBE, i.mat.emission, daxa_f32vec3(0.f), 
                         path.prev_scatter_pdf, geometry_factor);
                 }
@@ -447,11 +451,13 @@ daxa_b32 path_handle_sample_light(const SCENE_PARAMS params, inout PATH_STATE pa
 }
 
 
-daxa_b32 path_handle_primary_hit(inout PATH_STATE path, inout INTERSECT i) {
+daxa_b32 path_handle_primary_hit(const SCENE_PARAMS params, inout PATH_STATE path, inout INTERSECT i) {
 
     // TODO: complete this function
     // Compute origin for rays traced from this path vertex.
     path.origin = i.world_hit;
+
+    path_handle_emissive_hit(params, path, i, false);
 
 
     path_set_light_sampled(path, false, false);
@@ -589,15 +595,7 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path, inout INT
 
     daxa_b32 compute_emissive = true;
 
-    if(path.path_length == 1) compute_emissive = false;
-
-        
-    // // TODO: temporary
-    // if(path.path_length == 3) {
-    //     path.path_reservoir.weight = 1.0;
-    //     path.path_reservoir.F = path.thp;
-    //     path_terminate(path);
-    // }
+    if(path.path_length == 1 && !path_is_transmission_event(path) && !path_is_delta_event(path) ) compute_emissive = false;
 
     //  when doing random number replay, we will terminate the path when the length reaches the base path length and
     // when the path types match. In this case, if the base path is a escaped path (as opposed to an NEE path), we should terminate when we
@@ -644,7 +642,9 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path, inout INT
     daxa_b32 is_last_vertex_acceptable_for_rc_prev = path.is_last_vertex_classified_as_rough;
 
     // Check if rc_vertex (pathtracer:1165)
-    path_check_rc_vertex(path, i, prev_path_origin, is_far_field, is_current_vertex_classified_as_rough, is_last_vertex_acceptable_for_rc_prev, is_rc_vertex);
+    if(!path_check_rc_vertex(path, i, prev_path_origin, is_far_field, is_current_vertex_classified_as_rough, is_last_vertex_acceptable_for_rc_prev, is_rc_vertex)) {
+        return;
+    }
 
     path_set_light_sampled(path, false, false);
 
@@ -752,11 +752,11 @@ daxa_f32vec3 path_output(inout PATH_STATE path) {
 
 
 
-void trace_restir_path_tracing(const SCENE_PARAMS params, out PATH_RESERVOIR central_reservoir, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, inout daxa_f32vec3 throughput) {
+PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, inout daxa_f32vec3 throughput) {
     PATH_STATE path;
     generate_path(path, index, rt_size, i.instance_hit, ray, seed, params.max_depth);
 
-    if(path_handle_primary_hit(path, i)) {
+    if(path_handle_primary_hit(params, path, i)) {
         do
         {
             path_next_vertex(path, i);
@@ -779,13 +779,9 @@ void trace_restir_path_tracing(const SCENE_PARAMS params, out PATH_RESERVOIR cen
 
     path_finalize(path);
 
-    // TODO: temporary
-    // path.path_reservoir.weight = 1.0;
-    // path.path_reservoir.F = path.thp;
-
     throughput = path_output(path);
 
-    central_reservoir = path.path_reservoir;
+    return path.path_reservoir;
 }
 
 
