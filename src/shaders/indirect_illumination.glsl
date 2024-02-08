@@ -254,8 +254,6 @@ daxa_b32 path_handle_emissive_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 l
     daxa_f32 mis_weight = 1.f;
     daxa_f32vec3 Lr = daxa_f32vec3(0.0);
 
-    // TODO: complete this function  (terminate_random_replay_for_escape)
-
     // If NEE and MIS are enabled, and we've already sampled emissive lights,
     // then we need to evaluate the MIS weight here to account for the remaining contribution.
     light_pdf = path_evaluate_emissive(i, light_count);
@@ -268,50 +266,61 @@ daxa_b32 path_handle_emissive_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 l
     attenuated_emission = path_get_current_thp(path) * i.mat.emission;
 
     path.L += Lr;
-    // will change this to path.IsDelta() if ScreenSpaceReSTIR can handle transmission
-    // TODO: if (!isLightSamplable && path.length == 1) path.LDeltaDirect += Lr;
-
-    daxa_f32vec3 postfix_weight = path.thp * attenuated_emission * mis_weight;
-
-    daxa_b32 selected = path_builder_add_escape_vertex(
-        path.path_builder,
-        max(0, daxa_i32(path.path_length) - 1),
-        path.dir,
-        Lr,
-        postfix_weight,
-        path.use_hybrid_shift,
-        path.russian_roulette_PDF,
-        mis_weight,
-        light_pdf,
-        GEOMETRY_LIGHT_CUBE,
-        path.path_reservoir,
-        path.enable_random_replay);
-
-    // if current escaped vertex has path.length >= 2, then it can be used as a rcVertex
-    if (selected && path.use_hybrid_shift && path.path_length >= 2 && path.path_length < path.path_builder.rc_vertex_length)
+    
+    // daqi: Since ScreenSpaceReSTIR cannot handle transmission and delta reflection, we must include the contribution in the color buffer 
+    if (!path.enable_random_replay || terminate_random_replay_for_escape)
     {
-        // insert path flags
+        if (path.path_length > 1) path.L += Lr;
+        // will change this to path.IsDelta() if ScreenSpaceReSTIR can handle transmission
+        // if (path.length == 1) path.LDeltaDirect += Lr;
+    }
 
-        //  ideally, this should use a smaller nearFieldDistance than the default threshold
-        daxa_b32 is_far_field = length(i.world_hit - path.origin) >= NEAR_FIELD_DISTANCE;
-        daxa_b32 is_last_vertex_acceptable_for_rc_prev = path.is_last_vertex_classified_as_rough;
 
-        if (!(!is_far_field || !is_last_vertex_acceptable_for_rc_prev))
+    // daqi: here we are adding the path terminated with an escaped vertex
+    if (!path.enable_random_replay || terminate_random_replay_for_escape)
+    {
+        daxa_f32vec3 postfix_weight = path.thp * attenuated_emission * mis_weight;
+
+        daxa_b32 selected = path_builder_add_escape_vertex(
+            path.path_builder,
+            max(0, daxa_i32(path.path_length) - 1),
+            path.dir,
+            Lr,
+            postfix_weight,
+            path.use_hybrid_shift,
+            path.russian_roulette_PDF,
+            mis_weight,
+            light_pdf,
+            GEOMETRY_LIGHT_CUBE,
+            path.path_reservoir,
+            path.enable_random_replay);
+
+        // if current escaped vertex has path.length >= 2, then it can be used as a rcVertex
+        if (selected && path.use_hybrid_shift && path.path_length >= 2 && path.path_length < path.path_builder.rc_vertex_length)
         {
-            if (path.is_replay_for_hybrid_shift) // non-invertible case 
-            {
-                path.L = daxa_f32vec3(0.f);
-            }
-            else
-            {
-                // we found an RC vertex!
-                // set rcVertexLength to current length (this will make rcVertexLength = reseroivr.pathLength + 1)
-                daxa_f32 geometry_factor = geom_fact_sa(i.world_hit, i.world_hit, i.world_nrm);
+            // insert path flags
 
-                path_builder_mark_escape_vertex_as_rc_vertex(path.path_builder, path.path_length, path.path_reservoir, 
-                    path.hit, path_is_specular_bounce(path), 
-                    light_pdf, GEOMETRY_LIGHT_CUBE, i.mat.emission, daxa_f32vec3(0.f), 
-                    path.prev_scatter_pdf, geometry_factor);
+            //  ideally, this should use a smaller nearFieldDistance than the default threshold
+            daxa_b32 is_far_field = length(i.world_hit - path.origin) >= NEAR_FIELD_DISTANCE;
+            daxa_b32 is_last_vertex_acceptable_for_rc_prev = path.is_last_vertex_classified_as_rough;
+
+            if (!(!is_far_field || !is_last_vertex_acceptable_for_rc_prev))
+            {
+                if (path.is_replay_for_hybrid_shift) // non-invertible case 
+                {
+                    path.L = daxa_f32vec3(0.f);
+                }
+                else
+                {
+                    // we found an RC vertex!
+                    // set rcVertexLength to current length (this will make rcVertexLength = reseroivr.pathLength + 1)
+                    daxa_f32 geometry_factor = geom_fact_sa(i.world_hit, i.world_hit, i.world_nrm);
+
+                    path_builder_mark_escape_vertex_as_rc_vertex(path.path_builder, path.path_length, path.path_reservoir, 
+                        path.hit, path_is_specular_bounce(path), 
+                        light_pdf, GEOMETRY_LIGHT_CUBE, i.mat.emission, daxa_f32vec3(0.f), 
+                        path.prev_scatter_pdf, geometry_factor);
+                }
             }
         }
     }
