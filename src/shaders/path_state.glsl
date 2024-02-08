@@ -150,6 +150,18 @@ void path_increment_bounces(inout PATH_STATE path, daxa_u32 bounce_type) {
 }
 
 
+void path_flags_transform_bounces_information(out daxa_i32 path_flags_out, daxa_i32 path_flags_in) {
+    // transfer delta information for half vector reuse (TODO: refactor)
+    path_flags_out &= ~(0xc000000);
+    path_flags_out |= ((path_flags_in >> 26) & 3) << 26;
+}
+
+
+
+
+
+
+
 
 
 void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed, daxa_u32 max_depth) {
@@ -196,3 +208,49 @@ void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_si
     path.is_last_vertex_classified_as_rough = true;
 }
 
+
+void generate_random_replay_path(out PATH_STATE path, INSTANCE_HIT instance, Ray ray, daxa_u32 random_seed, daxa_u32 random_replay_length, daxa_b32 is_last_vertext_NEE, daxa_b32 is_rc_vertext_escape_vertex) 
+{
+    path.id = 0;
+    path.max_depth = 0;
+    path.flags = 0;
+    path.path_length = 0;
+    path_set_active(path);
+    path.rejected_hits = 0;
+    path.bounce_counters = 0;
+
+    path.origin = ray.origin;
+    path.dir = ray.direction;
+    path.pdf = 0.f;
+    path.normal = daxa_f32vec3(0.f);
+
+    path.thp = daxa_f32vec3(1.f);
+    path.prefix_thp = daxa_f32vec3(1.f);
+    // path.rc_vertex_path_tree_irradiance = daxa_f32vec3(0.f);
+
+    path.L = daxa_f32vec3(0.f);
+
+    path.russian_roulette_PDF = 1.f;
+    path.shared_scatter_dir = daxa_f32vec3(0.f);
+    path.prev_scatter_pdf = 1.f;
+
+    path_set_hit(path, instance);
+    path.rc_prev_vertex_wo = daxa_f32vec3(0.f);
+
+    path.hit_dist = 0.f;
+
+    path.seed = random_seed;
+
+    // path_builder_init(path.path_builder, random_seed);
+    path_reservoir_initialise(path.path_reservoir);
+
+    // path.L_delta_direct = daxa_f32vec3(0.f);
+    path.enable_random_replay = true;
+    path.random_replay_is_NEE = is_last_vertext_NEE && !is_rc_vertext_escape_vertex;
+    path.random_replay_is_escaped = !is_last_vertext_NEE && is_rc_vertext_escape_vertex;
+    path.random_replay_length = random_replay_length;
+    // TODO: use hybrid for specular bounce in the future
+    path.use_hybrid_shift = false;
+    path.is_replay_for_hybrid_shift = false;
+    path.is_last_vertex_classified_as_rough = true;
+}

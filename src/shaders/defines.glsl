@@ -85,6 +85,12 @@ const daxa_u32 BOUNCE_TYPE_SPECULAR = 1;
 // const daxa_u32 BOUNCE_TYPE_VOLUME = 3;
 
 
+struct SCENE_PARAMS{
+    daxa_u32 light_count;
+    daxa_u32 object_count;
+    daxa_u32 max_depth;
+};
+
 
 layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[MAX_INSTANCES]; }; // Positions of an object
 layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[MAX_PRIMITIVES]; }; // Primitive data

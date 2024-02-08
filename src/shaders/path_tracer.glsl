@@ -11,7 +11,6 @@
 
 
 
-
 struct PATH_VERTEX
 {
     daxa_u32 index;
@@ -120,6 +119,33 @@ daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, inout INTERSECT i) {
     return valid;
 }
 
+daxa_b32 generate_replay_primary_scatter_ray(inout PATH_STATE path, inout INTERSECT i, daxa_f32vec3 dir) {
+
+    daxa_b32 valid = false;
+
+    if(all(notEqual(dir, daxa_f32vec3(0.0)))) {
+        valid = path_generate_scatter_ray(path, i);
+    } else {
+        // TODO: complete this function
+        // valid = path_generate_scatter_ray_given_direction(path, i, dir);
+    }
+
+    if (!valid)
+    {
+        path_terminate(path);
+    }
+    else
+    {
+        // TODO: separate BSDF (pathtracer: 955)
+        path.is_last_vertex_classified_as_rough = classify_as_rough(i.mat.roughness, SPECULAR_ROUGHNESS_THRESHOLD);
+    }
+
+    return valid;
+
+}
+
+
+
 void path_next_vertex(inout PATH_STATE path, out INTERSECT i) {
 
     i = intersect(Ray(path.origin, path.dir));
@@ -211,17 +237,17 @@ daxa_f32 path_evaluate_emissive(INTERSECT i, daxa_f32 light_count) {
 }
 
 
-daxa_b32 path_generate_light_sample(INTERSECT i, const daxa_u32 light_count, const daxa_b32 sample_upper_hemisphere, const daxa_b32 sample_lower_hemisphere, inout daxa_u32 seed, out LIGHT_SAMPLER ls) {
+daxa_b32 path_generate_light_sample(const SCENE_PARAMS params, INTERSECT i, const daxa_b32 sample_upper_hemisphere, const daxa_b32 sample_lower_hemisphere, inout daxa_u32 seed, out LIGHT_SAMPLER ls) {
 
 
     ls = LIGHT_SAMPLER(daxa_f32vec3(0.0), 0.0, daxa_f32vec3(0.0), 0);
 
-    daxa_u32 light_index = min(urnd_interval(seed, 0, light_count), light_count - 1);
+    daxa_u32 light_index = min(urnd_interval(seed, 0, params.light_count), params.light_count - 1);
     LIGHT light = get_light_from_light_index(light_index);
 
     ls.type = light.type;
 
-    daxa_f32 pdf = 1.0 / light_count;
+    daxa_f32 pdf = 1.0 / params.light_count;
 
 
     Ray ray = Ray(i.world_hit, i.wo);
@@ -239,7 +265,7 @@ daxa_b32 path_generate_light_sample(INTERSECT i, const daxa_u32 light_count, con
 
     daxa_f32vec3 l_pos;
 
-    ls.Li = calculate_sampled_light_and_get_light_info(ray, hit, i.mat, light_count, light, pdf, ls.pdf, l_pos, ls.dir, true, true, true);
+    ls.Li = calculate_sampled_light_and_get_light_info(ray, hit, i.mat, params.light_count, light, pdf, ls.pdf, l_pos, ls.dir, true, true, true);
 
     // TODO: simplify calculate_sampled_light interface
     seed = hit.seed;
@@ -249,7 +275,7 @@ daxa_b32 path_generate_light_sample(INTERSECT i, const daxa_u32 light_count, con
 
 
 
-daxa_b32 path_handle_emissive_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 light_count, daxa_b32 terminate_random_replay_for_escape) {
+daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params, inout PATH_STATE path, INTERSECT i, daxa_b32 terminate_random_replay_for_escape) {
 
     daxa_f32vec3 attenuated_emission = daxa_f32vec3(0.0);
 
@@ -260,7 +286,7 @@ daxa_b32 path_handle_emissive_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 l
 
     // If NEE and MIS are enabled, and we've already sampled emissive lights,
     // then we need to evaluate the MIS weight here to account for the remaining contribution.
-    light_pdf = path_evaluate_emissive(i, light_count);
+    light_pdf = path_evaluate_emissive(i, params.light_count);
 
     mis_weight = eval_mis(1, path.pdf, 1, light_pdf, 2.0);
 
@@ -332,7 +358,7 @@ daxa_b32 path_handle_emissive_hit(inout PATH_STATE path, INTERSECT i, daxa_u32 l
     return true;
 }
 
-daxa_b32 path_handle_sample_light(inout PATH_STATE path, INTERSECT i, daxa_u32 light_count, daxa_b32 terminate_random_replay_for_NEE, daxa_b32 is_rc_vertex) {
+daxa_b32 path_handle_sample_light(const SCENE_PARAMS params, inout PATH_STATE path, INTERSECT i, daxa_b32 terminate_random_replay_for_NEE, daxa_b32 is_rc_vertex) {
     
     daxa_b32 valid_sample = false;
     // if we are doing random number replay, we should only sample the light if we are about to terminate
@@ -363,7 +389,7 @@ daxa_b32 path_handle_sample_light(inout PATH_STATE path, INTERSECT i, daxa_u32 l
 
             // Sample a light.
 
-            valid_sample = path_generate_light_sample(i, light_count, sample_upper_hemisphere, sample_lower_hemisphere, path.seed, ls);
+            valid_sample = path_generate_light_sample(params, i, sample_upper_hemisphere, sample_lower_hemisphere, path.seed, ls);
 
             path_set_light_sampled(path, sample_upper_hemisphere, sample_lower_hemisphere);
         }
@@ -551,7 +577,7 @@ daxa_b32 path_check_rc_vertex(inout PATH_STATE path, INTERSECT i, daxa_f32vec3 p
     return true;
 }
 
-void path_handle_hit(inout PATH_STATE path, inout INTERSECT i, daxa_u32 light_count, daxa_u32 object_count) {
+void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path, inout INTERSECT i) {
 
     // Upon hit:
     // - Load vertex/material data
@@ -585,7 +611,7 @@ void path_handle_hit(inout PATH_STATE path, inout INTERSECT i, daxa_u32 light_co
     // Sample emissive (add escape vertex) (pathtracer:1034)
     if (compute_emissive && any(greaterThan(i.mat.emission, daxa_f32vec3(0.f))))
     {
-        path_handle_emissive_hit(path, i, light_count, terminate_random_replay_for_escape);
+        path_handle_emissive_hit(params, path, i, terminate_random_replay_for_escape);
     }
 
     // Terminate after scatter ray on last vertex has been processed.
@@ -614,7 +640,7 @@ void path_handle_hit(inout PATH_STATE path, inout INTERSECT i, daxa_u32 light_co
 
     daxa_b32 is_far_field = length(path.origin - prev_path_origin) >= NEAR_FIELD_DISTANCE;
     // TODO: check separate BSDF (multiple lobes) (pathtracer:1160)
-    daxa_b32 is_current_vertex_classified_as_rough = classify_as_rough(i.mat, SPECULAR_ROUGHNESS_THRESHOLD);
+    daxa_b32 is_current_vertex_classified_as_rough = classify_as_rough(i.mat.roughness, SPECULAR_ROUGHNESS_THRESHOLD);
     daxa_b32 is_last_vertex_acceptable_for_rc_prev = path.is_last_vertex_classified_as_rough;
 
     // Check if rc_vertex (pathtracer:1165)
@@ -623,7 +649,7 @@ void path_handle_hit(inout PATH_STATE path, inout INTERSECT i, daxa_u32 light_co
     path_set_light_sampled(path, false, false);
 
     // Sample light (add NEE vertex) (pathtracer:1265)
-    path_handle_sample_light(path, i, light_count, terminate_random_replay_for_NEE, is_rc_vertex);
+    path_handle_sample_light(params, path, i, terminate_random_replay_for_NEE, is_rc_vertex);
 
     //  terminate the path if the bounce of random replay reaches the desired bounce and the base path is an NEE path
     if (terminate_random_replay_for_NEE)
@@ -688,7 +714,7 @@ void path_handle_hit(inout PATH_STATE path, inout INTERSECT i, daxa_u32 light_co
     if(!valid) path_terminate(path);
 }
 
-void path_handle_miss(inout PATH_STATE path, inout INTERSECT i, daxa_u32 seed) {
+void path_handle_miss(inout PATH_STATE path, inout INTERSECT i) {
     // TODO: Handle miss path here for subsequent hits
     // Upon miss:
     // - Compute MIS weight if previous path vertex sampled a light
@@ -726,12 +752,9 @@ daxa_f32vec3 path_output(inout PATH_STATE path) {
 
 
 
-void trace_restir_path_tracing(out PATH_RESERVOIR central_reservoir, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
-    
-    max_depth = max(1, max_depth);
-
+void trace_restir_path_tracing(const SCENE_PARAMS params, out PATH_RESERVOIR central_reservoir, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, inout daxa_f32vec3 throughput) {
     PATH_STATE path;
-    generate_path(path, index, rt_size, i.instance_hit, ray, seed, max_depth);
+    generate_path(path, index, rt_size, i.instance_hit, ray, seed, params.max_depth);
 
     if(path_handle_primary_hit(path, i)) {
         do
@@ -745,11 +768,11 @@ void trace_restir_path_tracing(out PATH_RESERVOIR central_reservoir, const daxa_
 
             if (is_hit)
             {   
-                path_handle_hit(path, i, light_count, object_count);
+                path_handle_hit(params, path, i);
             }
             else
             {
-                path_handle_miss(path, i, seed);
+                path_handle_miss(path, i);
             }
         } while(path_is_active(path));
     }
@@ -766,78 +789,82 @@ void trace_restir_path_tracing(out PATH_RESERVOIR central_reservoir, const daxa_
 }
 
 
+daxa_f32vec3 trace_random_replay_path_hybrid_simple(const SCENE_PARAMS params, const INSTANCE_HIT hit, INTERSECT i, const Ray ray, const daxa_i32 path_flags, const daxa_u32 init_random_seed, out INSTANCE_HIT dst_rc_prev_vertex_hit, out daxa_f32vec3 dst_rc_prev_vertex_wo) {
+    PATH_STATE path;
 
-daxa_f32vec3 trace_random_replay_path_hybrid_simple(const INSTANCE_HIT primary_hit, const Ray ray, const daxa_u32 path_flags, const daxa_u32 init_random_seed, out INSTANCE_HIT dst_rc_prev_vertex_hit, out daxa_f32vec3 dst_rc_prev_vertex_wo) {
-    // PathState path;
-    //     bool isRcVertexEscapedVertex = pathFlags.pathLength() + 1 == pathFlags.rcVertexLength();
-    //     generateRandomReplayPath(path, hit, ray, initRandomSeed, pathFlags.pathLength(), pathFlags.lastVertexNEE(), isRcVertexEscapedVertex);
-    //     path.useHybridShift = true;
-    //     path.isReplayForHybridShift = true;
-    //     path.pathBuilder.rcVertexLength = pathFlags.rcVertexLength();
+    daxa_u32 path_length = path_reservoir_get_path_length(path_flags);
+    daxa_u32 reconnection_length = path_reservoir_get_reconnection_length(path_flags);
 
-    //     setDataBeforeTermination(rcPrevHit, rcPrevHitWo);
+    daxa_b32 is_rc_vertex_escaped_vertex = path_length + 1 == reconnection_length;
+    generate_random_replay_path(path, hit, ray, init_random_seed, path_length, path_reservoir_last_vertex_NEE(path_flags), is_rc_vertex_escaped_vertex);
+    path.use_hybrid_shift = true;
+    path.is_replay_for_hybrid_shift = true;
+    path.path_builder.rc_vertex_length = reconnection_length;
 
-    //     path.origin = sd.computeNewRayOrigin();
+    dst_rc_prev_vertex_hit = INSTANCE_HIT(MAX_INSTANCES -1, MAX_PRIMITIVES -1);
+    dst_rc_prev_vertex_wo = daxa_f32vec3(0.0);
 
-    //     // this is also applicable for random number reuse
-    //     path.pathBuilder.pathFlags.flags = 0;
-    //     path.pathBuilder.pathFlags.transferSpecularBounceInformation(pathFlags);
+    path.origin = i.world_hit;
 
-    //     // set up the two scatter directions (or half vectors) for reuse
+    // this is also applicable for random number reuse
+    path.path_builder.path_flags = 0;
+    path_flags_transform_bounces_information(path.path_builder.path_flags, path_flags);
 
-    //     generateReplayPrimaryScatterRay(path, sd);
-    //     if (path.isActive()) nextVertex(path);
-    //     else
-    //     {
-    //         return 0.f;
-    //     }
+    // set up the two scatter directions (or half vectors) for reuse
+    generate_replay_primary_scatter_ray(path, i, daxa_f32vec3(0.0));
+    if (path_is_active(path)) {
+        path_next_vertex(path, i);
+    } 
+    else
+    {
+        return daxa_f32vec3(0.0);
+    }
 
-    //     while (path.isActive() && path.isHit())
-    //     {
-    //         // Volume scattering is ignored
-    //         // Handle surface hit 
-    //         if (path.isActive())
-    //         {
-    //             if (path.isHit())
-    //             {
-    //                 handleHit(path);
-    //             }
-    //         }
+    while (path_is_active(path) && path_is_hit(path))
+    {
+        // Volume scattering is ignored
+        // Handle surface hit
+        if (path_is_active(path))
+        {
+            if (path_is_hit(path))
+            {
+                path_handle_hit(params, path, i);
+            }
+        }
 
-    //         // Move to the next path vertex.
-    //         if (path.isActive() && path.isHit()) nextVertex(path);
-    //     }
+        // Move to the next path vertex.
+        if (path_is_active(path) && path_is_hit(path))
+            path_next_vertex(path, i);
+    }
 
-    //     // Handle the miss and terminate path.
-    //     if (path.isActive())
-    //     {
-    //         handleMiss(path);
+    // Handle the miss and terminate path.
+    if (path_is_active(path))
+    {
+        path_handle_miss(path, i);
 
-    //         // non-invertible: path length doesn't match
-    //         if (path.length != pathFlags.pathLength())
-    //         {
-    //             return 0.f;
-    //         }
-    //     }
+        // non-invertible: path length doesn't match
+        if (path.path_length != path_length)
+        {
+            return daxa_f32vec3(0.0);
+        }
+    }
 
-    //     rcPrevHit = HitInfo();
+    dst_rc_prev_vertex_hit = INSTANCE_HIT(MAX_INSTANCES -1, MAX_PRIMITIVES -1);
 
-    //     float3 L = 1.f;
+    daxa_f32vec3 L = daxa_f32vec3(1.0);
 
-    //     if (pathFlags.rcVertexLength() <= pathFlags.pathLength() || isRcVertexEscapedVertex)
-    //     {
-    //         rcPrevHit = path.rcPrevVertexHit;
-    //         rcPrevHitWo = path.rcPrevVertexWo;
-    //         L = path.getCurrentThp();
-    //     }
-    //     else // this branch is the case where rcVertex does not exist (or infinitely far)
-    //     {
-    //         L = path.L;
-    //     }
+    if (reconnection_length <= path_length || is_rc_vertex_escaped_vertex)
+    {
+        dst_rc_prev_vertex_hit = path.rc_prev_vertex_hit;
+        dst_rc_prev_vertex_wo = path.rc_prev_vertex_wo;
+        L = path_get_current_thp(path);
+    }
+    else // this branch is the case where rcVertex does not exist (or infinitely far)
+    {
+        L = path.L;
+    }
 
-    //     return L;
-
-    return daxa_f32vec3(0.0);
+    return L;
 }
 
 

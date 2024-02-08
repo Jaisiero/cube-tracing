@@ -42,6 +42,11 @@ void path_reservoir_insert_path_length(inout PATH_RESERVOIR reservoir, daxa_i32 
     reservoir.path_flags |= (path_length & 0xF);
 }
 
+daxa_u32 path_reservoir_get_path_length(daxa_i32 path_flags)
+{
+    return path_flags & 0xF;
+}
+
 // maximum length: 15
 void path_reservoir_insert_rc_vertex_length(inout PATH_RESERVOIR reservoir, daxa_i32 rc_vertex_length)
 {
@@ -49,15 +54,20 @@ void path_reservoir_insert_rc_vertex_length(inout PATH_RESERVOIR reservoir, daxa
     reservoir.path_flags |= (rc_vertex_length & 0xF) << 4;
 }
 
-daxa_u32 path_reservoir_get_reconnection_length(inout PATH_RESERVOIR reservoir)
+daxa_u32 path_reservoir_get_reconnection_length(daxa_i32 path_flags)
 {
-    return (reservoir.path_flags >> 4) & 0xF;
+    return (path_flags >> 4) & 0xF;
 }
 
 void path_reservoir_insert_last_vertex_nee(inout PATH_RESERVOIR reservoir, daxa_b32 last_vertex_nee)
 {
     reservoir.path_flags &= ~0x10000;
     reservoir.path_flags |= (int(last_vertex_nee) & 1) << 16;
+}
+
+daxa_b32 path_reservoir_last_vertex_NEE(daxa_u32 path_flags)
+{
+    return daxa_b32((path_flags >> 16) & 1);
 }
 
 void path_reservoir_insert_is_specular_bounce(inout PATH_RESERVOIR reservoir, daxa_b32 is_specular_bounce, daxa_b32 before_rc_vertex)
