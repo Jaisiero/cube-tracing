@@ -124,7 +124,7 @@ void path_reservoir_initialise(inout PATH_RESERVOIR reservoir)
   reservoir.light_pdf = 0.0;
   reservoir.cached_jacobian = daxa_f32vec3(0.0);
   reservoir.init_random_seed = 0;
-  reservoir.rc_vertex_hit = INSTANCE_HIT(MAX_INSTANCES-1, MAX_PRIMITIVES-1);
+  reservoir.rc_vertex_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
   reservoir.rc_vertex_wi[0] = daxa_f32vec3(0.0);
   reservoir.rc_vertex_irradiance[0] = daxa_f32vec3(0.0);
 }

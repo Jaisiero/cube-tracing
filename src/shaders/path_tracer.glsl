@@ -752,7 +752,7 @@ daxa_f32vec3 path_output(inout PATH_STATE path) {
 
 
 
-PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, inout daxa_f32vec3 throughput) {
+PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, inout daxa_u32 seed, inout daxa_f32vec3 throughput) {
     PATH_STATE path;
     generate_path(path, index, rt_size, i.instance_hit, ray, seed, params.max_depth);
 
@@ -780,6 +780,8 @@ PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params, const daxa_i
     path_finalize(path);
 
     throughput = path_output(path);
+
+    seed = path.seed;
 
     return path.path_reservoir;
 }

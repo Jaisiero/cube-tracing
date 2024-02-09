@@ -92,7 +92,7 @@ void temporal_path_retrace(const SCENE_PARAMS params, const PATH_RESERVOIR centr
 }
 
 
-void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central_reservoir, PATH_RESERVOIR temporal_reservoir, const daxa_u32 current_index, daxa_u32 seed, INTERSECT current_i, INTERSECT prev_i, inout daxa_f32vec3 throughput) {
+void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central_reservoir, PATH_RESERVOIR temporal_reservoir, const daxa_u32 current_index, inout daxa_u32 seed, INTERSECT current_i, INTERSECT prev_i, inout daxa_f32vec3 throughput) {
 
     PATH_RESERVOIR destination_reservoir;
     path_reservoir_initialise(destination_reservoir);
@@ -105,116 +105,121 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
     RECONNECTION_DATA dummy_rc_data;
     reconnection_data_initialise(dummy_rc_data);
 
-    daxa_b32 do_temporal_update_for_dynamic_scene = true;
-    daxa_b32 use_hybrid_shift = false;
+    daxa_b32 do_temporal_update_for_dynamic_scene = params.temporal_update_for_dynamic_scene;
+    daxa_b32 use_hybrid_shift = params.shift_mapping == SHIFT_MAPPING_HYBRID;
 
     // TALBOT RMIS  
-    const daxa_i32 cur_sample_id = -1;
-    const daxa_i32 prev_sample_id = 0;
-    daxa_f32 dst_jacobian;
-
-    for (daxa_i32 i = cur_sample_id; i <= prev_sample_id; ++i)
     {
-        daxa_f32 p_sum = 0;
-        daxa_f32 p_self = 0;
+        const daxa_i32 cur_sample_id = -1;
+        const daxa_i32 prev_sample_id = 0;
+        daxa_f32 dst_jacobian;
 
-        PATH_RESERVOIR temp_dst_reservoir = destination_reservoir;
-
-        daxa_b32 possible_to_be_selected = false;
-
-        if (i == cur_sample_id)
+        for (daxa_i32 i = cur_sample_id; i <= prev_sample_id; ++i)
         {
-            temp_dst_reservoir = central_reservoir;
-            dst_jacobian = 1.f;
-            possible_to_be_selected = temp_dst_reservoir.weight > 0;
-        }
-        else
-        {
-            RECONNECTION_DATA rc_data = dummy_rc_data;
-            // TODO: This is for hybrid shift
-            if (use_hybrid_shift && path_reservoir_get_reconnection_length(temporal_reservoir.path_flags) > 1)
-                rc_data = get_reconnection_data_from_current_frame(current_index, 1);
+            daxa_f32 p_sum = 0;
+            daxa_f32 p_self = 0;
 
-            possible_to_be_selected = shift_and_merge_reservoir(params,
-                                                                do_temporal_update_for_dynamic_scene,
-                                                                dst_jacobian,
-                                                                current_i.instance_hit,
-                                                                current_i,
-                                                                temp_dst_reservoir,
-                                                                prev_i,
-                                                                temporal_reservoir,
-                                                                rc_data,
-                                                                true,
-                                                                seed,
-                                                                false,
-                                                                1.f,
-                                                                true); // "true" means hypothetically selected as the sample
-        }
+            PATH_RESERVOIR temp_dst_reservoir = destination_reservoir;
 
-        if (possible_to_be_selected)
-        {
-            for (daxa_i32 j = cur_sample_id; j <= prev_sample_id; ++j)
+            daxa_b32 possible_to_be_selected = false;
+
+            if (i == cur_sample_id)
             {
-                if (j == cur_sample_id)
+                temp_dst_reservoir = central_reservoir;
+                dst_jacobian = 1.f;
+                possible_to_be_selected = temp_dst_reservoir.weight > 0;
+            }
+            else
+            {
+                RECONNECTION_DATA rc_data = dummy_rc_data;
+                // TODO: This is for hybrid shift
+                if (use_hybrid_shift && path_reservoir_get_reconnection_length(temporal_reservoir.path_flags) > 1)
+                    rc_data = get_reconnection_data_from_current_frame(current_index, 1);
+
+                possible_to_be_selected = shift_and_merge_reservoir(params,
+                                                                    do_temporal_update_for_dynamic_scene,
+                                                                    dst_jacobian,
+                                                                    current_i.instance_hit,
+                                                                    current_i,
+                                                                    temp_dst_reservoir,
+                                                                    prev_i,
+                                                                    temporal_reservoir,
+                                                                    rc_data,
+                                                                    true,
+                                                                    seed,
+                                                                    false,
+                                                                    1.f,
+                                                                    true); // "true" means hypothetically selected as the sample
+            }
+
+            if (possible_to_be_selected)
+            {
+                for (daxa_i32 j = cur_sample_id; j <= prev_sample_id; ++j)
                 {
-                    daxa_f32 cur_p = path_F_to_scalar(temp_dst_reservoir.F) * current_M;
-                    p_sum += cur_p;
-                    if (i == cur_sample_id) p_self = cur_p;
-                }
-                else
-                {
-                    if (i == j)
+                    if (j == cur_sample_id)
                     {
-                        p_self = path_F_to_scalar(temporal_reservoir.F) / dst_jacobian * temporal_reservoir.M;
-                        p_sum += p_self;
-                        continue;
+                        daxa_f32 cur_p = path_F_to_scalar(temp_dst_reservoir.F) * current_M;
+                        p_sum += cur_p;
+                        if (i == cur_sample_id) p_self = cur_p;
                     }
+                    else
+                    {
+                        if (i == j)
+                        {
+                            p_self = path_F_to_scalar(temporal_reservoir.F) / dst_jacobian * temporal_reservoir.M;
+                            p_sum += p_self;
+                            continue;
+                        }
 
-                    daxa_f32 p_ = 0.f;
-                    daxa_f32 t_neighbor_jacobian;
+                        daxa_f32 p_ = 0.f;
+                        daxa_f32 t_neighbor_jacobian;
 
-                    // TODO: This is for hybrid shift
-                    RECONNECTION_DATA rc_data = dummy_rc_data;
-                    if (use_hybrid_shift && path_reservoir_get_reconnection_length(temp_dst_reservoir.path_flags) > 1)
-                        rc_data = get_reconnection_data_from_current_frame(current_index, 0);
+                        // TODO: This is for hybrid shift
+                        RECONNECTION_DATA rc_data = dummy_rc_data;
+                        if (use_hybrid_shift && path_reservoir_get_reconnection_length(temp_dst_reservoir.path_flags) > 1)
+                            rc_data = get_reconnection_data_from_current_frame(current_index, 0);
 
-                    daxa_f32vec3 t_neighbor_integrand = compute_shifted_integrand(params, t_neighbor_jacobian, prev_i.instance_hit, prev_i,
-                                                                              current_i, temp_dst_reservoir, rc_data, true, true, true); // use_prev
-                    p_ = path_F_to_scalar(t_neighbor_integrand) * t_neighbor_jacobian;
-                    p_sum += p_ * temporal_reservoir.M;
+                        daxa_f32vec3 t_neighbor_integrand = compute_shifted_integrand(params, t_neighbor_jacobian, prev_i.instance_hit, prev_i,
+                                                                                current_i, temp_dst_reservoir, rc_data, true, true, do_temporal_update_for_dynamic_scene); // use_prev
+
+                        p_ = path_F_to_scalar(t_neighbor_integrand) * t_neighbor_jacobian;
+                        p_sum += p_ * temporal_reservoir.M;
+                    }
                 }
             }
+
+            daxa_f32 mis_weight = p_sum == 0.f ? 0.f : p_self / p_sum;
+            // TODO: neighbor_reservoir is pointless cause it's not used inside the function
+            PATH_RESERVOIR neighbor_reservoir;
+            if (i == cur_sample_id) neighbor_reservoir = temp_dst_reservoir;
+            else neighbor_reservoir = temporal_reservoir;
+
+            merge_reservoir_with_resampling_MIS(params, temp_dst_reservoir.F, dst_jacobian, destination_reservoir, temp_dst_reservoir, neighbor_reservoir, seed, false, mis_weight);
         }
 
-        daxa_f32 mis_weight = p_sum == 0.f ? 0.f : p_self / p_sum;
-        // TODO: neighbor_reservoir is pointless cause it's not used inside the function
-        PATH_RESERVOIR neighbor_reservoir;
-        if (i == cur_sample_id) neighbor_reservoir = temp_dst_reservoir;
-        else neighbor_reservoir = temporal_reservoir;
-
-        merge_reservoir_with_resampling_MIS(params, temp_dst_reservoir.F, dst_jacobian, destination_reservoir, temp_dst_reservoir, neighbor_reservoir, seed, false, mis_weight);
-    }
-
-
-    if (destination_reservoir.weight > 0)
-    {
-        path_reservoir_finalize_GRIS(destination_reservoir);
+        if (destination_reservoir.weight > 0)
+        {
+            path_reservoir_finalize_GRIS(destination_reservoir);
+        }
     }
 
     if (destination_reservoir.weight < 0.f || isinf(destination_reservoir.weight) || isnan(destination_reservoir.weight))
         destination_reservoir.weight = 0.f;
 
     // Set the current reservoir for next frame
-    // set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
+    set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
 
-    // throughput = destination_reservoir.F * destination_reservoir.weight;
+    
+    // TODO: temporary
+    // destination_reservoir = central_reservoir;
 
+    throughput = destination_reservoir.F * destination_reservoir.weight;
 }
 
 
 
 
-void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, inout daxa_f32vec3 throughput) {
+void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, inout daxa_u32 seed, inout daxa_f32vec3 throughput) {
 
     PATH_RESERVOIR central_reservoir = trace_restir_path_tracing(params, index, rt_size, ray, i, seed, throughput);
 
@@ -225,10 +230,10 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params, const 
     INTERSECT prev_i = temporal_path_get_reprojected_primary_hit(prev_predicted_index);
 
     // Retrace the temporal path in case of hybrid shift
-    temporal_path_retrace(params, central_reservoir, temporal_reservoir, current_index, prev_predicted_index, i, prev_i);
+    // temporal_path_retrace(params, central_reservoir, temporal_reservoir, current_index, prev_predicted_index, i, prev_i);
 
     // Temporal path reuse previous frame contribution
-    temporal_path_reuse(params, central_reservoir, temporal_reservoir, central_reservoir.init_random_seed, current_index, i, prev_i, throughput);
+    temporal_path_reuse(params, central_reservoir, temporal_reservoir, current_index, seed, i, prev_i, throughput);
     
     // Set the current reservoir for next frame
     // set_temporal_path_reservoir_by_index(current_index, central_reservoir);

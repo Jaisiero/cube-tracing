@@ -274,7 +274,7 @@ daxa_f32vec3 compute_shifted_integrand_(const SCENE_PARAMS params, inout daxa_f3
     //     return computeShiftedIntegrandHybrid(params, use_prev, temporal_update_for_dynamic_scene, dst_jacobian, dstPrimaryHitPacked, dstPrimarySd, srcPrimarySd, src_reservoir, rc_data, eval_visibility);
     // }
 
-    // return daxa_f32vec3(0.0f);
+    return daxa_f32vec3(0.0f);
 }
 
 
@@ -324,7 +324,7 @@ daxa_b32 shift_and_merge_reservoir(const SCENE_PARAMS params,
 }
 
 
-daxa_b32 merge_reservoir_with_resampling_MIS(const SCENE_PARAMS params, const daxa_f32vec3 dst_integrand, daxa_f32 dst_jacobian, inout PATH_RESERVOIR dest_reservoir, const PATH_RESERVOIR temp_dst_reservoir, const PATH_RESERVOIR src_reservoir, inout daxa_u32 seed, daxa_b32 is_spatial_reuse, daxa_f32 mis_weight)
+daxa_b32 merge_reservoir_with_resampling_MIS(const SCENE_PARAMS params, daxa_f32vec3 dst_integrand, daxa_f32 dst_jacobian, inout PATH_RESERVOIR dest_reservoir, PATH_RESERVOIR temp_dst_reservoir, PATH_RESERVOIR src_reservoir, inout daxa_u32 seed, daxa_b32 is_spatial_reuse, daxa_f32 mis_weight)
 {
     return path_reservoir_merge_with_resampling_MIS(dest_reservoir, dst_integrand, dst_jacobian, temp_dst_reservoir, seed, mis_weight, false);
 }
