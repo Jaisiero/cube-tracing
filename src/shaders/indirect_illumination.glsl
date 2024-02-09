@@ -113,7 +113,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
     const daxa_i32 prev_sample_id = 0;
     daxa_f32 dst_jacobian;
 
-    for (daxa_i32 i = cur_sample_id; i <= prev_sample_id; i++)
+    for (daxa_i32 i = cur_sample_id; i <= prev_sample_id; ++i)
     {
         daxa_f32 p_sum = 0;
         daxa_f32 p_self = 0;
@@ -187,6 +187,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
         }
 
         daxa_f32 mis_weight = p_sum == 0.f ? 0.f : p_self / p_sum;
+        // TODO: neighbor_reservoir is pointless cause it's not used inside the function
         PATH_RESERVOIR neighbor_reservoir;
         if (i == cur_sample_id) neighbor_reservoir = temp_dst_reservoir;
         else neighbor_reservoir = temporal_reservoir;
