@@ -214,10 +214,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
 
 
 
-void indirect_illumination_restir_path_tracing(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, daxa_b32 temporal_update_for_dynamic_scene, inout daxa_f32vec3 throughput) {
-    // TODO: check max_depth
-    max_depth = max(1, max_depth);
-    SCENE_PARAMS params = SCENE_PARAMS(light_count, object_count, max_depth, temporal_update_for_dynamic_scene);
+void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, inout daxa_f32vec3 throughput) {
 
     PATH_RESERVOIR central_reservoir = trace_restir_path_tracing(params, index, rt_size, ray, i, seed, throughput);
 
@@ -312,11 +309,11 @@ void indirect_illumination_path_tracing(const daxa_i32vec2 index, const daxa_u32
 
 
 
-void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, daxa_b32 temporal_update_for_dynamic_scene, inout daxa_f32vec3 throughput) {
+void indirect_illumination(const SCENE_PARAMS params, const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, inout daxa_f32vec3 throughput) {
 #if RESTIR_PT_ON == 1
-    indirect_illumination_restir_path_tracing(index, rt_size, ray, i, seed, max_depth, light_count, object_count, temporal_update_for_dynamic_scene, throughput);
+    indirect_illumination_restir_path_tracing(params, index, rt_size, ray, i, seed, throughput);
 #else
-    indirect_illumination_path_tracing(index, rt_size, ray, mat, i, seed, max_depth, light_count, object_count, throughput);
+    indirect_illumination_path_tracing(index, rt_size, ray, mat, i, seed, params.max_depth, params.light_count, params.object_count, throughput);
 #endif
 }
 #endif // INDIRECT_ILLUMINATION_GLSL

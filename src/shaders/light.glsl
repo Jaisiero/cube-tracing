@@ -18,7 +18,7 @@ daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
     return max(dot(n, w_i), 0.0);
 }
 
-daxa_b32 is_light_visible(Ray ray, LIGHT light,  daxa_f32 distance) 
+daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance) 
 {
     // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
@@ -319,7 +319,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
     Ray shadow_ray = Ray(P, l_wo);
 
     if(visibility && vis) {
-        vis = vis && is_light_visible(shadow_ray, l, distance);
+        vis = vis && is_vertex_visible(shadow_ray, distance);
     }
 
     P_out = l_pos;

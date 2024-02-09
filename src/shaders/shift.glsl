@@ -6,200 +6,243 @@
 #include "shared.inl"
 #include "path_state.glsl"
 #include "path_reservoir.glsl"
+#include "light.glsl"
 
 
-
-// dstPdf * dstJacobian transforms pdf in dst space to src space
-// srcPdf / dstJacobian transforms pdf in src space to dst space
-daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, inout daxa_f32 dst_jacobian, const INTERSECT dst_primary_intersection, const INTERSECT src_primary_intersection, inout PATH_RESERVOIR src_reservoir, daxa_b32 eval_visibility)
+daxa_b32 is_jacobian_invalid(daxa_f32 jacobian)
 {
-    return daxa_f32vec3(0.0f);
+    return jacobian <= 0.f || isnan(jacobian) || isinf(jacobian);
+}
 
-    // daxa_f32vec3 dstCachedJacobian;
-    // dstJacobian = 0.f;
-
-    // daxa_i32 rcVertexLength = !useHybridShift ? 1 : src_reservoir.pathFlags.rcVertexLength();
-
-    // HitInfo rcVertexHit = src_reservoir.rcVertexHit.getHitInfo();
-    // daxa_f32vec3 rcVertexIrradiance = src_reservoir.rcVertexIrradiance[0];
-    // daxa_f32vec3 rcVertexWi = src_reservoir.rcVertexWi[0];
-    // daxa_b32 rcVertexHitExists = rcVertexHit.isValid();
-
-    // daxa_b32 isTransmission = src_reservoir.pathFlags.decodeIsTransmissionEvent(true);
-    // daxa_u32 allowedSampledTypes1 = getAllowedBSDFFlags(src_reservoir.pathFlags.decodeIsSpecularBounce(true));
-
-    // srcPrimarySd.posW = srcPrimarySd.computeNewRayOrigin(!isTransmission);
-    // dstPrimarySd.posW = dstPrimarySd.computeNewRayOrigin(!isTransmission);
-
-    // if (!rcVertexHitExists) 
-    // {
-    //     daxa_f32vec3 dst_integrand = 0.f;
-    //     // are we having a infinite light as rcVertex?
-    //     if (kUseMIS && src_reservoir.pathFlags.lightType() == (uint)PathTracer::LightSampleType::EnvMap && src_reservoir.pathFlags.pathLength() + 1 == rcVertexLength && !src_reservoir.pathFlags.lastVertexNEE())
-    //     {
-    //         daxa_f32vec3 wi = rcVertexWi;
-    //         daxa_b32 isVisible = evalSegmentVisibility(dstPrimarySd.posW, wi, true); // test along a direction
-    //         if (isVisible)
-    //         {
-    //             daxa_f32 srcPDF1 = useCachedJacobian ? src_reservoir.cachedJacobian.x : evalPdfBSDF(srcPrimarySd, wi);
-    //             daxa_f32 dstPDF1All;
-    //             daxa_f32 dstPDF1 = evalPdfBSDF(dstPrimarySd, wi, dstPDF1All, allowedSampledTypes1);
-    //             dstCachedJacobian.x = dstPDF1;
-    //             daxa_f32vec3 dstF1 = evalBSDFCosine(dstPrimarySd, wi, allowedSampledTypes1);
-    //             daxa_f32 misWeight = PathTracer::evalMIS(1, dstPDF1All, 1, src_reservoir.lightPdf);//   dstPDF1 / (dstPDF1 + src_reservoir.lightPdf);
-    //             dst_integrand = dstF1 / dstPDF1 * misWeight * rcVertexIrradiance;
-    //             dstJacobian = dstPDF1 / srcPDF1;
-    //         }
-    //     }
-
-    //     if (useCachedJacobian)
-    //         src_reservoir.cachedJacobian = dstCachedJacobian;
-
-    //     // fill in rcVertex0 information
-    //     if (isJacobianInvalid(dstJacobian)) dstJacobian = 0.f;
-    //     if (any(isnan(dst_integrand) || isinf(dst_integrand))) return 0.f;
-
-    //     return dst_integrand;
-    // }
-
-    // daxa_b32 isRcVertexFinal = src_reservoir.pathFlags.pathLength() == rcVertexLength;
-    // daxa_b32 isRcVertexEscapedVertex = src_reservoir.pathFlags.pathLength() + 1 == rcVertexLength && !src_reservoir.pathFlags.lastVertexNEE();
-    // daxa_b32 isRcVertexNEE = isRcVertexFinal && src_reservoir.pathFlags.lastVertexNEE();
-
-    // daxa_b32 isDelta1 = src_reservoir.pathFlags.decodeIsDeltaEvent(true);
-    // daxa_b32 isDelta2 = src_reservoir.pathFlags.decodeIsDeltaEvent(false);
-
-    // // delta bounce before/after rcVertex (if isRcVertexNEE, deltaAfterRc won't be set)
-    // if (isDelta1 || isDelta2) return 0.f;
-
-    // ShadingData rcVertexSd = loadShadingDataWithPrevVertexPosition(rcVertexHit, dstPrimarySd.posW, false);
-
-    // // need to evaluate source PDF of BSDF sampling
-    // daxa_f32vec3 dstConnectionV = -rcVertexSd.V; // direction point from dst primary hit point to reconnection vertex
-    // daxa_f32vec3 srcConnectionV = normalize(rcVertexSd.posW - srcPrimarySd.posW);
-
-    // daxa_f32vec3 shiftedDisp = rcVertexSd.posW - dstPrimarySd.posW;
-    // daxa_f32 shifted_dist2 = dot(shiftedDisp, shiftedDisp);
-    // daxa_f32 shifted_cosine = abs(dot(rcVertexSd.faceN, -dstConnectionV));
-
-    // if ((params.localStrategyType & (uint)LocalStrategy::DistanceCondition) && useHybridShift)
-    // {
-    //     daxa_b32 isFarField = sqrt(shifted_dist2) >= params.nearFieldDistance;
-    //     if (!isFarField) return 0.f;
-    // }
+const daxa_u32 BSDF_SPECULAR = 0xc;
+const daxa_u32 BSDF_NON_SPECULAR = 0x3;
 
 
-    // dstCachedJacobian.z = shifted_cosine / shifted_dist2;
-    // daxa_f32 Jacobian;
-    // if (useCachedJacobian) Jacobian = dstCachedJacobian.z / src_reservoir.cachedJacobian.z;
-    // else
-    // {
-    //     daxa_f32vec3 originalDisp = rcVertexSd.posW - srcPrimarySd.posW;
-    //     daxa_f32 original_dist2 = dot(originalDisp, originalDisp);
-    //     daxa_f32 original_cosine = abs(dot(rcVertexSd.faceN, -srcConnectionV));
-    //     Jacobian = dstCachedJacobian.z* original_dist2 / original_cosine;
-    // }
-    // if (isJacobianInvalid(Jacobian)) return 0.f;
+daxa_u32 get_allowed_bsdf_flags(daxa_b32 is_specular)
+{
+    return is_specular ? BSDF_SPECULAR : BSDF_NON_SPECULAR;
+}
+
+
+// dstPdf * dst_jacobian transforms pdf in dst space to src space
+// srcPdf / dst_jacobian transforms pdf in src space to dst space
+daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, inout daxa_f32 dst_jacobian, const INTERSECT dst_primary_intersection, const INTERSECT src_primary_intersection, inout PATH_RESERVOIR src_reservoir, daxa_b32 eval_visibility, daxa_b32 use_hybrid_shift, daxa_b32 use_cached_jacobian)
+{
+    daxa_f32vec3 dst_cached_jacobian;
+    dst_jacobian = 0.f;
+
+    daxa_i32 rc_vertex_length = !use_hybrid_shift ? 1 : daxa_i32(path_reservoir_get_reconnection_length(src_reservoir.path_flags));
+
+    INSTANCE_HIT rc_vertex_hit = src_reservoir.rc_vertex_hit;
+    daxa_f32vec3 rc_vertex_irradiance = src_reservoir.rc_vertex_irradiance[0];
+    daxa_f32vec3 rc_vertex_wi = src_reservoir.rc_vertex_wi[0];
+    daxa_b32 rc_vertex_hit_exists = instance_hit_exists(rc_vertex_hit);
+
+    // TODO: transmission events
+    // daxa_b32 is_transmission = src_reservoir.pathFlags.decodeIsTransmissionEvent(true);
+
+    // TODO: re-visit this part when we have multi BSDF evaluation
+    daxa_u32 allowed_sampled_types1 = get_allowed_bsdf_flags(path_reservoir_is_specular_bounce(src_reservoir.path_flags, true));
+
+    // src_primary_intersection.world_hit = compute_new_ray_origin(src_primary_intersection.world_hit, !is_transmission);
+    // dst_primary_intersection.world_hit = compute_new_ray_origin(dst_primary_intersection.world_hit, !is_transmission);
+
+    // If it was a miss, we need to evaluate the environment map light
+    if (!rc_vertex_hit_exists) 
+    {
+        daxa_f32vec3 dst_integrand = daxa_f32vec3(0.0f);
+        // TODO: re-visiting this part when we have environment map light
+        // are we having a infinite light as rcVertex?
+        // if (kUseMIS && src_reservoir.pathFlags.lightType() == (uint)PathTracer::LightSampleType::EnvMap && src_reservoir.pathFlags.pathLength() + 1 == rc_vertex_length && !src_reservoir.pathFlags.lastVertexNEE())
+        // {
+        //     daxa_f32vec3 wi = rc_vertex_wi;
+        //     daxa_b32 is_visible = evalSegmentVisibility(dstPrimarySd.posW, wi, true); // test along a direction
+        //     if (is_visible)
+        //     {
+        //         daxa_f32 src_pdf1 = use_cached_jacobian ? src_reservoir.cached_jacobian.x : evalPdfBSDF(srcPrimarySd, wi);
+        //         daxa_f32 dst_pdf1_all;
+        //         daxa_f32 dst_pdf1 = evalPdfBSDF(dstPrimarySd, wi, dst_pdf1_all, allowed_sampled_types1);
+        //         dst_cached_jacobian.x = dst_pdf1;
+        //         daxa_f32vec3 dst_f1 = evalBSDFCosine(dstPrimarySd, wi, allowed_sampled_types1);
+        //         daxa_f32 mis_weight = PathTracer::evalMIS(1, dst_pdf1_all, 1, src_reservoir.light_pdf);//   dst_pdf1 / (dst_pdf1 + src_reservoir.light_pdf);
+        //         dst_integrand = dst_f1 / dst_pdf1 * mis_weight * rc_vertex_irradiance;
+        //         dst_jacobian = dst_pdf1 / src_pdf1;
+        //     }
+        // }
+
+        if (use_cached_jacobian)
+            src_reservoir.cached_jacobian = dst_cached_jacobian;
+
+        // fill in rcVertex0 information
+        if (is_jacobian_invalid(dst_jacobian)) dst_jacobian = 0.f;
+        if (any(isnan(dst_integrand)) || any(isinf(dst_integrand))) return daxa_f32vec3(0.0f);
+
+        return dst_integrand;
+    }
+
+    daxa_u32 path_length = path_reservoir_get_path_length(src_reservoir.path_flags);
+    daxa_b32 is_last_vertex_NEE = path_reservoir_last_vertex_NEE(src_reservoir.path_flags);
+
+    daxa_b32 is_rc_vertex_final = path_length == rc_vertex_length;
+    daxa_b32 is_rc_vertex_escaped_vertex = path_length + 1 == rc_vertex_length && !is_last_vertex_NEE;
+    daxa_b32 is_rc_vertex_NEE = is_rc_vertex_final && is_last_vertex_NEE;
+
+    // TODO: delta events
+    // daxa_b32 is_delta1 = src_reservoir.pathFlags.decodeIsDeltaEvent(true);
+    // daxa_b32 is_delta2 = src_reservoir.pathFlags.decodeIsDeltaEvent(false);
+
+    // delta bounce before/after rcVertex (if is_rc_vertex_NEE, deltaAfterRc won't be set)
+    // if (is_delta1 || is_delta2) return 0.f;
+
+    INTERSECT rc_vertex_intersection = load_intersection_data_vertex_position(rc_vertex_hit, dst_primary_intersection.world_hit, false, true);
+
+    // need to evaluate source PDF of BSDF sampling
+    daxa_f32vec3 dst_connection_v = -rc_vertex_intersection.wo; // direction point from dst primary hit point to reconnection vertex
+    daxa_f32vec3 src_connection_v = normalize(rc_vertex_intersection.world_hit - src_primary_intersection.world_hit);
+
+    daxa_f32vec3 shifted_disp = rc_vertex_intersection.world_hit - dst_primary_intersection.world_hit;
+    daxa_f32 shifted_dist2 = dot(shifted_disp, shifted_disp);
+    daxa_f32 shifted_cosine = abs(dot(rc_vertex_intersection.world_nrm, -dst_connection_v));
+
+    if (use_hybrid_shift)
+    {
+        daxa_b32 is_far_field = sqrt(shifted_dist2) >= params.near_field_distance;
+        if (!is_far_field) return daxa_f32vec3(0.0f);
+    }
+
+
+    dst_cached_jacobian.z = shifted_cosine / shifted_dist2;
+    daxa_f32 jacobian;
+    if (use_cached_jacobian) jacobian = dst_cached_jacobian.z / src_reservoir.cached_jacobian.z;
+    else
+    {
+        daxa_f32vec3 original_disp = rc_vertex_intersection.world_hit - src_primary_intersection.world_hit;
+        daxa_f32 original_dist2 = dot(original_disp, original_disp);
+        daxa_f32 original_cosine = abs(dot(rc_vertex_intersection.world_nrm, -src_connection_v));
+        jacobian = dst_cached_jacobian.z* original_dist2 / original_cosine;
+    }
+    if (is_jacobian_invalid(jacobian)) return daxa_f32vec3(0.0f);
 
     // // assuming BSDF sampling
     // assert(kUseBSDFSampling);
 
-    // // assuming bsdf sampling
-    // daxa_f32 dstPDF1All = 0.f;
-    // daxa_f32 dstPDF1 = evalPdfBSDF(dstPrimarySd, dstConnectionV, dstPDF1All, allowedSampledTypes1);
-    // dstCachedJacobian.x = dstPDF1;
-    // daxa_f32 srcPDF1 = useCachedJacobian ? src_reservoir.cachedJacobian.x : evalPdfBSDF(srcPrimarySd, srcConnectionV, allowedSampledTypes1); //
+    // assuming bsdf sampling
+    daxa_f32 dst_pdf1_all = 0.f;
+    // TODO: re-visit this part when we implement multi BSDF evaluation
+    // daxa_f32 dst_pdf1 = sample_material_all_pdf(dst_primary_intersection, dst_connection_v, dst_pdf1_all, allowed_sampled_types1);
+    daxa_f32 dst_pdf1 = sample_material_pdf(dst_primary_intersection.mat, dst_primary_intersection.world_nrm, dst_primary_intersection.wo, dst_connection_v);
+    dst_pdf1_all = dst_pdf1;
 
-    // Jacobian *= dstPDF1 / srcPDF1;
+    dst_cached_jacobian.x = dst_pdf1;
+    // TODO: re-visit this part when we implement multi BSDF evaluation
+    // daxa_f32 src_pdf1 = use_cached_jacobian ? src_reservoir.cached_jacobian.x : evalPdfBSDF(src_primary_intersection, src_connection_v, allowed_sampled_types1); //
+    daxa_f32 src_pdf1 = sample_material_pdf(src_primary_intersection.mat, src_primary_intersection.world_nrm, src_primary_intersection.wo, src_connection_v);
 
-    // if (isJacobianInvalid(Jacobian)) return 0.f;
+    jacobian *= dst_pdf1 / src_pdf1;
 
-    // daxa_f32vec3 dstF1 = evalBSDFCosine(dstPrimarySd, dstConnectionV, allowedSampledTypes1);
+    if (is_jacobian_invalid(jacobian)) return daxa_f32vec3(0.0f);
 
-    // daxa_f32 dstRcVertexScatterPdfAll = 0.f;
-    // daxa_f32 dstPDF2 = 1.f;
-    // daxa_f32 dstRcVertexScatterPdf = 1.f; 
-    // daxa_f32 srcRcVertexScatterPdf = 1.f;  
+    // TODO: re-visit this part when we implement multi BSDF evaluation
+    // daxa_f32vec3 dst_f1 = eval_bsdf_cosine_all(dst_primary_intersection, dst_connection_v, allowed_sampled_types1);
+    daxa_f32vec3 dst_f1 = eval_bsdf_cosine(dst_primary_intersection.mat, dst_primary_intersection.world_nrm, dst_primary_intersection.wo, dst_connection_v);
 
-    // daxa_u32 allowedSampledTypes2 = isRcVertexNEE ? -1 : getAllowedBSDFFlags(src_reservoir.pathFlags.decodeIsSpecularBounce(false));
+    daxa_f32 dst_rc_vertex_scatter_pdf_all = 0.f;
+    daxa_f32 dst_pdf2 = 1.f;
+    daxa_f32 dst_rc_vertex_scatter_pdf = 1.f; 
+    daxa_f32 src_rc_vertex_scatter_pdf = 1.f;  
 
-    // if (!isRcVertexEscapedVertex)
+    // TODO: re-visit this part when we have multi BSDF evaluation
+    daxa_u32 allowed_sampled_type2 = is_rc_vertex_NEE ? -1 : get_allowed_bsdf_flags(path_reservoir_is_specular_bounce(src_reservoir.path_flags, false));
+
+    if (!is_rc_vertex_escaped_vertex)
+    {
+        // assuming bsdf sampling
+        // TODO: re-visit this part when we implement multi BSDF evaluation
+        // dst_rc_vertex_scatter_pdf = evalPdfBSDF(rc_vertex_intersection, rc_vertex_wi, dst_rc_vertex_scatter_pdf_all, allowed_sampled_type2);
+        dst_rc_vertex_scatter_pdf = sample_material_pdf(rc_vertex_intersection.mat, rc_vertex_intersection.world_nrm, rc_vertex_intersection.wo, rc_vertex_wi);
+        dst_rc_vertex_scatter_pdf_all = dst_rc_vertex_scatter_pdf;
+
+        dst_cached_jacobian.y = dst_rc_vertex_scatter_pdf;
+        // TODO: re-visit this part when we implement multi BSDF evaluation
+        // src_rc_vertex_scatter_pdf = use_cached_jacobian ? src_reservoir.cached_jacobian.y : sample_material_pdf_with_v(rc_vertex_intersection, -src_connection_v, rc_vertex_wi, allowed_sampled_type2);
+        src_rc_vertex_scatter_pdf = use_cached_jacobian ? src_reservoir.cached_jacobian.y : sample_material_pdf(rc_vertex_intersection.mat, rc_vertex_intersection.world_nrm, -src_connection_v, rc_vertex_wi);
+
+        if (!is_rc_vertex_NEE) dst_pdf2 = dst_rc_vertex_scatter_pdf;
+        else dst_pdf2 = src_reservoir.light_pdf;
+    }
+
+    daxa_f32vec3 dst_f2 = daxa_f32vec3(1.0f);
+
+    if (!is_rc_vertex_escaped_vertex) 
+        // TODO: re-visit this part when we implement multi BSDF evaluation
+        // dst_f2 = evalBSDFCosine(rc_vertex_intersection, rc_vertex_wi, allowed_sampled_type2);
+        dst_f2 = eval_bsdf_cosine(rc_vertex_intersection.mat, rc_vertex_intersection.world_nrm, rc_vertex_intersection.wo, rc_vertex_wi);
+
+    // connection point behind surface
+    if (all(equal(dst_f1, daxa_f32vec3(0.f))) || all(equal(dst_f2, daxa_f32vec3(0.f)))) return daxa_f32vec3(0.0f);
+
+    //////
+    daxa_f32vec3 dst_integrand_no_f1 = dst_f2 / dst_pdf2 * rc_vertex_irradiance;
+    daxa_f32vec3 dst_integrand = dst_f1 / dst_pdf1 * dst_integrand_no_f1; // TODO: might need to reevaluate Le for changing emissive lights
+
+    if (is_rc_vertex_escaped_vertex)
+    {
+        daxa_f32 mis_weight = eval_mis(1, dst_pdf1_all, 1, src_reservoir.light_pdf, 2.f);// dst_pdf1 / (src_reservoir.light_pdf + dst_pdf1);
+        dst_integrand *= mis_weight;
+    }
+
+    // MIS weight
+    if (is_rc_vertex_final)
+    {
+        if (path_reservoir_get_light_type(src_reservoir.path_flags) != GEOMETRY_LIGHT_ANALITIC) // TODO: optimize way this check
+        {
+            daxa_f32 light_pdf = src_reservoir.light_pdf;
+            daxa_f32 mis_weight = eval_mis(1, is_rc_vertex_NEE ? light_pdf : dst_rc_vertex_scatter_pdf_all, 1, is_rc_vertex_NEE ? dst_rc_vertex_scatter_pdf_all : light_pdf, 2.f);
+            dst_integrand = dst_integrand * mis_weight; 
+            dst_integrand_no_f1 = dst_integrand_no_f1 * mis_weight;
+            if (!is_rc_vertex_NEE)
+                jacobian *= dst_rc_vertex_scatter_pdf / src_rc_vertex_scatter_pdf;
+        }
+    }
+
+    // need to account for non-identity jacobian due to BSDF sampling
+    if (!is_rc_vertex_final && !is_rc_vertex_escaped_vertex)
+    {
+        jacobian *= dst_rc_vertex_scatter_pdf / src_rc_vertex_scatter_pdf;
+    }
+
+    if (is_jacobian_invalid(jacobian)) return daxa_f32vec3(0.0f);
+
+    // Evaluate visibility: vertex 1 <-> vertex 2 (reconnection vertex).
+    if (eval_visibility)
+    {
+        // Shadow ray
+        Ray shadow_ray = Ray(dst_primary_intersection.world_hit, normalize(rc_vertex_intersection.world_hit - dst_primary_intersection.world_hit));
+        daxa_f32 distance = length(rc_vertex_intersection.world_hit - dst_primary_intersection.world_hit);
+        daxa_b32 is_visible = is_vertex_visible(shadow_ray, distance);
+        if (!is_visible)
+            return daxa_f32vec3(0.0f);
+    }
+
+    if (any(isnan(dst_integrand)) || any(isinf(dst_integrand))) return daxa_f32vec3(0.0f);
+
+    // TODO: reject some shifts based on jacobian
+    // if (params.reject_shift_based_on_jacobian)
     // {
-    //     // assuming bsdf sampling
-    //     dstRcVertexScatterPdf = evalPdfBSDF(rcVertexSd, rcVertexWi, dstRcVertexScatterPdfAll, allowedSampledTypes2);
-    //     dstCachedJacobian.y = dstRcVertexScatterPdf;
-    //     srcRcVertexScatterPdf = useCachedJacobian ? src_reservoir.cachedJacobian.y : evalPdfBSDFWithV(rcVertexSd, -srcConnectionV, rcVertexWi, allowedSampledTypes2);
-
-    //     if (!isRcVertexNEE) dstPDF2 = dstRcVertexScatterPdf;
-    //     else dstPDF2 = src_reservoir.lightPdf;
-    // }
-
-    // daxa_f32vec3 dstF2 = 1.f;
-
-    // if (!isRcVertexEscapedVertex)
-    //     dstF2 = evalBSDFCosine(rcVertexSd, rcVertexWi, allowedSampledTypes2);
-
-    // // connection point behind surface
-    // if (all(dstF1 == 0.f) || all(dstF2 == 0.f)) return 0.f;
-
-    // //////
-    // daxa_f32vec3 dst_integrandNoF1 = dstF2 / dstPDF2 * rcVertexIrradiance;
-    // daxa_f32vec3 dst_integrand = dstF1 / dstPDF1 * dst_integrandNoF1; // TODO: might need to reevaluate Le for changing emissive lights
-
-    // if (isRcVertexEscapedVertex)
-    // {
-    //     daxa_f32 misWeight = PathTracer::evalMIS(1, dstPDF1All, 1, src_reservoir.lightPdf);// dstPDF1 / (src_reservoir.lightPdf + dstPDF1);
-    //     dst_integrand *= misWeight;
-    // }
-
-    // // MIS weight
-    // if (isRcVertexFinal && kUseMIS)
-    // {
-    //     if (src_reservoir.pathFlags.lightType() != (uint)PathTracer::LightSampleType::Analytic) // TODO: optimize way this check
+    //     if (jacobian > 0.f && (max(jacobian, 1 / jacobian) > 1 + params.jacobian_rejection_threshold))
     //     {
-    //         daxa_f32 lightPdf = src_reservoir.lightPdf;
-    //         daxa_f32 misWeight = PathTracer::evalMIS(1, isRcVertexNEE ? lightPdf : dstRcVertexScatterPdfAll, 1, isRcVertexNEE ? dstRcVertexScatterPdfAll : lightPdf);
-    //         dst_integrand = dst_integrand * misWeight; 
-    //         dst_integrandNoF1 = dst_integrandNoF1 * misWeight;
-    //         if (!isRcVertexNEE)
-    //             Jacobian *= dstRcVertexScatterPdf / srcRcVertexScatterPdf;
-    //     }
-    // }
-
-    // // need to account for non-identity jacobian due to BSDF sampling
-    // if (!isRcVertexFinal && !isRcVertexEscapedVertex)
-    // {
-    //     Jacobian *= dstRcVertexScatterPdf / srcRcVertexScatterPdf;
-    // }
-
-    // if (isJacobianInvalid(Jacobian)) return 0.f;
-
-    // // Evaluate visibility: vertex 1 <-> vertex 2 (reconnection vertex).
-    // if (evalVisibility)
-    // {
-    //     daxa_b32 isVisible = evalSegmentVisibility(dstPrimarySd.posW, rcVertexSd.posW);
-    //     if (!isVisible)
-    //         return 0.f;
-    // }
-
-    // if (any(isnan(dst_integrand) || isinf(dst_integrand))) return 0.f;
-
-    // if (params.rejectShiftBasedOnJacobian)
-    // {
-    //     if (Jacobian > 0.f && (max(Jacobian, 1 / Jacobian) > 1 + params.jacobianRejectionThreshold))
-    //     {
-    //         // discard based on Jacobian (unbiased)
-    //         Jacobian = 0.f;
+    //         // discard based on jacobian (unbiased)
+    //         jacobian = 0.f;
     //         dst_integrand = 0.f;
     //     }
     // }
 
-    // dstJacobian = Jacobian;
+    dst_jacobian = jacobian;
 
-    // if (useCachedJacobian)
-    //     src_reservoir.cachedJacobian = dstCachedJacobian;
+    if (use_cached_jacobian)
+        src_reservoir.cached_jacobian = dst_cached_jacobian;
 
-    // return dst_integrand;
+    return dst_integrand;
 }
 
 
@@ -212,16 +255,16 @@ daxa_f32vec3 compute_shifted_integrand_(const SCENE_PARAMS params, inout daxa_f3
 
     if (src_reservoir.weight == 0.f) return daxa_f32vec3(0.0f);
 
-    // if (ShiftMapping(kShiftStrategy) == ShiftMapping::Reconnection)
-    // {
+    if (params.shift_mapping == SHIFT_MAPPING_RECONNECTION)
+    {
 
         if (temporal_update_for_dynamic_scene && params.temporal_update_for_dynamic_scene)
         {
             path_tracer_trace_temporal_update(dst_primary_intersection, src_reservoir);
         }
 
-        return compute_shifted_integrand_reconnection(params, dst_jacobian, dst_primary_intersection, src_primary_intersection, src_reservoir, eval_visibility);
-    // }
+        return compute_shifted_integrand_reconnection(params, dst_jacobian, dst_primary_intersection, src_primary_intersection, src_reservoir, eval_visibility, false, use_prev);
+    }
     // else if (ShiftMapping(kShiftStrategy) == ShiftMapping::RandomReplay)
     // {
     //     return computeShiftedIntegrandRandomReplay(params, use_prev, dst_jacobian, dstPrimaryHitPacked, dstPrimarySd, srcPrimarySd, src_reservoir);

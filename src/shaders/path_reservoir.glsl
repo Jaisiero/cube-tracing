@@ -90,10 +90,21 @@ void path_reservoir_insert_is_specular_bounce(inout PATH_RESERVOIR reservoir, da
     if (is_specular_bounce) reservoir.path_flags |= 1 << (before_rc_vertex ? 26 : 27);
 }
 
+
+daxa_b32 path_reservoir_is_specular_bounce(daxa_u32 path_flags, daxa_b32 before_rc_vertex)
+{
+    return daxa_b32((path_flags >> (before_rc_vertex ? 26 : 27)) & 1);
+}
+
 void path_reservoir_insert_light_type(inout PATH_RESERVOIR reservoir, daxa_u32 light_type)
 {
     reservoir.path_flags &= ~0xc0000;
     reservoir.path_flags |= ((daxa_i32(light_type) & 3) << 18);
+}
+
+daxa_u32 path_reservoir_get_light_type(daxa_u32 path_flags)
+{
+    return (path_flags >> 18) & 3;
 }
 
 void path_init_from_hit_info(inout PATH_RESERVOIR reservoir, INSTANCE_HIT hit)
