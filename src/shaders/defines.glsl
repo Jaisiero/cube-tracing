@@ -89,6 +89,7 @@ struct SCENE_PARAMS{
     daxa_u32 light_count;
     daxa_u32 object_count;
     daxa_u32 max_depth;
+    daxa_b32 temporal_update_for_dynamic_scene;
 };
 
 

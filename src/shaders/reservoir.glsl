@@ -299,7 +299,7 @@ RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord, daxa_u32vec2 r
     daxa_f32 depth_previous = di_info_previous.distance;
 
     // some simple rejection based on normals' divergence, can be improved
-    bool valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && 
+    daxa_b32 valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && 
       di_info_previous.instance_hit.instance_id == hit.instance_hit.instance_id && 
       di_info_previous.instance_hit.primitive_id == hit.instance_hit.primitive_id;
 

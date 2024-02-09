@@ -152,6 +152,64 @@ daxa_b32 path_reservoir_update(inout PATH_RESERVOIR reservoir, daxa_f32vec3 in_F
   return false;
 }
 
+daxa_b32 path_reservoir_merge(inout PATH_RESERVOIR reservoir, daxa_f32vec3 in_F, daxa_f32 in_jacobian, PATH_RESERVOIR in_reservoir,  inout daxa_u32 seed, daxa_f32 mis_weight, daxa_b32 force_add)
+{
+    daxa_f32 w = path_F_to_scalar(in_F) * in_jacobian * in_reservoir.M * in_reservoir.weight * mis_weight;
+
+    reservoir.M += in_reservoir.M;
+
+    if (isnan(w) || w == 0.f)
+        return false;
+
+    reservoir.weight += w;
+
+    // Accept?
+    if (force_add || urnd(seed) * reservoir.weight <= w)
+    {
+        reservoir.path_flags = in_reservoir.path_flags;
+        reservoir.rc_random_seed = in_reservoir.rc_random_seed;
+        reservoir.init_random_seed = in_reservoir.init_random_seed;
+        reservoir.cached_jacobian = in_reservoir.cached_jacobian;
+        reservoir.light_pdf = in_reservoir.light_pdf;
+        reservoir.rc_vertex_wi[0] = in_reservoir.rc_vertex_wi[0];
+        reservoir.rc_vertex_hit = in_reservoir.rc_vertex_hit;
+        reservoir.rc_vertex_irradiance[0] = in_reservoir.rc_vertex_irradiance[0];
+        reservoir.F = in_F;
+        return true;
+    }
+
+    return false;
+}
+
+daxa_b32 path_reservoir_merge_with_resampling_MIS(inout PATH_RESERVOIR reservoir, daxa_f32vec3 in_F, daxa_f32 in_jacobian, PATH_RESERVOIR in_reservoir, inout daxa_u32 seed, daxa_f32 mis_weight, daxa_b32 force_add)
+{
+    daxa_f32 w = path_F_to_scalar(in_F) * in_jacobian * in_reservoir.weight * mis_weight;
+
+    reservoir.M += in_reservoir.M;
+
+    if (isnan(w) || w == 0.f)
+        return false;
+
+    reservoir.weight += w;
+
+    // Accept?
+    if (force_add || urnd(seed) * reservoir.weight <= w)
+    {
+        reservoir.path_flags = in_reservoir.path_flags;
+        reservoir.rc_random_seed = in_reservoir.rc_random_seed;
+        reservoir.init_random_seed = in_reservoir.init_random_seed;
+        reservoir.cached_jacobian = in_reservoir.cached_jacobian;
+        reservoir.light_pdf = in_reservoir.light_pdf;
+        reservoir.rc_vertex_wi[0] = in_reservoir.rc_vertex_wi[0];
+        reservoir.rc_vertex_hit = in_reservoir.rc_vertex_hit;
+        reservoir.rc_vertex_irradiance[0] = in_reservoir.rc_vertex_irradiance[0];
+        reservoir.F = in_F;
+        return true;
+    }
+
+    return false;
+}
+
 void path_reservoir_finalize_RIS(inout PATH_RESERVOIR reservoir) 
 {
     daxa_f32 p_hat = path_F_to_scalar(reservoir.F);

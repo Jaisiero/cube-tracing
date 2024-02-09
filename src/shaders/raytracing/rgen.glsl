@@ -404,8 +404,11 @@ void main()
         di_info.seed = hit.seed;
         
 
+        // TODO: pass this from status struct
+        daxa_b32 temporal_update_for_dynamic_scene = true;
+
 #if INDIRECT_ILLUMINATION_ON == 1        
-        indirect_illumination(index, rt_size, ray, mat, i, di_info.seed, max_depth, light_count, object_count, throughput);
+        indirect_illumination(index, rt_size, ray, mat, i, di_info.seed, max_depth, light_count, object_count, temporal_update_for_dynamic_scene, throughput);
         hit_value += throughput;
 #endif // INDIRECT_ILLUMINATION_ON
 

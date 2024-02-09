@@ -864,4 +864,12 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(const SCENE_PARAMS params, c
 }
 
 
+
+void path_tracer_trace_temporal_update(const INTERSECT dst_primary_intersection, inout PATH_RESERVOIR src_reservoir) {
+
+}
+
+
+
+
 #endif // PATH_TRACER_GLSL_GLSL

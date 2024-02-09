@@ -109,11 +109,11 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
     daxa_b32 use_hybrid_shift = false;
 
     // TALBOT RMIS  
-    const int cur_sample_id = -1;
-    const int prev_sample_id = 0;
+    const daxa_i32 cur_sample_id = -1;
+    const daxa_i32 prev_sample_id = 0;
     daxa_f32 dst_jacobian;
 
-    for (int i = cur_sample_id; i <= prev_sample_id; i++)
+    for (daxa_i32 i = cur_sample_id; i <= prev_sample_id; i++)
     {
         daxa_f32 p_sum = 0;
         daxa_f32 p_self = 0;
@@ -153,7 +153,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
 
         if (possible_to_be_selected)
         {
-            for (int j = cur_sample_id; j <= prev_sample_id; ++j)
+            for (daxa_i32 j = cur_sample_id; j <= prev_sample_id; ++j)
             {
                 if (j == cur_sample_id)
                 {
@@ -178,9 +178,9 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
                     if (use_hybrid_shift && path_reservoir_get_reconnection_length(temp_dst_reservoir.path_flags) > 1)
                         rc_data = get_reconnection_data_from_current_frame(current_index, 0);
 
-                    // daxa_f32 t_neighbor_integrand = compute_shifted_integrand(params, t_neighbor_jacobian, temporalPrimaryHitPacked, temporalPrimarySd,
-                    //     centralPrimarySd, temp_dst_reservoir, rc_data, true, true); //usePrev
-                    // p_ = path_F_to_scalar(t_neighbor_integrand) * t_neighbor_jacobian;
+                    daxa_f32vec3 t_neighbor_integrand = compute_shifted_integrand(params, t_neighbor_jacobian, prev_i.instance_hit, prev_i,
+                                                                              current_i, temp_dst_reservoir, rc_data, true, true, true); // use_prev
+                    p_ = path_F_to_scalar(t_neighbor_integrand) * t_neighbor_jacobian;
                     p_sum += p_ * temporal_reservoir.M;
                 }
             }
@@ -191,7 +191,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
         if (i == cur_sample_id) neighbor_reservoir = temp_dst_reservoir;
         else neighbor_reservoir = temporal_reservoir;
 
-        // merge_reservoir_with_resampling_MIS(params, temp_dst_reservoir.F, dst_jacobian, destination_reservoir, temp_dst_reservoir, neighbor_reservoir, seed, false, mis_weight);
+        merge_reservoir_with_resampling_MIS(params, temp_dst_reservoir.F, dst_jacobian, destination_reservoir, temp_dst_reservoir, neighbor_reservoir, seed, false, mis_weight);
     }
 
 
@@ -213,10 +213,10 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
 
 
 
-void indirect_illumination_restir_path_tracing(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
+void indirect_illumination_restir_path_tracing(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, daxa_b32 temporal_update_for_dynamic_scene, inout daxa_f32vec3 throughput) {
     // TODO: check max_depth
     max_depth = max(1, max_depth);
-    SCENE_PARAMS params = SCENE_PARAMS(light_count, object_count, max_depth);
+    SCENE_PARAMS params = SCENE_PARAMS(light_count, object_count, max_depth, temporal_update_for_dynamic_scene);
 
     PATH_RESERVOIR central_reservoir = trace_restir_path_tracing(params, index, rt_size, ray, i, seed, throughput);
 
@@ -311,9 +311,9 @@ void indirect_illumination_path_tracing(const daxa_i32vec2 index, const daxa_u32
 
 
 
-void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32vec3 throughput) {
+void indirect_illumination(const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat, INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count, daxa_u32 object_count, daxa_b32 temporal_update_for_dynamic_scene, inout daxa_f32vec3 throughput) {
 #if RESTIR_PT_ON == 1
-    indirect_illumination_restir_path_tracing(index, rt_size, ray, i, seed, max_depth, light_count, object_count, throughput);
+    indirect_illumination_restir_path_tracing(index, rt_size, ray, i, seed, max_depth, light_count, object_count, temporal_update_for_dynamic_scene, throughput);
 #else
     indirect_illumination_path_tracing(index, rt_size, ray, mat, i, seed, max_depth, light_count, object_count, throughput);
 #endif
