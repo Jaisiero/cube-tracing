@@ -140,22 +140,22 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa
     switch (mat.type & MATERIAL_TYPE_MASK)
     {
         case MATERIAL_TYPE_METAL: {
-            pdf *= (INV_DAXA_2PI);
+            pdf *= (DAXA_2PI);
         }
         break;
         case MATERIAL_TYPE_DIELECTRIC: {
-            pdf *= (INV_DAXA_2PI);
+            pdf *= (DAXA_2PI);
         }
         break;
         case MATERIAL_TYPE_CONSTANT_MEDIUM: {
-            pdf *= INV_DAXA_4PI;
+            pdf *= DAXA_4PI;
         }
         break;
         default: {
 #if COSINE_HEMISPHERE_SAMPLING == 1
-            pdf *= (INV_DAXA_PI) * dot(wi, n);
+            pdf *= (DAXA_PI) / dot(wi, n);
 #else
-            pdf *= (INV_DAXA_2PI);
+            pdf *= (DAXA_2PI);
 #endif
 
         }

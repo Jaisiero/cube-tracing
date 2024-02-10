@@ -8,8 +8,7 @@
 
 daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
 #if (COSINE_HEMISPHERE_SAMPLING == 1)
-    daxa_f32 cos_theta = dot(normal, light_dir);
-    return mat.diffuse * cos_theta * INV_DAXA_PI;
+    return mat.diffuse * INV_DAXA_PI;
 #else     
     return mat.diffuse * INV_DAXA_PI;
 #endif
@@ -70,9 +69,7 @@ daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, da
 
 
 daxa_f32vec3 eval_bsdf_cosine(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi)  {
-    daxa_f32 cos_theta = dot(n, wi);
-    daxa_f32vec3 color = evaluate_material(mat, n, wo, wi);
-    return color * cos_theta;
+    return evaluate_material(mat, n, wo, wi);
 }
 
 
