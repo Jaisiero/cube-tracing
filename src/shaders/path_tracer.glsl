@@ -73,7 +73,7 @@ daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, inout INTERSECT i) {
 
     if(valid) {
         // TODO: weight is always albedo for now because it is always a diffuse material
-        daxa_f32vec3 weight = i.mat.diffuse;
+        daxa_f32vec3 weight = i.mat.diffuse * INV_DAXA_PI;
         daxa_f32 pdf = sample_material_pdf(i.mat, i.world_nrm, i.wo, i.wi);
 
         path.dir = i.wi;
@@ -175,7 +175,7 @@ void path_invalidate_and_terminate_replay_path(inout PATH_STATE path) {
 daxa_b32 terminate_path_by_russian_roulette(inout PATH_STATE path) {
     const daxa_f32 rr_vale = path_luminance(path_get_current_thp(path));
     const daxa_f32 prob = max(0.f, 1.f - rr_vale);
-    if (urnd(path.seed) < prob)
+    if (rnd(path.seed) < prob)
     {
         path_terminate(path);
         return true;
@@ -190,7 +190,7 @@ daxa_b32 terminate_path_by_russian_roulette(inout PATH_STATE path) {
 
 
 void path_skip_light_sample_random_numbers(inout daxa_u32 seed) {
-    urnd(seed);
+    rnd(seed);
 }
 
 
@@ -666,7 +666,7 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path, inout INT
     {
         if (path.enable_random_replay)
         {
-            urnd(path.seed);
+            rnd(path.seed);
         }
         else
         {
@@ -868,7 +868,7 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(const SCENE_PARAMS params, c
 
 
 void path_tracer_trace_temporal_update(const INTERSECT dst_primary_intersection, inout PATH_RESERVOIR src_reservoir) {
-
+    // TODO: complete this function
 }
 
 

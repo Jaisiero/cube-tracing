@@ -209,10 +209,6 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
     // Set the current reservoir for next frame
     set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
 
-    
-    // TODO: temporary
-    // destination_reservoir = central_reservoir;
-
     throughput = destination_reservoir.F * destination_reservoir.weight;
 }
 
@@ -233,7 +229,7 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params, const 
     // temporal_path_retrace(params, central_reservoir, temporal_reservoir, current_index, prev_predicted_index, i, prev_i);
 
     // Temporal path reuse previous frame contribution
-    // temporal_path_reuse(params, central_reservoir, temporal_reservoir, current_index, seed, i, prev_i, throughput);
+    temporal_path_reuse(params, central_reservoir, temporal_reservoir, current_index, seed, i, prev_i, throughput);
     
     // Set the current reservoir for next frame
     // set_temporal_path_reservoir_by_index(current_index, central_reservoir);

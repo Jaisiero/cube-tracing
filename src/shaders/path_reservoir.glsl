@@ -66,10 +66,20 @@ void path_reservoir_insert_is_delta_event(inout PATH_RESERVOIR reservoir, daxa_b
     if (is_delta) reservoir.path_flags |= 1 << (before_rc_vertex ? 20 : 21);
 }
 
+daxa_b32 path_reservoir_is_delta_event(daxa_u32 path_flags, daxa_b32 before_rc_vertex)
+{
+    return daxa_b32((path_flags >> (before_rc_vertex ? 20 : 21)) & 1);
+}
+
 void path_reservoir_insert_is_transmission_event(inout PATH_RESERVOIR reservoir, daxa_b32 is_transmission, daxa_b32 before_rc_vertex)
 {
     reservoir.path_flags &= (before_rc_vertex ? ~(0x400) : ~(0x800));
     if (is_transmission) reservoir.path_flags |= 1 << (before_rc_vertex ? 22 : 23);
+}
+
+daxa_b32 path_reservoir_is_transmission_event(daxa_u32 path_flags, daxa_b32 before_rc_vertex)
+{
+    return daxa_b32((path_flags >> (before_rc_vertex ? 22 : 23)) & 1);
 }
 
 
@@ -175,7 +185,7 @@ daxa_b32 path_reservoir_merge(inout PATH_RESERVOIR reservoir, daxa_f32vec3 in_F,
     reservoir.weight += w;
 
     // Accept?
-    if (force_add || urnd(seed) * reservoir.weight <= w)
+    if (force_add || rnd(seed) * reservoir.weight <= w)
     {
         reservoir.path_flags = in_reservoir.path_flags;
         reservoir.rc_random_seed = in_reservoir.rc_random_seed;
@@ -204,7 +214,7 @@ daxa_b32 path_reservoir_merge_with_resampling_MIS(inout PATH_RESERVOIR reservoir
     reservoir.weight += w;
 
     // Accept?
-    if (force_add || urnd(seed) * reservoir.weight <= w)
+    if (force_add || rnd(seed) * reservoir.weight <= w)
     {
         reservoir.path_flags = in_reservoir.path_flags;
         reservoir.rc_random_seed = in_reservoir.rc_random_seed;

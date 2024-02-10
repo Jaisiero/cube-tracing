@@ -39,7 +39,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, i
     daxa_b32 rc_vertex_hit_exists = instance_hit_exists(rc_vertex_hit);
 
     // TODO: transmission events
-    // daxa_b32 is_transmission = src_reservoir.pathFlags.decodeIsTransmissionEvent(true);
+    daxa_b32 is_transmission = path_reservoir_is_transmission_event(src_reservoir.path_flags, true);
 
     // TODO: re-visit this part when we have multi BSDF evaluation
     daxa_u32 allowed_sampled_types1 = get_allowed_bsdf_flags(path_reservoir_is_specular_bounce(src_reservoir.path_flags, true));
@@ -88,11 +88,11 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, i
     daxa_b32 is_rc_vertex_NEE = is_rc_vertex_final && is_last_vertex_NEE;
 
     // TODO: delta events
-    // daxa_b32 is_delta1 = src_reservoir.pathFlags.decodeIsDeltaEvent(true);
-    // daxa_b32 is_delta2 = src_reservoir.pathFlags.decodeIsDeltaEvent(false);
+    daxa_b32 is_delta1 = path_reservoir_is_delta_event(src_reservoir.path_flags, true);
+    daxa_b32 is_delta2 = path_reservoir_is_delta_event(src_reservoir.path_flags, false);
 
     // delta bounce before/after rcVertex (if is_rc_vertex_NEE, deltaAfterRc won't be set)
-    // if (is_delta1 || is_delta2) return 0.f;
+    if (is_delta1 || is_delta2) return daxa_f32vec3(0.0f);
 
     INTERSECT rc_vertex_intersection = load_intersection_data_vertex_position(rc_vertex_hit, dst_primary_intersection.world_hit, false, true);
 
@@ -226,16 +226,15 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, i
 
     if (any(isnan(dst_integrand)) || any(isinf(dst_integrand))) return daxa_f32vec3(0.0f);
 
-    // TODO: reject some shifts based on jacobian
-    // if (params.reject_shift_based_on_jacobian)
-    // {
-    //     if (jacobian > 0.f && (max(jacobian, 1 / jacobian) > 1 + params.jacobian_rejection_threshold))
-    //     {
-    //         // discard based on jacobian (unbiased)
-    //         jacobian = 0.f;
-    //         dst_integrand = 0.f;
-    //     }
-    // }
+    if (params.reject_based_on_jacobian)
+    {
+        if (jacobian > 0.f && (max(jacobian, 1 / jacobian) > 1 + params.jacobian_rejection_threshold))
+        {
+            // discard based on jacobian (unbiased)
+            jacobian = 0.f;
+            dst_integrand = daxa_f32vec3(0.0f);
+        }
+    }
 
     dst_jacobian = jacobian;
 
