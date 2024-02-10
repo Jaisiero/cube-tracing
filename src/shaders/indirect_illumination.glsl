@@ -92,7 +92,7 @@ void temporal_path_retrace(const SCENE_PARAMS params, const PATH_RESERVOIR centr
 }
 
 
-void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central_reservoir, PATH_RESERVOIR temporal_reservoir, const daxa_u32 current_index, inout daxa_u32 seed, INTERSECT current_i, INTERSECT prev_i, inout daxa_f32vec3 throughput) {
+void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central_reservoir, PATH_RESERVOIR temporal_reservoir, const daxa_u32 current_index, inout daxa_u32 seed, INTERSECT current_i, INTERSECT prev_i, out daxa_f32vec3 throughput) {
 
     PATH_RESERVOIR destination_reservoir;
     path_reservoir_initialise(destination_reservoir);
@@ -149,7 +149,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
                                                                     seed,
                                                                     false,
                                                                     1.f,
-                                                                    true); // "true" means hypothetically selected as the sample
+                                                                    false); // "true" means hypothetically selected as the sample
             }
 
             if (possible_to_be_selected)
@@ -210,6 +210,9 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
     set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
 
     throughput = destination_reservoir.F * destination_reservoir.weight;
+
+    // TODO: temporary
+    // throughput = temporal_reservoir.F * temporal_reservoir.weight;
 }
 
 

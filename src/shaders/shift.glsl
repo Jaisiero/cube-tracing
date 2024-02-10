@@ -24,9 +24,16 @@ daxa_u32 get_allowed_bsdf_flags(daxa_b32 is_specular)
 }
 
 
-// dstPdf * dst_jacobian transforms pdf in dst space to src space
-// srcPdf / dst_jacobian transforms pdf in src space to dst space
-daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, inout daxa_f32 dst_jacobian, const INTERSECT dst_primary_intersection, const INTERSECT src_primary_intersection, inout PATH_RESERVOIR src_reservoir, daxa_b32 eval_visibility, daxa_b32 use_hybrid_shift, daxa_b32 use_cached_jacobian)
+// dst_pdf * dst_jacobian transforms pdf in dst space to src space
+// src_pdf / dst_jacobian transforms pdf in src space to dst space
+daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params,
+                                                    inout daxa_f32 dst_jacobian,
+                                                    const INTERSECT dst_primary_intersection,
+                                                    const INTERSECT src_primary_intersection,
+                                                    inout PATH_RESERVOIR src_reservoir,
+                                                    daxa_b32 eval_visibility,
+                                                    daxa_b32 use_hybrid_shift,
+                                                    daxa_b32 use_cached_jacobian)
 {
     daxa_f32vec3 dst_cached_jacobian;
     dst_jacobian = 0.f;
@@ -37,6 +44,9 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, i
     daxa_f32vec3 rc_vertex_irradiance = src_reservoir.rc_vertex_irradiance[0];
     daxa_f32vec3 rc_vertex_wi = src_reservoir.rc_vertex_wi[0];
     daxa_b32 rc_vertex_hit_exists = instance_hit_exists(rc_vertex_hit);
+
+    daxa_u32 path_length = path_reservoir_get_path_length(src_reservoir.path_flags);
+    daxa_b32 is_last_vertex_NEE = path_reservoir_last_vertex_NEE(src_reservoir.path_flags);
 
     // TODO: transmission events
     daxa_b32 is_transmission = path_reservoir_is_transmission_event(src_reservoir.path_flags, true);
@@ -53,18 +63,22 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, i
         daxa_f32vec3 dst_integrand = daxa_f32vec3(0.0f);
         // TODO: re-visiting this part when we have environment map light
         // are we having a infinite light as rcVertex?
-        // if (kUseMIS && src_reservoir.pathFlags.lightType() == (uint)PathTracer::LightSampleType::EnvMap && src_reservoir.pathFlags.pathLength() + 1 == rc_vertex_length && !src_reservoir.pathFlags.lastVertexNEE())
+        // if (path_reservoir_get_light_type(src_reservoir.path_flags) == GEOMETRY_LIGHT_ENV_MAP && path_length + 1 == rc_vertex_length && !is_last_vertex_NEE)
         // {
         //     daxa_f32vec3 wi = rc_vertex_wi;
-        //     daxa_b32 is_visible = evalSegmentVisibility(dstPrimarySd.posW, wi, true); // test along a direction
+        //     daxa_b32 is_visible = eval_segment_visibility(dst_primary_intersection.world_hit, wi, true); // test along a direction
         //     if (is_visible)
         //     {
         //         daxa_f32 src_pdf1 = use_cached_jacobian ? src_reservoir.cached_jacobian.x : evalPdfBSDF(srcPrimarySd, wi);
         //         daxa_f32 dst_pdf1_all;
-        //         daxa_f32 dst_pdf1 = evalPdfBSDF(dstPrimarySd, wi, dst_pdf1_all, allowed_sampled_types1);
+        // TODO: re-visit this part when we have multi BSDF evaluation
+        // //         daxa_f32 dst_pdf1 = evalPdfBSDF(dstPrimarySd, wi, dst_pdf1_all, allowed_sampled_types1);
+        //         daxa_f32 dst_pdf1 = sample_material_pdf(dst_primary_intersection.mat, dst_primary_intersection.world_nrm, dst_primary_intersection.wo, wi);
         //         dst_cached_jacobian.x = dst_pdf1;
-        //         daxa_f32vec3 dst_f1 = evalBSDFCosine(dstPrimarySd, wi, allowed_sampled_types1);
-        //         daxa_f32 mis_weight = PathTracer::evalMIS(1, dst_pdf1_all, 1, src_reservoir.light_pdf);//   dst_pdf1 / (dst_pdf1 + src_reservoir.light_pdf);
+        // TODO: re-visit this part when we have multi BSDF evaluation
+        // //         daxa_f32vec3 dst_f1 = eval_bsdf_cosine(dstPrimarySd, wi, allowed_sampled_types1);
+        //         daxa_f32vec3 dst_f1 = eval_bsdf_cosine(dst_primary_intersection.mat, dst_primary_intersection.world_nrm, dst_primary_intersection.wo, wi);
+        //         daxa_f32 mis_weight = eval_mis(1, dst_pdf1_all, 1, src_reservoir.light_pdf);//   dst_pdf1 / (dst_pdf1 + src_reservoir.light_pdf);
         //         dst_integrand = dst_f1 / dst_pdf1 * mis_weight * rc_vertex_irradiance;
         //         dst_jacobian = dst_pdf1 / src_pdf1;
         //     }
@@ -79,9 +93,6 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, i
 
         return dst_integrand;
     }
-
-    daxa_u32 path_length = path_reservoir_get_path_length(src_reservoir.path_flags);
-    daxa_b32 is_last_vertex_NEE = path_reservoir_last_vertex_NEE(src_reservoir.path_flags);
 
     daxa_b32 is_rc_vertex_final = path_length == rc_vertex_length;
     daxa_b32 is_rc_vertex_escaped_vertex = path_length + 1 == rc_vertex_length && !is_last_vertex_NEE;
@@ -136,7 +147,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params, i
     dst_cached_jacobian.x = dst_pdf1;
     // TODO: re-visit this part when we implement multi BSDF evaluation
     // daxa_f32 src_pdf1 = use_cached_jacobian ? src_reservoir.cached_jacobian.x : evalPdfBSDF(src_primary_intersection, src_connection_v, allowed_sampled_types1); //
-    daxa_f32 src_pdf1 = sample_material_pdf(src_primary_intersection.mat, src_primary_intersection.world_nrm, src_primary_intersection.wo, src_connection_v);
+    daxa_f32 src_pdf1 = use_cached_jacobian ? src_reservoir.cached_jacobian.x : sample_material_pdf(src_primary_intersection.mat, src_primary_intersection.world_nrm, src_primary_intersection.wo, src_connection_v);
 
     jacobian *= dst_pdf1 / src_pdf1;
 
