@@ -387,7 +387,7 @@ void main()
         //Calculate reservoir radiance
         calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance);
         //Build the intersect struct
-        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, ray.direction, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
+        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, -ray.direction, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
       
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value (reservoir radiance)
@@ -400,7 +400,7 @@ void main()
         // Calculate radiance
         radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
         // Build the intersect struct
-        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, ray.direction, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
+        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, -ray.direction, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
         
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value

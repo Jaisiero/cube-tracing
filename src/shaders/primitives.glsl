@@ -436,7 +436,7 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
         pos += nor * AVOID_VOXEL_COLLAIDE;
         distance = length(world_pos - pos);
 
-        v = (transpose(inv_model) * vec4(v, 0)).xyz;
+        v = normalize(world_pos - pos);
 
         daxa_u32 material_idx = MAX_MATERIALS;
         MATERIAL mat;
@@ -447,7 +447,7 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
             mat = get_material_from_material_index(material_idx);
         }
 
-        i = INTERSECT(true, distance, pos, nor, -v, vec3(0), instance_hit, material_idx, mat);
+        i = INTERSECT(true, distance, pos, nor, v, vec3(0), instance_hit, material_idx, mat);
     }
 
     return i;

@@ -310,13 +310,13 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
     }
 
     daxa_f32vec3 l_wi = normalize(P - l_pos);
-    daxa_f32vec3 l_wo = -l_wi;
+    daxa_f32vec3 l_v = -l_wi;
 
 
     vis = vis && daxa_b32(dot(l_wi, l_nor) > 0.0); // Light front side
     vis = vis && daxa_b32(dot(l_wi, n) < 0.0); // Behind the surface at P
     // Shadow ray
-    Ray shadow_ray = Ray(P, l_wo);
+    Ray shadow_ray = Ray(P, l_v);
 
     if(visibility && vis) {
         vis = vis && is_vertex_visible(shadow_ray, distance);
@@ -330,10 +330,9 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
 
 daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility) {
     // 2. Get light direction
-    daxa_f32vec3 light_direction = normalize(light.position - hit.world_hit);
     daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
-    daxa_f32vec3 wi = normalize(ray.direction);
-    daxa_f32vec3 wo = -wi;
+    daxa_f32vec3 wo = -normalize(ray.direction);
+    daxa_f32vec3 wi = normalize(light.position - hit.world_hit);
 
     daxa_f32vec3 l_pos, l_nor, Le;
 
@@ -342,8 +341,8 @@ daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL
     daxa_f32vec3 result = vec3(0.0);
     
     if(sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility)) {
-        daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wi, wo);
-        daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
+        daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wo, wi);
+        daxa_f32 cos_theta = get_cos_theta(surface_normal, wi);
         daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
         
         if(use_pdf) {
@@ -360,10 +359,9 @@ daxa_f32vec3 calculate_sampled_light(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL
 
 daxa_f32vec3 calculate_sampled_light_and_get_light_info(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, out daxa_f32vec3 l_pos, out daxa_f32vec3 l_nor, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility) {
     // 2. Get light direction
-    daxa_f32vec3 light_direction = normalize(light.position - hit.world_hit);
     daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
-    daxa_f32vec3 wi = normalize(ray.direction);
-    daxa_f32vec3 wo = -wi;
+    daxa_f32vec3 wo = -normalize(ray.direction);
+    daxa_f32vec3 wi = normalize(light.position - hit.world_hit);
 
     daxa_f32vec3 Le;
 
@@ -372,8 +370,8 @@ daxa_f32vec3 calculate_sampled_light_and_get_light_info(Ray ray, inout HIT_INFO_
     daxa_f32vec3 result = vec3(0.0);
     
     if(sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf, use_visibility)) {
-        daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wi, wo);
-        daxa_f32 cos_theta = get_cos_theta(surface_normal, light_direction);
+        daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wo, wi);
+        daxa_f32 cos_theta = get_cos_theta(surface_normal, wi);
         daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
         
         if(use_pdf) {
@@ -399,7 +397,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
 
     daxa_f32vec3 P = hit.world_hit;
     daxa_f32vec3 n = hit.world_nrm;
-    daxa_f32vec3 wo = ray.direction;
+    daxa_f32vec3 wo = -ray.direction;
 
     // Light sampling
     if(sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, use_pdf, use_visibility)) {
