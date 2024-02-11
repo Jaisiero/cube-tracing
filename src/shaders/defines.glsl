@@ -102,6 +102,7 @@ struct SCENE_PARAMS{
     daxa_f32 near_field_distance;
     daxa_b32 reject_based_on_jacobian;
     daxa_f32 jacobian_rejection_threshold;
+    daxa_b32 use_russian_roulette;
 };
 
 

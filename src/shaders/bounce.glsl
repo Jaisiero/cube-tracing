@@ -125,6 +125,8 @@ INTERSECT intersect(Ray ray)
     rayQueryTerminateEXT(ray_query);
 #endif // SER    
 
-    return INTERSECT(is_hit, distance, int_hit, int_nor, -ray.direction, daxa_f32vec3(0), instance_hit, material_idx, intersected_mat);
+    daxa_f32vec3 wo = normalize(ray.origin - int_hit);
+
+    return INTERSECT(is_hit, distance, int_hit, int_nor, wo, daxa_f32vec3(0), instance_hit, material_idx, intersected_mat);
 }
 #endif // BOUNCE_GLSL

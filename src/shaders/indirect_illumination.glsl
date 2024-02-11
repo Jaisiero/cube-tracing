@@ -145,7 +145,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
                                                                     prev_i,
                                                                     temporal_reservoir,
                                                                     rc_data,
-                                                                    true,
+                                                                    false,
                                                                     seed,
                                                                     false,
                                                                     1.f,

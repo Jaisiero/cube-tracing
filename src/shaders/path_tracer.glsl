@@ -227,11 +227,11 @@ daxa_f32 eval_voxel_pdf(const daxa_f32vec3 pos_W, const INTERSECT i)
     \param[in] i Intersection data.
     \return Probability density with respect to solid angle at the shading point.
 */
-daxa_f32 path_evaluate_emissive(INTERSECT i, daxa_f32 light_count) {
+daxa_f32 path_evaluate_emissive(daxa_f32vec3 origin, daxa_f32vec3 normal, INTERSECT i, daxa_f32 light_count) {
 
     daxa_f32 selecting_voxel_pdf = 1.f / light_count;
 
-    daxa_f32 voxel_pdf = eval_voxel_pdf(i.world_hit, i);
+    daxa_f32 voxel_pdf = eval_voxel_pdf(origin, i);
 
     return selecting_voxel_pdf * voxel_pdf;
 }
@@ -257,7 +257,7 @@ daxa_b32 path_generate_light_sample(const SCENE_PARAMS params, INTERSECT i, cons
         i.world_hit,
         i.world_nrm,
         i.distance,
-        i.wo,
+        -i.wo,
         i.instance_hit,
         i.material_idx,
         seed,
@@ -289,7 +289,7 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params, inout PATH_STATE pa
     if(!primary_hit) {
         // If NEE and MIS are enabled, and we've already sampled emissive lights,
         // then we need to evaluate the MIS weight here to account for the remaining contribution.
-        light_pdf = path_evaluate_emissive(i, params.light_count);
+        light_pdf = path_evaluate_emissive(path.origin, path.normal, i, params.light_count);
 
         mis_weight = eval_mis(1, path.pdf, 1, light_pdf, 2.0);
 
@@ -345,7 +345,7 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params, inout PATH_STATE pa
                 {
                     // we found an RC vertex!
                     // set rcVertexLength to current length (this will make rcVertexLength = reseroivr.pathLength + 1)
-                    daxa_f32 geometry_factor = geom_fact_sa(i.world_hit, i.world_hit, i.world_nrm);
+                    daxa_f32 geometry_factor = geom_fact_sa(i.world_hit, path.origin, i.world_nrm);
 
                     path_builder_mark_escape_vertex_as_rc_vertex(path.path_builder, path.path_length, 
                         path.path_reservoir, path.hit, 
@@ -661,8 +661,7 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path, inout INT
     // Russian roulette (pathtracer:1378)
     // Russian roulette to terminate paths early.
     // TODO: check if this is handled correctly in ReSTIR PT
-    daxa_b32 use_russian_roulette = false;
-    if (use_russian_roulette && path.path_length >= 1)
+    if (params.use_russian_roulette && path.path_length >= 1)
     {
         if (path.enable_random_replay)
         {
