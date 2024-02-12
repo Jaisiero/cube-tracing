@@ -53,13 +53,15 @@ INTERSECT temporal_path_get_reprojected_primary_hit(const daxa_u32 prev_predicte
 
     daxa_b32 is_hit = di_info_previous.distance > 0.0;
 
+    daxa_f32vec3 wo = di_info_previous.ray_origin - di_info_previous.position; 
+
     return INTERSECT(
         is_hit,
         di_info_previous.distance,
         di_info_previous.position,
         di_info_previous.normal,
+        wo,
         daxa_f32vec3(0.0),
-        di_info_previous.scatter_dir,
         di_info_previous.instance_hit,
         di_info_previous.mat_index,
         previus_material);
@@ -100,11 +102,14 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
     // Get current history length
     daxa_f32 current_M = central_reservoir.M;
 
+    // Clamp the influence from the past
     temporal_reservoir.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * current_M, temporal_reservoir.M);
 
+    // for hybrid shift
     RECONNECTION_DATA dummy_rc_data;
     reconnection_data_initialise(dummy_rc_data);
 
+    // Temporal and shift mapping parameters
     daxa_b32 do_temporal_update_for_dynamic_scene = params.temporal_update_for_dynamic_scene;
     daxa_b32 use_hybrid_shift = params.shift_mapping == SHIFT_MAPPING_HYBRID;
 
@@ -136,6 +141,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
                 if (use_hybrid_shift && path_reservoir_get_reconnection_length(temporal_reservoir.path_flags) > 1)
                     rc_data = get_reconnection_data_from_current_frame(current_index, 1);
 
+                // Merge with shift mapping for the current vertex
                 possible_to_be_selected = shift_and_merge_reservoir(params,
                                                                     do_temporal_update_for_dynamic_scene,
                                                                     dst_jacobian,
@@ -145,7 +151,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
                                                                     prev_i,
                                                                     temporal_reservoir,
                                                                     rc_data,
-                                                                    false, // TODO: true 
+                                                                    true,
                                                                     seed,
                                                                     false,
                                                                     1.f,
@@ -179,6 +185,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
                         if (use_hybrid_shift && path_reservoir_get_reconnection_length(temp_dst_reservoir.path_flags) > 1)
                             rc_data = get_reconnection_data_from_current_frame(current_index, 0);
 
+                        // Calculate the integrand for the previous vertex
                         daxa_f32vec3 t_neighbor_integrand = compute_shifted_integrand(params, t_neighbor_jacobian, prev_i.instance_hit, prev_i,
                                                                                 current_i, temp_dst_reservoir, rc_data, true, true, do_temporal_update_for_dynamic_scene); // use_prev
 
@@ -188,12 +195,14 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
                 }
             }
 
+            // Calculate MIS weight
             daxa_f32 mis_weight = p_sum == 0.f ? 0.f : p_self / p_sum;
             // TODO: neighbor_reservoir is pointless cause it's not used inside the function
             PATH_RESERVOIR neighbor_reservoir;
             if (i == cur_sample_id) neighbor_reservoir = temp_dst_reservoir;
             else neighbor_reservoir = temporal_reservoir;
 
+            // Merge the reservoirs
             merge_reservoir_with_resampling_MIS(params, temp_dst_reservoir.F, dst_jacobian, destination_reservoir, temp_dst_reservoir, neighbor_reservoir, seed, false, mis_weight);
         }
 
@@ -210,9 +219,6 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
     set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
 
     throughput = destination_reservoir.F * destination_reservoir.weight;
-
-    // TODO: temporary
-    // throughput = temporal_reservoir.F * temporal_reservoir.weight;
 }
 
 

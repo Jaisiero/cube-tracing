@@ -67,7 +67,7 @@ INTERSECT intersect(Ray ray)
         daxa_f32vec4 int_hit_4 = (model * vec4(int_hit, 1));
         int_hit = (int_hit_4 / int_hit_4.w).xyz;
         int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
-        int_hit += int_nor * DELTA_RAY;
+        int_hit = compute_ray_origin(int_hit, int_nor);
         
         is_hit = true;
 
@@ -115,7 +115,7 @@ INTERSECT intersect(Ray ray)
                     daxa_f32vec4 int_hit_4 = model * vec4(int_hit, 1);
                     int_hit = int_hit_4.xyz / int_hit_4.w;
                     int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
-                    int_hit += int_nor * DELTA_RAY;
+                    int_hit = compute_ray_origin(int_hit, int_nor);
                     break;
                 }
             }

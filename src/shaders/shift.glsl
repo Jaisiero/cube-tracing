@@ -28,12 +28,12 @@ daxa_u32 get_allowed_bsdf_flags(daxa_b32 is_specular)
 // src_pdf / dst_jacobian transforms pdf in src space to dst space
 daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params,
                                                     inout daxa_f32 dst_jacobian,
-                                                    const INTERSECT dst_primary_intersection,
-                                                    const INTERSECT src_primary_intersection,
+                                                    INTERSECT dst_primary_intersection,
+                                                    INTERSECT src_primary_intersection,
                                                     inout PATH_RESERVOIR src_reservoir,
-                                                    daxa_b32 eval_visibility,
-                                                    daxa_b32 use_hybrid_shift,
-                                                    daxa_b32 use_cached_jacobian)
+                                                    const daxa_b32 eval_visibility,
+                                                    const daxa_b32 use_hybrid_shift,
+                                                    const daxa_b32 use_cached_jacobian)
 {
     daxa_f32vec3 dst_cached_jacobian;
     dst_jacobian = 0.f;
@@ -54,31 +54,33 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params,
     // TODO: re-visit this part when we have multi BSDF evaluation
     daxa_u32 allowed_sampled_types1 = get_allowed_bsdf_flags(path_reservoir_is_specular_bounce(src_reservoir.path_flags, true));
 
-    // src_primary_intersection.world_hit = compute_new_ray_origin(src_primary_intersection.world_hit, !is_transmission);
-    // dst_primary_intersection.world_hit = compute_new_ray_origin(dst_primary_intersection.world_hit, !is_transmission);
+    src_primary_intersection.world_hit = compute_new_ray_origin(src_primary_intersection.world_hit, src_primary_intersection.world_nrm, !is_transmission);
+    dst_primary_intersection.world_hit = compute_new_ray_origin(dst_primary_intersection.world_hit, dst_primary_intersection.world_nrm, !is_transmission);
 
     // If it was a miss, we need to evaluate the environment map light
     if (!rc_vertex_hit_exists) 
     {
         daxa_f32vec3 dst_integrand = daxa_f32vec3(0.0f);
-        // TODO: re-visiting this part when we have environment map light
-        // are we having a infinite light as rcVertex?
+        // // TODO: re-visiting this part when we have environment map light
+        // // are we having a infinite light as rcVertex?
         // if (path_reservoir_get_light_type(src_reservoir.path_flags) == GEOMETRY_LIGHT_ENV_MAP && path_length + 1 == rc_vertex_length && !is_last_vertex_NEE)
         // {
         //     daxa_f32vec3 wi = rc_vertex_wi;
-        //     daxa_b32 is_visible = eval_segment_visibility(dst_primary_intersection.world_hit, wi, true); // test along a direction
+        //     daxa_b32 is_visible = is_vertex_visible(dst_primary_intersection.world_hit, wi, true); // test along a direction
         //     if (is_visible)
         //     {
-        //         daxa_f32 src_pdf1 = use_cached_jacobian ? src_reservoir.cached_jacobian.x : evalPdfBSDF(srcPrimarySd, wi);
+        //         daxa_f32 src_pdf1 = use_cached_jacobian ? src_reservoir.cached_jacobian.x : 
+        //             sample_material_pdf(src_primary_intersection.mat, src_primary_intersection.world_nrm, src_primary_intersection.wo, wi);
         //         daxa_f32 dst_pdf1_all;
-        // TODO: re-visit this part when we have multi BSDF evaluation
-        // //         daxa_f32 dst_pdf1 = evalPdfBSDF(dstPrimarySd, wi, dst_pdf1_all, allowed_sampled_types1);
+        //         // TODO: re - visit this part when we have multi BSDF evaluation
+        //         //         daxa_f32 dst_pdf1 = evalPdfBSDF(dstPrimarySd, wi, dst_pdf1_all, allowed_sampled_types1);
         //         daxa_f32 dst_pdf1 = sample_material_pdf(dst_primary_intersection.mat, dst_primary_intersection.world_nrm, dst_primary_intersection.wo, wi);
+        //         dst_pdf1_all = dst_pdf1;
         //         dst_cached_jacobian.x = dst_pdf1;
-        // TODO: re-visit this part when we have multi BSDF evaluation
-        // //         daxa_f32vec3 dst_f1 = eval_bsdf_cosine(dstPrimarySd, wi, allowed_sampled_types1);
+        //         // TODO: re - visit this part when we have multi BSDF evaluation
+        //         //         daxa_f32vec3 dst_f1 = eval_bsdf_cosine(dstPrimarySd, wi, allowed_sampled_types1);
         //         daxa_f32vec3 dst_f1 = eval_bsdf_cosine(dst_primary_intersection.mat, dst_primary_intersection.world_nrm, dst_primary_intersection.wo, wi);
-        //         daxa_f32 mis_weight = eval_mis(1, dst_pdf1_all, 1, src_reservoir.light_pdf);//   dst_pdf1 / (dst_pdf1 + src_reservoir.light_pdf);
+        //         daxa_f32 mis_weight = eval_mis(1, dst_pdf1_all, 1, src_reservoir.light_pdf); //   dst_pdf1 / (dst_pdf1 + src_reservoir.light_pdf);
         //         dst_integrand = dst_f1 / dst_pdf1 * mis_weight * rc_vertex_irradiance;
         //         dst_jacobian = dst_pdf1 / src_pdf1;
         //     }
@@ -105,15 +107,23 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params,
     // delta bounce before/after rcVertex (if is_rc_vertex_NEE, deltaAfterRc won't be set)
     if (is_delta1 || is_delta2) return daxa_f32vec3(0.0f);
 
-    INTERSECT rc_vertex_intersection = load_intersection_data_vertex_position(rc_vertex_hit, dst_primary_intersection.world_hit, false, true);
+    INTERSECT rc_vertex_intersection =
+        load_intersection_data_vertex_position(rc_vertex_hit,
+                                               dst_primary_intersection.world_hit,
+                                               false,
+                                               true);
 
     // need to evaluate source PDF of BSDF sampling
     daxa_f32vec3 dst_connection_v = -rc_vertex_intersection.wo; // direction point from dst primary hit point to reconnection vertex
-    daxa_f32vec3 src_connection_v = normalize(rc_vertex_intersection.world_hit - src_primary_intersection.world_hit);
+    daxa_f32vec3 src_connection_v = 
+        normalize(rc_vertex_intersection.world_hit - src_primary_intersection.world_hit);
 
-    daxa_f32vec3 shifted_disp = rc_vertex_intersection.world_hit - dst_primary_intersection.world_hit;
-    daxa_f32 shifted_dist2 = dot(shifted_disp, shifted_disp);
-    daxa_f32 shifted_cosine = abs(dot(rc_vertex_intersection.world_nrm, -dst_connection_v));
+    daxa_f32vec3 shifted_disp = 
+        rc_vertex_intersection.world_hit - dst_primary_intersection.world_hit;
+    daxa_f32 shifted_dist2 = 
+        dot(shifted_disp, shifted_disp);
+    daxa_f32 shifted_cosine = 
+        abs(dot(rc_vertex_intersection.world_nrm, -dst_connection_v));
 
     if (use_hybrid_shift)
     {
@@ -141,7 +151,10 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params,
     daxa_f32 dst_pdf1_all = 0.f;
     // TODO: re-visit this part when we implement multi BSDF evaluation
     // daxa_f32 dst_pdf1 = sample_material_all_pdf(dst_primary_intersection, dst_connection_v, dst_pdf1_all, allowed_sampled_types1);
-    daxa_f32 dst_pdf1 = sample_material_pdf(dst_primary_intersection.mat, dst_primary_intersection.world_nrm, dst_primary_intersection.wo, dst_connection_v);
+    daxa_f32 dst_pdf1 = sample_material_pdf(dst_primary_intersection.mat,
+                                            dst_primary_intersection.world_nrm,
+                                            dst_primary_intersection.wo,
+                                            dst_connection_v);
     dst_pdf1_all = dst_pdf1;
 
     dst_cached_jacobian.x = dst_pdf1;
@@ -259,7 +272,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params,
 
 
 daxa_f32vec3 compute_shifted_integrand_(const SCENE_PARAMS params, inout daxa_f32 dst_jacobian, const INSTANCE_HIT dst_primary_hit, const INTERSECT dst_primary_intersection,
-    const INTERSECT src_primary_intersection, inout PATH_RESERVOIR src_reservoir, RECONNECTION_DATA rc_data, daxa_b32 eval_visibility, daxa_b32 use_prev, daxa_b32 temporal_update_for_dynamic_scene)
+    const INTERSECT src_primary_intersection, inout PATH_RESERVOIR src_reservoir, RECONNECTION_DATA rc_data, const daxa_b32 eval_visibility, const daxa_b32 use_prev, const daxa_b32 temporal_update_for_dynamic_scene)
 {
     dst_jacobian = 0.f;
 

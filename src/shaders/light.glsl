@@ -294,7 +294,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         l_nor = (transpose(inv_model) * vec4(l_nor, 0)).xyz;
 #endif // 0       
         
-        l_pos += l_nor * DELTA_RAY;
+        l_pos = compute_ray_origin(l_pos, l_nor);
         distance = length(P - l_pos); 
 
         if(calc_pdf) {

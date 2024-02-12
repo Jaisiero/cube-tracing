@@ -95,6 +95,47 @@ daxa_b32 classify_as_rough(daxa_f32 roughness, daxa_f32 roughness_threshold)
     return roughness > roughness_threshold;
 }
 
+/** Computes new ray origin based on hit position to avoid self-intersections.
+    The function assumes that the hit position has been computed by barycentric
+    interpolation, and not from the ray t which is less accurate.
+
+    The method is described in Ray Tracing Gems, Chapter 6, "A Fast and Robust
+    Method for Avoiding Self-Intersection" by Carsten Wächter and Nikolaus Binder.
+
+    \param[in] pos Ray hit position.
+    \param[in] normal Face normal of hit surface (normalized). The offset will be in the positive direction.
+    \return Ray origin of the new ray.
+*/
+daxa_f32vec3 compute_ray_origin(daxa_f32vec3 pos, daxa_f32vec3 normal)
+{
+    const daxa_f32 origin = 1.f / 32.f;
+    const daxa_f32 fScale = 1.f / 65536.f;
+    const daxa_f32 iScale = 256.f;
+
+    // Per-component integer offset to bit representation of fp32 position.
+    ivec3 iOff = ivec3(normal * iScale);
+    vec3 i_pos;
+    i_pos.x = intBitsToFloat(floatBitsToInt(pos.x) + (pos.x < 0.0 ? -iOff.x : iOff.x));
+    i_pos.y = intBitsToFloat(floatBitsToInt(pos.y) + (pos.y < 0.0 ? -iOff.y : iOff.y));
+    i_pos.z = intBitsToFloat(floatBitsToInt(pos.z) + (pos.z < 0.0 ? -iOff.z : iOff.z));
+
+
+    // Select per-component between small fixed offset or above variable offset depending on distance to origin.
+    vec3 f_off = normal * fScale;
+    vec3 f_pos;
+    f_pos.x = abs(pos.x) < origin ? pos.x + f_off.x : i_pos.x;
+    f_pos.y = abs(pos.y) < origin ? pos.y + f_off.y : i_pos.y;
+    f_pos.z = abs(pos.z) < origin ? pos.z + f_off.z : i_pos.z;
+    
+    return f_pos;
+}
+
+daxa_f32vec3 compute_new_ray_origin(daxa_f32vec3 pos, daxa_f32vec3 normal, daxa_b32 view_side)
+{
+    return compute_ray_origin(pos, view_side ? normal : -normal);
+}
+
+
 // Credits: https://jcgt.org/published/0007/03/04/
 
 // vec3 box.radius:       independent half-length along the X, Y, and Z axes
@@ -393,7 +434,7 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
         daxa_f32vec4 pos_4 = model * vec4(pos, 1);
         pos = pos_4.xyz / pos_4.w;
         nor = (transpose(inv_model) * vec4(nor, 0)).xyz;
-        pos += nor * AVOID_VOXEL_COLLAIDE;
+        pos = compute_ray_origin(pos, nor);
         distance = length(world_pos - pos);
         
         daxa_f32vec3 wo = normalize(world_pos - pos);

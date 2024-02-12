@@ -119,7 +119,7 @@ void main()
         daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
         prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
         prd.world_nrm = (transpose(inv_model) * vec4(prd.world_nrm, 0)).xyz;
-        prd.world_hit += prd.world_nrm * DELTA_RAY;
+        prd.world_hit = compute_ray_origin(prd.world_hit, prd.world_nrm);
 
         prd.mat_index = get_material_index_from_instance_and_primitive_id(prd.instance_hit);
     }  else {
@@ -145,7 +145,7 @@ void main()
     );
 #endif // SER
 
-    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, prd.ray_scatter_dir, prd.seed, prd.instance_hit, prd.mat_index, 1.0);
+    DIRECT_ILLUMINATION_INFO di_info = DIRECT_ILLUMINATION_INFO(prd.world_hit, prd.distance, prd.world_nrm, ray.origin, prd.seed, prd.instance_hit, prd.mat_index, 1.0);
 
     is_hit = di_info.distance > 0.0;
 
@@ -183,7 +183,7 @@ void main()
                                             di_info.position.xyz,
                                             di_info.normal.xyz,
                                             di_info.distance,
-                                            di_info.scatter_dir,
+                                            daxa_f32vec3(0.0),
                                             di_info.instance_hit,
                                             di_info.mat_index,
                                             di_info.seed,
@@ -361,7 +361,7 @@ void main()
         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
                                             di_info.normal.xyz,
                                             di_info.distance,
-                                            di_info.scatter_dir,
+                                            daxa_f32vec3(0.f),
                                             di_info.instance_hit,
                                             di_info.mat_index,
                                             di_info.seed,
@@ -413,7 +413,7 @@ void main()
 #if INDIRECT_ILLUMINATION_ON == 1       
         // Build the intersect struct
         daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
-        INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, wo, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
+        INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, wo, daxa_f32vec3(0.f), di_info.instance_hit, di_info.mat_index, mat);
         SCENE_PARAMS params = SCENE_PARAMS(light_count, object_count, max_depth, temporal_update_for_dynamic_scene, SHIFT_MAPPING_RECONNECTION, NEAR_FIELD_DISTANCE, false, JACOBIAN_REJECTION_THRESHOLD, false);
         indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed, throughput);
         hit_value += throughput;

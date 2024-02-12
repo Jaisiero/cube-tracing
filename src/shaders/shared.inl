@@ -368,7 +368,7 @@ struct DIRECT_ILLUMINATION_INFO
     daxa_f32vec3 position;
     daxa_f32 distance;
     daxa_f32vec3 normal;
-    daxa_f32vec3 scatter_dir;
+    daxa_f32vec3 ray_origin;
     daxa_u32 seed;
     INSTANCE_HIT instance_hit;
     daxa_u32 mat_index;
