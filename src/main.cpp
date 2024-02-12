@@ -1625,7 +1625,9 @@ namespace tests
 
                 status.light_count = 0;
                 lights.reserve(MAX_LIGHTS);
+#if POINT_LIGHT_ON == 1                
                 create_point_lights();
+#endif
 
                 // call build tlas
                 if(!build_tlas(current_instance_count)) {
@@ -1897,7 +1899,7 @@ namespace tests
 
                 if (!minimized)
                 {
-#if DYNAMIC_SUN_LIGHT == 1
+#if DYNAMIC_SUN_LIGHT == 1 && POINT_LIGHT_ON == 1
                     update_lights();
 #endif // DYNAMIC_SUN_LIGHT == 1
                     draw();

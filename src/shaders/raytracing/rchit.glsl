@@ -40,6 +40,7 @@ void main()
 
         // NOTE: In order to avoid self intersection we need to offset the ray origin
     world_pos = compute_ray_origin(world_pos, world_nrm);
+    distance = length(world_pos - ray.origin);
 
     daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
     
@@ -76,6 +77,7 @@ void main()
     packed_intersection_info(ray, distance, instance_hit, model, world_pos, world_nrm, actual_primitive_index);
 
     world_pos = compute_ray_origin(world_pos, world_nrm);
+    distance = length(world_pos - ray.origin);
 
     daxa_u32 mat_index = get_material_index_from_primitive_index(actual_primitive_index);
 

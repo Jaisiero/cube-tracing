@@ -54,8 +54,8 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(const SCENE_PARAMS params,
     // TODO: re-visit this part when we have multi BSDF evaluation
     daxa_u32 allowed_sampled_types1 = get_allowed_bsdf_flags(path_reservoir_is_specular_bounce(src_reservoir.path_flags, true));
 
-    src_primary_intersection.world_hit = compute_new_ray_origin(src_primary_intersection.world_hit, src_primary_intersection.world_nrm, !is_transmission);
-    dst_primary_intersection.world_hit = compute_new_ray_origin(dst_primary_intersection.world_hit, dst_primary_intersection.world_nrm, !is_transmission);
+    // src_primary_intersection.world_hit = compute_new_ray_origin(src_primary_intersection.world_hit, src_primary_intersection.world_nrm, !is_transmission);
+    // dst_primary_intersection.world_hit = compute_new_ray_origin(dst_primary_intersection.world_hit, dst_primary_intersection.world_nrm, !is_transmission);
 
     // If it was a miss, we need to evaluate the environment map light
     if (!rc_vertex_hit_exists) 

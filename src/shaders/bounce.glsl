@@ -8,8 +8,8 @@
 // SCATTER
 INTERSECT intersect(Ray ray)
 {
-    daxa_f32 t_min = DELTA_RAY;
-    daxa_f32 t_max = MAX_DISTANCE - DELTA_RAY;
+    daxa_f32 t_min = 0;
+    daxa_f32 t_max = MAX_DISTANCE;
     daxa_f32vec3 ray_origin = ray.origin;
     daxa_f32vec3 ray_dir = ray.direction;
     daxa_u32 cull_mask = 0xff;
@@ -68,6 +68,7 @@ INTERSECT intersect(Ray ray)
         int_hit = (int_hit_4 / int_hit_4.w).xyz;
         int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
         int_hit = compute_ray_origin(int_hit, int_nor);
+        distance = length(ray_origin - int_hit);
         
         is_hit = true;
 
@@ -82,7 +83,7 @@ INTERSECT intersect(Ray ray)
 
     rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
                           ray_flags,
-                          cull_mask, ray.origin, t_min, ray.direction, t_max);
+                          cull_mask, ray_origin, t_min, ray_dir, t_max);
 
     while (rayQueryProceedEXT(ray_query))
     {
@@ -100,7 +101,7 @@ INTERSECT intersect(Ray ray)
 
             daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
-            if(is_hit_from_ray(ray, instance_hit, half_extent, distance, int_hit, int_nor, model, inv_model, false, false)) {
+            if(is_hit_from_ray(ray, instance_hit, half_extent, distance, int_hit, int_nor, model, inv_model, true, false)) {
                 rayQueryGenerateIntersectionEXT(ray_query, distance);
 
                 daxa_u32 type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);
@@ -116,6 +117,7 @@ INTERSECT intersect(Ray ray)
                     int_hit = int_hit_4.xyz / int_hit_4.w;
                     int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
                     int_hit = compute_ray_origin(int_hit, int_nor);
+                    distance = length(ray_origin - int_hit);
                     break;
                 }
             }
@@ -125,7 +127,7 @@ INTERSECT intersect(Ray ray)
     rayQueryTerminateEXT(ray_query);
 #endif // SER    
 
-    daxa_f32vec3 wo = normalize(ray.origin - int_hit);
+    daxa_f32vec3 wo = normalize(ray_origin - int_hit);
 
     return INTERSECT(is_hit, distance, int_hit, int_nor, wo, daxa_f32vec3(0), instance_hit, material_idx, intersected_mat);
 }

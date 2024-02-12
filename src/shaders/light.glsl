@@ -22,12 +22,12 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance)
 {
     // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
-    daxa_f32 t_min = DELTA_RAY;
-    daxa_f32 t_max = distance - DELTA_RAY;
+    daxa_f32 t_min = 0.0;
+    daxa_f32 t_max = distance;
     daxa_u32 cull_mask = 0xff;
     daxa_u32 ray_flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT;
 
-    INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
+    INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
     daxa_f32vec3 int_hit = daxa_f32vec3(0.0);
     daxa_f32vec3 int_nor = daxa_f32vec3(0.0);
     daxa_b32 is_hit = false;
@@ -277,6 +277,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         // TODO: config voxel extent by parameter
         daxa_f32 voxel_extent = VOXEL_EXTENT;
         daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
+        l_pos = l.position + (half_extent * l_nor);
         l_pos = l_pos + random_quad(l_nor, size, hit.seed);
 #else
         vis = is_hit_from_origin(P, l.instance_info,
@@ -287,7 +288,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         // TODO: config voxel extent by parameter
         daxa_f32 voxel_extent = VOXEL_EXTENT;
         daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
-        l_pos = l_pos + random_quad(l_nor, size, hit.seed);
+        // l_pos = l_pos + random_quad(l_nor, size, hit.seed);
 
         daxa_f32vec4 l_pos_4 = model * vec4(l_pos, 1);
         l_pos = l_pos_4.xyz / l_pos_4.w;
@@ -295,7 +296,8 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
 #endif // 0       
         
         l_pos = compute_ray_origin(l_pos, l_nor);
-        distance = length(P - l_pos); 
+        // TODO: check this
+        distance = length(P - l_pos) - length(half_extent);
 
         if(calc_pdf) {
             daxa_f32 area = size.x * size.y * 6.0;
@@ -306,10 +308,12 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
     {
         l_pos = l.position;
         l_nor = normalize(P - l_pos);
+        l_pos = compute_ray_origin(l_pos, l_nor);
         distance = length(P - l_pos);
     }
+        
 
-    daxa_f32vec3 l_wi = normalize(l_pos - P);
+    daxa_f32vec3 l_wi = normalize(P - l_pos);
     daxa_f32vec3 l_v = -l_wi;
 
 
@@ -425,24 +429,24 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, object_count))
         {
             i = intersect(Ray(P, m_wi));
-            // if (i.is_hit && i.mat.emission != vec3(0.0))
-            // {
-            //     daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);
-            //     daxa_f32 light_pdf = sample_lights_pdf(hit, i, light_count);
-            //     daxa_f32 mis_weight = eval_mis(1, m_pdf_2 * G, 1, light_pdf, 2.0);
-            //     daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
-            //     daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
-            //     daxa_f32 cos_theta = get_cos_theta(n, m_wi);
-            //     if (use_pdf)
-            //     {
-            //         result += brdf * cos_theta * mis_weight * Le / m_pdf_2;
-            //     }
-            //     else
-            //     {
-            //         result += brdf * cos_theta * mis_weight * Le;
-            //     }
-            //     pdf_out *= m_pdf_2;
-            // }
+            if (i.is_hit && i.mat.emission != vec3(0.0))
+            {
+                daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);
+                daxa_f32 light_pdf = sample_lights_pdf(hit, i, light_count);
+                daxa_f32 mis_weight = eval_mis(1, m_pdf_2 * G, 1, light_pdf, 2.0);
+                daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
+                daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
+                daxa_f32 cos_theta = get_cos_theta(n, m_wi);
+                if (use_pdf)
+                {
+                    result += brdf * cos_theta * mis_weight * Le / m_pdf_2;
+                }
+                else
+                {
+                    result += brdf * cos_theta * mis_weight * Le;
+                }
+                pdf_out *= m_pdf_2;
+            }
         }
     }
 

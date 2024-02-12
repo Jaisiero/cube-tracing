@@ -62,8 +62,8 @@ void main()
     prd.instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
-    daxa_f32 t_min = DELTA_RAY;
-    daxa_f32 t_max = MAX_DISTANCE - DELTA_RAY;
+    daxa_f32 t_min = 0.0;
+    daxa_f32 t_max = MAX_DISTANCE;
     daxa_u32 cull_mask = 0xFF;
 
     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
@@ -120,6 +120,7 @@ void main()
         prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
         prd.world_nrm = (transpose(inv_model) * vec4(prd.world_nrm, 0)).xyz;
         prd.world_hit = compute_ray_origin(prd.world_hit, prd.world_nrm);
+        prd.distance = length(prd.world_hit - ray.origin);
 
         prd.mat_index = get_material_index_from_instance_and_primitive_id(prd.instance_hit);
     }  else {
@@ -419,10 +420,9 @@ void main()
         hit_value += throughput;
 #endif // INDIRECT_ILLUMINATION_ON
 
-
-// #if DIRECT_ILLUMINATION_ON == 1      
+#if DIRECT_EMITTANCE_ON == 1
         hit_value += mat.emission;
-// #endif // DIRECT_ILLUMINATION_ON
+#endif // DIRECT_EMITTANCE_ON
 
 #endif // DEBUG_NORMALS_ON
 
