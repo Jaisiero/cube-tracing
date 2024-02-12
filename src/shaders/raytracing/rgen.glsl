@@ -374,7 +374,6 @@ void main()
         daxa_f32 pdf_out = 0.0; 
 
 
-        INTERSECT i;
 #if RESTIR_DI_ON == 1
         daxa_f32 confidence = di_info.confidence;
 
@@ -386,8 +385,6 @@ void main()
 
         //Calculate reservoir radiance
         calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance);
-        //Build the intersect struct
-        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, -ray.direction, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
       
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value (reservoir radiance)
@@ -399,8 +396,6 @@ void main()
         LIGHT light = get_light_from_light_index(light_index);
         // Calculate radiance
         radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
-        // Build the intersect struct
-        i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, -ray.direction, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
         
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value
@@ -416,6 +411,9 @@ void main()
         daxa_b32 temporal_update_for_dynamic_scene = true;
 
 #if INDIRECT_ILLUMINATION_ON == 1       
+        // Build the intersect struct
+        daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
+        INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, wo, di_info.scatter_dir, di_info.instance_hit, di_info.mat_index, mat);
         SCENE_PARAMS params = SCENE_PARAMS(light_count, object_count, max_depth, temporal_update_for_dynamic_scene, SHIFT_MAPPING_RECONNECTION, NEAR_FIELD_DISTANCE, false, JACOBIAN_REJECTION_THRESHOLD, false);
         indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed, throughput);
         hit_value += throughput;
@@ -436,7 +434,7 @@ void main()
         clamp(hit_value, 0.0, 0.99999999);
 
         daxa_f32vec4 final_pixel;
-#if (ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0)
+#if (ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0 && RESTIR_PT_ON == 0)
         daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {

@@ -145,7 +145,7 @@ void temporal_path_reuse(const SCENE_PARAMS params, const PATH_RESERVOIR central
                                                                     prev_i,
                                                                     temporal_reservoir,
                                                                     rc_data,
-                                                                    false,
+                                                                    false, // TODO: true 
                                                                     seed,
                                                                     false,
                                                                     1.f,
@@ -256,7 +256,7 @@ void indirect_illumination_path_tracing(const daxa_i32vec2 index, const daxa_u32
     prd.instance_hit = i.instance_hit;
     // prd.done = true;
 
-    generate_scatter_ray(i, seed);
+    // generate_scatter_ray(i, seed);
 
     for (;;)
     {
@@ -270,7 +270,7 @@ void indirect_illumination_path_tracing(const daxa_i32vec2 index, const daxa_u32
             i.material_idx,
             seed,
             max_depth);
-        Ray scattered_ray = Ray(i.world_hit, i.wo);
+        Ray scattered_ray = Ray(i.world_hit, -i.wo);
 
         if(i.is_hit) {
             

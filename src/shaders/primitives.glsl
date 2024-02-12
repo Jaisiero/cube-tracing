@@ -294,45 +294,6 @@ daxa_b32 is_hit_from_origin(daxa_f32vec3 origin_world_space,
     return hit;
 }
 
-daxa_b32 is_hit_from_origin_and_get_ray_dir(daxa_f32vec3 origin_world_space,
-                                            INSTANCE_HIT instance_hit,
-                                            daxa_f32vec3 half_extent,
-                                            out daxa_f32 t_hit,
-                                            out daxa_f32vec3 pos,
-                                            out daxa_f32vec3 nor,
-                                            out daxa_f32vec3 v,
-                                            out daxa_f32mat4x4 model,
-                                            out daxa_f32mat4x4 inv_model,
-                                            const in daxa_b32 ray_can_start_in_box,
-                                            const in daxa_b32 oriented)
-{
-    daxa_u32 current_primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
-
-    // Get aabb from primitive
-    AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
-
-    // Get model matrix from instance
-    model = get_geometry_transform_from_instance_id(instance_hit.instance_id);
-
-    inv_model = inverse(model);
-
-    daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
-
-    Ray ray_object_space;
-    ray_object_space.origin = (inv_model * vec4(origin_world_space, 1)).xyz;
-    // Ray needs to travel from origin to center of aabb
-    ray_object_space.direction = normalize(aabb_center - ray_object_space.origin);
-
-    v = ray_object_space.direction;
-
-    Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
-
-    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray_object_space.direction));
-    pos = ray_object_space.origin + ray_object_space.direction * t_hit;
-
-    return hit;
-}
-
 daxa_b32 is_hit_from_origin_with_geometry_center(daxa_f32vec3 origin_world_space,
                                                  daxa_f32vec3 aabb_center,
                                                  daxa_f32vec3 half_extent,
@@ -422,9 +383,8 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
     daxa_f32mat4x4 inv_model;
     // TODO: This should be a parameter
     daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
-    daxa_f32vec3 v;
 
-    if (!is_hit_from_origin_and_get_ray_dir(world_pos, instance_hit, half_extent, distance, pos, nor, v, model, inv_model, true, false))
+    if (!is_hit_from_origin(world_pos, instance_hit, half_extent, distance, pos, nor, model, inv_model, true, false))
     {
         intersect_initiliaze(i);
     }
@@ -435,8 +395,8 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
         nor = (transpose(inv_model) * vec4(nor, 0)).xyz;
         pos += nor * AVOID_VOXEL_COLLAIDE;
         distance = length(world_pos - pos);
-
-        v = normalize(world_pos - pos);
+        
+        daxa_f32vec3 wo = normalize(world_pos - pos);
 
         daxa_u32 material_idx = MAX_MATERIALS;
         MATERIAL mat;
@@ -447,7 +407,7 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
             mat = get_material_from_material_index(material_idx);
         }
 
-        i = INTERSECT(true, distance, pos, nor, v, vec3(0), instance_hit, material_idx, mat);
+        i = INTERSECT(true, distance, pos, nor, wo, daxa_f32vec3(0), instance_hit, material_idx, mat);
     }
 
     return i;

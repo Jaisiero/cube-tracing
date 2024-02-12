@@ -168,7 +168,6 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa
 
 daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit, daxa_f32vec3 wo, inout daxa_f32vec3 wi, out daxa_f32 pdf, daxa_u32 object_count)
 {
-    pdf = sample_material_pdf(mat, hit.world_nrm, wo, wi);
 
     call_scatter.hit = hit.world_hit;
     call_scatter.nrm = hit.world_nrm;
@@ -197,9 +196,11 @@ daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit, daxa_f
         executeCallableEXT(2, 4);
         break;
     }
-
     wi = call_scatter.scatter_dir;
-    hit = HIT_INFO_INPUT(call_scatter.hit, call_scatter.nrm, hit.distance, call_scatter.scatter_dir, call_scatter.instance_hit, call_scatter.mat_idx, hit.depth, call_scatter.seed);
+    
+    pdf = sample_material_pdf(mat, hit.world_nrm, wo, wi);
+
+    hit = HIT_INFO_INPUT(call_scatter.hit, call_scatter.nrm, hit.distance, wi, call_scatter.instance_hit, call_scatter.mat_idx, hit.depth, call_scatter.seed);
 
     return !call_scatter.done;
 }
@@ -277,8 +278,6 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         daxa_f32 voxel_extent = VOXEL_EXTENT;
         daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
         l_pos = l_pos + random_quad(l_nor, size, hit.seed);
-        
-        distance = length(P - l_pos) - length(half_extent);
 #else
         vis = is_hit_from_origin(P, l.instance_info,
             half_extent, distance, 
@@ -293,9 +292,10 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         daxa_f32vec4 l_pos_4 = model * vec4(l_pos, 1);
         l_pos = l_pos_4.xyz / l_pos_4.w;
         l_nor = (transpose(inv_model) * vec4(l_nor, 0)).xyz;
-        // l_pos += l_nor * voxel_extent;
-        distance = length(P - l_pos) - length(half_extent);
-#endif // 0        
+#endif // 0       
+        
+        l_pos += l_nor * DELTA_RAY;
+        distance = length(P - l_pos); 
 
         if(calc_pdf) {
             daxa_f32 area = size.x * size.y * 6.0;
@@ -309,7 +309,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit,
         distance = length(P - l_pos);
     }
 
-    daxa_f32vec3 l_wi = normalize(P - l_pos);
+    daxa_f32vec3 l_wi = normalize(l_pos - P);
     daxa_f32vec3 l_v = -l_wi;
 
 
@@ -397,7 +397,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
 
     daxa_f32vec3 P = hit.world_hit;
     daxa_f32vec3 n = hit.world_nrm;
-    daxa_f32vec3 wo = -ray.direction;
+    daxa_f32vec3 wo = normalize(ray.origin - P);
 
     // Light sampling
     if(sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, use_pdf, use_visibility)) {
@@ -425,24 +425,24 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, object_count))
         {
             i = intersect(Ray(P, m_wi));
-            if (i.is_hit && i.mat.emission != vec3(0.0))
-            {
-                daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);
-                daxa_f32 light_pdf = sample_lights_pdf(hit, i, light_count);
-                daxa_f32 mis_weight = eval_mis(1, m_pdf_2 * G, 1, light_pdf, 2.0);
-                daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
-                daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
-                daxa_f32 cos_theta = get_cos_theta(m_wi, n);
-                if (use_pdf)
-                {
-                    result += brdf * cos_theta * mis_weight * Le / m_pdf_2;
-                }
-                else
-                {
-                    result += brdf * cos_theta * mis_weight * Le;
-                }
-                pdf_out *= m_pdf_2;
-            }
+            // if (i.is_hit && i.mat.emission != vec3(0.0))
+            // {
+            //     daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);
+            //     daxa_f32 light_pdf = sample_lights_pdf(hit, i, light_count);
+            //     daxa_f32 mis_weight = eval_mis(1, m_pdf_2 * G, 1, light_pdf, 2.0);
+            //     daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
+            //     daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
+            //     daxa_f32 cos_theta = get_cos_theta(n, m_wi);
+            //     if (use_pdf)
+            //     {
+            //         result += brdf * cos_theta * mis_weight * Le / m_pdf_2;
+            //     }
+            //     else
+            //     {
+            //         result += brdf * cos_theta * mis_weight * Le;
+            //     }
+            //     pdf_out *= m_pdf_2;
+            // }
         }
     }
 
