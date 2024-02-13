@@ -30,6 +30,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   daxa_f32vec3 dst_cached_jacobian;
   dst_jacobian = 0.f;
 
+  // reconnection vertex number
   daxa_i32 rc_vertex_length =
       !use_hybrid_shift ? 1
                         : daxa_i32(path_reservoir_get_reconnection_length(
@@ -40,8 +41,10 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   daxa_f32vec3 rc_vertex_wi = src_reservoir.rc_vertex_wi[0];
   daxa_b32 rc_vertex_hit_exists = instance_hit_exists(rc_vertex_hit);
 
+  // number of vertices in the path
   daxa_u32 path_length =
       path_reservoir_get_path_length(src_reservoir.path_flags);
+  // whether the last vertex is a NEE vertex
   daxa_b32 is_last_vertex_NEE =
       path_reservoir_last_vertex_NEE(src_reservoir.path_flags);
 
@@ -53,6 +56,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   daxa_u32 allowed_sampled_types1 = get_allowed_bsdf_flags(
       path_reservoir_is_specular_bounce(src_reservoir.path_flags, true));
 
+  // Step to avoid self-intersection
   src_primary_intersection.world_hit =
   compute_new_ray_origin(src_primary_intersection.world_hit,
   src_primary_intersection.world_nrm, !is_transmission);
@@ -69,6 +73,8 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
             GEOMETRY_LIGHT_ENV_MAP &&
         path_length + 1 == rc_vertex_length && !is_last_vertex_NEE) {
       daxa_f32vec3 wi = rc_vertex_wi;
+
+      // Check if the environment map light is visible (sky light)
       daxa_b32 is_visible =
           is_segment_visible(dst_primary_intersection.world_hit, wi,
                              true); // test along a direction
@@ -137,8 +143,10 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   daxa_f32vec3 dst_connection_v =
       -rc_vertex_intersection.wo; // direction point from dst primary hit point
                                   // to reconnection vertex
-  daxa_f32vec3 src_connection_v = normalize(rc_vertex_intersection.world_hit -
-                                            src_primary_intersection.world_hit);
+  daxa_f32vec3 src_connection_v = normalize(
+      rc_vertex_intersection.world_hit -
+      src_primary_intersection.world_hit); // direction point from src primary
+                                           // hit point to reconnection vertex
 
   daxa_f32vec3 shifted_disp =
       rc_vertex_intersection.world_hit - dst_primary_intersection.world_hit;

@@ -435,7 +435,7 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
         daxa_f32vec4 pos_4 = model * vec4(pos, 1);
         pos = pos_4.xyz / pos_4.w;
         nor = (transpose(inv_model) * vec4(nor, 0)).xyz;
-        // pos = compute_ray_origin(pos, nor);
+        pos = compute_ray_origin(pos, nor);
         distance = length(world_pos - pos);
         
         daxa_f32vec3 wo = normalize(world_pos - pos);

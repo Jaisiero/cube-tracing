@@ -323,6 +323,9 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params,
           daxa_f32 geometry_factor = 
             abs(dot(i.world_nrm, i.wo)) / dot(disp, disp);
 
+          if(isnan(geometry_factor)) 
+            geometry_factor = 0.f;
+
           path_builder_mark_escape_vertex_as_rc_vertex(
               path.path_builder, path.path_length, path.path_reservoir,
               path.hit, path_is_specular_bounce(path),
@@ -444,9 +447,10 @@ daxa_b32 path_handle_primary_hit(const SCENE_PARAMS params,
 
   path_set_light_sampled(path, false, false);
 
-  if (path.path_length == 0) {
+  // TODO: pointless right now
+  // if (path.path_length == 0) {
     path.path_reservoir.init_random_seed = path.seed;
-  }
+  // }
 
   daxa_b32 valid = path_generate_scatter_ray(path, i);
 
@@ -487,6 +491,9 @@ daxa_b32 path_check_rc_vertex(inout PATH_STATE path, INTERSECT i,
       // save geometry term as part of cached jacobian
       path.path_builder.cached_jacobian.z =
           abs(dot(i.world_nrm, i.wo)) / dot(disp, disp);
+
+      if(isnan(path.path_builder.cached_jacobian.z)) 
+        path.path_builder.cached_jacobian.z = 0.f;
 
       // save the current path length as the rc vertex length
       if (can_connect || !path.use_hybrid_shift) {
@@ -637,7 +644,7 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path,
   daxa_b32 is_far_field =
       length(path.origin - prev_path_origin) >= params.near_field_distance;
   // TODO: check separate BSDF (multiple lobes) (pathtracer:1160)
-  // TODO: set roughness as 1.0 for now
+  // TODO: set roughness as 0.0 for now
   daxa_b32 is_current_vertex_classified_as_rough =
       classify_as_rough(i.mat.roughness, params.roughness_threshold);
   daxa_b32 is_last_vertex_acceptable_for_rc_prev =
