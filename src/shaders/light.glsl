@@ -452,3 +452,14 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
 
     return result;
 }
+
+daxa_f32 env_map_sampler_eval_pdf(daxa_f32vec3 dir) {
+    return INV_DAXA_4PI;
+}
+
+daxa_f32vec3 env_map_sampler_eval(daxa_f32vec3 dir) {
+    return calculate_sky_color(
+        deref(p.status_buffer).time,
+        deref(p.status_buffer).is_afternoon,
+        dir);
+}

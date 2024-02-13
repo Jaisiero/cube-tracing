@@ -59,7 +59,7 @@ void main()
     prd.world_hit = vec3(0.0);
     prd.distance = -1.0;
     prd.world_nrm = vec3(0.0);
-    prd.instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
+    prd.instance_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
     daxa_f32 t_min = 0.0;
@@ -415,7 +415,21 @@ void main()
         // Build the intersect struct
         daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
         INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, wo, daxa_f32vec3(0.f), di_info.instance_hit, di_info.mat_index, mat);
-        SCENE_PARAMS params = SCENE_PARAMS(light_count, object_count, max_depth, temporal_update_for_dynamic_scene, SHIFT_MAPPING_RECONNECTION, NEAR_FIELD_DISTANCE, false, JACOBIAN_REJECTION_THRESHOLD, false);
+        SCENE_PARAMS params =
+            SCENE_PARAMS(light_count,
+                         object_count,
+                         max_depth,
+                         temporal_update_for_dynamic_scene,
+                         SHIFT_MAPPING_RECONNECTION,
+                         0, // TODO: pack every flag here
+                         NEAR_FIELD_DISTANCE,
+                         SPECULAR_ROUGHNESS_THRESHOLD,
+                         false,
+                         JACOBIAN_REJECTION_THRESHOLD,
+                         false,
+                         true);
+
+
         indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed, throughput);
         hit_value += throughput;
 #endif // INDIRECT_ILLUMINATION_ON

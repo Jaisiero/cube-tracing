@@ -59,8 +59,8 @@ const daxa_f32 MIN_NEIGHBORS_RADIUS = 5.0f;
 const daxa_f32 MAX_NEIGHBORS_RADIUS = 10.0f;
 
 
-const daxa_f32 NEAR_FIELD_DISTANCE = HALF_VOXEL_EXTENT * 0.05f;
-const daxa_f32 SPECULAR_ROUGHNESS_THRESHOLD = 0.2f;
+const daxa_f32 NEAR_FIELD_DISTANCE = HALF_VOXEL_EXTENT * 0.0f;
+const daxa_f32 SPECULAR_ROUGHNESS_THRESHOLD = 0.0f; // 0.2f;
 const daxa_f32 JACOBIAN_REJECTION_THRESHOLD = 0.0f;
 
 
@@ -100,10 +100,13 @@ struct SCENE_PARAMS{
     daxa_u32 max_depth;
     daxa_b32 temporal_update_for_dynamic_scene;
     daxa_u32 shift_mapping;
+    daxa_u32 stategy_flags;
     daxa_f32 near_field_distance;
+    daxa_f32 roughness_threshold;
     daxa_b32 reject_based_on_jacobian;
     daxa_f32 jacobian_rejection_threshold;
     daxa_b32 use_russian_roulette;
+    daxa_b32 compute_environment_light;
 };
 
 

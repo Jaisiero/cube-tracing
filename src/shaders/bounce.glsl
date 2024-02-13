@@ -16,7 +16,7 @@ INTERSECT intersect(Ray ray)
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
 
     
-    INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
+    INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
     daxa_f32vec3 int_hit = daxa_f32vec3(0.0);
     daxa_f32vec3 int_nor = daxa_f32vec3(0.0);
     daxa_b32 is_hit = false;
