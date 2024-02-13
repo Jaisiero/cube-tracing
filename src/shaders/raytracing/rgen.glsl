@@ -119,7 +119,7 @@ void main()
         daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
         prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
         prd.world_nrm = (transpose(inv_model) * vec4(prd.world_nrm, 0)).xyz;
-        prd.world_hit = compute_ray_origin(prd.world_hit, prd.world_nrm);
+        // prd.world_hit = compute_ray_origin(prd.world_hit, prd.world_nrm);
         prd.distance = length(prd.world_hit - ray.origin);
 
         prd.mat_index = get_material_index_from_instance_and_primitive_id(prd.instance_hit);

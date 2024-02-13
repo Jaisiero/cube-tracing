@@ -1,12 +1,13 @@
 #pragma once
 #define DAXA_RAY_TRACING 1
 #extension GL_EXT_ray_tracing : enable
+#include <daxa/daxa.inl>
+#include "defines.glsl"
+#include "prng.glsl"
+#include "primitives.glsl"
 #include "bounce.glsl"
 #include "defines.glsl"
 #include "mat.glsl"
-#include "primitives.glsl"
-#include "prng.glsl"
-#include <daxa/daxa.inl>
 
 LIGHT get_light_from_light_index(daxa_u32 light_index) {
   LIGHT_BUFFER instance_buffer =
@@ -83,6 +84,22 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance) {
   rayQueryTerminateEXT(ray_query);
 
   return !is_hit;
+}
+
+
+daxa_b32 is_segment_visible(daxa_f32vec3 source_vertex, daxa_f32vec3 target_vertex, daxa_b32 is_dir) {
+  
+  Ray ray;
+  daxa_f32 distance;
+  if(is_dir) {
+    ray = Ray(source_vertex, target_vertex);
+    distance = MAX_DISTANCE;
+  } else {
+    ray = Ray(source_vertex, target_vertex - source_vertex);
+    distance = length(target_vertex - source_vertex);
+  }
+
+  return is_vertex_visible(ray, distance);
 }
 
 daxa_f32 geom_fact_sa(daxa_f32vec3 P, daxa_f32vec3 P_surf,

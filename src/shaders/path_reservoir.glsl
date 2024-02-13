@@ -1,8 +1,8 @@
 #pragma once
 #define DAXA_RAY_TRACING 1
 #extension GL_EXT_ray_tracing : enable
-#include "defines.glsl"
 #include <daxa/daxa.inl>
+#include "defines.glsl"
 
 PATH_RESERVOIR get_output_path_reservoir_by_index(daxa_u32 reservoir_index) {
   OUTPUT_PATH_RESERVOIR_BUFFER output_path_reservoir_buffer =

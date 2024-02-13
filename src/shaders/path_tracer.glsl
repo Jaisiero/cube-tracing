@@ -2,12 +2,11 @@
 #ifndef PATH_TRACER_GLSL_GLSL
 #define PATH_TRACER_GLSL_GLSL
 #define DAXA_RAY_TRACING 1
+#include <daxa/daxa.inl>
+#include "shared.inl"
+#include "primitives.glsl"
 #include "light.glsl"
 #include "path_state.glsl"
-#include "path_tracer.glsl"
-#include "primitives.glsl"
-#include "shared.inl"
-#include <daxa/daxa.inl>
 
 struct PATH_VERTEX {
   daxa_u32 index;
@@ -280,7 +279,7 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params,
 
   attenuated_emission = path_get_current_thp(path) * i.mat.emission;
 
-  // daqi: Since ScreenSpaceReSTIR cannot handle transmission and delta
+  // Since ScreenSpaceReSTIR cannot handle transmission and delta
   // reflection, we must include the contribution in the color buffer
   if (!path.enable_random_replay || terminate_random_replay_for_escape) {
     if (path.path_length > 1)
@@ -289,7 +288,7 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params,
     // transmission if (path.path_length == 1) path.LDeltaDirect += Lr;
   }
 
-  // daqi: here we are adding the path terminated with an escaped vertex
+  // here we are adding the path terminated with an escaped vertex
   if (!path.enable_random_replay || terminate_random_replay_for_escape) {
     daxa_f32vec3 postfix_weight = path.thp * attenuated_emission * mis_weight;
 
@@ -439,7 +438,7 @@ daxa_b32 path_handle_primary_hit(const SCENE_PARAMS params,
 
   // TODO: complete this function
   // Compute origin for rays traced from this path vertex.
-  path.origin = i.world_hit;
+  path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
 
   path_handle_emissive_hit(params, path, i, false);
 
@@ -620,7 +619,7 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path,
   daxa_f32vec3 prev_path_origin = path.origin;
 
   // Compute origin for rays traced from this path vertex.
-  path.origin = i.world_hit;
+  path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
 
   // TODO: Some lobe stuff (pathtracer:1136)
 
@@ -754,7 +753,7 @@ void path_handle_miss(const SCENE_PARAMS params, inout PATH_STATE path,
     daxa_f32vec3 Le = env_map_sampler_eval(path.dir);
     daxa_f32vec3 Lr = path_get_current_thp(path) * Le * mis_weight;
 
-    // daqi: when doing random number replay, we will terminate the path when
+    // when doing random number replay, we will terminate the path when
     // the length reaches the base path length and when the path types match. In
     // this case, if the base path is a escaped path (as opposed to an NEE
     // path), we should terminate when we find that offset path can also be an
@@ -764,7 +763,7 @@ void path_handle_miss(const SCENE_PARAMS params, inout PATH_STATE path,
         path.path_length == path.random_replay_length &&
         path.random_replay_is_escaped && path.path_length >= 1;
 
-    // daqi: Since ScreenSpaceReSTIR cannot handle transmission and delta
+    // Since ScreenSpaceReSTIR cannot handle transmission and delta
     // reflection, we must include the contribution in the color buffer
     if (!path.enable_random_replay || terminate_random_replay_for_escape) {
       if (path.path_length > 0)
@@ -774,7 +773,7 @@ void path_handle_miss(const SCENE_PARAMS params, inout PATH_STATE path,
       // transmission if (path.path_length == 0) path.LDeltaDirect += Lr;
     }
 
-    // daqi: here we are adding the path terminated with an escaped vertex
+    // here we are adding the path terminated with an escaped vertex
     if ((!path.enable_random_replay || terminate_random_replay_for_escape)) {
       daxa_b32 selected_current_path = path_builder_add_escape_vertex(
           path.path_builder, path.path_length, path.dir, Lr,
@@ -782,7 +781,7 @@ void path_handle_miss(const SCENE_PARAMS params, inout PATH_STATE path,
           path.russian_roulette_PDF, mis_weight, light_pdf,
           GEOMETRY_LIGHT_ENV_MAP, path.path_reservoir,
           path.enable_random_replay);
-      // daqi: if current escaped vertex has path.path_length >= 2, then it can
+      // if current escaped vertex has path.path_length >= 2, then it can
       // be used as a rcVertex
       if (selected_current_path && path.use_hybrid_shift &&
           path.path_length >= 1 &&
@@ -790,7 +789,7 @@ void path_handle_miss(const SCENE_PARAMS params, inout PATH_STATE path,
         daxa_b32 is_last_vertex_acceptable_for_rc_prev =
             path.is_last_vertex_classified_as_rough;
 
-        // daqi: in the case of escaped to infinitely far, we always satisfy the
+        // in the case of escaped to infinitely far, we always satisfy the
         // far field requirement
         if (!(!is_last_vertex_acceptable_for_rc_prev)) {
           if (path.is_replay_for_hybrid_shift) // non-invertible case
@@ -893,7 +892,7 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(
   dst_rc_prev_vertex_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
   dst_rc_prev_vertex_wo = daxa_f32vec3(0.0);
 
-  path.origin = i.world_hit;
+  path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
 
   // this is also applicable for random number reuse
   path.path_builder.path_flags = 0;
