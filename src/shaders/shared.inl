@@ -343,7 +343,7 @@ struct PATH_RESERVOIR
 {
     daxa_f32 M; // this is a float, because temporal history length is allowed to be a fraction. 
     daxa_f32 weight; // during RIS and when used as a "RisState", this is w_sum; during RIS when used as an incoming reservoir or after RIS, this is 1/p(y) * 1/M * w_sum
-    daxa_i32 path_flags; // this is a path type indicator, see the struct definition for details
+    daxa_u32 path_flags; // this is a path type indicator, see the struct definition for details
     daxa_u32 rc_random_seed; // saved random seed after rc_vertex (due to the need of blending half-vector reuse and random number replay)
     daxa_f32vec3 F; // cached integrand (always updated after a new path is chosen in RIS)
     daxa_f32 light_pdf; // NEE light pdf (might change after shift if transmission is included since light sampling considers "upperHemisphere" of the previous bounce)?

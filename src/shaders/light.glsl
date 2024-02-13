@@ -102,11 +102,10 @@ daxa_b32 is_segment_visible(daxa_f32vec3 source_vertex, daxa_f32vec3 target_vert
   return is_vertex_visible(ray, distance);
 }
 
-daxa_f32 geom_fact_sa(daxa_f32vec3 P, daxa_f32vec3 P_surf,
-                      daxa_f32vec3 n_surf) {
-  daxa_f32vec3 dir = normalize(P_surf - P);
-  daxa_f32 dist2 = distance(P, P_surf);
-  return abs(-dot(n_surf, dir)) / (dist2 * dist2);
+daxa_f32 geom_fact_sa(daxa_f32vec3 P, daxa_f32vec3 P_surf, daxa_f32vec3 n_surf) {
+    daxa_f32vec3 dir = normalize(P_surf - P);
+    daxa_f32 dist2 = dot(P_surf - P, P_surf - P);
+    return abs(dot(n_surf, dir)) / dist2;
 }
 
 daxa_f32 balance_heuristic(daxa_f32 pdf, daxa_f32 pdf_other) {

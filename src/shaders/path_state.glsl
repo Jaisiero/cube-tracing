@@ -180,7 +180,7 @@ void path_increment_bounces(inout PATH_STATE path, daxa_u32 bounce_type) {
 }
 
 
-void path_flags_transform_bounces_information(out daxa_i32 path_flags_out, daxa_i32 path_flags_in) {
+void path_flags_transform_bounces_information(out daxa_u32 path_flags_out, daxa_u32 path_flags_in) {
     // transfer delta information for half vector reuse (TODO: refactor)
     path_flags_out &= ~(0xc000000);
     path_flags_out |= ((path_flags_in >> 26) & 3) << 26;

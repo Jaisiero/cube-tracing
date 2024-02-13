@@ -319,8 +319,9 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params,
           // we found an RC vertex!
           // set rcVertexLength to current length (this will make rcVertexLength
           // = reseroivr.pathLength + 1)
-          daxa_f32 geometry_factor =
-              geom_fact_sa(i.world_hit, path.origin, i.world_nrm);
+          daxa_f32vec3 disp = path.origin - i.world_hit;
+          daxa_f32 geometry_factor = 
+            abs(dot(i.world_nrm, i.wo)) / dot(disp, disp);
 
           path_builder_mark_escape_vertex_as_rc_vertex(
               path.path_builder, path.path_length, path.path_reservoir,
@@ -436,11 +437,10 @@ daxa_b32 path_handle_sample_light(const SCENE_PARAMS params,
 daxa_b32 path_handle_primary_hit(const SCENE_PARAMS params,
                                  inout PATH_STATE path, inout INTERSECT i) {
 
-  // TODO: complete this function
+  // path_handle_emissive_hit(params, path, i, false);
+
   // Compute origin for rays traced from this path vertex.
   path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
-
-  path_handle_emissive_hit(params, path, i, false);
 
   path_set_light_sampled(path, false, false);
 
@@ -693,7 +693,7 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path,
 
   // save the incoming direction on rcVertex (pathtracer:1433)
   if (is_rc_vertex && valid &&
-      (daxa_i32(path.path_length > 1) == 0 || BPR == false)) {
+      ((path.path_length > 1) == false) || BPR == false) {
     path.path_builder.rc_vertex_wi[0] = path.dir;
   }
 
@@ -872,7 +872,7 @@ PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params,
 
 daxa_f32vec3 trace_random_replay_path_hybrid_simple(
     const SCENE_PARAMS params, const INSTANCE_HIT hit, INTERSECT i,
-    const Ray ray, const daxa_i32 path_flags, const daxa_u32 init_random_seed,
+    const Ray ray, const daxa_u32 path_flags, const daxa_u32 init_random_seed,
     out INSTANCE_HIT dst_rc_prev_vertex_hit,
     out daxa_f32vec3 dst_rc_prev_vertex_wo) {
   PATH_STATE path;

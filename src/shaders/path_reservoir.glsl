@@ -53,23 +53,23 @@ void set_reconnection_data_from_current_frame(
 
 // maximum length: 15
 void path_reservoir_insert_path_length(inout PATH_RESERVOIR reservoir,
-                                       daxa_i32 path_length) {
+                                       daxa_u32 path_length) {
   reservoir.path_flags &= ~0xF;
   reservoir.path_flags |= (path_length & 0xF);
 }
 
-daxa_u32 path_reservoir_get_path_length(daxa_i32 path_flags) {
+daxa_u32 path_reservoir_get_path_length(daxa_u32 path_flags) {
   return path_flags & 0xF;
 }
 
 // maximum length: 15
 void path_reservoir_insert_rc_vertex_length(inout PATH_RESERVOIR reservoir,
-                                            daxa_i32 rc_vertex_length) {
+                                            daxa_u32 rc_vertex_length) {
   reservoir.path_flags &= ~0xF0;
   reservoir.path_flags |= (rc_vertex_length & 0xF) << 4;
 }
 
-daxa_u32 path_reservoir_get_reconnection_length(daxa_i32 path_flags) {
+daxa_u32 path_reservoir_get_reconnection_length(daxa_u32 path_flags) {
   return (path_flags >> 4) & 0xF;
 }
 
@@ -102,7 +102,7 @@ daxa_b32 path_reservoir_is_transmission_event(daxa_u32 path_flags,
 void path_reservoir_insert_last_vertex_nee(inout PATH_RESERVOIR reservoir,
                                            daxa_b32 last_vertex_nee) {
   reservoir.path_flags &= ~0x10000;
-  reservoir.path_flags |= (daxa_i32(last_vertex_nee) & 1) << 16;
+  reservoir.path_flags |= (daxa_u32(last_vertex_nee) & 1) << 16;
 }
 
 daxa_b32 path_reservoir_last_vertex_NEE(daxa_u32 path_flags) {
@@ -125,7 +125,7 @@ daxa_b32 path_reservoir_is_specular_bounce(daxa_u32 path_flags,
 void path_reservoir_insert_light_type(inout PATH_RESERVOIR reservoir,
                                       daxa_u32 light_type) {
   reservoir.path_flags &= ~0xc0000;
-  reservoir.path_flags |= ((daxa_i32(light_type) & 3) << 18);
+  reservoir.path_flags |= ((daxa_u32(light_type) & 3) << 18);
 }
 
 daxa_u32 path_reservoir_get_light_type(daxa_u32 path_flags) {

@@ -13,7 +13,7 @@ struct PATH_BUILDER
     daxa_u32 cached_random_seed;
     daxa_u32 seed;
     daxa_u32 rc_vertex_length;
-    daxa_i32 path_flags; // this is a path type indicator, see the struct definition for details
+    daxa_u32 path_flags; // this is a path type indicator, see the struct definition for details
     daxa_f32vec3 cached_jacobian;
 };
 
@@ -49,8 +49,8 @@ daxa_b32 path_builder_add_escape_vertex(inout PATH_BUILDER path_builder, daxa_u3
         {
             selected = true;
             path_reservoir.path_flags = path_builder.path_flags;
-            path_reservoir_insert_path_length(path_reservoir, daxa_i32(path_length));
-            path_reservoir_insert_rc_vertex_length(path_reservoir, daxa_i32(path_builder.rc_vertex_length));
+            path_reservoir_insert_path_length(path_reservoir, path_length);
+            path_reservoir_insert_rc_vertex_length(path_reservoir, path_builder.rc_vertex_length);
             path_reservoir_insert_last_vertex_nee(path_reservoir, false);
             path_reservoir.rc_vertex_irradiance[0] = postfix_weight;
             path_reservoir.F = path_weight;
@@ -86,8 +86,8 @@ daxa_b32 path_builder_add_NEE_vertex(inout PATH_BUILDER path_builder, daxa_u32 p
         {
             selected = true;
             path_reservoir.path_flags = path_builder.path_flags;
-            path_reservoir_insert_path_length(path_reservoir, daxa_i32(path_length)); // excluding the NEE vertex
-            path_reservoir_insert_rc_vertex_length(path_reservoir, daxa_i32(path_builder.rc_vertex_length));
+            path_reservoir_insert_path_length(path_reservoir, path_length); // excluding the NEE vertex
+            path_reservoir_insert_rc_vertex_length(path_reservoir, path_builder.rc_vertex_length);
             path_reservoir_insert_last_vertex_nee(path_reservoir, true);
             path_reservoir.rc_vertex_irradiance[0] = postfix_weight;
             path_reservoir.F = path_weight;
@@ -125,7 +125,7 @@ void path_builder_mark_escape_vertex_as_rc_vertex(inout PATH_BUILDER path_builde
                                                   daxa_f32 prev_scatter_pdf,
                                                   daxa_f32 geometry_factor)
 {
-    path_reservoir_insert_rc_vertex_length(path_reservoir, daxa_i32(path_length));
+    path_reservoir_insert_rc_vertex_length(path_reservoir, path_length);
     // TODO: path_reservoir_path_init_from_hit_info(path_reservoir, hit);
     path_builder.rc_vertex_hit = hit;
     path_reservoir_insert_is_delta_event(path_reservoir, is_delta, true);
