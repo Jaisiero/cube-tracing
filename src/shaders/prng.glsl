@@ -128,6 +128,45 @@ daxa_f32vec3 random_quad(daxa_f32vec3 normal, daxa_f32vec2 size, inout daxa_u32 
 
 }
 
+// void calculate_orthonormal_basis(daxa_f32vec3 normal, inout daxa_f32vec3 tangent1, inout daxa_f32vec3 tangent2) {
+//     tangent1 = normalize(normalize(daxa_f32vec3(1.0, 0.0, 0.0)) - normal * dot(normalize(daxa_f32vec3(1.0, 0.0, 0.0)), normal));
+//     tangent2 = normalize(cross(normal, tangent1));
+// }
+
+void calculate_orthonormal_basis(daxa_f32vec3 normal, inout daxa_f32vec3 tangent1, inout daxa_f32vec3 tangent2) {
+    if (abs(normal.x) > abs(normal.y)) {
+        tangent1 = normalize(daxa_f32vec3(-normal.z, 0.0, normal.x));
+    } else {
+        tangent1 = normalize(daxa_f32vec3(0.0, normal.z, -normal.y));
+    }
+    tangent2 = normalize(cross(normal, tangent1));
+}
+
+daxa_f32vec3 random_in_unit_rectangle(daxa_f32vec3 normal, daxa_f32vec3 origin, daxa_f32vec2 dimensions, inout daxa_u32 seed) {
+    // Calcula dos vectores ortogonales al vector normal
+    daxa_f32vec3 tangent1, tangent2;
+    calculate_orthonormal_basis(normal, tangent1, tangent2);
+    
+    daxa_f32vec3 p;
+    while (true) {
+        // Genera coordenadas aleatorias en el rango [-1, 1]
+        daxa_f32 x = randomInRangeLCG(seed, -1.0f, 1.0f);
+        daxa_f32 y = randomInRangeLCG(seed, -1.0f, 1.0f);
+        
+        // Escala las coordenadas para que estén en el rango de las dimensiones del rectángulo
+        daxa_f32vec3 point_on_plane = origin + tangent1 * (dimensions.x * x) + tangent2 * (dimensions.y * y);
+        
+        // Verifica si el punto está dentro del rectángulo proyectado
+        daxa_f32vec3 to_point = point_on_plane - origin;
+        daxa_f32 projected_length = dot(to_point, normal);
+        if (projected_length > 0 && projected_length < length(normal)) {
+            p = point_on_plane;
+            break;
+        }
+    }
+    return p;
+}
+
 
 daxa_f32vec3 defocus_disk_sample(daxa_f32vec3 origin, daxa_f32vec2 defocus_disk, inout daxa_u32 seed) {
     // Returns a random point in the camera defocus disk.

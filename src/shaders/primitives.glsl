@@ -358,12 +358,12 @@ daxa_b32 is_hit_from_origin_with_geometry_center(daxa_f32vec3 origin_world_space
     return hit;
 }
 
-void cube_like_normal(inout daxa_f32vec3 world_nrm)
+daxa_f32vec3 cube_like_normal(daxa_f32vec3 world_nrm)
 {
     {
         daxa_f32vec3 abs_n = abs(world_nrm);
         daxa_f32 max_c = max(max(abs_n.x, abs_n.y), abs_n.z);
-        world_nrm = (max_c == abs_n.x) ? daxa_f32vec3(sign(world_nrm.x), 0, 0) : (max_c == abs_n.y) ? daxa_f32vec3(0, sign(world_nrm.y), 0)
+        return (max_c == abs_n.x) ? daxa_f32vec3(sign(world_nrm.x), 0, 0) : (max_c == abs_n.y) ? daxa_f32vec3(0, sign(world_nrm.y), 0)
                                                                                                     : daxa_f32vec3(0, 0, sign(world_nrm.z));
     }
 }
@@ -395,7 +395,7 @@ void packed_intersection_info(Ray ray,
     world_nrm = normalize(world_pos - center);
 
     // Normal should be cube like
-    cube_like_normal(world_nrm);
+    world_nrm = cube_like_normal(world_nrm);
 }
 
 daxa_b32 instance_hit_exists(const INSTANCE_HIT instance_hit)

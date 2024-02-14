@@ -32,7 +32,7 @@ void main()
     // TODO: pass this as a parameter
     daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
-    t_hit = is_hit_from_ray_providing_model(ray, instance_hit, half_extent, t_hit, pos, nor, model, inv_model, true, false) ? t_hit : -1.0;
+    t_hit = is_hit_from_ray_providing_model(ray, instance_hit, half_extent, t_hit, pos, nor, model, inv_model, true, true) ? t_hit : -1.0;
 
     // Report hit point
     if (t_hit > 0)

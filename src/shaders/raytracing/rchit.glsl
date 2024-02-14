@@ -141,6 +141,8 @@ void main()
         prd.seed,
         prd.depth);
 
+    hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
+
     radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
 
     prd.distance = distance;

@@ -19,7 +19,7 @@ daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
   return max(dot(n, w_i), 0.0);
 }
 
-daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance) {
+daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, INSTANCE_HIT instance_target, const daxa_b32 check_instance) {
   // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
   daxa_f32 t_min = 0.0;
@@ -59,13 +59,17 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance) {
       daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
       if (is_hit_from_ray(ray, instance_hit, half_extent, hit_distance, int_hit,
-                          int_nor, model, inv_model, false, false)) {
+                          int_nor, model, inv_model, false, true)) {
         rayQueryGenerateIntersectionEXT(ray_query, hit_distance);
 
         daxa_u32 type_commited =
             rayQueryGetIntersectionTypeEXT(ray_query, true);
 
         if (type_commited == gl_RayQueryCommittedIntersectionGeneratedEXT) {
+          if(check_instance && instance_target.instance_id == instance_hit.instance_id && instance_target.primitive_id == instance_hit.primitive_id) {
+            is_hit = false;
+            break;
+          }
           is_hit = true;
           //         material_idx =
           //         get_material_index_from_instance_and_primitive_id(instance_hit);
@@ -99,7 +103,7 @@ daxa_b32 is_segment_visible(daxa_f32vec3 source_vertex, daxa_f32vec3 target_vert
     distance = length(target_vertex - source_vertex);
   }
 
-  return is_vertex_visible(ray, distance);
+  return is_vertex_visible(ray, distance, INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES), false);
 }
 
 daxa_f32 geom_fact_sa(daxa_f32vec3 P, daxa_f32vec3 P_surf, daxa_f32vec3 n_surf) {
@@ -248,7 +252,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
   // // Fast discard
   if (l.instance_info.instance_id == hit.instance_hit.instance_id &&
       l.instance_info.primitive_id == hit.instance_hit.primitive_id) {
-    Le_out = vec3(0.0);
+    Le_out = daxa_f32vec3(0.0);
     return false;
   }
   daxa_b32 vis = true;
@@ -269,34 +273,36 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
     daxa_f32mat4x4 inv_model;
 
     // TODO: pass this as a parameter
-    daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
+    daxa_f32 voxel_extent = VOXEL_EXTENT;
+    daxa_f32vec3 half_extent = daxa_f32vec3(voxel_extent * 0.5);
+
+    // Size of the quad
+    daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
 
 #if KNOWN_LIGHT_POSITION == 1
-    vis = is_hit_from_origin_with_geometry_center(
-        P, l.position, half_extent, distance, l_pos, l_nor, false);
-
-    // TODO: config voxel extent by parameter
-    daxa_f32 voxel_extent = VOXEL_EXTENT;
-    daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
-    l_pos = l.position + (half_extent * l_nor);
+   // Get normal from position and light position
+    l_nor = normalize(P - l.position);
+    // Get the normal of the voxel surface ie (0, 0, 1)
+    l_nor = cube_like_normal(l_nor);
+    // Getting the position of the light on the quad surface by stepping half 
+    // the extent of the voxel from the very center
+    l_pos = l.position + l_nor * half_extent;
+    // Get random position in the light on the quad surface
     l_pos = l_pos + random_quad(l_nor, size, hit.seed);
 #else
     vis = is_hit_from_origin(P, l.instance_info, half_extent, distance, l_pos,
                              l_nor, model, inv_model, true, false);
 
-    // TODO: config voxel extent by parameter
-    daxa_f32 voxel_extent = VOXEL_EXTENT;
-    daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
-    // l_pos = l_pos + random_quad(l_nor, size, hit.seed);
-
     daxa_f32vec4 l_pos_4 = model * vec4(l_pos, 1);
     l_pos = l_pos_4.xyz / l_pos_4.w;
     l_nor = (transpose(inv_model) * vec4(l_nor, 0)).xyz;
+                             
+    l_pos = l_pos + random_quad(l_nor, size, hit.seed);
 #endif // 0
 
     l_pos = compute_ray_origin(l_pos, l_nor);
-    // TODO: check this
-    distance = length(P - l_pos) - length(half_extent);
+    // TODO: check this cause we should need to substrac the half extent
+    distance = length(P - l_pos);
 
     if (calc_pdf) {
       daxa_f32 area = size.x * size.y * 6.0;
@@ -310,7 +316,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
   }
 
   daxa_f32vec3 l_wi = normalize(P - l_pos);
-  daxa_f32vec3 l_v = -l_wi;
+  daxa_f32vec3 l_v = l_nor;
 
   vis = vis && daxa_b32(dot(l_wi, l_nor) > 0.0); // Light front side
   vis = vis && daxa_b32(dot(l_wi, n) < 0.0);     // Behind the surface at P
@@ -318,7 +324,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
   Ray shadow_ray = Ray(P, l_v);
 
   if (visibility && vis) {
-    vis = vis && is_vertex_visible(shadow_ray, distance);
+    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, false);
   }
 
   P_out = l_pos;

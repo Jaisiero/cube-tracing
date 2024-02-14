@@ -64,6 +64,11 @@ temporal_path_get_reprojected_primary_hit(const daxa_u32 prev_predicted_index) {
   MATERIAL previus_material =
       get_material_from_material_index(di_info_previous.mat_index);
 
+  daxa_f32vec3 position = compute_ray_origin(di_info_previous.position,
+                                                di_info_previous.normal);
+
+  daxa_f32 distance = length(di_info_previous.position - di_info_previous.ray_origin);
+
   daxa_b32 is_hit = di_info_previous.distance > 0.0;
 
   daxa_f32vec3 wo = di_info_previous.ray_origin - di_info_previous.position;
@@ -72,7 +77,7 @@ temporal_path_get_reprojected_primary_hit(const daxa_u32 prev_predicted_index) {
   daxa_f32vec3 wi = daxa_f32vec3(0.0); // normalize(wo + di_info_previous.normal);
     // normalize(wo + di_info_previous.normal);
 
-  return INTERSECT(is_hit, di_info_previous.distance, di_info_previous.position,
+  return INTERSECT(is_hit, distance, position,
                    di_info_previous.normal, wo, wi,
                    di_info_previous.instance_hit, di_info_previous.mat_index,
                    previus_material);

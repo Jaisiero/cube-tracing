@@ -109,11 +109,11 @@ void main()
         prd.instance_hit = INSTANCE_HIT(instance_id, primitive_id);
 
         // TODO: pass this as a parameter
-        daxa_f32vec3 half_extent = vec3(HALF_VOXEL_EXTENT);
+        daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
         daxa_f32 distance = -1.0;
 
-        prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, distance, prd.world_hit, prd.world_nrm, model, inv_model, true, false) ? distance : -1.0;
+        prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, distance, prd.world_hit, prd.world_nrm, model, inv_model, true, true) ? distance : -1.0;
 
 
         daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
@@ -180,15 +180,16 @@ void main()
 
         daxa_u32vec2 predicted_coord = daxa_u32vec2(Xi_1);
 
-        HIT_INFO_INPUT hit = HIT_INFO_INPUT(
-                                            di_info.position.xyz,
-                                            di_info.normal.xyz,
+        HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position,
+                                            di_info.normal,
                                             di_info.distance,
                                             daxa_f32vec3(0.0),
                                             di_info.instance_hit,
                                             di_info.mat_index,
                                             di_info.seed,
                                             max_depth);
+
+        hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
         daxa_f32 confidence = 0.0;
 
@@ -359,14 +360,17 @@ void main()
         // OBJECTS
         daxa_u32 object_count = deref(p.status_buffer).obj_count;
 
-        HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
-                                            di_info.normal.xyz,
+        HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position,
+                                            di_info.normal,
                                             di_info.distance,
                                             daxa_f32vec3(0.f),
                                             di_info.instance_hit,
                                             di_info.mat_index,
                                             di_info.seed,
                                             max_depth);
+
+        hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
+
         daxa_f32 p_hat = 0.0;
 
         daxa_f32vec3 radiance = vec3(0.0);
@@ -414,7 +418,7 @@ void main()
 #if INDIRECT_ILLUMINATION_ON == 1       
         // Build the intersect struct
         daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
-        INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position.xyz, di_info.normal.zyz, wo, daxa_f32vec3(0.f), di_info.instance_hit, di_info.mat_index, mat);
+        INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position, di_info.normal, wo, daxa_f32vec3(0.f), di_info.instance_hit, di_info.mat_index, mat);
         SCENE_PARAMS params =
             SCENE_PARAMS(light_count,
                          object_count,
