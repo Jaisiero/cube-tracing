@@ -426,7 +426,7 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
     // TODO: This should be a parameter
     daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
-    if (!is_hit_from_origin(world_pos, instance_hit, half_extent, distance, pos, nor, model, inv_model, true, false))
+    if (!is_hit_from_origin(world_pos, instance_hit, half_extent, distance, pos, nor, model, inv_model, true, true))
     {
         intersect_initiliaze(i);
     }

@@ -314,7 +314,8 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
                                    dst_primary_intersection.world_hit));
     daxa_f32 distance = length(rc_vertex_intersection.world_hit -
                                dst_primary_intersection.world_hit);
-    daxa_b32 is_visible = is_vertex_visible(shadow_ray, distance, rc_vertex_intersection.instance_hit, true);
+    daxa_b32 is_visible = is_vertex_visible(
+        shadow_ray, distance, rc_vertex_intersection.instance_hit, false);
     if (!is_visible)
       return daxa_f32vec3(0.0f);
   }
