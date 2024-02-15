@@ -172,7 +172,7 @@ void temporal_path_reuse(const SCENE_PARAMS params,
             params, do_temporal_update_for_dynamic_scene, dst_jacobian,
             current_i.instance_hit, current_i, temp_dst_reservoir, prev_i,
             temporal_reservoir, rc_data, true, seed, false, 1.f,
-            false); // "true" means hypothetically selected as the sample
+            true); // "true" means hypothetically selected as the sample
       }
 
       if (possible_to_be_selected) {

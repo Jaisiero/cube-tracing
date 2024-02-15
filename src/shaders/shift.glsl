@@ -148,6 +148,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
       src_primary_intersection.world_hit); // direction point from src primary
                                            // hit point to reconnection vertex
 
+  // Geometry factor between destination primary hit point and reconnection vertex
   daxa_f32vec3 shifted_disp =
       rc_vertex_intersection.world_hit - dst_primary_intersection.world_hit;
   daxa_f32 shifted_dist2 = dot(shifted_disp, shifted_disp);
@@ -308,14 +309,15 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
 
   // Evaluate visibility: vertex 1 <-> vertex 2 (reconnection vertex).
   if (eval_visibility) {
+
+    daxa_f32vec3 dir = normalize(rc_vertex_intersection.world_hit -
+                                 dst_primary_intersection.world_hit);
     // Shadow ray
-    Ray shadow_ray = Ray(dst_primary_intersection.world_hit,
-                         normalize(rc_vertex_intersection.world_hit -
-                                   dst_primary_intersection.world_hit));
-    daxa_f32 distance = length(rc_vertex_intersection.world_hit -
-                               dst_primary_intersection.world_hit);
+    Ray shadow_ray = Ray(dst_primary_intersection.world_hit, dir);
+    daxa_f32 distance = distance(dst_primary_intersection.world_hit, 
+      rc_vertex_intersection.world_hit);
     daxa_b32 is_visible = is_vertex_visible(
-        shadow_ray, distance, rc_vertex_intersection.instance_hit, false);
+        shadow_ray, distance, rc_vertex_intersection.instance_hit, true);
     if (!is_visible)
       return daxa_f32vec3(0.0f);
   }
