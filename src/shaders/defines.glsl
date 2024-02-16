@@ -25,7 +25,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define ACCUMULATOR_ON 1
 
 #define LIGHT_SAMPLING_ON 1
-#define RESTIR_DI_ON 1
+#define RESTIR_DI_ON 0
 #define RESTIR_DI_TEMPORAL_ON 1
 #define RESTIR_DI_SPATIAL_ON 1
 #define RESTIR_PT_ON 1

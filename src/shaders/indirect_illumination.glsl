@@ -129,6 +129,8 @@ void temporal_path_reuse(const SCENE_PARAMS params,
   // Get current history length
   daxa_f32 current_M = central_reservoir.M;
 
+  // set_output_path_reservoir_by_index(current_index, temporal_reservoir);
+
   // Clamp the influence from the past
   temporal_reservoir.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * current_M,
                              temporal_reservoir.M);

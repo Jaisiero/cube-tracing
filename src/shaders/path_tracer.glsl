@@ -241,15 +241,15 @@ daxa_b32 path_generate_light_sample(const SCENE_PARAMS params, INTERSECT i,
 
   daxa_f32vec3 l_pos;
 
-  // TODO: simplify calculate_sampled_light interface
+  // TODO: Use sample_lights instead of calculate_sampled_light_and_get_light_info
   // NOTE: visibility check is done inside calculate_sampled_light
-  ls.Li = calculate_sampled_light_and_get_light_info(
-      ray, hit, i.mat, params.light_count, light, pdf, ls.pdf, l_pos, ls.dir,
-      true, true, true);
+  daxa_b32 found = sample_lights(hit, light, pdf, l_pos, ls.dir, ls.Li, true, true);
+
+  ls.dir = normalize(l_pos - i.world_hit);
 
   seed = hit.seed;
 
-  return any(greaterThan(ls.Li, daxa_f32vec3(0.0)));
+  return found;
 }
 
 daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params,
@@ -584,7 +584,7 @@ daxa_b32 path_check_rc_vertex(inout PATH_STATE path, INTERSECT i,
 }
 
 void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path,
-                     inout INTERSECT i) {
+                     INTERSECT i) {
 
   // Upon hit:
   // - Load vertex/material data

@@ -324,7 +324,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
   Ray shadow_ray = Ray(P, l_v);
 
   if (visibility && vis) {
-    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, false);
+    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, true);
   }
 
   P_out = l_pos;
