@@ -136,11 +136,11 @@ void path_reservoir_init_from_hit_info(inout PATH_RESERVOIR reservoir, INSTANCE_
   reservoir.rc_vertex_hit = hit;
 }
 
-void path_reservoir_initialise(inout PATH_RESERVOIR reservoir) {
+void path_reservoir_initialise(const SCENE_PARAMS params, inout PATH_RESERVOIR reservoir) {
   reservoir.M = 0.0;
   reservoir.weight = 0.0;
   reservoir.path_flags = 0;
-  path_reservoir_insert_rc_vertex_length(reservoir, MAX_DEPTH);
+  path_reservoir_insert_rc_vertex_length(reservoir, params.max_depth);
   reservoir.rc_random_seed = 0;
   reservoir.F = daxa_f32vec3(0.0);
   reservoir.light_pdf = 0.0;

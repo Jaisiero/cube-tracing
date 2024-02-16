@@ -845,7 +845,7 @@ PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params,
                                          INTERSECT i, inout daxa_u32 seed,
                                          inout daxa_f32vec3 throughput) {
   PATH_STATE path;
-  generate_path(path, index, rt_size, i.instance_hit, ray, seed,
+  generate_path(params, path, index, rt_size, i.instance_hit, ray, seed,
                 params.max_depth);
 
   if (path_handle_primary_hit(params, path, i)) {
@@ -886,7 +886,7 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(
       path_reservoir_get_reconnection_length(path_flags);
 
   daxa_b32 is_rc_vertex_escaped_vertex = path_length + 1 == reconnection_length;
-  generate_random_replay_path(path, hit, ray, init_random_seed, path_length,
+  generate_random_replay_path(params, path, hit, ray, init_random_seed, path_length,
                               path_reservoir_last_vertex_NEE(path_flags),
                               is_rc_vertex_escaped_vertex);
   path.use_hybrid_shift = true;

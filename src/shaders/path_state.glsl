@@ -194,7 +194,7 @@ void path_flags_transform_bounces_information(out daxa_u32 path_flags_out, daxa_
 
 
 
-void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed, daxa_u32 max_depth) {
+void generate_path(const SCENE_PARAMS params, inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed, daxa_u32 max_depth) {
     path.id = index.y * rt_size.x + index.x;
     path.max_depth = max_depth;
     path.flags = 0;
@@ -225,8 +225,8 @@ void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_si
 
     path.seed = seed;
 
-    path_builder_init(path.path_builder, seed);
-    path_reservoir_initialise(path.path_reservoir);
+    path_builder_init(params, path.path_builder, seed);
+    path_reservoir_initialise(params, path.path_reservoir);
 
     // path.L_delta_direct = daxa_f32vec3(0.f);
     path.enable_random_replay = false;
@@ -240,7 +240,7 @@ void generate_path(inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_si
 }
 
 
-void generate_random_replay_path(out PATH_STATE path, INSTANCE_HIT instance, Ray ray, daxa_u32 random_seed, daxa_u32 random_replay_length, daxa_b32 is_last_vertext_NEE, daxa_b32 is_rc_vertext_escape_vertex) 
+void generate_random_replay_path(const SCENE_PARAMS params, out PATH_STATE path, INSTANCE_HIT instance, Ray ray, daxa_u32 random_seed, daxa_u32 random_replay_length, daxa_b32 is_last_vertext_NEE, daxa_b32 is_rc_vertext_escape_vertex) 
 {
     path.id = 0;
     path.max_depth = 0;
@@ -273,7 +273,7 @@ void generate_random_replay_path(out PATH_STATE path, INSTANCE_HIT instance, Ray
     path.seed = random_seed;
 
     // path_builder_init(path.path_builder, random_seed);
-    path_reservoir_initialise(path.path_reservoir);
+    path_reservoir_initialise(params, path.path_reservoir);
 
     // path.L_delta_direct = daxa_f32vec3(0.f);
     path.enable_random_replay = true;

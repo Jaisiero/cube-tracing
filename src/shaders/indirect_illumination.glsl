@@ -124,7 +124,7 @@ void temporal_path_reuse(const SCENE_PARAMS params,
                          out daxa_f32vec3 throughput) {
 
   PATH_RESERVOIR destination_reservoir;
-  path_reservoir_initialise(destination_reservoir);
+  path_reservoir_initialise(params, destination_reservoir);
 
   // Get current history length
   daxa_f32 current_M = central_reservoir.M;

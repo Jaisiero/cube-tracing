@@ -17,13 +17,13 @@ struct PATH_BUILDER
     daxa_f32vec3 cached_jacobian;
 };
 
-void path_builder_init(inout PATH_BUILDER path_builder, daxa_u32 seed)
+void path_builder_init(const SCENE_PARAMS params, inout PATH_BUILDER path_builder, daxa_u32 seed)
 {
     path_builder.seed = seed;
     path_builder.rc_vertex_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
     path_builder.rc_vertex_wi[0] = daxa_f32vec3(0.0);
     path_builder.cached_random_seed = 0;
-    path_builder.rc_vertex_length = MAX_DEPTH;
+    path_builder.rc_vertex_length = params.max_depth;
     path_builder.path_flags = 0;
     path_builder.cached_jacobian = daxa_f32vec3(0.0);
 }
