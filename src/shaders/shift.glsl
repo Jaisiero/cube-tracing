@@ -348,8 +348,8 @@ daxa_f32vec3 compute_shifted_integrand_(
     const INTERSECT dst_primary_intersection,
     const INTERSECT src_primary_intersection,
     inout PATH_RESERVOIR src_reservoir, RECONNECTION_DATA rc_data,
-    const daxa_b32 eval_visibility, const daxa_b32 use_prev,
-    const daxa_b32 temporal_update_for_dynamic_scene) {
+    daxa_b32 eval_visibility, daxa_b32 use_prev,
+    daxa_b32 temporal_update_for_dynamic_scene) {
   dst_jacobian = 0.f;
 
   if (src_reservoir.weight == 0.f)
@@ -366,22 +366,22 @@ daxa_f32vec3 compute_shifted_integrand_(
     return compute_shifted_integrand_reconnection(
         params, dst_jacobian, dst_primary_intersection,
         src_primary_intersection, src_reservoir, eval_visibility, false,
-        use_prev);
+        false);
   }
-  // else if (ShiftMapping(kShiftStrategy) == ShiftMapping::RandomReplay)
+  // else if (params.shift_mapping == SHIFT_MAPPING_RANDOM_REPLAY) {
   // {
-  //     return computeShiftedIntegrandRandomReplay(params, use_prev,
-  //     dst_jacobian, dstPrimaryHitPacked, dstPrimarySd, srcPrimarySd,
+  //     return compute_shifted_integrand_random_replay(params, use_prev,
+  //     dst_jacobian, dst_primary_hit, dst_primary_intersection, src_primary_intersection,
   //     src_reservoir);
   // }
-  // else if (ShiftMapping(kShiftStrategy) == ShiftMapping::Hybrid)
+  // else if (params.shift_mapping == SHIFT_MAPPING_HYBRID) {
   // {
-  //     return computeShiftedIntegrandHybrid(params, use_prev,
-  //     temporal_update_for_dynamic_scene, dst_jacobian, dstPrimaryHitPacked,
-  //     dstPrimarySd, srcPrimarySd, src_reservoir, rc_data, eval_visibility);
+  //     return compute_shifted_integrand_hybrid(params, use_prev,
+  //     temporal_update_for_dynamic_scene, dst_jacobian, dst_primary_hit,
+  //     dst_primary_intersection, src_primary_intersection, src_reservoir, rc_data, eval_visibility);
   // }
 
-  return daxa_f32vec3(0.0f);
+  return daxa_f32vec3(1.0f);
 }
 
 daxa_f32vec3 compute_shifted_integrand(
@@ -389,13 +389,13 @@ daxa_f32vec3 compute_shifted_integrand(
     const INSTANCE_HIT dst_primary_hit,
     const INTERSECT dst_primary_intersection,
     const INTERSECT src_primary_intersection,
-    inout PATH_RESERVOIR src_reservoir, RECONNECTION_DATA rc_data,
+    const PATH_RESERVOIR src_reservoir, RECONNECTION_DATA rc_data,
     daxa_b32 eval_visibility, daxa_b32 use_prev,
     daxa_b32 temporal_update_for_dynamic_scene) {
   PATH_RESERVOIR temp_path_reservoir = src_reservoir;
   daxa_f32vec3 res = compute_shifted_integrand_(
       params, dst_jacobian, dst_primary_hit, dst_primary_intersection,
-      src_primary_intersection, src_reservoir, rc_data, eval_visibility,
+      src_primary_intersection, temp_path_reservoir, rc_data, eval_visibility,
       use_prev, temporal_update_for_dynamic_scene);
   return res;
 }

@@ -129,8 +129,6 @@ void temporal_path_reuse(const SCENE_PARAMS params,
   // Get current history length
   daxa_f32 current_M = central_reservoir.M;
 
-  // set_output_path_reservoir_by_index(current_index, temporal_reservoir);
-
   // Clamp the influence from the past
   temporal_reservoir.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * current_M,
                              temporal_reservoir.M);
@@ -201,12 +199,12 @@ void temporal_path_reuse(const SCENE_PARAMS params,
                                         temp_dst_reservoir.path_flags) > 1)
               rc_data =
                   get_reconnection_data_from_current_frame(current_index, 0);
-
+                  
             // Calculate the integrand for the previous vertex
             daxa_f32vec3 t_neighbor_integrand = compute_shifted_integrand(
                 params, t_neighbor_jacobian, prev_i.instance_hit, prev_i,
                 current_i, temp_dst_reservoir, rc_data, true, true,
-                do_temporal_update_for_dynamic_scene); // use_prev
+                false); // use_prev
 
             p_ = path_F_to_scalar(t_neighbor_integrand) * t_neighbor_jacobian;
             p_sum += p_ * temporal_reservoir.M;
@@ -290,6 +288,7 @@ void indirect_illumination_path_tracing(
   prd.ray_scatter_dir = i.wi;
   prd.mat_index = i.material_idx;
   prd.instance_hit = i.instance_hit;
+  prd.hit_value = daxa_f32vec3(0.0);
   // prd.done = true;
 
   // generate_scatter_ray(i, seed);
@@ -316,8 +315,8 @@ void indirect_illumination_path_tracing(
           direct_mis(scattered_ray, hit, light_count, light, object_count,
                      i.mat, i, pdf_out, true, true);
 
-      prd.hit_value *= radiance;
-      prd.hit_value += i.mat.emission;
+      prd.hit_value += radiance;
+      // prd.hit_value += i.mat.emission;
       prd.done = false;
     } else {
       prd.done = true;

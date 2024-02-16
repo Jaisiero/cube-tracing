@@ -696,13 +696,9 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path,
   }
 
   // TODO: check this
-  daxa_b32 BPR = false;
 
   // save the incoming direction on rcVertex (pathtracer:1433)
-  if (is_rc_vertex && valid &&
-      ((path.path_length > 1) == false) || BPR == false) {
-    path.path_builder.rc_vertex_wi[0] = path.dir;
-  }
+  path.path_builder.rc_vertex_wi[0] = path.dir;
 
   path.is_last_vertex_classified_as_rough =
       is_current_vertex_classified_as_rough;
