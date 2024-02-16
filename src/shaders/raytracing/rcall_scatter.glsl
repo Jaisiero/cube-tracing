@@ -11,7 +11,7 @@ void main()
     MATERIAL mat = get_material_from_material_index(call_scatter.mat_idx);
 
     daxa_f32vec3 reflected = reflection(call_scatter.ray_dir, call_scatter.nrm);
-    call_scatter.scatter_dir = reflected + min(mat.roughness, 1.0) * random_cosine_direction(call_scatter.seed);
+    call_scatter.scatter_dir = min(mat.roughness, 1.0) * random_cosine_direction(call_scatter.seed, reflected) + (1.0 - mat.roughness) * reflected;
     call_scatter.done = (dot(call_scatter.scatter_dir, call_scatter.nrm) > 0.0f) ? false : true;
 }
 #elif defined(DIELECTRIC)
@@ -73,7 +73,7 @@ void main()
 void main()
 {
 #if (COSINE_HEMISPHERE_SAMPLING == 1)
-    call_scatter.scatter_dir = call_scatter.nrm + random_cosine_direction(call_scatter.seed);
+    call_scatter.scatter_dir = random_cosine_direction(call_scatter.seed, call_scatter.nrm);
 #else // Uniform sampling
     call_scatter.scatter_dir = random_on_hemisphere(call_scatter.seed, call_scatter.nrm);
 #endif

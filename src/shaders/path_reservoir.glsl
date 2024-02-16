@@ -132,7 +132,7 @@ daxa_u32 path_reservoir_get_light_type(daxa_u32 path_flags) {
   return (path_flags >> 18) & 3;
 }
 
-void path_init_from_hit_info(inout PATH_RESERVOIR reservoir, INSTANCE_HIT hit) {
+void path_reservoir_init_from_hit_info(inout PATH_RESERVOIR reservoir, INSTANCE_HIT hit) {
   reservoir.rc_vertex_hit = hit;
 }
 

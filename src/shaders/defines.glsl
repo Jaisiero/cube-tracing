@@ -23,6 +23,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 
 #define DEBUG_NORMALS_ON 0
 #define ACCUMULATOR_ON 1
+#define FORCE_ACCUMULATOR_ON 0
 
 #define LIGHT_SAMPLING_ON 1
 #define RESTIR_DI_ON 0
@@ -39,7 +40,7 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 
 #define KNOWN_LIGHT_POSITION 1
 
-#define COSINE_HEMISPHERE_SAMPLING 0
+#define COSINE_HEMISPHERE_SAMPLING 1
 #define USE_POWER_HEURISTIC 1
 #define USE_POWER_EXP_HEURISTIC 0
 

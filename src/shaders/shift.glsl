@@ -314,8 +314,9 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
                                  dst_primary_intersection.world_hit);
     // Shadow ray
     Ray shadow_ray = Ray(dst_primary_intersection.world_hit, dir);
+    // TODO: Check if we need to offset the distance here
     daxa_f32 distance = distance(dst_primary_intersection.world_hit, 
-      rc_vertex_intersection.world_hit);
+      rc_vertex_intersection.world_hit) * 0.999f;
     daxa_b32 is_visible = is_vertex_visible(
         shadow_ray, distance, rc_vertex_intersection.instance_hit, true);
     if (!is_visible)
