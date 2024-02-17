@@ -16,4 +16,4 @@ And emissive geometries:
 ![Night at cubeland wallpaper](https://github.com/Jaisiero/cube-tracing/assets/6051981/2e170cbe-9013-4c9c-856e-1274bbcf7858)
 
 
-There's a current ReSTIR DI implementation and a working in progress ReSTIR PT implementation.
+There's a current ReSTIR DI implementation and a work in progress ReSTIR PT implementation.
