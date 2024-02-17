@@ -102,7 +102,9 @@ struct SCENE_PARAMS{
     daxa_b32 temporal_update_for_dynamic_scene;
     daxa_u32 shift_mapping;
     daxa_u32 stategy_flags;
+    daxa_b32 distance_based_rejection;
     daxa_f32 near_field_distance;
+    daxa_b32 roughness_based_rejection;
     daxa_f32 roughness_threshold;
     daxa_b32 reject_based_on_jacobian;
     daxa_f32 jacobian_rejection_threshold;

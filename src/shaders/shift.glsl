@@ -87,7 +87,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
                                       src_primary_intersection.wo, wi);
         daxa_f32 dst_pdf1_all;
         // TODO: re - visit this part when we have multi BSDF evaluation
-        //         daxa_f32 dst_pdf1 = evalPdfBSDF(dstPrimarySd, wi,
+        //         daxa_f32 dst_pdf1 = evalPdfBSDF(dst_primary_intersection, wi,
         //         dst_pdf1_all, allowed_sampled_types1);
         daxa_f32 dst_pdf1 = sample_material_pdf(
             dst_primary_intersection.mat, dst_primary_intersection.world_nrm,
@@ -95,7 +95,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
         dst_pdf1_all = dst_pdf1;
         dst_cached_jacobian.x = dst_pdf1;
         // TODO: re - visit this part when we have multi BSDF evaluation
-        //         daxa_f32vec3 dst_f1 = eval_bsdf_cosine(dstPrimarySd, wi,
+        //         daxa_f32vec3 dst_f1 = eval_bsdf_cosine(dst_primary_intersection, wi,
         //         allowed_sampled_types1);
         daxa_f32vec3 dst_f1 = eval_bsdf_cosine(
             dst_primary_intersection.mat, dst_primary_intersection.world_nrm,
@@ -343,6 +343,100 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   return dst_integrand;
 }
 
+daxa_f32vec3 compute_shifted_integrand_hybrid(
+    const SCENE_PARAMS params, daxa_b32 use_prev,
+    daxa_b32 temporal_update_for_dynamic_scene, 
+    inout daxa_f32 dst_jacobian,
+    const INSTANCE_HIT dst_primary_hit,
+    const INTERSECT dst_primary_intersection,
+    const INTERSECT src_primary_intersection,
+    inout PATH_RESERVOIR temp_path_reservoir, 
+    RECONNECTION_DATA rc_data,
+    daxa_b32 eval_visibility) {
+  dst_jacobian = 0.f;
+
+  if (temp_path_reservoir.weight == 0.f) return daxa_f32vec3(0.0f);
+
+  daxa_b32 is_rc_vertex_escaped_vertex = path_reservoir_get_path_length(temp_path_reservoir.path_flags) + 1 ==
+                                 path_reservoir_get_reconnection_length(temp_path_reservoir.path_flags);
+
+  PATH_RESERVOIR src_reservoir = temp_path_reservoir;
+
+  INSTANCE_HIT dst_rc_prev_vertex_hit;
+  daxa_f32vec3 dst_rc_prev_vertex_wo;
+  daxa_f32vec3 tp;
+
+  if (path_reservoir_get_reconnection_length(src_reservoir.path_flags) == 1) {
+    tp = daxa_f32vec3(1.0f);
+    dst_rc_prev_vertex_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
+    dst_rc_prev_vertex_wo =  daxa_f32vec3(1.0f); // this value doesn't matter, as long as it is not all 0
+
+    if (params.roughness_based_rejection) {
+      daxa_b32 is_specular_bounce = path_reservoir_is_specular_bounce(src_reservoir.path_flags, true);
+
+
+      daxa_b32 is_last_vertex_classified_as_rough =
+          // separate_path_bsdf
+          //     ? (is_specular_bounce ? dst_primary_intersection.mat.roughness_threshold >
+          //                               params.roughness_threshold
+          //                         : has_rough_component(dst_primary_intersection.mat, 1.f))
+          //     : 
+          classify_as_rough(dst_primary_intersection.mat.roughness,
+                                params.roughness_threshold);
+      if (!is_last_vertex_classified_as_rough) {
+        tp = daxa_f32vec3(0.0f);
+      }
+    }
+  } else {
+    dst_rc_prev_vertex_hit = rc_data.rc_prev_hit;
+    dst_rc_prev_vertex_wo = rc_data.rc_prev_wo;
+    tp = rc_data.path_throughput;
+  }
+
+  daxa_f32vec3 rc_tp = daxa_f32vec3(1.0f);
+
+  // the reconnection vertex exists
+  if (any(greaterThan(tp, daxa_f32vec3(0.f))) && (instance_hit_valid(dst_rc_prev_vertex_hit) &&
+                        (path_reservoir_get_reconnection_length(src_reservoir.path_flags) <=
+                             path_reservoir_get_path_length(src_reservoir.path_flags) ||
+                         is_rc_vertex_escaped_vertex))) {
+    // invalid shift
+    if (all(equal(dst_rc_prev_vertex_wo, daxa_f32vec3(0.f))))
+      return daxa_f32vec3(0.0f);
+    else {
+      INTERSECT dst_rc_prev_vertex_sd = dst_primary_intersection;
+      INTERSECT src_rc_prev_vertex_sd = src_primary_intersection;
+
+      if (path_reservoir_get_reconnection_length(src_reservoir.path_flags) > 1) {
+        dst_rc_prev_vertex_sd = load_intersection_data_vertex_position(dst_rc_prev_vertex_hit, dst_rc_prev_vertex_wo, false, true);
+      }
+
+      daxa_f32 reconnection_jacobian = 1.f;
+
+      if (temporal_update_for_dynamic_scene && !is_rc_vertex_escaped_vertex) {
+        // TODO: re-visit this part when we have temporal update
+        // path_tracer_trace_temporal_update(dst_rc_prev_vertex_sd, temp_path_reservoir);
+        src_reservoir.rc_vertex_irradiance[0] =
+            temp_path_reservoir.rc_vertex_irradiance[0];
+        src_reservoir.light_pdf = temp_path_reservoir.light_pdf;
+        path_reservoir_insert_light_type(src_reservoir, path_reservoir_get_light_type(temp_path_reservoir.path_flags));
+        src_reservoir.rc_vertex_wi[0] = temp_path_reservoir.rc_vertex_wi[0];
+      }
+
+      rc_tp = compute_shifted_integrand_reconnection(
+          params, reconnection_jacobian, dst_rc_prev_vertex_sd, src_rc_prev_vertex_sd,
+          src_reservoir, eval_visibility, true,
+          path_reservoir_get_reconnection_length(src_reservoir.path_flags) > 1);
+
+      dst_jacobian *= reconnection_jacobian;
+
+      temp_path_reservoir.cached_jacobian = src_reservoir.cached_jacobian;
+    }
+  }
+
+  return tp * rc_tp;
+}
+
 daxa_f32vec3 compute_shifted_integrand_(
     const SCENE_PARAMS params, inout daxa_f32 dst_jacobian,
     const INSTANCE_HIT dst_primary_hit,
@@ -364,23 +458,29 @@ daxa_f32vec3 compute_shifted_integrand_(
                                         src_reservoir);
     }
 
-    return compute_shifted_integrand_reconnection(
-        params, dst_jacobian, dst_primary_intersection,
-        src_primary_intersection, src_reservoir, eval_visibility, false,
-        false);
+    // TODO: temporary
+    dst_jacobian = 1.f;
+
+    return daxa_f32vec3(1.0f);
+
+    // return compute_shifted_integrand_reconnection(
+    //     params, dst_jacobian, dst_primary_intersection,
+    //     src_primary_intersection, src_reservoir, eval_visibility, false,
+    //     false);
   }
   // else if (params.shift_mapping == SHIFT_MAPPING_RANDOM_REPLAY) {
   // {
   //     return compute_shifted_integrand_random_replay(params, use_prev,
-  //     dst_jacobian, dst_primary_hit, dst_primary_intersection, src_primary_intersection,
-  //     src_reservoir);
+  //     dst_jacobian, dst_primary_hit, dst_primary_intersection,
+  //     src_primary_intersection, src_reservoir);
   // }
-  // else if (params.shift_mapping == SHIFT_MAPPING_HYBRID) {
-  // {
-  //     return compute_shifted_integrand_hybrid(params, use_prev,
-  //     temporal_update_for_dynamic_scene, dst_jacobian, dst_primary_hit,
-  //     dst_primary_intersection, src_primary_intersection, src_reservoir, rc_data, eval_visibility);
-  // }
+  else if (params.shift_mapping == SHIFT_MAPPING_HYBRID) {
+
+    return compute_shifted_integrand_hybrid(
+        params, use_prev, temporal_update_for_dynamic_scene, dst_jacobian,
+        dst_primary_hit, dst_primary_intersection, src_primary_intersection,
+        src_reservoir, rc_data, eval_visibility);
+  }
 
   return daxa_f32vec3(1.0f);
 }

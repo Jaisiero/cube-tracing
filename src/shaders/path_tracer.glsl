@@ -483,7 +483,7 @@ daxa_b32 path_check_rc_vertex(inout PATH_STATE path, INTERSECT i,
       path.path_builder.cached_jacobian.x = path.prev_scatter_pdf;
       // path.path_builder.pathFlags.insertIsDeltaEvent(path.isDelta(), true);
       // path.path_builder.pathFlags.insertIsTransmissionEvent(path.isTransmission(),
-      // true); if (kSeparatePathBSDF)
+      // true); if (separate_path_bsdf)
       //     path.pathBuilder.pathFlags.insertIsSpecularBounce(path.isSpecularBounce(),
       //     true);
 
@@ -509,7 +509,7 @@ daxa_b32 path_check_rc_vertex(inout PATH_STATE path, INTERSECT i,
     if (path.path_length >= 1 &&
         path.path_length <= path.path_builder.rc_vertex_length - 1) {
       // TODO: separate BSDF (pathtracer:1202)
-      // if (kSeparatePathBSDF)
+      // if (separate_path_bsdf)
       // {
       //     if (params.localStrategyType &
       //     (uint)LocalStrategy::RoughnessCondition)

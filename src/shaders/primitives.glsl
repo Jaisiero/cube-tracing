@@ -90,6 +90,13 @@ void intersect_initiliaze(INTERSECT i)
     i.mat = mat;
 }
 
+daxa_b32 instance_hit_valid(INSTANCE_HIT instance_hit)
+{
+    return instance_hit.instance_id < MAX_INSTANCES && instance_hit.primitive_id < MAX_PRIMITIVES;
+}
+
+
+
 daxa_b32 classify_as_rough(daxa_f32 roughness, daxa_f32 roughness_threshold)
 {
     return roughness > roughness_threshold;

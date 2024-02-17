@@ -426,7 +426,9 @@ void main()
                          temporal_update_for_dynamic_scene,
                          SHIFT_MAPPING_RECONNECTION,
                          0, // TODO: pack every flag here
+                         false,
                          NEAR_FIELD_DISTANCE,
+                         false,
                          SPECULAR_ROUGHNESS_THRESHOLD,
                          false,
                          JACOBIAN_REJECTION_THRESHOLD,

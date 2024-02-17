@@ -308,7 +308,7 @@ struct RESERVOIR
 // credits: Generalized Resampled Importance Sampling: Foundations of ReSTIR - Daqi 2022
 struct RECONNECTION_DATA
 {
-    INSTANCE_HIT instance_hit;
+    INSTANCE_HIT rc_prev_hit;
     daxa_f32vec3 rc_prev_wo;
     daxa_f32vec3 path_throughput;
 };
