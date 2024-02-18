@@ -55,15 +55,25 @@ float rnd(inout uint prev)
   return (float(lcg(prev)) / float(0x01000000));
 }
 
+float rnd_interval(inout uint prev, float min, float max)
+{
+  return min + rnd(prev) * (max - min);
+}
+
 uint urnd(inout uint prev)
 {
-  return lcg(prev);
+  return lcg(prev) & 0x7FFFFFFF;
 }
 
 // Generate a random uint unsigned in between two given numbers from given the previous RNG state
 uint urnd_interval(inout uint prev, uint min, uint max)
 {
-  return min + urnd(prev) % (max - min);
+  if(min == max)
+    return min;
+  else if(min > max)
+    return uint(rnd_interval(prev, max, min));
+  else
+    return uint(rnd_interval(prev, min, max));
 }
 
 

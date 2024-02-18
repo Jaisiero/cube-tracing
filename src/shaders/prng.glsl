@@ -115,32 +115,33 @@ daxa_f32vec3 random_in_unit_disk(inout daxa_u32 seed) {
     }
 }
 
-daxa_f32vec3 random_quad(daxa_f32vec3 normal, daxa_f32vec2 size, inout daxa_u32 seed) {
-    // Generate a random point on a quad with normal n and size s
-    daxa_f32vec3 quad_point = daxa_f32vec3(0, 0, 0);
-    daxa_f32vec3 u = daxa_f32vec3(0, 0, 0);
-    daxa_f32vec3 v = daxa_f32vec3(0, 0, 0);
-
-    // Check front facing and back facing quads
-
-    if (normal.x == 0 && normal.y == 0) {
-        u = daxa_f32vec3(1, 0, 0);
-        v = daxa_f32vec3(0, sign(normal.z), 0);
+// Get a random unit vector of one of the six faces of a cube
+daxa_f32vec3 random_cube_normal(inout daxa_u32 seed) {
+    daxa_u32 face = min(urnd_interval(seed, 0, CUBE_FACE_COUNT), CUBE_FACE_COUNT-1);
+    switch (face) {
+    case 0:
+        return daxa_f32vec3(-1, 0, 0);
+    case 1:
+        return daxa_f32vec3(1, 0, 0);
+    case 2:
+        return daxa_f32vec3(0, -1, 0);
+    case 3:
+        return daxa_f32vec3(0, 1, 0);
+    case 4:
+        return daxa_f32vec3(0, 0, -1);
+    case 5:
+        return daxa_f32vec3(0, 0, 1);
     }
-    else if (normal.x == 0 && normal.z == 0) {
-        u = daxa_f32vec3(1, 0, 0);
-        v = daxa_f32vec3(0, 0, sign(normal.y));
-    }
-    else {
-        u = daxa_f32vec3(0, 1, 0);
-        v = daxa_f32vec3(sign(normal.x), 0, 0);
-    }
-    quad_point = quad_point.x * u * size.x + quad_point.y * v * size.y;
-    
-    return quad_point;
-
-
+    return daxa_f32vec3(-1, 0, 0);
 }
+
+// daxa_f32vec3 random_position_in_cube(daxa_f32vec3 p, daxa_f32vec3 s, inout daxa_u32 seed, out daxa_f32vec3 l_nor) {
+//     daxa_f32vec3 n = random_cube_normal(seed);
+//     daxa_f32vec3 l_p = random_quad(n, p, s.xy, seed);
+//     l_nor = n;
+//     l_p += s.z * 0.5 + p;
+//     return l_p;
+// }
 
 // void calculate_orthonormal_basis(daxa_f32vec3 normal, inout daxa_f32vec3 tangent1, inout daxa_f32vec3 tangent2) {
 //     tangent1 = normalize(normalize(daxa_f32vec3(1.0, 0.0, 0.0)) - normal * dot(normalize(daxa_f32vec3(1.0, 0.0, 0.0)), normal));
@@ -154,6 +155,34 @@ void calculate_orthonormal_basis(daxa_f32vec3 normal, inout daxa_f32vec3 tangent
         tangent1 = normalize(daxa_f32vec3(0.0, normal.z, -normal.y));
     }
     tangent2 = normalize(cross(normal, tangent1));
+}
+
+/**
+    * @brief Get a random point in a quad wich can be oriented in any direction
+    * 
+    * @param n Normal of the quad
+    * @param p Origin of the quad
+    * @param s Half size of the quad
+    * @param seed Random seed
+    * @return daxa_f32vec3 Random point in the quad
+    */
+daxa_f32vec3 random_quad(daxa_f32vec3 n, daxa_f32vec3 p, daxa_f32vec2 s, inout daxa_u32 seed) {
+    // 1. Generar dos números aleatorios en el rango [0, 1)
+    daxa_f32 u = rnd(seed);
+    daxa_f32 v = rnd(seed);
+
+    // 2. Calcular un punto aleatorio en el plano del cuadrado unitario en el espacio local del cuadrado
+    daxa_f32vec2 q = daxa_f32vec2(u, v);
+
+    // 3. Escalar q por el tamaño del cuadrado
+    q *= s;
+
+    // 4. Transformar q al espacio del mundo utilizando la orientación proporcionada por la normal n y el punto p
+    daxa_f32vec3 x_axis, y_axis;
+    calculate_orthonormal_basis(n, x_axis, y_axis);
+    daxa_f32vec3 qWorld = p + x_axis * q.x + y_axis * q.y;
+
+    return qWorld;
 }
 
 daxa_f32vec3 random_in_unit_rectangle(daxa_f32vec3 normal, daxa_f32vec3 origin, daxa_f32vec2 dimensions, inout daxa_u32 seed) {

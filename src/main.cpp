@@ -689,6 +689,8 @@ namespace tests
                             surface_light.emissive = materials[material_index].emission;
                             surface_light.instance_info = INSTANCE_HIT(i, j);
                             surface_light.type = GEOMETRY_LIGHT_CUBE;
+                            // TODO: this will be based on voxel size
+                            surface_light.size = VOXEL_EXTENT;
                             lights.push_back(surface_light);
                             status.light_count++;
                         }

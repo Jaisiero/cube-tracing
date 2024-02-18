@@ -51,7 +51,8 @@ void main()
     daxa_u32 max_depth = deref(p.status_buffer).max_depth;
     daxa_u32 frame_number = deref(p.status_buffer).frame_number;
 
-    daxa_u32 seed = tea(index.y * rt_size.x + index.x, frame_number * SAMPLES_PER_PIXEL);
+    // daxa_u32 seed = tea(index.y * rt_size.x + index.x, frame_number * SAMPLES_PER_PIXEL);
+    daxa_u32 seed = tea(index.y * rt_size.x + index.x, frame_number);
 
     prd.hit_value = vec3(1.0);
     prd.seed = seed;
@@ -116,9 +117,9 @@ void main()
         prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, distance, prd.world_hit, prd.world_nrm, model, inv_model, true, true) ? distance : -1.0;
 
 
-        daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
-        prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
-        prd.world_nrm = (transpose(inv_model) * vec4(prd.world_nrm, 0)).xyz;
+        // daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
+        // prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
+        // prd.world_nrm = (transpose(inv_model) * vec4(prd.world_nrm, 0)).xyz;
         // prd.world_hit = compute_ray_origin(prd.world_hit, prd.world_nrm);
         prd.distance = length(prd.world_hit - ray.origin);
 
@@ -191,7 +192,7 @@ void main()
 
         hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
-        daxa_f32 confidence = 0.0;
+        daxa_f32 confidence = 1.0;
 
 #if RESTIR_DI_ON == 1
 #if (RESTIR_DI_TEMPORAL_ON == 1)
@@ -203,8 +204,8 @@ void main()
         // daxa_f32 predicted = clamp((reservoir_previous.M) / (MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD *  daxa_f32(MAX_RIS_SAMPLE_COUNT)), 0.0, 1.0);
         daxa_f32 predicted = clamp((reservoir_previous.M) / (MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD *  daxa_f32(MAX_RIS_SAMPLE_COUNT)), 0.0, 1.0);
 
-        confidence = (reservoir_previous.W_y > 0.0) ? predicted
-                                                    : 0.0;
+        // confidence = (reservoir_previous.W_y > 0.0) ? predicted
+        //                                             : 0.0;
 
 #endif // RESTIR_DI_TEMPORAL_ON
 
@@ -383,10 +384,12 @@ void main()
         daxa_f32 confidence = di_info.confidence;
 
         RESERVOIR spatial_reservoir = reservoir;
+#if (RESTIR_DI_SPATIAL_ON == 1)        
         // TODO: artifacts when using spatial reuse
-        if(confidence < 0.2) {
+        // if(confidence < 0.2) {
             SPATIAL_REUSE(spatial_reservoir, confidence, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf);
-        }
+        // }
+#endif // RESTIR_DI_SPATIAL_ON        
 
         //Calculate reservoir radiance
         calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance);
@@ -400,7 +403,7 @@ void main()
         // Get light
         LIGHT light = get_light_from_light_index(light_index);
         // Calculate radiance
-        radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
+        radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
         
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value

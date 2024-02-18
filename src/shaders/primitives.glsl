@@ -4,6 +4,7 @@
 #include <daxa/daxa.inl>
 #include "defines.glsl"
 #include "Box.glsl"
+#include "prng.glsl"
 
 
 daxa_f32mat4x4 get_geometry_previous_transform_from_instance_id(daxa_u32 instance_id) {
@@ -256,16 +257,14 @@ daxa_b32 is_hit_from_ray_providing_model(Ray ray,
     // Get aabb from primitive
     AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
 
-    Ray ray_object_space;
-    ray_object_space.origin = (inv_model * vec4(ray.origin, 1)).xyz;
-    ray_object_space.direction = (inv_model * vec4(ray.direction, 0)).xyz;
-
     daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
+
+    aabb_center = (model * vec4(aabb_center, 1)).xyz;
 
     Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
 
-    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray_object_space.direction));
-    pos = ray_object_space.origin + ray_object_space.direction * t_hit;
+    daxa_b32 hit = intersect_box(box, ray, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray.direction));
+    pos = ray.origin + ray.direction * t_hit;
 
     return hit;
 }
@@ -293,16 +292,14 @@ daxa_b32 is_hit_from_ray(Ray ray,
 
     inv_model = inverse(model);
 
-    Ray ray_object_space;
-    ray_object_space.origin = (inv_model * vec4(ray.origin, 1)).xyz;
-    ray_object_space.direction = (inv_model * vec4(ray.direction, 0)).xyz;
-
     daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
+
+    aabb_center = (model * vec4(aabb_center, 1)).xyz;
 
     Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
 
-    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray_object_space.direction));
-    pos = ray_object_space.origin + ray_object_space.direction * t_hit;
+    daxa_b32 hit = intersect_box(box, ray, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray.direction));
+    pos = ray.origin + ray.direction * t_hit;
 
     return hit;
 }
@@ -330,15 +327,16 @@ daxa_b32 is_hit_from_origin(daxa_f32vec3 origin_world_space,
 
     daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
 
-    Ray ray_object_space;
-    ray_object_space.origin = (inv_model * vec4(origin_world_space, 1)).xyz;
+    aabb_center = (model * vec4(aabb_center, 1)).xyz;
+
+    Ray ray_world_space = Ray(origin_world_space, daxa_f32vec3(0));
     // Ray needs to travel from origin to center of aabb
-    ray_object_space.direction = normalize(aabb_center - ray_object_space.origin);
+    ray_world_space.direction = normalize(aabb_center - ray_world_space.origin);
 
     Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(inv_model));
 
-    daxa_b32 hit = intersect_box(box, ray_object_space, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray_object_space.direction));
-    pos = ray_object_space.origin + ray_object_space.direction * t_hit;
+    daxa_b32 hit = intersect_box(box, ray_world_space, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray_world_space.direction));
+    pos = ray_world_space.origin + ray_world_space.direction * t_hit;
 
     return hit;
 }
@@ -461,3 +459,55 @@ INTERSECT load_intersection_data_vertex_position(const INSTANCE_HIT instance_hit
 
     return i;
 }
+
+// daxa_b32 is_plane_visible_from_point(daxa_f32vec3 n, daxa_f32vec3 p0, daxa_f32vec3 l0, daxa_f32vec3 l, out daxa_f32 t) {
+//     // assuming vectors are all normalized
+//     daxa_f32 denom = dot(n, l);
+//     if (denom > 1e-6) {
+//         daxa_f32vec3 p0l0 = p0 - l0;
+//         t = dot(p0l0, n) / denom; 
+//         return (t >= 0);
+//     }
+    
+//     return false;
+// }
+
+
+// /**
+//     * @brief Get a random normal of a valid cube surface
+//     * 
+//     * @param p The point from where we are sampling
+//     * @param light The light that we are sampling (l.position, l.size)
+//     * @param seed The seed for the random number generator
+//     * @return daxa_f32vec3 The random point in the cube
+//     */
+// daxa_f32vec3 random_cube_normal_from_a_given_point(daxa_f32vec3 p, LIGHT light, out daxa_f32vec3 l_nor, inout daxa_u32 seed) {
+//     // Get the normal of the face of the cube that contains the point
+
+//     l_nor = daxa_f32vec3(0.0, 0.0, 0.0);
+
+//     daxa_b32 face_found = false;
+
+//     // daxa_f32vec2 s = daxa_f32vec2(light.size * 0.5);
+
+//     daxa_f32 half_size = light.size * 0.5;
+//     daxa_f32vec2 s = daxa_f32vec2(half_size, half_size);
+
+//     daxa_f32 t = 0;
+
+//     daxa_f32vec3 position = daxa_f32vec3(0.0, 0.0, 0.0);
+
+//     while(!face_found) {
+//         l_nor = random_cube_normal(seed);
+
+//         // Get the position of the face
+//         position = light.position + l_nor * half_size;
+        
+//         // Get a position inside the quad face randomly considering the size of the light and the position of the face
+//         position = random_quad(l_nor, position, s, seed);
+
+//         face_found = is_plane_visible_from_point(l_nor, position, p, normalize(position - p), t);
+//     }
+
+//     return position;
+// }

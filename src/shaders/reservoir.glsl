@@ -104,19 +104,9 @@ daxa_b32 is_reservoir_valid(in RESERVOIR reservoir)
   return reservoir.M > 0.0;
 }
 
-daxa_f32vec3 calculate_radiance(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility)
-{
-  return calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, calc_pdf, use_pdf, use_visibility);
-}
-
-daxa_f32 calculate_phat(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility)
+daxa_f32 calculate_phat(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf, daxa_b32 use_visibility)
 {
   return length(calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, calc_pdf, use_pdf, use_visibility));
-}
-
-daxa_f32 calculate_miss_phat(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count, LIGHT light, daxa_u32 object_count, MATERIAL mat, out daxa_f32 pdf_out, out INTERSECT i, const in daxa_b32 use_pdf, const in daxa_b32 use_visibility)
-{
-  return length(direct_mis(ray, hit, light_count, light, object_count, mat, i, pdf_out, use_pdf, use_visibility));
 }
 
 // Use the reservoir to calculate the final radiance.
@@ -130,37 +120,13 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_
     daxa_f32 pdf = 1.0;
     daxa_f32 pdf_out = 1.0;
     // calculate the radiance of this light
-    radiance = calculate_radiance(ray, hit, mat, light_count, light, pdf, pdf_out, false, false, true);
+    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, false, false, false);
 
     // calculate the weight of this light
     p_hat = length(radiance);
 
     // calculate the weight of this light
     reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat))  : 0.0;
-
-    // keep track of p_hat
-    reservoir.p_hat = p_hat;
-  }
-}
-
-
-void calculate_reservoir_mis_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, daxa_u32 obj_count, inout daxa_f32 p_hat, out INTERSECT i, out daxa_f32vec3 radiance)
-{
-
-  if (is_reservoir_valid(reservoir))
-  {
-    LIGHT light = get_light_from_light_index(get_reservoir_light_index(reservoir));
-
-    daxa_f32 pdf_out = 1.0;
-    
-    // calculate the radiance of this light
-    radiance = direct_mis(ray, hit, light_count, light, obj_count, mat, i, pdf_out, false, true);
-
-    // calculate the weight of this light
-    p_hat = length(radiance);
-
-    // calculate the weight of this light
-    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat)) : 0.0;
 
     // keep track of p_hat
     reservoir.p_hat = p_hat;
@@ -200,27 +166,6 @@ void calculate_reservoir_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, in
   }
 }
 
-void calculate_reservoir_miss_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, daxa_u32 object_count, inout daxa_f32 p_hat, out INTERSECT i) 
-{
-
-  if (is_reservoir_valid(reservoir))
-  {
-    LIGHT light = get_light_from_light_index(get_reservoir_light_index(reservoir));
-
-    daxa_f32 pdf = 1.0;
-    daxa_f32 pdf_out = 1.0;
-    // get weight of this reservoir
-    p_hat = calculate_miss_phat(ray, hit, light_count, light, object_count, mat, pdf_out, i, false, false);
-    {
-      // calculate weight of the selected lights
-      reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / reservoir.M) / p_hat : 0.0;
-
-      // keep track of p_hat
-      reservoir.p_hat = p_hat;
-    }
-  }
-}
-
 void calculate_reservoir_aggregation(inout RESERVOIR reservoir, RESERVOIR aggregation_reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count) 
 {
 
@@ -241,9 +186,9 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_u32 object_count, daxa_f32 confidence, 
 
   confidence = clamp(confidence, 0.0, 1.0);
 
-  daxa_u32 NUM_OF_SAMPLES = max(daxa_u32(min(MAX_RIS_SAMPLE_COUNT * (1.0 - confidence), light_count)), MIN_RIS_SAMPLE_COUNT);
+  daxa_u32 num_of_samples = max(daxa_u32(min(MAX_RIS_SAMPLE_COUNT * (1.0 - confidence), light_count)), MIN_RIS_SAMPLE_COUNT);
 
-  for (daxa_u32 l = 0; l < NUM_OF_SAMPLES; l++)
+  for (daxa_u32 l = 0; l < num_of_samples; l++)
   {
     daxa_u32 light_index = min(urnd_interval(hit.seed, 0, light_count), light_count - 1);
 

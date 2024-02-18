@@ -45,6 +45,7 @@
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
 #define MAX_DEPTH 3
 #define AVOID_VOXEL_COLLAIDE 1e-9f   // Delta ray offset for shadow rays
+#define CUBE_FACE_COUNT 6
 
 #define PERLIN_FACTOR 500
 
@@ -260,6 +261,7 @@ struct LIGHT
     daxa_f32vec3 position;
     daxa_f32vec3 emissive;
     INSTANCE_HIT instance_info;
+    daxa_f32 size;
     daxa_u32 type; // 0: point, 1: quad, 2: sphere
 };
 
