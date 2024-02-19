@@ -146,8 +146,12 @@ daxa_f32vec3 evaluate_emissive(INTERSECT i, daxa_f32vec3 wi) {
   return Le;
 }
 
-daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 wo,
+daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
                              daxa_f32vec3 wi) {
+
+  daxa_f32vec3 wo_l = to_local(n, wo);
+  daxa_f32vec3 wi_l = to_local(n, wi);
+
   // TODO: just diffuse for now
   switch (mat.type & MATERIAL_TYPE_MASK) {
   case MATERIAL_TYPE_METAL: {
@@ -161,7 +165,7 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 wo,
   } break;
   default: {
 #if COSINE_HEMISPHERE_SAMPLING == 1
-    daxa_f32 cos_theta = dot(wo, wi);
+    daxa_f32 cos_theta = dot(wo_l, wi_l);
     return cos_theta < MIN_COS_THETA ? 0.f : (DAXA_PI) / cos_theta;
 #else
     return (DAXA_2PI);
@@ -205,7 +209,7 @@ daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit,
   }
   wi = call_scatter.scatter_dir;
 
-  pdf = sample_material_pdf(mat, wo, wi);
+  pdf = sample_material_pdf(mat, call_scatter.nrm, wo, wi);
 
   hit = HIT_INFO_INPUT(call_scatter.hit, call_scatter.nrm, hit.distance, wi,
                        call_scatter.instance_hit, call_scatter.mat_idx,
@@ -391,7 +395,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
                     use_visibility)) {
     daxa_f32vec3 l_wi = normalize(l_pos - P);
     daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
-    daxa_f32 m_pdf = sample_material_pdf(mat, wo, l_wi);
+    daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);
     daxa_f32 mis_weight = eval_mis(1, l_pdf, 1, m_pdf * G, 2.0);
     daxa_f32 cos_theta = get_cos_theta(n, l_wi);
     daxa_f32vec3 brdf = evaluate_material(mat, n, wo, l_wi);

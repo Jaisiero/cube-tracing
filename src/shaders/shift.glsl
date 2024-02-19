@@ -83,6 +83,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
             use_cached_jacobian
                 ? src_reservoir.cached_jacobian.x
                 : sample_material_pdf(src_primary_intersection.mat,
+                                      src_primary_intersection.world_nrm,
                                       src_primary_intersection.wo,
                                       wi);
         daxa_f32 dst_pdf1_all;
@@ -90,7 +91,9 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
         //         daxa_f32 dst_pdf1 = evalPdfBSDF(dst_primary_intersection, wi,
         //         dst_pdf1_all, allowed_sampled_types1);
         daxa_f32 dst_pdf1 = sample_material_pdf(
-            dst_primary_intersection.mat, dst_primary_intersection.wo, wi);
+            dst_primary_intersection.mat, 
+            dst_primary_intersection.world_nrm,
+            dst_primary_intersection.wo, wi);
         dst_pdf1_all = dst_pdf1;
         dst_cached_jacobian.x = dst_pdf1;
         // TODO: re - visit this part when we have multi BSDF evaluation
@@ -136,7 +139,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
     return daxa_f32vec3(0.0f);
 
   INTERSECT rc_vertex_intersection = load_intersection_data_vertex_position(
-      rc_vertex_hit, dst_primary_intersection.world_hit, false, true);
+      rc_vertex_hit, dst_primary_intersection.world_hit, true, false, true);
 
   // need to evaluate source PDF of BSDF sampling
   daxa_f32vec3 dst_connection_v =
@@ -161,7 +164,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   }
 
   dst_cached_jacobian.z = shifted_cosine / shifted_dist2;
-  daxa_f32 jacobian;
+  daxa_f32 jacobian = 1.f;
   if (use_cached_jacobian)
     jacobian = dst_cached_jacobian.z / src_reservoir.cached_jacobian.z;
   else {
@@ -183,7 +186,9 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   // daxa_f32 dst_pdf1 = sample_material_all_pdf(dst_primary_intersection,
   // dst_connection_v, dst_pdf1_all, allowed_sampled_types1);
   daxa_f32 dst_pdf1 = sample_material_pdf(
-      dst_primary_intersection.mat, dst_primary_intersection.wo,
+      dst_primary_intersection.mat,
+      dst_primary_intersection.world_nrm,
+      dst_primary_intersection.wo,
       dst_connection_v);
   dst_pdf1_all = dst_pdf1;
 
@@ -196,10 +201,10 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
       use_cached_jacobian
           ? src_reservoir.cached_jacobian.x
           : sample_material_pdf(src_primary_intersection.mat,
-                                src_primary_intersection.wo,
-                                src_connection_v);
+                                src_primary_intersection.world_nrm,
+                                src_primary_intersection.wo, src_connection_v);
 
-  jacobian *= dst_pdf1 / src_pdf1;
+  jacobian *= (dst_pdf1 / src_pdf1);
 
   if (is_jacobian_invalid(jacobian))
     return daxa_f32vec3(0.0f);
@@ -229,8 +234,8 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
     // dst_rc_vertex_scatter_pdf = evalPdfBSDF(rc_vertex_intersection,
     // rc_vertex_wi, dst_rc_vertex_scatter_pdf_all, allowed_sampled_type2);
     dst_rc_vertex_scatter_pdf = sample_material_pdf(
-        rc_vertex_intersection.mat, rc_vertex_intersection.wo,
-        rc_vertex_wi);
+        rc_vertex_intersection.mat, rc_vertex_intersection.world_nrm,
+        rc_vertex_intersection.wo, rc_vertex_wi);
     dst_rc_vertex_scatter_pdf_all = dst_rc_vertex_scatter_pdf;
 
     dst_cached_jacobian.y = dst_rc_vertex_scatter_pdf;
@@ -243,8 +248,8 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
         use_cached_jacobian
             ? src_reservoir.cached_jacobian.y
             : sample_material_pdf(rc_vertex_intersection.mat,
-                                  -src_connection_v,
-                                  rc_vertex_wi);
+                                  rc_vertex_intersection.world_nrm,
+                                  -src_connection_v, rc_vertex_wi);
 
     if (!is_rc_vertex_NEE)
       dst_pdf2 = dst_rc_vertex_scatter_pdf;
@@ -408,7 +413,7 @@ daxa_f32vec3 compute_shifted_integrand_hybrid(
       INTERSECT src_rc_prev_vertex_sd = src_primary_intersection;
 
       if (path_reservoir_get_reconnection_length(src_reservoir.path_flags) > 1) {
-        dst_rc_prev_vertex_sd = load_intersection_data_vertex_position(dst_rc_prev_vertex_hit, dst_rc_prev_vertex_wo, false, true);
+        dst_rc_prev_vertex_sd = load_intersection_data_vertex_position(dst_rc_prev_vertex_hit, dst_rc_prev_vertex_wo, true, false, true);
       }
 
       daxa_f32 reconnection_jacobian = 1.f;
