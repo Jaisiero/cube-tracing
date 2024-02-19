@@ -63,8 +63,8 @@ daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, inout INTERSECT i) {
 
   if (valid) {
     // TODO: group evaluation and cosine together
-    daxa_f32vec3 weight = evaluate_material(i.mat, i.world_nrm, i.wo, i.wi) * get_cos_theta(i.world_nrm, i.wi);
-    daxa_f32 pdf = sample_material_pdf(i.mat, i.world_nrm, i.wo, i.wi);
+    daxa_f32vec3 weight = evaluate_material(i.mat, i.world_nrm, i.wo, i.wi); //* get_cos_theta(i.world_nrm, i.wi);
+    daxa_f32 pdf = sample_material_pdf(i.mat, i.wo, i.wi);
 
     path.dir = i.wi;
 
@@ -392,7 +392,7 @@ daxa_b32 path_handle_sample_light(const SCENE_PARAMS params,
       daxa_f32 scatter_pdf = 0.f;
 
       // TODO: Check if this is correct
-      scatter_pdf = sample_material_pdf(i.mat, i.world_nrm, i.wo, ls.dir);
+      scatter_pdf = sample_material_pdf(i.mat, i.wo, ls.dir);
 
       mis_weight *= eval_mis(1, ls.pdf, 1, scatter_pdf, 2.0);
 

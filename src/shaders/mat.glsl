@@ -6,9 +6,12 @@
 #include "prng.glsl"
 
 
-daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
+daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 wo, daxa_f32vec3 wi) {
 #if (COSINE_HEMISPHERE_SAMPLING == 1)
-    return mat.diffuse * INV_DAXA_PI;
+    if(min(wo.z, wi.z) < MIN_COS_THETA) {
+        return vec3(0.0);
+    }
+    return mat.diffuse * INV_DAXA_PI * wi.z;
 #else     
     return mat.diffuse * INV_DAXA_PI;
 #endif
@@ -42,12 +45,27 @@ daxa_f32vec3 get_constant_medium_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f3
     return mat.diffuse * INV_DAXA_4PI;
 }
 
+daxa_f32vec3 to_local(daxa_f32vec3 n, daxa_f32vec3 v) {
+    daxa_f32vec3 u, v2, w;
+    if (abs(n.x) > abs(n.y)) {
+        daxa_f32 invLen = 1.0 / sqrt(n.x * n.x + n.z * n.z);
+        u = vec3(-n.z * invLen, 0.0, n.x * invLen);
+    } else {
+        daxa_f32 invLen = 1.0 / sqrt(n.y * n.y + n.z * n.z);
+        u = vec3(0.0, n.z * invLen, -n.y * invLen);
+    }
+    v2 = cross(n, u);
+    w = normalize(n);
+    return vec3(dot(v, u), dot(v, v2), dot(v, w));
+}
+
 daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi) {
-    daxa_f32vec3 color = vec3(0.0);
-    switch (mat.type & MATERIAL_TYPE_MASK)
-    {
-        case MATERIAL_TYPE_METAL: {
-            color = get_metal_BRDF(mat, n, wi, wo);
+  daxa_f32vec3 wo_l = to_local(n, wo);
+  daxa_f32vec3 wi_l = to_local(n, wi);
+  daxa_f32vec3 color = vec3(0.0);
+  switch (mat.type & MATERIAL_TYPE_MASK) {
+  case MATERIAL_TYPE_METAL: {
+    color = get_metal_BRDF(mat, n, wi, wo);
         }
         break;
         case MATERIAL_TYPE_DIELECTRIC: {
@@ -59,7 +77,8 @@ daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, da
         }
         break;
         default: {
-            color = get_diffuse_BRDF(mat, n, wi, wo);
+
+            color = get_diffuse_BRDF(mat, wo_l, wi_l);
         }
         break;
     }

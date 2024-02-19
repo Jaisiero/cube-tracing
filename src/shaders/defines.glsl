@@ -26,14 +26,15 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define FORCE_ACCUMULATOR_ON 0
 
 #define LIGHT_SAMPLING_ON 1
-#define RESTIR_DI_ON 1
+#define RESTIR_DI_ON 0
 #define RESTIR_DI_TEMPORAL_ON 1
 #define RESTIR_DI_SPATIAL_ON 1
-#define RESTIR_PT_ON 0
+#define RESTIR_PT_ON 1
+#define RESTIR_PT_TEMPORAL_ON 1
 
-#define DIRECT_ILLUMINATION_ON 1
+#define DIRECT_ILLUMINATION_ON 0
 #define DIRECT_EMITTANCE_ON 1
-#define INDIRECT_ILLUMINATION_ON 0
+#define INDIRECT_ILLUMINATION_ON 1
 #define CALLABLE_ON 1
 
 #define KNOWN_LIGHT_POSITION 1
@@ -46,6 +47,9 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
 #define HLF_MAX 6.5504e+4F // max value for half float
 #define FLT_MIN 1.175494351e-38F  // min normalized positive value
+
+#define MIN_COS_THETA 1e-6f
+
 
 // TODO: M by parameter?
 const daxa_u32 MIN_RIS_SAMPLE_COUNT = 4;
@@ -61,6 +65,7 @@ const daxa_f32 MAX_NEIGHBORS_RADIUS = 10.0f;
 const daxa_f32 NEAR_FIELD_DISTANCE = HALF_VOXEL_EXTENT * 0.0f;
 const daxa_f32 SPECULAR_ROUGHNESS_THRESHOLD = 0.0f; // 0.2f;
 const daxa_f32 JACOBIAN_REJECTION_THRESHOLD = 0.0f;
+const daxa_f32 MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD_PT = 20.0f;
 
 
 

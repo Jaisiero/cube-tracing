@@ -130,7 +130,7 @@ void temporal_path_reuse(const SCENE_PARAMS params,
   daxa_f32 current_M = central_reservoir.M;
 
   // Clamp the influence from the past
-  temporal_reservoir.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * current_M,
+  temporal_reservoir.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD_PT * current_M,
                              temporal_reservoir.M);
 
   // for hybrid shift
@@ -254,6 +254,7 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
   PATH_RESERVOIR central_reservoir = trace_restir_path_tracing(
       params, index, rt_size, ray, i, seed, throughput);
 
+#if RESTIR_PT_TEMPORAL_ON == 1
   daxa_u32 current_index;
   daxa_u32 prev_predicted_index;
   PATH_RESERVOIR temporal_reservoir = temporal_path_get_reprojected(
@@ -269,6 +270,7 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
   // Temporal path reuse previous frame contribution
   temporal_path_reuse(params, central_reservoir, temporal_reservoir,
                       current_index, seed, i, prev_i, throughput);
+#endif // RESTIR_PT_TEMPORAL_ON                      
 
   // Set the current reservoir for next frame
   // set_temporal_path_reservoir_by_index(current_index, central_reservoir);
@@ -288,7 +290,7 @@ void indirect_illumination_path_tracing(
   prd.ray_scatter_dir = i.wi;
   prd.mat_index = i.material_idx;
   prd.instance_hit = i.instance_hit;
-  prd.hit_value = daxa_f32vec3(0.0);
+  prd.hit_value = daxa_f32vec3(1.0);
   // prd.done = true;
 
   // generate_scatter_ray(i, seed);
@@ -315,7 +317,7 @@ void indirect_illumination_path_tracing(
           direct_mis(scattered_ray, hit, light_count, light, object_count,
                      i.mat, i, pdf_out, true, true);
 
-      prd.hit_value += radiance;
+      prd.hit_value *= radiance;
       // prd.hit_value += i.mat.emission;
       prd.done = false;
     } else {

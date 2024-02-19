@@ -17,7 +17,7 @@
 
 namespace tests
 {
-    void ray_querry_triangle()
+    void cubeland_app()
     {
         struct App : AppWindow<App>
         {
@@ -27,12 +27,12 @@ namespace tests
             const u32 CLOUD_INSTANCE_COUNT = 1; // 2^1 (mirrored on both sides of the x axis)
             const u32 CLOUD_INSTANCE_COUNT_X = (CLOUD_INSTANCE_COUNT * 2);
             // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
-            const u32 LAMBERTIAN_MATERIAL_COUNT = 500;
+            const u32 LAMBERTIAN_MATERIAL_COUNT = 3000;
             // const u32 METAL_MATERIAL_COUNT = 15;
             const u32 METAL_MATERIAL_COUNT = 0;
             // const u32 DIALECTRIC_MATERIAL_COUNT = 5;
             const u32 DIALECTRIC_MATERIAL_COUNT = 0;
-            const u32 EMISSIVE_MATERIAL_COUNT = 5;
+            const u32 EMISSIVE_MATERIAL_COUNT = 1;
             const u32 CONSTANT_MEDIUM_MATERIAL_COUNT = 5;
             const u32 MATERIAL_COUNT = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
             const u32 MATERIAL_COUNT_UP_TO_DIALECTRIC = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT;
@@ -339,7 +339,7 @@ namespace tests
 
             daxa_f32vec3 interpolate_sun_light(float t, bool is_afternoon) {
                 // Definir las posiciones clave para el medio día y el atardecer
-                glm::vec3 middayPosition = glm::vec3(0.0, 20.0, 0.0);
+                glm::vec3 middayPosition = glm::vec3(0.0, SUN_TOP_POSITION, 0.0);
                 glm::vec3 sunsetPosition = glm::vec3(50.0, 0.0, 0.0);  // Modificar la posición del atardecer
 
                 // Calcular las coordenadas elípticas basadas en el tiempo
@@ -472,8 +472,6 @@ namespace tests
 
             void create_point_lights() {
                 // TODO: add more lights (random values?)
-                status.light_count += 3;
-                // status.light_count = 1;
                 status.is_afternoon = true;
 
                 if(status.light_count > MAX_LIGHTS) {
@@ -482,7 +480,7 @@ namespace tests
                 }
 
                 LIGHT light = {}; // 0: point light, 1: directional light
-                light.position = daxa_f32vec3(0.0, 20.0, 0.0);
+                light.position = daxa_f32vec3(0.0, SUN_TOP_POSITION, 0.0);
 #if DYNAMIC_SUN_LIGHT == 1
                 light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2);
 #else
@@ -499,18 +497,21 @@ namespace tests
 #endif // DYNAMIC_SUN_LIGHT
                 light.type = GEOMETRY_LIGHT_POINT;
                 lights.push_back(light);
+                ++status.light_count;
 
-                LIGHT light2 = {};
-                light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0001);
-                light2.emissive = daxa_f32vec3(3.0, 3.0, 3.0);
-                light2.type = GEOMETRY_LIGHT_POINT;
-                lights.push_back(light2);
+                // LIGHT light2 = {};
+                // light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0001);
+                // light2.emissive = daxa_f32vec3(3.0, 3.0, 3.0);
+                // light2.type = GEOMETRY_LIGHT_POINT;
+                // lights.push_back(light2);
+                // ++status.light_count;
 
-                LIGHT light3 = {};
-                light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0001);
-                light3.emissive = daxa_f32vec3(4.0, 4.0, 4.0);
-                light3.type = GEOMETRY_LIGHT_POINT;
-                lights.push_back(light3);
+                // LIGHT light3 = {};
+                // light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0001);
+                // light3.emissive = daxa_f32vec3(4.0, 4.0, 4.0);
+                // light3.type = GEOMETRY_LIGHT_POINT;
+                // lights.push_back(light3);
+                // ++status.light_count;
             }
 
             void load_lights() {
@@ -646,7 +647,7 @@ namespace tests
                     for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
                         for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                             for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
-                                if(random_float(0.0, 1.0) > 0.93) {
+                                if(random_float(0.0, 1.0) > 0.75) {
                                     min_max.push_back(generate_min_max_by_coord(x, y, z, VOXEL_EXTENT));
                                 }
                             }
@@ -1481,7 +1482,7 @@ namespace tests
                                 for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
                                     for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
                                         // if(random_float(0.0, 1.0) > 0.95) {
-                                        if(random_float(0.0, 1.0) > 0.80) {
+                                        if(random_float(0.0, 1.0) > 0.75) {
                                             auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
                                             transforms.push_back(daxa_f32mat4x4{
                                                 {1, 0, 0, x_instance_displacement + position_instance.x},
@@ -1522,7 +1523,7 @@ namespace tests
 
                         daxa_u32 texture_id = MAX_TEXTURES;
                         daxa_f32 random_float_value = random_float(0.0, 1.0);
-                        if(random_float_value > 0.95) {
+                        if(random_float_value > 0.80) {
                             texture_id = random_uint(0, current_texture_count - 1);
                         }
 
@@ -2549,6 +2550,6 @@ namespace tests
 
 auto main() -> int
 {
-    tests::ray_querry_triangle();
+    tests::cubeland_app();
     return 0;
 }
