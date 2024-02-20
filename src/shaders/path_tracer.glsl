@@ -248,6 +248,8 @@ daxa_b32 path_generate_light_sample(const SCENE_PARAMS params, INTERSECT i,
 
   ls.dir = normalize(l_pos - i.world_hit);
 
+  ls.Li /= pdf;
+
   seed = hit.seed;
 
   return found;

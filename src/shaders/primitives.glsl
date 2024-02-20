@@ -446,7 +446,7 @@ INTERSECT load_intersection_data_vertex_position(
   } else {
     // daxa_f32vec4 pos_4 = model * daxa_f32vec4(pos, 1);
     // pos = pos_4.xyz / pos_4.w;
-    // nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
+    nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
     pos = compute_ray_origin(pos, nor);
     distance = length(world_pos - pos);
 

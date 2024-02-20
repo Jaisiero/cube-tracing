@@ -8,10 +8,12 @@
 
 daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 wo, daxa_f32vec3 wi) {
 #if (COSINE_HEMISPHERE_SAMPLING == 1)
-    if(min(wo.z, wi.z) < MIN_COS_THETA) {
-        return vec3(0.0);
-    }
-    return mat.diffuse * INV_DAXA_PI * wi.z;
+    // TODO: check this
+    // if(min(wo.z, wi.z) < MIN_COS_THETA) {
+    //     return daxa_f32vec3(0.0);
+    // }
+    // return mat.diffuse * INV_DAXA_PI * wi.z;
+    return mat.diffuse * INV_DAXA_PI;
 #else     
     return mat.diffuse * INV_DAXA_PI;
 #endif
@@ -45,47 +47,38 @@ daxa_f32vec3 get_constant_medium_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f3
     return mat.diffuse * INV_DAXA_4PI;
 }
 
+// TODO: check this
 daxa_f32vec3 to_local(daxa_f32vec3 n, daxa_f32vec3 v) {
-    daxa_f32vec3 u, v2, w;
-    if (abs(n.x) > abs(n.y)) {
-        daxa_f32 invLen = 1.0 / sqrt(n.x * n.x + n.z * n.z);
-        u = vec3(-n.z * invLen, 0.0, n.x * invLen);
-    } else {
-        daxa_f32 invLen = 1.0 / sqrt(n.y * n.y + n.z * n.z);
-        u = vec3(0.0, n.z * invLen, -n.y * invLen);
-    }
-    v2 = cross(n, u);
-    w = normalize(n);
-    return vec3(dot(v, u), dot(v, v2), dot(v, w));
+//   daxa_f32vec3 u, v2, w;
+//   w = normalize(n);
+//   calculate_orthonormal_basis(w, u, v2);
+//   return daxa_f32vec3(dot(u, w), dot(v2, w), dot(n, w));
+    return v;
 }
 
-daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi) {
+daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
+                               daxa_f32vec3 wi) {
   daxa_f32vec3 wo_l = to_local(n, wo);
   daxa_f32vec3 wi_l = to_local(n, wi);
-  daxa_f32vec3 color = vec3(0.0);
+  daxa_f32vec3 color = daxa_f32vec3(0.0);
   switch (mat.type & MATERIAL_TYPE_MASK) {
   case MATERIAL_TYPE_METAL: {
     color = get_metal_BRDF(mat, n, wi, wo);
-        }
-        break;
-        case MATERIAL_TYPE_DIELECTRIC: {
-            color = get_dialectric_BRDF(mat, n, wi, wo);
-        }
-        break;
-        case MATERIAL_TYPE_CONSTANT_MEDIUM: {
-            color = get_constant_medium_BRDF(mat, n, wi, wo);
-        }
-        break;
-        default: {
+  } break;
+  case MATERIAL_TYPE_DIELECTRIC: {
+    color = get_dialectric_BRDF(mat, n, wi, wo);
+  } break;
+  case MATERIAL_TYPE_CONSTANT_MEDIUM: {
+    color = get_constant_medium_BRDF(mat, n, wi, wo);
+  } break;
+  default: {
 
-            color = get_diffuse_BRDF(mat, wo_l, wi_l);
-        }
-        break;
-    }
+    color = get_diffuse_BRDF(mat, wo_l, wi_l);
+  } break;
+  }
 
-    return color;
+  return color;
 }
-
 
 daxa_f32vec3 eval_bsdf_cosine(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi)  {
     return evaluate_material(mat, n, wo, wi);
