@@ -19,7 +19,7 @@ daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
   return max(dot(n, w_i), 0.0);
 }
 
-daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, INSTANCE_HIT instance_target, const daxa_b32 check_instance) {
+daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, INSTANCE_HIT instance_target, const daxa_b32 check_instance, const daxa_b32 previous_frame) {
   // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
   daxa_f32 t_min = 0.0;
@@ -59,7 +59,7 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, INSTANCE_HIT instance_tar
       daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
       if (is_hit_from_ray(ray, instance_hit, half_extent, hit_distance, int_hit,
-                          int_nor, model, inv_model, false, true)) {
+                          int_nor, model, inv_model, previous_frame, false, true)) {
         rayQueryGenerateIntersectionEXT(ray_query, hit_distance);
 
         daxa_u32 type_commited =
@@ -91,7 +91,7 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, INSTANCE_HIT instance_tar
 }
 
 
-daxa_b32 is_segment_visible(daxa_f32vec3 source_vertex, daxa_f32vec3 target_vertex, daxa_b32 is_dir) {
+daxa_b32 is_segment_visible(daxa_f32vec3 source_vertex, daxa_f32vec3 target_vertex, daxa_b32 is_dir, const daxa_b32 previous_frame) {
   
   Ray ray;
   daxa_f32 distance;
@@ -103,7 +103,7 @@ daxa_b32 is_segment_visible(daxa_f32vec3 source_vertex, daxa_f32vec3 target_vert
     distance = length(target_vertex - source_vertex);
   }
 
-  return is_vertex_visible(ray, distance, INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES), false);
+  return is_vertex_visible(ray, distance, INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES), false, previous_frame);
 }
 
 daxa_f32 geom_fact_sa(daxa_f32vec3 P, daxa_f32vec3 P_surf, daxa_f32vec3 n_surf) {
@@ -332,7 +332,8 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
   Ray shadow_ray = Ray(P, l_v);
 
   if (visibility && vis) {
-    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, true);
+    // TODO: check if we need to use the previous frame
+    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, true, false);
   }
 
   P_out = l_pos;

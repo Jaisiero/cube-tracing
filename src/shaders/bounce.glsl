@@ -101,7 +101,7 @@ INTERSECT intersect(Ray ray)
 
             daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
-            if(is_hit_from_ray(ray, instance_hit, half_extent, distance, int_hit, int_nor, model, inv_model, true, false)) {
+            if(is_hit_from_ray(ray, instance_hit, half_extent, distance, int_hit, int_nor, model, inv_model, false, true, false)) {
                 rayQueryGenerateIntersectionEXT(ray_query, distance);
 
                 daxa_u32 type_commited = rayQueryGetIntersectionTypeEXT(ray_query, true);

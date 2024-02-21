@@ -75,9 +75,10 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
       daxa_f32vec3 wi = rc_vertex_wi;
 
       // Check if the environment map light is visible (sky light)
+      // TODO: check if we need to check for previous intersection
       daxa_b32 is_visible =
           is_segment_visible(dst_primary_intersection.world_hit, wi,
-                             true); // test along a direction
+                             true, false); // test along a direction
       if (is_visible) {
         daxa_f32 src_pdf1 =
             use_cached_jacobian
@@ -137,6 +138,15 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   // be set)
   if (is_delta1 || is_delta2)
     return daxa_f32vec3(0.0f);
+
+  // TODO: Add vertex point to the path reservoir
+  // Ray intersection_ray = Ray(dst_primary_intersection.world_hit,
+  //                            rc_vertex_wi); // ray from dst primary hit point to
+  //                                            // reconnection vertex
+
+  // INTERSECT rc_vertex_intersection = load_intersection_data_vertex_position_by_ray(
+  //     rc_vertex_hit, intersection_ray, true, false, true);
+
 
   INTERSECT rc_vertex_intersection = load_intersection_data_vertex_position(
       rc_vertex_hit, dst_primary_intersection.world_hit, true, false, true);
@@ -273,13 +283,11 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
     return daxa_f32vec3(0.0f);
 
   //////
-  daxa_f32vec3 dst_integrand_no_f1 =
-  dst_f2 / dst_pdf2 
-  * rc_vertex_irradiance;
-  daxa_f32vec3 dst_integrand = 
+  daxa_f32vec3 dst_integrand_no_f1 = dst_f2 / dst_pdf2 * rc_vertex_irradiance;
+  daxa_f32vec3 dst_integrand =
       dst_f1 / dst_pdf1 *
       dst_integrand_no_f1; // TODO: might need to reevaluate Le for changing
-                           // emissive lights
+                           //  // emissive lights
 
   if (is_rc_vertex_escaped_vertex) {
     daxa_f32 mis_weight =
@@ -322,8 +330,10 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
     // TODO: Check if we need to offset the distance here
     daxa_f32 distance = distance(dst_primary_intersection.world_hit, 
       rc_vertex_intersection.world_hit);
+      
+    // TODO: check if we need to check for previous intersection
     daxa_b32 is_visible = is_vertex_visible(
-        shadow_ray, distance, rc_vertex_intersection.instance_hit, true);
+        shadow_ray, distance, rc_vertex_intersection.instance_hit, true, false);
     if (!is_visible)
       return daxa_f32vec3(0.0f);
   }

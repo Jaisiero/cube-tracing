@@ -326,8 +326,8 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params,
           daxa_f32 geometry_factor = 
             abs(dot(i.world_nrm, i.wo)) / dot(disp, disp);
 
-          if(isnan(geometry_factor)) 
-            geometry_factor = 0.f;
+          // if(isnan(geometry_factor)) 
+          //   geometry_factor = 0.f;
 
           path_builder_mark_escape_vertex_as_rc_vertex(
               path.path_builder, path.path_length, path.path_reservoir,
@@ -458,6 +458,14 @@ daxa_b32 path_handle_primary_hit(const SCENE_PARAMS params,
   daxa_b32 valid = path_generate_scatter_ray(path, i);
 
   // TODO: Check if (pathtracer:1403) necessary here
+
+
+  if(path.path_length == path.path_builder.rc_vertex_length) {
+    path.path_builder.cached_random_seed = path.seed;
+  }
+
+
+  path.path_builder.rc_vertex_wi[0] = path.dir;
 
   return valid;
 }

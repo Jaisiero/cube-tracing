@@ -277,6 +277,7 @@ daxa_b32 is_hit_from_ray(Ray ray,
                          out daxa_f32vec3 nor,
                          out daxa_f32mat4x4 model,
                          out daxa_f32mat4x4 inv_model,
+                         const in daxa_b32 previous_frame,
                          const in daxa_b32 ray_can_start_in_box,
                          const in daxa_b32 oriented)
 {
@@ -288,7 +289,14 @@ daxa_b32 is_hit_from_ray(Ray ray,
     AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
 
     // Get model matrix from instance
-    model = instance.transform;
+    if(previous_frame)
+    {
+        model = instance.prev_transform;
+    }
+    else
+    {
+        model = instance.transform;
+    }
 
     inv_model = inverse(model);
 
@@ -451,6 +459,65 @@ INTERSECT load_intersection_data_vertex_position(
     distance = length(world_pos - pos);
 
     daxa_f32vec3 wo = normalize(world_pos - pos);
+
+    daxa_u32 material_idx = MAX_MATERIALS;
+    MATERIAL mat;
+
+    if (load_material) {
+      material_idx =
+          get_material_index_from_instance_and_primitive_id(instance_hit);
+      mat = get_material_from_material_index(material_idx);
+    }
+
+    i = INTERSECT(true, distance, pos, nor, wo, daxa_f32vec3(0), instance_hit,
+                  material_idx, mat);
+  }
+
+  return i;
+}
+
+
+
+
+
+
+
+
+/**
+ *  @brief Load intersection data from vertex position by ray and optionally load
+ * material
+ *
+ * @param instance_hit Instance hit
+ * @param world_pos World position
+ * @param primary_hit Primary hit
+ * @param load_material Load material
+ */
+INTERSECT load_intersection_data_vertex_position_by_ray(
+    const INSTANCE_HIT instance_hit, const Ray ray,
+    const daxa_b32 is_previous_frame, daxa_b32 is_primary_hit,
+    const daxa_b32 load_material) {
+  INTERSECT i;
+
+  daxa_f32 distance;
+  daxa_f32vec3 pos;
+  daxa_f32vec3 nor;
+  daxa_f32mat4x4 model;
+  daxa_f32mat4x4 inv_model;
+  // TODO: This should be a parameter
+  daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
+
+  if (!is_hit_from_ray(ray, instance_hit, half_extent, distance, pos,
+                          nor, model, inv_model, is_previous_frame, true,
+                          true)) {
+    intersect_initiliaze(i);
+  } else {
+    // daxa_f32vec4 pos_4 = model * daxa_f32vec4(pos, 1);
+    // pos = pos_4.xyz / pos_4.w;
+    nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
+    pos = compute_ray_origin(pos, nor);
+    distance = length(ray.origin - pos);
+
+    daxa_f32vec3 wo = normalize(ray.origin - pos);
 
     daxa_u32 material_idx = MAX_MATERIALS;
     MATERIAL mat;
