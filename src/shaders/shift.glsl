@@ -139,15 +139,6 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   if (is_delta1 || is_delta2)
     return daxa_f32vec3(0.0f);
 
-  // TODO: Add vertex point to the path reservoir
-  // Ray intersection_ray = Ray(dst_primary_intersection.world_hit,
-  //                            rc_vertex_wi); // ray from dst primary hit point to
-  //                                            // reconnection vertex
-
-  // INTERSECT rc_vertex_intersection = load_intersection_data_vertex_position_by_ray(
-  //     rc_vertex_hit, intersection_ray, true, false, true);
-
-
   INTERSECT rc_vertex_intersection = load_intersection_data_vertex_position(
       rc_vertex_hit, dst_primary_intersection.world_hit, true, false, true);
 
@@ -205,7 +196,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   dst_cached_jacobian.x = dst_pdf1;
   // TODO: re-visit this part when we implement multi BSDF evaluation
   // daxa_f32 src_pdf1 = use_cached_jacobian ? src_reservoir.cached_jacobian.x :
-  // evalPdfBSDF(src_primary_intersection, src_connection_v,
+  // sample_material_pdf_all(src_primary_intersection, src_connection_v,
   // allowed_sampled_types1); //
   daxa_f32 src_pdf1 =
       use_cached_jacobian
@@ -241,7 +232,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   if (!is_rc_vertex_escaped_vertex) {
     // assuming bsdf sampling
     // TODO: re-visit this part when we implement multi BSDF evaluation
-    // dst_rc_vertex_scatter_pdf = evalPdfBSDF(rc_vertex_intersection,
+    // dst_rc_vertex_scatter_pdf = sample_material_pdf_all(rc_vertex_intersection,
     // rc_vertex_wi, dst_rc_vertex_scatter_pdf_all, allowed_sampled_type2);
     dst_rc_vertex_scatter_pdf = sample_material_pdf(
         rc_vertex_intersection.mat, rc_vertex_intersection.world_nrm,

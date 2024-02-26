@@ -308,6 +308,7 @@ daxa_b32 is_hit_from_ray(Ray ray,
 
     daxa_b32 hit = intersect_box(box, ray, t_hit, nor, ray_can_start_in_box, oriented, safeInverse(ray.direction));
     pos = ray.origin + ray.direction * t_hit;
+    nor = (transpose(inv_model) * vec4(nor, 0)).xyz;
 
     return hit;
 }
@@ -456,7 +457,7 @@ INTERSECT load_intersection_data_vertex_position(
   } else {
     // daxa_f32vec4 pos_4 = model * daxa_f32vec4(pos, 1);
     // pos = pos_4.xyz / pos_4.w;
-    nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
+    // nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
     pos = compute_ray_origin(pos, nor);
     distance = length(world_pos - pos);
 
@@ -515,7 +516,7 @@ INTERSECT load_intersection_data_vertex_position_by_ray(
   } else {
     // daxa_f32vec4 pos_4 = model * daxa_f32vec4(pos, 1);
     // pos = pos_4.xyz / pos_4.w;
-    nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
+    // nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
     pos = compute_ray_origin(pos, nor);
     distance = length(ray.origin - pos);
 

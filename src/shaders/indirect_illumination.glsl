@@ -324,7 +324,7 @@ void indirect_illumination_path_tracing(
       prd.done = true;
       prd.hit_value *= calculate_sky_color(deref(p.status_buffer).time,
                                            deref(p.status_buffer).is_afternoon,
-                                           ray.direction);
+                                           scattered_ray.direction);
     }
 
     prd.depth--;
