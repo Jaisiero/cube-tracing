@@ -8,7 +8,7 @@
 /// Builds a Path and a PathPrefix.
 struct PATH_BUILDER
 {
-    INSTANCE_HIT rc_vertex_hit;
+    OBJECT_HIT rc_vertex_hit;
     daxa_f32vec3 rc_vertex_wi[K_RC_ATTR_COUNT];
     daxa_u32 cached_random_seed;
     daxa_u32 seed;
@@ -20,7 +20,7 @@ struct PATH_BUILDER
 void path_builder_init(const SCENE_PARAMS params, inout PATH_BUILDER path_builder, daxa_u32 seed)
 {
     path_builder.seed = seed;
-    path_builder.rc_vertex_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+    path_builder.rc_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.f));
     path_builder.rc_vertex_wi[0] = daxa_f32vec3(0.0);
     path_builder.cached_random_seed = 0;
     path_builder.rc_vertex_length = params.max_depth;
@@ -114,7 +114,7 @@ daxa_b32 path_builder_add_NEE_vertex(inout PATH_BUILDER path_builder, daxa_u32 p
 void path_builder_mark_escape_vertex_as_rc_vertex(inout PATH_BUILDER path_builder,
                                                   daxa_u32 path_length,
                                                   inout PATH_RESERVOIR path_reservoir,
-                                                  INSTANCE_HIT hit,
+                                                  OBJECT_HIT hit,
                                                   daxa_b32 is_delta,
                                                   daxa_b32 is_transmission,
                                                   daxa_b32 is_specular_bounce,

@@ -139,7 +139,7 @@ void path_next_vertex(inout PATH_STATE path, out INTERSECT i) {
   i = intersect(Ray(path.origin, path.dir));
 
   if (i.is_hit) {
-    path_set_hit(path, i.instance_hit);
+    path_set_hit(path, OBJECT_HIT(i.instance_hit, i.world_hit));
     path.path_length++;
     path.scene_length += i.distance;
   } else {
@@ -813,8 +813,8 @@ void path_handle_miss(const SCENE_PARAMS params, inout PATH_STATE path,
             // we found an RC vertex!
             // set rcVertexLength to current length (this will make
             // rcVertexLength = reseroivr.pathLength + 1)
-            INSTANCE_HIT dummy_hit =
-                INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+            OBJECT_HIT dummy_hit =
+                OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.f));
             path_builder_mark_escape_vertex_as_rc_vertex(
                 path.path_builder, path.path_length + 1, path.path_reservoir,
                 dummy_hit, path_is_delta_event(path),
@@ -855,7 +855,7 @@ PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params,
                                          INTERSECT i, inout daxa_u32 seed,
                                          inout daxa_f32vec3 throughput) {
   PATH_STATE path;
-  generate_path(params, path, index, rt_size, i.instance_hit, ray, seed,
+  generate_path(params, path, index, rt_size, OBJECT_HIT(i.instance_hit, i.world_hit), ray, seed,
                 params.max_depth);
 
   if (path_handle_primary_hit(params, path, i)) {
@@ -885,9 +885,9 @@ PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params,
 }
 
 daxa_f32vec3 trace_random_replay_path_hybrid_simple(
-    const SCENE_PARAMS params, const INSTANCE_HIT hit, INTERSECT i,
+    const SCENE_PARAMS params, const OBJECT_INFO hit, INTERSECT i,
     const Ray ray, const daxa_u32 path_flags, const daxa_u32 init_random_seed,
-    out INSTANCE_HIT dst_rc_prev_vertex_hit,
+    out OBJECT_HIT dst_rc_prev_vertex_hit,
     out daxa_f32vec3 dst_rc_prev_vertex_wo) {
   PATH_STATE path;
 
@@ -896,14 +896,14 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(
       path_reservoir_get_reconnection_length(path_flags);
 
   daxa_b32 is_rc_vertex_escaped_vertex = path_length + 1 == reconnection_length;
-  generate_random_replay_path(params, path, hit, ray, init_random_seed, path_length,
+  generate_random_replay_path(params, path, OBJECT_HIT(hit, i.world_hit), ray, init_random_seed, path_length,
                               path_reservoir_last_vertex_NEE(path_flags),
                               is_rc_vertex_escaped_vertex);
   path.use_hybrid_shift = true;
   path.is_replay_for_hybrid_shift = true;
   path.path_builder.rc_vertex_length = reconnection_length;
 
-  dst_rc_prev_vertex_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+  dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.0));
   dst_rc_prev_vertex_wo = daxa_f32vec3(0.0);
 
   path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
@@ -945,7 +945,7 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(
     }
   }
 
-  dst_rc_prev_vertex_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+  dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.0));
 
   daxa_f32vec3 L = daxa_f32vec3(1.0);
 

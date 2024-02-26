@@ -16,7 +16,7 @@ INTERSECT intersect(Ray ray)
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
 
     
-    INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+    OBJECT_INFO instance_hit = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
     daxa_f32vec3 int_hit = daxa_f32vec3(0.0);
     daxa_f32vec3 int_nor = daxa_f32vec3(0.0);
     daxa_b32 is_hit = false;
@@ -55,7 +55,7 @@ INTERSECT intersect(Ray ray)
 
         daxa_u32 primitive_id = hitObjectGetPrimitiveIndexNV(hit_object);
 
-        instance_hit = INSTANCE_HIT(instance_id, primitive_id);
+        instance_hit = OBJECT_INFO(instance_id, primitive_id);
 
         Ray bounce_ray = Ray(ray_origin, ray_dir);
 
@@ -97,7 +97,7 @@ INTERSECT intersect(Ray ray)
             // Get primitive id
             daxa_u32 primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, false);
 
-            instance_hit = INSTANCE_HIT(instance_id, primitive_id);
+            instance_hit = OBJECT_INFO(instance_id, primitive_id);
 
             daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 

@@ -60,7 +60,7 @@ void main()
     prd.world_hit = vec3(0.0);
     prd.distance = -1.0;
     prd.world_nrm = vec3(0.0);
-    prd.instance_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+    prd.instance_hit = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
 
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
     daxa_f32 t_min = 0.0;
@@ -107,7 +107,7 @@ void main()
 
         daxa_u32 primitive_id = hitObjectGetPrimitiveIndexNV(hit_object);
 
-        prd.instance_hit = INSTANCE_HIT(instance_id, primitive_id);
+        prd.instance_hit = OBJECT_INFO(instance_id, primitive_id);
 
         // TODO: pass this as a parameter
         daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);

@@ -23,7 +23,7 @@ daxa_u32 get_geometry_first_primitive_index_from_instance_id(daxa_u32 instance_i
 }
 
 
-daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(INSTANCE_HIT instance_hit) {
+daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(OBJECT_INFO instance_hit) {
     // Get first primitive index from instance id
     daxa_u32 primitive_index = get_geometry_first_primitive_index_from_instance_id(instance_hit.instance_id);
     // Get actual primitive index from offset and primitive id
@@ -46,7 +46,7 @@ daxa_u32 get_material_index_from_primitive_index(daxa_u32 primitive_index)
     return primitive_buffer.primitives[primitive_index].material_index;
 }
 
-daxa_u32 get_material_index_from_instance_and_primitive_id(INSTANCE_HIT instance_hit)
+daxa_u32 get_material_index_from_instance_and_primitive_id(OBJECT_INFO instance_hit)
 {
     // Get material index from primitive
     daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
@@ -69,7 +69,7 @@ MATERIAL get_material_from_primitive_index(daxa_u32 primitive_index)
     return get_material_from_material_index(mat_index);
 }
 
-MATERIAL get_material_from_instance_and_primitive_id(INSTANCE_HIT instance_hit)
+MATERIAL get_material_from_instance_and_primitive_id(OBJECT_INFO instance_hit)
 {
 
     daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
@@ -86,12 +86,12 @@ void intersect_initiliaze(INTERSECT i)
     i.world_nrm = vec3(0);
     i.wo = vec3(0);
     i.wi = vec3(0);
-    i.instance_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+    i.instance_hit = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
     i.material_idx = MAX_MATERIALS;
     i.mat = mat;
 }
 
-daxa_b32 instance_hit_valid(INSTANCE_HIT instance_hit)
+daxa_b32 instance_hit_valid(OBJECT_INFO instance_hit)
 {
     return instance_hit.instance_id < MAX_INSTANCES && instance_hit.primitive_id < MAX_PRIMITIVES;
 }
@@ -240,7 +240,7 @@ daxa_b32 intersect_box(Box box,
 }
 
 daxa_b32 is_hit_from_ray_providing_model(Ray ray,
-                                         INSTANCE_HIT instance_hit,
+                                         OBJECT_INFO instance_hit,
                                          daxa_f32vec3 half_extent,
                                          out daxa_f32 t_hit,
                                          out daxa_f32vec3 pos,
@@ -270,7 +270,7 @@ daxa_b32 is_hit_from_ray_providing_model(Ray ray,
 }
 
 daxa_b32 is_hit_from_ray(Ray ray,
-                         INSTANCE_HIT instance_hit,
+                         OBJECT_INFO instance_hit,
                          daxa_f32vec3 half_extent,
                          out daxa_f32 t_hit,
                          out daxa_f32vec3 pos,
@@ -313,7 +313,7 @@ daxa_b32 is_hit_from_ray(Ray ray,
 }
 
 daxa_b32 is_hit_from_origin(daxa_f32vec3 origin_world_space,
-                            INSTANCE_HIT instance_hit,
+                            OBJECT_INFO instance_hit,
                             daxa_f32vec3 half_extent,
                             out daxa_f32 t_hit,
                             out daxa_f32vec3 pos,
@@ -391,7 +391,7 @@ daxa_f32vec3 cube_like_normal(daxa_f32vec3 world_nrm)
 
 void packed_intersection_info(Ray ray,
                               daxa_f32 t_hit,
-                              INSTANCE_HIT instance_hit,
+                              OBJECT_INFO instance_hit,
                               daxa_f32mat4x4 model,
                               out daxa_f32vec3 world_pos,
                               out daxa_f32vec3 world_nrm,
@@ -419,7 +419,7 @@ void packed_intersection_info(Ray ray,
     world_nrm = cube_like_normal(world_nrm);
 }
 
-daxa_b32 instance_hit_exists(const INSTANCE_HIT instance_hit)
+daxa_b32 instance_hit_exists(const OBJECT_INFO instance_hit)
 {
     return instance_hit.instance_id < MAX_INSTANCES && instance_hit.primitive_id < MAX_PRIMITIVES;
 }
@@ -434,7 +434,7 @@ daxa_b32 instance_hit_exists(const INSTANCE_HIT instance_hit)
  * @param load_material Load material
  */
 INTERSECT load_intersection_data_vertex_position(
-    const INSTANCE_HIT instance_hit, const daxa_f32vec3 world_pos,
+    const OBJECT_HIT instance_hit, const daxa_f32vec3 world_pos,
     const daxa_b32 is_previous_frame, daxa_b32 is_primary_hit,
     const daxa_b32 load_material) {
   INTERSECT i;
@@ -447,7 +447,9 @@ INTERSECT load_intersection_data_vertex_position(
   // TODO: This should be a parameter
   daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
-  if (!is_hit_from_origin(world_pos, instance_hit, half_extent, distance, pos,
+  Ray ray = Ray(world_pos, instance_hit.hit - world_pos);
+
+  if (!is_hit_from_ray(ray, instance_hit.object, half_extent, distance, pos,
                           nor, model, inv_model, is_previous_frame, true,
                           true)) {
     intersect_initiliaze(i);
@@ -465,11 +467,11 @@ INTERSECT load_intersection_data_vertex_position(
 
     if (load_material) {
       material_idx =
-          get_material_index_from_instance_and_primitive_id(instance_hit);
+          get_material_index_from_instance_and_primitive_id(instance_hit.object);
       mat = get_material_from_material_index(material_idx);
     }
 
-    i = INTERSECT(true, distance, pos, nor, wo, daxa_f32vec3(0), instance_hit,
+    i = INTERSECT(true, distance, pos, nor, wo, daxa_f32vec3(0), instance_hit.object,
                   material_idx, mat);
   }
 
@@ -493,7 +495,7 @@ INTERSECT load_intersection_data_vertex_position(
  * @param load_material Load material
  */
 INTERSECT load_intersection_data_vertex_position_by_ray(
-    const INSTANCE_HIT instance_hit, const Ray ray,
+    const OBJECT_INFO instance_hit, const Ray ray,
     const daxa_b32 is_previous_frame, daxa_b32 is_primary_hit,
     const daxa_b32 load_material) {
   INTERSECT i;

@@ -34,7 +34,7 @@ void main()
     daxa_f32vec3 world_nrm;
     daxa_f32 distance = gl_HitTEXT;
     daxa_u32 actual_primitive_index = 0;
-    INSTANCE_HIT instance_hit = INSTANCE_HIT(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
+    OBJECT_INFO instance_hit = OBJECT_INFO(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
     
     packed_intersection_info(ray, distance, instance_hit, model, world_pos, world_nrm, actual_primitive_index);
 
@@ -71,7 +71,7 @@ void main()
     daxa_f32vec3 world_pos;
     daxa_f32vec3 world_nrm;
     daxa_f32 distance = gl_HitTEXT;
-    INSTANCE_HIT instance_hit = INSTANCE_HIT(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
+    OBJECT_INFO instance_hit = OBJECT_INFO(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
     daxa_u32 actual_primitive_index = 0;
     
     packed_intersection_info(ray, distance, instance_hit, model, world_pos, world_nrm, actual_primitive_index);

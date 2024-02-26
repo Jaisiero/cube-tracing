@@ -19,7 +19,7 @@ daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
   return max(dot(n, w_i), 0.0);
 }
 
-daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, INSTANCE_HIT instance_target, const daxa_b32 check_instance, const daxa_b32 previous_frame) {
+daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_target, const daxa_b32 check_instance, const daxa_b32 previous_frame) {
   // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
   daxa_f32 t_min = 0.0;
@@ -27,7 +27,7 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, INSTANCE_HIT instance_tar
   daxa_u32 cull_mask = 0xff;
   daxa_u32 ray_flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT;
 
-  INSTANCE_HIT instance_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+  OBJECT_INFO instance_hit = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
   daxa_f32vec3 int_hit = daxa_f32vec3(0.0);
   daxa_f32vec3 int_nor = daxa_f32vec3(0.0);
   daxa_b32 is_hit = false;
@@ -54,7 +54,7 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, INSTANCE_HIT instance_tar
       daxa_u32 primitive_id =
           rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, false);
 
-      instance_hit = INSTANCE_HIT(instance_id, primitive_id);
+      instance_hit = OBJECT_INFO(instance_id, primitive_id);
 
       daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);
 
@@ -103,7 +103,7 @@ daxa_b32 is_segment_visible(daxa_f32vec3 source_vertex, daxa_f32vec3 target_vert
     distance = length(target_vertex - source_vertex);
   }
 
-  return is_vertex_visible(ray, distance, INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES), false, previous_frame);
+  return is_vertex_visible(ray, distance, OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), false, previous_frame);
 }
 
 daxa_f32 geom_fact_sa(daxa_f32vec3 P, daxa_f32vec3 P_surf, daxa_f32vec3 n_surf) {

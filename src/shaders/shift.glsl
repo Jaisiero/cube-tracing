@@ -36,10 +36,10 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
                         : daxa_i32(path_reservoir_get_reconnection_length(
                               src_reservoir.path_flags));
 
-  INSTANCE_HIT rc_vertex_hit = src_reservoir.rc_vertex_hit;
+  OBJECT_HIT rc_vertex_hit = src_reservoir.rc_vertex_hit;
   daxa_f32vec3 rc_vertex_irradiance = src_reservoir.rc_vertex_irradiance[0];
   daxa_f32vec3 rc_vertex_wi = src_reservoir.rc_vertex_wi[0];
-  daxa_b32 rc_vertex_hit_exists = instance_hit_exists(rc_vertex_hit);
+  daxa_b32 rc_vertex_hit_exists = instance_hit_exists(rc_vertex_hit.object);
 
   // number of vertices in the path
   daxa_u32 path_length =
@@ -362,7 +362,7 @@ daxa_f32vec3 compute_shifted_integrand_hybrid(
     const SCENE_PARAMS params, daxa_b32 use_prev,
     daxa_b32 temporal_update_for_dynamic_scene, 
     inout daxa_f32 dst_jacobian,
-    const INSTANCE_HIT dst_primary_hit,
+    const OBJECT_HIT dst_primary_hit,
     const INTERSECT dst_primary_intersection,
     const INTERSECT src_primary_intersection,
     inout PATH_RESERVOIR temp_path_reservoir, 
@@ -377,13 +377,13 @@ daxa_f32vec3 compute_shifted_integrand_hybrid(
 
   PATH_RESERVOIR src_reservoir = temp_path_reservoir;
 
-  INSTANCE_HIT dst_rc_prev_vertex_hit;
+  OBJECT_HIT dst_rc_prev_vertex_hit;
   daxa_f32vec3 dst_rc_prev_vertex_wo;
   daxa_f32vec3 tp;
 
   if (path_reservoir_get_reconnection_length(src_reservoir.path_flags) == 1) {
     tp = daxa_f32vec3(1.0f);
-    dst_rc_prev_vertex_hit = INSTANCE_HIT(MAX_INSTANCES - 1, MAX_PRIMITIVES - 1);
+    dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.0f));
     dst_rc_prev_vertex_wo =  daxa_f32vec3(1.0f); // this value doesn't matter, as long as it is not all 0
 
     if (params.roughness_based_rejection) {
@@ -411,7 +411,7 @@ daxa_f32vec3 compute_shifted_integrand_hybrid(
   daxa_f32vec3 rc_tp = daxa_f32vec3(1.0f);
 
   // the reconnection vertex exists
-  if (any(greaterThan(tp, daxa_f32vec3(0.f))) && (instance_hit_valid(dst_rc_prev_vertex_hit) &&
+  if (any(greaterThan(tp, daxa_f32vec3(0.f))) && (instance_hit_valid(dst_rc_prev_vertex_hit.object) &&
                         (path_reservoir_get_reconnection_length(src_reservoir.path_flags) <=
                              path_reservoir_get_path_length(src_reservoir.path_flags) ||
                          is_rc_vertex_escaped_vertex))) {
@@ -454,7 +454,7 @@ daxa_f32vec3 compute_shifted_integrand_hybrid(
 
 daxa_f32vec3 compute_shifted_integrand_(
     const SCENE_PARAMS params, inout daxa_f32 dst_jacobian,
-    const INSTANCE_HIT dst_primary_hit,
+    const OBJECT_HIT dst_primary_hit,
     const INTERSECT dst_primary_intersection,
     const INTERSECT src_primary_intersection,
     inout PATH_RESERVOIR src_reservoir, RECONNECTION_DATA rc_data,
@@ -496,7 +496,7 @@ daxa_f32vec3 compute_shifted_integrand_(
 
 daxa_f32vec3 compute_shifted_integrand(
     const SCENE_PARAMS params, inout daxa_f32 dst_jacobian,
-    const INSTANCE_HIT dst_primary_hit,
+    const OBJECT_HIT dst_primary_hit,
     const INTERSECT dst_primary_intersection,
     const INTERSECT src_primary_intersection,
     const PATH_RESERVOIR src_reservoir, RECONNECTION_DATA rc_data,
@@ -512,7 +512,7 @@ daxa_f32vec3 compute_shifted_integrand(
 
 daxa_b32 shift_and_merge_reservoir(
     const SCENE_PARAMS params, const daxa_b32 temporal_update_for_dynamic_scene,
-    inout daxa_f32 dst_jacobian, const INSTANCE_HIT dst_primary_hit,
+    inout daxa_f32 dst_jacobian, const OBJECT_HIT dst_primary_hit,
     const INTERSECT dst_primary_intersection,
     inout PATH_RESERVOIR dst_reservoir,
     const INTERSECT src_primary_intersection,

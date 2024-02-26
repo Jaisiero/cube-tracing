@@ -9,7 +9,7 @@
 
 
 void reconnection_data_initialise(out RECONNECTION_DATA reconnection_data) {
-    reconnection_data.rc_prev_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+    reconnection_data.rc_prev_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.f));
     reconnection_data.rc_prev_wo = daxa_f32vec3(0.f);
     reconnection_data.path_throughput = daxa_f32vec3(0.f);
 }
@@ -41,7 +41,7 @@ struct PATH_STATE
     daxa_f32vec3 dir;    ///< Scatter ray normalized direction.
     daxa_f32 pdf;        ///< Pdf for generating the scatter ray.
     daxa_f32vec3 normal; ///< Shading normal at the scatter ray origin.
-    INSTANCE_HIT hit;    ///< Hit information for the scatter ray. This is populated at committed triangle hits.
+    OBJECT_HIT hit;    ///< Hit information for the scatter ray. This is populated at committed triangle hits.
 
     daxa_f32vec3 thp;        ///< Path throughput.
     daxa_f32vec3 prefix_thp; ///  used for computing rcVertexIrradiance[1]
@@ -55,7 +55,7 @@ struct PATH_STATE
     daxa_f32vec3 shared_scatter_dir;
     daxa_f32 prev_scatter_pdf;
 
-    INSTANCE_HIT rc_prev_vertex_hit; //  save the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
+    OBJECT_HIT rc_prev_vertex_hit; //  save the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
     daxa_f32vec3 rc_prev_vertex_wo;  //  save the outgoing direction at the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
 
     daxa_f32 hit_dist; // for NRD
@@ -109,7 +109,7 @@ daxa_b32 path_is_hit(PATH_STATE path) {
     return (path.flags & PATH_FLAG_HIT) != 0;
 }
 
-void path_set_hit(inout PATH_STATE path, INSTANCE_HIT instance) {
+void path_set_hit(inout PATH_STATE path, OBJECT_HIT instance) {
     path.hit = instance;
     path_set_flag(path, PATH_FLAG_HIT, true);
 }
@@ -194,7 +194,7 @@ void path_flags_transform_bounces_information(out daxa_u32 path_flags_out, daxa_
 
 
 
-void generate_path(const SCENE_PARAMS params, inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, INSTANCE_HIT instance, Ray ray, daxa_u32 seed, daxa_u32 max_depth) {
+void generate_path(const SCENE_PARAMS params, inout PATH_STATE path, daxa_i32vec2 index, daxa_u32vec2 rt_size, OBJECT_HIT instance, Ray ray, daxa_u32 seed, daxa_u32 max_depth) {
     path.id = index.y * rt_size.x + index.x;
     path.max_depth = max_depth;
     path.flags = 0;
@@ -240,7 +240,7 @@ void generate_path(const SCENE_PARAMS params, inout PATH_STATE path, daxa_i32vec
 }
 
 
-void generate_random_replay_path(const SCENE_PARAMS params, out PATH_STATE path, INSTANCE_HIT instance, Ray ray, daxa_u32 random_seed, daxa_u32 random_replay_length, daxa_b32 is_last_vertext_NEE, daxa_b32 is_rc_vertext_escape_vertex) 
+void generate_random_replay_path(const SCENE_PARAMS params, out PATH_STATE path, OBJECT_HIT instance, Ray ray, daxa_u32 random_seed, daxa_u32 random_replay_length, daxa_b32 is_last_vertext_NEE, daxa_b32 is_rc_vertext_escape_vertex) 
 {
     path.id = 0;
     path.max_depth = 0;

@@ -27,7 +27,7 @@ void main()
     daxa_f32vec3 pos;
     daxa_f32vec3 nor;
 
-    INSTANCE_HIT instance_hit = INSTANCE_HIT(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
+    OBJECT_INFO instance_hit = OBJECT_INFO(gl_InstanceCustomIndexEXT, gl_PrimitiveID);
 
     // TODO: pass this as a parameter
     daxa_f32vec3 half_extent = daxa_f32vec3(HALF_VOXEL_EXTENT);

@@ -9,10 +9,10 @@
 
 daxa_f32vec3 trace_hybrid_shift_rays(const SCENE_PARAMS params,
                                      const daxa_b32 use_preview,
-                                     const INSTANCE_HIT primary_hit,
+                                     const OBJECT_INFO primary_hit,
                                      const INTERSECT i,
                                      const PATH_RESERVOIR reservoir,
-                                     out INSTANCE_HIT dst_rc_prev_vertex_hit,
+                                     out OBJECT_HIT dst_rc_prev_vertex_hit,
                                      out daxa_f32vec3 dst_rc_prev_vertex_wo) {
   if (reservoir.weight == 0.0)
     return daxa_f32vec3(0.0);
@@ -87,8 +87,8 @@ void temporal_path_retrace(const SCENE_PARAMS params,
                            const INTERSECT previous_intersection) {
 
   // TODO: This is for hybrid shift
-  INSTANCE_HIT dst_rc_prev_vertex_hit;
-  INSTANCE_HIT dst_rc_prev_vertex_hit2;
+  OBJECT_HIT dst_rc_prev_vertex_hit;
+  OBJECT_HIT dst_rc_prev_vertex_hit2;
   daxa_f32vec3 dst_rc_prev_vertex_wo;
   daxa_f32vec3 dst_rc_prev_vertex_wo2;
   daxa_f32vec3 tp;
@@ -170,7 +170,7 @@ void temporal_path_reuse(const SCENE_PARAMS params,
         // Merge with shift mapping for the current vertex
         possible_to_be_selected = shift_and_merge_reservoir(
             params, do_temporal_update_for_dynamic_scene, dst_jacobian,
-            current_i.instance_hit, current_i, temp_dst_reservoir, prev_i,
+            OBJECT_HIT(current_i.instance_hit, current_i.world_hit), current_i, temp_dst_reservoir, prev_i,
             temporal_reservoir, rc_data, true, seed, false, 1.f,
             true); // "true" means hypothetically selected as the sample
       }
@@ -202,7 +202,7 @@ void temporal_path_reuse(const SCENE_PARAMS params,
                   
             // Calculate the integrand for the previous vertex
             daxa_f32vec3 t_neighbor_integrand = compute_shifted_integrand(
-                params, t_neighbor_jacobian, prev_i.instance_hit, prev_i,
+                params, t_neighbor_jacobian, OBJECT_HIT(prev_i.instance_hit, prev_i.world_hit), prev_i,
                 current_i, temp_dst_reservoir, rc_data, true, true,
                 false); // use_prev
 

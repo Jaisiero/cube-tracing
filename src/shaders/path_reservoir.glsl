@@ -132,7 +132,7 @@ daxa_u32 path_reservoir_get_light_type(daxa_u32 path_flags) {
   return (path_flags >> 18) & 3;
 }
 
-void path_reservoir_init_from_hit_info(inout PATH_RESERVOIR reservoir, INSTANCE_HIT hit) {
+void path_reservoir_init_from_hit_info(inout PATH_RESERVOIR reservoir, OBJECT_HIT hit) {
   reservoir.rc_vertex_hit = hit;
 }
 
@@ -146,7 +146,7 @@ void path_reservoir_initialise(const SCENE_PARAMS params, inout PATH_RESERVOIR r
   reservoir.light_pdf = 0.0;
   reservoir.cached_jacobian = daxa_f32vec3(0.0);
   reservoir.init_random_seed = 0;
-  reservoir.rc_vertex_hit = INSTANCE_HIT(MAX_INSTANCES, MAX_PRIMITIVES);
+  reservoir.rc_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.f));
   reservoir.rc_vertex_wi[0] = daxa_f32vec3(0.0);
   reservoir.rc_vertex_irradiance[0] = daxa_f32vec3(0.0);
 }

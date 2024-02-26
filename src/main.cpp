@@ -688,7 +688,7 @@ namespace tests
                             surface_light.position = daxa_f32mat4x4_multiply_by_daxa_f32vec4(instance.transform, 
                                 daxa_f32vec4(center.x, center.y, center.z, 1.0));
                             surface_light.emissive = materials[material_index].emission;
-                            surface_light.instance_info = INSTANCE_HIT(i, j);
+                            surface_light.instance_info = OBJECT_INFO(i, j);
                             surface_light.type = GEOMETRY_LIGHT_CUBE;
                             // TODO: this will be based on voxel size
                             surface_light.size = VOXEL_EXTENT;
