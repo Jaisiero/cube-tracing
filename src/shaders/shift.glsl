@@ -205,7 +205,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
                                 src_primary_intersection.world_nrm,
                                 src_primary_intersection.wo, src_connection_v);
 
-  jacobian *= (dst_pdf1 / src_pdf1);
+  jacobian *= dst_pdf1 / src_pdf1;
 
   if (is_jacobian_invalid(jacobian))
     return daxa_f32vec3(0.0f);

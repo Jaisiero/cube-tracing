@@ -66,6 +66,8 @@ daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, inout INTERSECT i) {
     daxa_f32vec3 weight = evaluate_material(i.mat, i.world_nrm, i.wo, i.wi); //* get_cos_theta(i.world_nrm, i.wi);
     daxa_f32 pdf = sample_material_pdf(i.mat, i.world_nrm, i.wo, i.wi);
 
+    weight = weight / pdf;
+
     path.dir = i.wi;
 
     if (path.path_length == 0) {
@@ -326,8 +328,8 @@ daxa_b32 path_handle_emissive_hit(const SCENE_PARAMS params,
           daxa_f32 geometry_factor = 
             abs(dot(i.world_nrm, i.wo)) / dot(disp, disp);
 
-          // if(isnan(geometry_factor)) 
-          //   geometry_factor = 0.f;
+          if(isnan(geometry_factor)) 
+            geometry_factor = 0.f;
 
           path_builder_mark_escape_vertex_as_rc_vertex(
               path.path_builder, path.path_length, path.path_reservoir,
@@ -503,8 +505,8 @@ daxa_b32 path_check_rc_vertex(inout PATH_STATE path, INTERSECT i,
       path.path_builder.cached_jacobian.z =
           abs(dot(i.world_nrm, i.wo)) / dot(disp, disp);
 
-      if(isnan(path.path_builder.cached_jacobian.z)) 
-        path.path_builder.cached_jacobian.z = 0.f;
+      // if(isnan(path.path_builder.cached_jacobian.z)) 
+      //   path.path_builder.cached_jacobian.z = 0.f;
 
       // save the current path length as the rc vertex length
       if (can_connect || !path.use_hybrid_shift) {

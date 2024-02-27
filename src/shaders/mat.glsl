@@ -5,6 +5,9 @@
 #include "shared.inl"
 #include "prng.glsl"
 
+daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
+  return max(dot(n, w_i), 0.0);
+}
 
 daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 wo, daxa_f32vec3 wi) {
 #if (COSINE_HEMISPHERE_SAMPLING == 1)
@@ -13,7 +16,7 @@ daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 wo, daxa_f32vec3 wi) {
     //     return daxa_f32vec3(0.0);
     // }
     // return mat.diffuse * INV_DAXA_PI * wi.z;
-    return mat.diffuse * INV_DAXA_PI;
+    return mat.diffuse * INV_DAXA_PI * get_cos_theta(wo, wi);
 #else     
     return mat.diffuse * INV_DAXA_PI;
 #endif

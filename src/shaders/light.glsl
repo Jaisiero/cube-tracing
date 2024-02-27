@@ -15,10 +15,6 @@ LIGHT get_light_from_light_index(daxa_u32 light_index) {
   return instance_buffer.lights[light_index];
 }
 
-daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
-  return max(dot(n, w_i), 0.0);
-}
-
 daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_target, const daxa_b32 check_instance, const daxa_b32 previous_frame) {
   // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
@@ -166,9 +162,9 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
   default: {
 #if COSINE_HEMISPHERE_SAMPLING == 1
     daxa_f32 cos_theta = dot(wo_l, wi_l);
-    return cos_theta < MIN_COS_THETA ? 0.f : (DAXA_PI) / cos_theta;
+    return cos_theta < MIN_COS_THETA ? 0.f : cos_theta / DAXA_PI;
 #else
-    return (DAXA_2PI);
+    return INV_DAXA_2PI;
 #endif
 
   } break;
