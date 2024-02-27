@@ -348,7 +348,7 @@ void main()
     {
         daxa_f32vec3 hit_value = vec3(0.0);
         prd.hit_value = vec3(1.0);
-        daxa_f32vec3 throughput = vec3(0.0);
+        daxa_f32vec3 indirect_color = vec3(0.0);
 
 #if(DEBUG_NORMALS_ON == 1)
         hit_value = di_info.normal * 0.5 + 0.5;
@@ -439,8 +439,8 @@ void main()
                          true);
 
 
-        indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed, throughput);
-        hit_value += throughput;
+        indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed, indirect_color);
+        hit_value += indirect_color;
 #endif // INDIRECT_ILLUMINATION_ON
 
 #if DIRECT_EMITTANCE_ON == 1

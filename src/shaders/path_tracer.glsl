@@ -865,9 +865,9 @@ PATH_RESERVOIR trace_restir_path_tracing(const SCENE_PARAMS params,
       path_next_vertex(path, i);
 
       daxa_b32 is_hit = path_is_hit(path);
-      // #if SER == 1
-      //             reorderThreadNV(daxa_u32(is_hit), 1);
-      // #endif // SER == 1
+// #if SER == 1
+//             reorderThreadNV(daxa_u32(is_hit), 1);
+// #endif // SER == 1
 
       if (is_hit) {
         path_handle_hit(params, path, i);

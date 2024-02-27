@@ -42,7 +42,7 @@ PATH_RESERVOIR temporal_path_get_reprojected(
 
   // Predicted coordinate
   daxa_u32vec2 predicted_coord = daxa_u32vec2(Xi_1);
-  prev_predicted_index = predicted_coord.y * rt_size.x + predicted_coord.x;
+  prev_predicted_index = predicted_coord.x + predicted_coord.y * rt_size.x;
 
   // Max screen pos
   daxa_u32 max_screen_pos = rt_size.x * rt_size.y - 1;
@@ -121,7 +121,7 @@ void temporal_path_reuse(const SCENE_PARAMS params,
                          PATH_RESERVOIR temporal_reservoir,
                          const daxa_u32 current_index, inout daxa_u32 seed,
                          INTERSECT current_i, INTERSECT prev_i,
-                         out daxa_f32vec3 throughput) {
+                         out daxa_f32vec3 indirect_color) {
 
   PATH_RESERVOIR destination_reservoir;
   path_reservoir_initialise(params, destination_reservoir);
@@ -241,7 +241,7 @@ void temporal_path_reuse(const SCENE_PARAMS params,
   // Set the current reservoir for next frame
   set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
 
-  throughput = destination_reservoir.F * destination_reservoir.weight;
+  indirect_color = destination_reservoir.F * destination_reservoir.weight;
 }
 
 void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
@@ -249,10 +249,10 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
                                                const daxa_u32vec2 rt_size,
                                                Ray ray, INTERSECT i,
                                                inout daxa_u32 seed,
-                                               inout daxa_f32vec3 throughput) {
+                                               inout daxa_f32vec3 indirect_color) {
 
   PATH_RESERVOIR central_reservoir = trace_restir_path_tracing(
-      params, index, rt_size, ray, i, seed, throughput);
+      params, index, rt_size, ray, i, seed, indirect_color);
 
 #if RESTIR_PT_TEMPORAL_ON == 1
   daxa_u32 current_index;
@@ -269,7 +269,7 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
 
   // Temporal path reuse previous frame contribution
   temporal_path_reuse(params, central_reservoir, temporal_reservoir,
-                      current_index, seed, i, prev_i, throughput);
+                      current_index, seed, i, prev_i, indirect_color);
 #endif // RESTIR_PT_TEMPORAL_ON                      
 
   // Set the current reservoir for next frame
@@ -279,9 +279,9 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
 void indirect_illumination_path_tracing(
     const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat,
     INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count,
-    daxa_u32 object_count, inout daxa_f32vec3 throughput) {
+    daxa_u32 object_count, inout daxa_f32vec3 indirect_color) {
 
-  // prd.throughput = vec3(1.0);
+  // prd.indirect_color = vec3(1.0);
   prd.seed = seed;
   prd.depth = max_depth;
   prd.world_hit = i.world_hit;
@@ -290,7 +290,9 @@ void indirect_illumination_path_tracing(
   prd.ray_scatter_dir = i.wi;
   prd.mat_index = i.material_idx;
   prd.instance_hit = i.instance_hit;
-  prd.hit_value = daxa_f32vec3(1.0);
+  prd.hit_value = daxa_f32vec3(0.0);
+
+  daxa_f32vec3 throughput = daxa_f32vec3(1.0);
   // prd.done = true;
 
   // generate_scatter_ray(i, seed);
@@ -317,40 +319,43 @@ void indirect_illumination_path_tracing(
           direct_mis(scattered_ray, hit, light_count, light, object_count,
                      i.mat, i, pdf_out, true, true);
 
-      prd.hit_value *= radiance;
-      // prd.hit_value += i.mat.emission;
+      throughput *= radiance;
       prd.done = false;
     } else {
       prd.done = true;
-      prd.hit_value *= calculate_sky_color(deref(p.status_buffer).time,
-                                           deref(p.status_buffer).is_afternoon,
-                                           scattered_ray.direction);
+      throughput *= calculate_sky_color(deref(p.status_buffer).time,
+                                        deref(p.status_buffer).is_afternoon,
+                                        scattered_ray.direction);
     }
+    prd.hit_value += throughput;
+
+    if(any(lessThanEqual(throughput, daxa_f32vec3(0.0))))
+      prd.done = true;
 
     prd.depth--;
     daxa_b32 done = prd.done || prd.depth == 0;
-    // #if SER == 1
-    //     reorderThreadNV(daxa_u32(done), 1);
-    // #endif // SER
+#if SER == 1
+    reorderThreadNV(daxa_u32(done), 1);
+#endif // SER
     if (done)
       break;
 
     prd.done = true; // Will stop if a reflective material isn't hit
   }
-  throughput = prd.hit_value;
+  indirect_color = prd.hit_value;
 }
 
 void indirect_illumination(const SCENE_PARAMS params, const daxa_i32vec2 index,
                            const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat,
                            INTERSECT i, daxa_u32 seed,
-                           inout daxa_f32vec3 throughput) {
+                           inout daxa_f32vec3 indirect_color) {
 #if RESTIR_PT_ON == 1
   indirect_illumination_restir_path_tracing(params, index, rt_size, ray, i,
-                                            seed, throughput);
+                                            seed, indirect_color);
 #else
   indirect_illumination_path_tracing(index, rt_size, ray, mat, i, seed,
                                      params.max_depth, params.light_count,
-                                     params.object_count, throughput);
+                                     params.object_count, indirect_color);
 #endif
 }
 #endif // INDIRECT_ILLUMINATION_GLSL
