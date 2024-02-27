@@ -18,7 +18,7 @@
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 
-#define DYNAMIC_SUN_LIGHT 0
+#define DYNAMIC_SUN_LIGHT 1
 #define POINT_LIGHT_ON 1
 #define SUN_MIDDAY 0
 #define SUN_MAX_INTENSITY 5000.0f
@@ -299,6 +299,7 @@ struct RESTIR {
     daxa_u64 pixel_reconnection_data_address;
     daxa_u64 output_path_reservoir_address;
     daxa_u64 temporal_path_reservoir_address;
+    daxa_u64 indirect_color_address;
 };
 DAXA_DECL_BUFFER_PTR(RESTIR)
 

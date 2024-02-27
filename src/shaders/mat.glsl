@@ -2,8 +2,20 @@
 #ifndef MATERIAL_GLSL
 #define MATERIAL_GLSL
 #include <daxa/daxa.inl>
-#include "shared.inl"
+#include "defines.glsl"
 #include "prng.glsl"
+
+
+void set_indirect_color_by_index(daxa_u32 screen_pos, daxa_f32vec3 color) {
+    INDIRECT_COLOR_BUFFER indirect_color_buffer = INDIRECT_COLOR_BUFFER(deref(p.restir_buffer).indirect_color_address);
+    indirect_color_buffer.colors[screen_pos] = color;
+}
+
+daxa_f32vec3 get_indirect_color_by_index(daxa_u32 screen_pos) {
+    INDIRECT_COLOR_BUFFER indirect_color_buffer = INDIRECT_COLOR_BUFFER(deref(p.restir_buffer).indirect_color_address);
+    return indirect_color_buffer.colors[screen_pos];
+}
+
 
 daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
   return max(dot(n, w_i), 0.0);

@@ -26,13 +26,13 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define FORCE_ACCUMULATOR_ON 0
 
 #define LIGHT_SAMPLING_ON 1
-#define RESTIR_DI_ON 0
+#define RESTIR_DI_ON 1
 #define RESTIR_DI_TEMPORAL_ON 1
 #define RESTIR_DI_SPATIAL_ON 1
 #define RESTIR_PT_ON 1
 #define RESTIR_PT_TEMPORAL_ON 1
 
-#define DIRECT_ILLUMINATION_ON 0
+#define DIRECT_ILLUMINATION_ON 1
 #define DIRECT_EMITTANCE_ON 1
 #define INDIRECT_ILLUMINATION_ON 1
 #define CALLABLE_ON 1
@@ -128,6 +128,9 @@ layout(buffer_reference, scalar) buffer RESERVOIR_BUFFER {RESERVOIR reservoirs[M
 layout(buffer_reference, scalar) buffer VELOCITY_BUFFER {VELOCITY velocities[MAX_RESERVOIRS]; }; // Velocities
 layout(buffer_reference, scalar) buffer PREV_DI_BUFFER {DIRECT_ILLUMINATION_INFO di_info[MAX_RESERVOIRS]; }; // Direct illumination info
 layout(buffer_reference, scalar) buffer DI_BUFFER {DIRECT_ILLUMINATION_INFO di_info[MAX_RESERVOIRS]; }; // Direct illumination info
+
+
+layout(buffer_reference, scalar) buffer INDIRECT_COLOR_BUFFER {daxa_f32vec3 colors[MAX_RESERVOIRS]; }; // Indirect color
 
 
 layout(buffer_reference, scalar) buffer PIXEL_RECONNECTION_DATA_BUFFER {PIXEL_RECONNECTION_DATA reconnections[MAX_RESERVOIRS]; }; // Pixel reconnection data

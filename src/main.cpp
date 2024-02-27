@@ -125,6 +125,9 @@ namespace tests
             daxa::BufferId temporal_path_reservoir_buffer = {};
             size_t max_output_path_reservoir_buffer_size = sizeof(PATH_RESERVOIR) * MAX_RESERVOIRS;
 
+            daxa::BufferId indirect_color_buffer = {};
+            size_t max_indirect_color_buffer_size = sizeof(daxa_f32vec3) * MAX_RESERVOIRS;
+
             // DEBUGGING
             // daxa::BufferId hit_distance_buffer = {};
             // size_t max_hit_distance_buffer_size = sizeof(HIT_DISTANCE) * WIDTH_RES * HEIGHT_RES;
@@ -180,6 +183,7 @@ namespace tests
                     device.destroy_buffer(pixel_reconnection_data_buffer);
                     device.destroy_buffer(output_path_reservoir_buffer);
                     device.destroy_buffer(temporal_path_reservoir_buffer);
+                    device.destroy_buffer(indirect_color_buffer);
                     device.destroy_buffer(restir_buffer);
                     device.destroy_buffer(world_buffer);
                     device.destroy_buffer(proc_blas_scratch_buffer);
@@ -1024,6 +1028,7 @@ namespace tests
                 restir.pixel_reconnection_data_address = device.get_device_address(pixel_reconnection_data_buffer).value();
                 restir.output_path_reservoir_address = device.get_device_address(output_path_reservoir_buffer).value();
                 restir.temporal_path_reservoir_address = device.get_device_address(temporal_path_reservoir_buffer).value();
+                restir.indirect_color_address = device.get_device_address(indirect_color_buffer).value();
 
                 // copy restir to buffer
                 std::memcpy(restir_buffer_ptr,
@@ -1426,6 +1431,11 @@ namespace tests
                 temporal_path_reservoir_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_output_path_reservoir_buffer_size,
                     .name = ("temporal_path_reservoir_buffer"),
+                });
+
+                indirect_color_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_indirect_color_buffer_size,
+                    .name = ("indirect_color_buffer"),
                 });
 
                 proc_blas_scratch_buffer = device.create_buffer({
