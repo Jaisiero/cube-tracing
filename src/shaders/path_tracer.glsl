@@ -63,7 +63,7 @@ daxa_b32 path_generate_scatter_ray(inout PATH_STATE path, inout INTERSECT i) {
 
   if (valid) {
     // TODO: group evaluation and cosine together
-    daxa_f32vec3 weight = evaluate_material(i.mat, i.world_nrm, i.wo, i.wi); //* get_cos_theta(i.world_nrm, i.wi);
+    daxa_f32vec3 weight = evaluate_material(i.mat, i.world_nrm, i.wo, i.wi);
     daxa_f32 pdf = sample_material_pdf(i.mat, i.world_nrm, i.wo, i.wi);
 
     weight = weight / pdf;

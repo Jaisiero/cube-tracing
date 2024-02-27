@@ -161,7 +161,7 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
   } break;
   default: {
 #if COSINE_HEMISPHERE_SAMPLING == 1
-    daxa_f32 cos_theta = dot(wo_l, wi_l);
+    daxa_f32 cos_theta = get_cos_theta(n, wi);
     return cos_theta < MIN_COS_THETA ? 0.f : cos_theta / DAXA_PI;
 #else
     return INV_DAXA_2PI;
@@ -360,9 +360,9 @@ daxa_f32vec3 calculate_sampled_light(
     daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
 
     if (use_pdf) {
-      result = brdf * Le * G * cos_theta / pdf_out;
+      result = brdf * Le * G / pdf_out;
     } else {
-      result = brdf * Le * G * cos_theta;
+      result = brdf * Le * G;
     }
   }
 
@@ -394,12 +394,11 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
     daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
     daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);
     daxa_f32 mis_weight = eval_mis(1, l_pdf, 1, m_pdf * G, 2.0);
-    daxa_f32 cos_theta = get_cos_theta(n, l_wi);
     daxa_f32vec3 brdf = evaluate_material(mat, n, wo, l_wi);
     if (use_pdf) {
-      result += brdf * mis_weight * G * cos_theta * Le / l_pdf;
+      result += brdf * mis_weight * G * Le / l_pdf;
     } else {
-      result += brdf * mis_weight * G * cos_theta * Le;
+      result += brdf * mis_weight * G * Le;
     }
     pdf_out *= l_pdf;
   }
@@ -419,11 +418,10 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
         daxa_f32 mis_weight = eval_mis(1, m_pdf_2 * G, 1, light_pdf, 2.0);
         daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
         daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
-        daxa_f32 cos_theta = get_cos_theta(n, m_wi);
         if (use_pdf) {
-          result += brdf * cos_theta * mis_weight * Le / m_pdf_2;
+          result += brdf * mis_weight * Le / m_pdf_2;
         } else {
-          result += brdf * cos_theta * mis_weight * Le;
+          result += brdf * mis_weight * Le;
         }
         pdf_out *= m_pdf_2;
       }

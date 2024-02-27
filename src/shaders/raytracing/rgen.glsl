@@ -457,7 +457,7 @@ void main()
         clamp(hit_value, 0.0, 0.99999999);
 
         daxa_f32vec4 final_pixel;
-#if (ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0 && RESTIR_PT_ON == 0 || FORCE_ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0)
+#if (ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0 && RESTIR_PT_ON == 0 || FORCE_ACCUMULATOR_ON == 1 && DIRECT_ILLUMINATION_ON == 0)
         daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {
