@@ -110,7 +110,7 @@ daxa_f32 calculate_phat(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u3
 }
 
 // Use the reservoir to calculate the final radiance.
-void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, inout daxa_f32 p_hat, out daxa_f32vec3 radiance)
+void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count, inout daxa_f32 p_hat, out daxa_f32vec3 radiance, const in daxa_b32 use_visibility)
 {
 
   if (is_reservoir_valid(reservoir))
@@ -120,7 +120,7 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_
     daxa_f32 pdf = 1.0;
     daxa_f32 pdf_out = 1.0;
     // calculate the radiance of this light
-    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, false, false, false);
+    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, false, false, use_visibility);
 
     // calculate the weight of this light
     p_hat = length(radiance);
@@ -277,7 +277,7 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, dax
   // NOTE: It is recommended to check the visibility function of the previous frame.
   daxa_f32 p_hat = 0.0;
   daxa_f32vec3 radiance = vec3(0.0);
-  calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+  calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
 
   // NOTE: restrict influence from past samples.
   reservoir_previous.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);

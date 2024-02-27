@@ -225,7 +225,7 @@ void main()
 
             RESERVOIR reservoir = FIRST_GATHER(light_count, object_count, screen_pos, confidence, ray, hit, mat, p_hat, i);
 
-            calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance);
+            calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
 
             di_info.seed = hit.seed;
 
@@ -253,7 +253,7 @@ void main()
         // TODO: pass this from status struct
         daxa_b32 temporal_update_for_dynamic_scene = true;
 
-        daxa_f32vec3 indirect_color = vec3(0.0);
+        daxa_f32vec3 indirect_color = daxa_f32vec3(0.0);
         // Build the intersect struct
         daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
         INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position,
@@ -269,7 +269,10 @@ void main()
         indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed,
                               indirect_color);
 
+
+#if RESTIR_PT_SPATIAL_ON != 1
         set_indirect_color_by_index(screen_pos, indirect_color);
+#endif // RESTIR_PT_SPATIAL_ON        
 #endif // INDIRECT_ILLUMINATION_ON
     }
 
@@ -376,7 +379,6 @@ void main()
     {
         daxa_f32vec3 hit_value = vec3(0.0);
         prd.hit_value = vec3(1.0);
-        daxa_f32vec3 indirect_color = vec3(0.0);
 
 #if(DEBUG_NORMALS_ON == 1)
         hit_value = di_info.normal * 0.5 + 0.5;
@@ -420,7 +422,7 @@ void main()
 #endif // RESTIR_DI_SPATIAL_ON        
 
         //Calculate reservoir radiance
-        calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance);
+        calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance, false);
       
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value (reservoir radiance)
@@ -431,7 +433,7 @@ void main()
         // Get light
         LIGHT light = get_light_from_light_index(light_index);
         // Calculate radiance
-        radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
+        radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, false);
         
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value
@@ -442,29 +444,33 @@ void main()
 
         di_info.seed = hit.seed;
 
-#if INDIRECT_ILLUMINATION_ON == 1       
-//         // Build the intersect struct
-//         daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
-//         INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position, di_info.normal, wo, daxa_f32vec3(0.f), di_info.instance_hit, di_info.mat_index, mat);
-//         SCENE_PARAMS params =
-//             SCENE_PARAMS(light_count,
-//                          object_count,
-//                          max_depth,
-//                          temporal_update_for_dynamic_scene,
-//                          SHIFT_MAPPING_RECONNECTION,
-//                          0, // TODO: pack every flag here
-//                          false,
-//                          NEAR_FIELD_DISTANCE,
-//                          false,
-//                          SPECULAR_ROUGHNESS_THRESHOLD,
-//                          false,
-//                          JACOBIAN_REJECTION_THRESHOLD,
-//                          false,
-//                          true);
+#if INDIRECT_ILLUMINATION_ON == 1     
+        daxa_f32vec3 indirect_color = daxa_f32vec3(0.f);
+        // Build the intersect struct
+        daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
+        INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position, di_info.normal, wo, daxa_f32vec3(0.f), di_info.instance_hit, di_info.mat_index, mat);
+        SCENE_PARAMS params =
+            SCENE_PARAMS(light_count,
+                         object_count,
+                         max_depth,
+                         true,
+                         SHIFT_MAPPING_RECONNECTION,
+                         0, // TODO: pack every flag here
+                         false,
+                         NEAR_FIELD_DISTANCE,
+                         false,
+                         SPECULAR_ROUGHNESS_THRESHOLD,
+                         false,
+                         JACOBIAN_REJECTION_THRESHOLD,
+                         false,
+                         true);
 
-
-//         indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed, indirect_color);
-        hit_value += get_indirect_color_by_index(screen_pos);
+#if RESTIR_PT_SPATIAL_ON == 1
+        indirect_illumination_spatial_reuse(params, index, rt_size, i, di_info.seed, indirect_color);
+#else 
+        indirect_color = get_indirect_color_by_index(screen_pos);
+#endif // RESTIR_PT_SPATIAL_ON
+        hit_value += indirect_color;
 #endif // INDIRECT_ILLUMINATION_ON
 
 #if DIRECT_EMITTANCE_ON == 1

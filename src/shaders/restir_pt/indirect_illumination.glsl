@@ -347,7 +347,7 @@ void indirect_illumination_path_tracing(
 
 void indirect_illumination(const SCENE_PARAMS params, const daxa_i32vec2 index,
                            const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat,
-                           INTERSECT i, daxa_u32 seed,
+                           const INTERSECT i, daxa_u32 seed,
                            inout daxa_f32vec3 indirect_color) {
 #if RESTIR_PT_ON == 1
   indirect_illumination_restir_path_tracing(params, index, rt_size, ray, i,
@@ -358,4 +358,29 @@ void indirect_illumination(const SCENE_PARAMS params, const daxa_i32vec2 index,
                                      params.object_count, indirect_color);
 #endif
 }
+
+void indirect_illumination_spatial_reuse(const SCENE_PARAMS params,
+                                         const daxa_i32vec2 index,
+                                         const daxa_u32vec2 rt_size,
+                                         const INTERSECT current_intersection,
+                                         daxa_u32 seed,
+                                         inout daxa_f32vec3 indirect_color) {
+
+  // Get current pixel
+  daxa_u32 current_index = index.y * rt_size.x + index.x;
+
+  // Get current pixel path reservoir
+  PATH_RESERVOIR central_reservoir = get_temporal_path_reservoir_by_index(current_index); 
+
+  PATH_RESERVOIR destination_reservoir;
+  path_reservoir_initialise(params, destination_reservoir);
+
+  // for hybrid shift
+  RECONNECTION_DATA dummy_rc_data;
+  reconnection_data_initialise(dummy_rc_data);
+
+  
+
+}
+
 #endif // INDIRECT_ILLUMINATION_GLSL
