@@ -1667,6 +1667,7 @@ namespace tests
                     .root_paths = {
                         DAXA_SHADER_INCLUDE_DIR,
                         "src/shaders/raytracing",
+                        "src/shaders/restir_pt",
                     },
                     .write_out_preprocessed_code = "build/Debug",
                     .write_out_shader_binary = "build/Debug",
