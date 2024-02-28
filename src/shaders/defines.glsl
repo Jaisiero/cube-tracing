@@ -114,6 +114,8 @@ struct SCENE_PARAMS{
     daxa_f32 jacobian_rejection_threshold;
     daxa_b32 use_russian_roulette;
     daxa_b32 compute_environment_light;
+    daxa_u32 neighbor_count;
+    daxa_i32 neighbor_radius;
 };
 
 

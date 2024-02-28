@@ -264,7 +264,7 @@ void main()
             temporal_update_for_dynamic_scene, SHIFT_MAPPING_RECONNECTION,
             0, // TODO: pack every flag here
             false, NEAR_FIELD_DISTANCE, false, SPECULAR_ROUGHNESS_THRESHOLD,
-            false, JACOBIAN_REJECTION_THRESHOLD, false, true);
+            false, JACOBIAN_REJECTION_THRESHOLD, false, true, 3, 1);
 
         indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed,
                               indirect_color);
@@ -463,7 +463,9 @@ void main()
                          false,
                          JACOBIAN_REJECTION_THRESHOLD,
                          false,
-                         true);
+                         true,
+                         3,
+                         1);
 
 #if RESTIR_PT_SPATIAL_ON == 1
         daxa_f32vec3 camera_pos = daxa_f32vec3(inv_view[3]);

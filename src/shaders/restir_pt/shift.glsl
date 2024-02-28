@@ -184,7 +184,7 @@ daxa_f32vec3 compute_shifted_integrand_reconnection(
   // assuming bsdf sampling
   daxa_f32 dst_pdf1_all = 0.f;
   // TODO: re-visit this part when we implement multi BSDF evaluation
-  // daxa_f32 dst_pdf1 = sample_material_all_pdf(dst_primary_intersection,
+  // daxa_f32 dst_pdf1 = sample_material_pdf_all(dst_primary_intersection,
   // dst_connection_v, dst_pdf1_all, allowed_sampled_types1);
   daxa_f32 dst_pdf1 = sample_material_pdf(
       dst_primary_intersection.mat,

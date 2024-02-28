@@ -410,12 +410,12 @@ void indirect_illumination_spatial_reuse(const SCENE_PARAMS params,
   daxa_b32 use_hybrid_shift = params.shift_mapping == SHIFT_MAPPING_HYBRID;
 
   // TODO: passing from params
-  daxa_i32 neighbor_count = 8;
+  daxa_i32 neighbor_count = daxa_i32(params.neighbor_count);
 
   // TODO: buffer for the neighbor offsets
   daxa_u32 start_index = 0;
 
-  daxa_i32 small_window_radius = 1;
+  daxa_i32 small_window_radius = params.neighbor_radius;
 
   OBJECT_HIT central_hit = OBJECT_HIT(central_primary_intersection.instance_hit, central_primary_intersection.world_hit);
 

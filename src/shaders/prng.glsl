@@ -289,7 +289,7 @@ daxa_i32vec2 get_next_neighbor_pixel(daxa_u32 start_index, daxa_i32vec2 pixel, d
     neighbor_pixel =
         pixel + daxa_i32vec2(-small_window_radius + (i % small_window_diameter),
                              -small_window_radius + (i / small_window_diameter));
-    if (all(greaterThan(neighbor_pixel, pixel)))
+    if (all(equal(neighbor_pixel, pixel)))
       neighbor_pixel = daxa_i32vec2(-1);
 
     return neighbor_pixel;
