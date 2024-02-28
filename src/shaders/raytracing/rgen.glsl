@@ -466,7 +466,8 @@ void main()
                          true);
 
 #if RESTIR_PT_SPATIAL_ON == 1
-        indirect_illumination_spatial_reuse(params, index, rt_size, i, di_info.seed, indirect_color);
+        daxa_f32vec3 camera_pos = daxa_f32vec3(inv_view[3]);
+        indirect_illumination_spatial_reuse(params, index, rt_size, i, camera_pos, di_info.seed, indirect_color);
 #else 
         indirect_color = get_indirect_color_by_index(screen_pos);
 #endif // RESTIR_PT_SPATIAL_ON

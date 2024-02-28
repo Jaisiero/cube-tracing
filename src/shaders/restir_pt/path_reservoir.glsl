@@ -155,6 +155,13 @@ daxa_f32 path_F_to_scalar(daxa_f32vec3 color) {
   return dot(color, daxa_f32vec3(0.299, 0.587, 0.114)); // luminance
 }
 
+daxa_f32 path_reservoir_compute_weight(daxa_f32vec3 color, daxa_b32 binarize) {
+  daxa_f32 weight = path_F_to_scalar(color);
+  if (binarize && weight > 0.f)
+    weight = 1.f;
+  return weight;
+}
+
 // Credits: falcor
 /** Returns a relative luminance of an input linear RGB color in the ITU-R
    BT.709 color space \param RGBColor linear HDR RGB color in the ITU-R BT.709

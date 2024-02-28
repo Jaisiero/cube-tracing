@@ -420,9 +420,21 @@ void packed_intersection_info(Ray ray,
     world_nrm = cube_like_normal(world_nrm);
 }
 
+/**
+ * @brief Check if the instance hit exists
+ *
+ * @param instance_hit Instance hit
+ * @return daxa_b32 True if the instance hit exists
+ */
 daxa_b32 instance_hit_exists(const OBJECT_INFO instance_hit)
 {
-    return instance_hit.instance_id < MAX_INSTANCES && instance_hit.primitive_id < MAX_PRIMITIVES;
+  return instance_hit.instance_id < MAX_INSTANCES && instance_hit.primitive_id < MAX_PRIMITIVES;
+}
+
+daxa_b32 is_valid_geometry(const INTERSECT central_intersecion, const INTERSECT neighbor_intersection, const daxa_f32vec3 camera_pos) {
+  daxa_f32 central_dist = distance(camera_pos, central_intersecion.world_hit);
+  daxa_f32 neighbor_dist = distance(camera_pos, neighbor_intersection.world_hit);
+  return dot(central_intersecion.world_nrm, neighbor_intersection.world_nrm) >= 0.5f && abs(central_dist - neighbor_dist) < 0.1f * central_dist;
 }
 
 /**

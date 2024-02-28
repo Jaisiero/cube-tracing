@@ -21,6 +21,12 @@ VELOCITY velocity_buffer_get_velocity(daxa_u32vec2 pixel_coord, daxa_u32vec2 rt_
 }
 
 
+
+daxa_b32 is_valid_screen_region(daxa_i32vec2 pixel_coord, daxa_u32vec2 rt_size) {
+    return all(lessThan(pixel_coord, daxa_i32vec2(rt_size))) && all(greaterThanEqual(pixel_coord, daxa_i32vec2(0)));
+}
+
+
 // credits: Ray Tracing gems 2, cp. 25.2  https://link.springer.com/content/pdf/10.1007/978-1-4842-7185-8.pdf
 
 // NOTE: P = Mv Mmvp as the viewport Mv times the model-view-projection transformation Mmvp per frame

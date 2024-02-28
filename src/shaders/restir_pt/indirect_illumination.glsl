@@ -78,6 +78,30 @@ temporal_path_get_reprojected_primary_hit(const daxa_u32 prev_predicted_index) {
                    previus_material);
 }
 
+INTERSECT
+path_get_neighbor_primary_hit(const daxa_u32 neighbor_index) {
+
+  // Get temporal reprojection primary hit
+  DIRECT_ILLUMINATION_INFO di_info_previous =
+      get_di_from_current_frame(neighbor_index);
+
+  MATERIAL previus_material =
+      get_material_from_material_index(di_info_previous.mat_index);
+
+  daxa_b32 is_hit = di_info_previous.distance > 0.0;
+
+  daxa_f32vec3 wo = di_info_previous.ray_origin - di_info_previous.position;
+
+  // TODO: wi is half vector between wo and normal
+  daxa_f32vec3 wi = daxa_f32vec3(0.0); // normalize(wo + di_info_previous.normal);
+    // normalize(wo + di_info_previous.normal);
+
+  return INTERSECT(is_hit, di_info_previous.distance, di_info_previous.position,
+                   di_info_previous.normal, wo, wi,
+                   di_info_previous.instance_hit, di_info_previous.mat_index,
+                   previus_material);
+}
+
 void temporal_path_retrace(const SCENE_PARAMS params,
                            const PATH_RESERVOIR central_reservoir,
                            const PATH_RESERVOIR temporal_reservoir,
@@ -194,11 +218,13 @@ void temporal_path_reuse(const SCENE_PARAMS params,
             daxa_f32 t_neighbor_jacobian;
 
             // TODO: This is for hybrid shift
-            RECONNECTION_DATA rc_data = dummy_rc_data;
+            RECONNECTION_DATA rc_data;
             if (use_hybrid_shift && path_reservoir_get_reconnection_length(
                                         temp_dst_reservoir.path_flags) > 1)
               rc_data =
                   get_reconnection_data_from_current_frame(current_index, 0);
+            else
+              rc_data = dummy_rc_data;
                   
             // Calculate the integrand for the previous vertex
             daxa_f32vec3 t_neighbor_integrand = compute_shifted_integrand(
@@ -238,8 +264,12 @@ void temporal_path_reuse(const SCENE_PARAMS params,
       isnan(destination_reservoir.weight))
     destination_reservoir.weight = 0.f;
 
-  // Set the current reservoir for next frame
+#if RESTIR_PT_SPATIAL_ON != 1
   set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
+#else
+  // Set the current reservoir for next frame
+  set_output_path_reservoir_by_index(current_index, destination_reservoir);
+#endif // RESTIR_PT_SPATIAL_ON
 
   indirect_color = destination_reservoir.F * destination_reservoir.weight;
 }
@@ -271,9 +301,6 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
   temporal_path_reuse(params, central_reservoir, temporal_reservoir,
                       current_index, seed, i, prev_i, indirect_color);
 #endif // RESTIR_PT_TEMPORAL_ON                      
-
-  // Set the current reservoir for next frame
-  // set_temporal_path_reservoir_by_index(current_index, central_reservoir);
 }
 
 void indirect_illumination_path_tracing(
@@ -362,15 +389,16 @@ void indirect_illumination(const SCENE_PARAMS params, const daxa_i32vec2 index,
 void indirect_illumination_spatial_reuse(const SCENE_PARAMS params,
                                          const daxa_i32vec2 index,
                                          const daxa_u32vec2 rt_size,
-                                         const INTERSECT current_intersection,
-                                         daxa_u32 seed,
-                                         inout daxa_f32vec3 indirect_color) {
+                                         const INTERSECT central_primary_intersection,
+                                         const daxa_f32vec3 camera_pos,
+                                         inout daxa_u32 seed,
+                                         out daxa_f32vec3 indirect_color) {
 
   // Get current pixel
   daxa_u32 current_index = index.y * rt_size.x + index.x;
 
   // Get current pixel path reservoir
-  PATH_RESERVOIR central_reservoir = get_temporal_path_reservoir_by_index(current_index); 
+  PATH_RESERVOIR central_reservoir = get_output_path_reservoir_by_index(current_index); 
 
   PATH_RESERVOIR destination_reservoir;
   path_reservoir_initialise(params, destination_reservoir);
@@ -379,8 +407,125 @@ void indirect_illumination_spatial_reuse(const SCENE_PARAMS params,
   RECONNECTION_DATA dummy_rc_data;
   reconnection_data_initialise(dummy_rc_data);
 
-  
+  daxa_b32 use_hybrid_shift = params.shift_mapping == SHIFT_MAPPING_HYBRID;
 
+  // TODO: passing from params
+  daxa_i32 neighbor_count = 8;
+
+  // TODO: buffer for the neighbor offsets
+  daxa_u32 start_index = 0;
+
+  daxa_i32 small_window_radius = 1;
+
+  OBJECT_HIT central_hit = OBJECT_HIT(central_primary_intersection.instance_hit, central_primary_intersection.world_hit);
+
+  /////////////////////
+  /// PAIRWISE RMIS ///
+  /////////////////////
+  {
+    daxa_i32 valid_neighbor_count = 0;
+    daxa_f32 canonical_weight = 1;
+
+    for (daxa_i32 i = 0; i < neighbor_count; ++i) {
+      daxa_i32vec2 neighbor_pixel = get_next_neighbor_pixel(start_index, index, i, small_window_radius);
+
+      if (!is_valid_screen_region(neighbor_pixel, rt_size))
+        continue;
+
+      daxa_u32 neighbor_index = neighbor_pixel.y * rt_size.x + neighbor_pixel.x;
+
+      INTERSECT neighbor_primary_intersection = path_get_neighbor_primary_hit(neighbor_index);
+      OBJECT_HIT neighbor_hit = OBJECT_HIT(neighbor_primary_intersection.instance_hit, neighbor_primary_intersection.world_hit);
+      if (!instance_hit_exists(neighbor_hit.object))
+        continue;
+      if (!is_valid_geometry(central_primary_intersection, neighbor_primary_intersection, camera_pos))
+        continue;
+
+      PATH_RESERVOIR neighbor_reservoir = get_output_path_reservoir_by_index(neighbor_index); 
+
+      daxa_f32 dst_jacobian;
+
+      valid_neighbor_count++;
+
+      daxa_f32 prefix_approx_pdf = 0.f;
+
+      daxa_f32 prefix_jacobian;
+
+      RECONNECTION_DATA rc_data;
+      if (use_hybrid_shift && path_reservoir_get_reconnection_length(
+                                  central_reservoir.path_flags) > 1)
+        rc_data =
+            get_reconnection_data_from_current_frame(current_index, 2 * i);
+      else
+        rc_data = dummy_rc_data;
+
+      daxa_f32vec3 prefix_integrand = compute_shifted_integrand(
+          params, prefix_jacobian, neighbor_hit, neighbor_primary_intersection,
+          central_primary_intersection, central_reservoir, rc_data, true, false, false);
+
+      prefix_approx_pdf =
+          path_reservoir_compute_weight(prefix_integrand, false) * prefix_jacobian;
+
+      canonical_weight += 1;
+      if (prefix_approx_pdf > 0.f)
+        canonical_weight -=
+            prefix_approx_pdf * neighbor_reservoir.M /
+            (prefix_approx_pdf * neighbor_reservoir.M +
+             central_reservoir.M *
+                 path_reservoir_compute_weight(central_reservoir.F, false) /
+                 (neighbor_count));
+
+      PATH_RESERVOIR temporal_destination_reservoir = destination_reservoir;
+
+      if (use_hybrid_shift && path_reservoir_get_reconnection_length(
+                                  neighbor_reservoir.path_flags) > 1)
+        rc_data =
+            get_reconnection_data_from_current_frame(current_index, 2 * i + 1);
+      else
+        rc_data = dummy_rc_data;
+
+      daxa_b32 possible_to_be_selected = shift_and_merge_reservoir(
+          params, false, dst_jacobian,  central_hit, central_primary_intersection,
+          temporal_destination_reservoir, neighbor_primary_intersection, neighbor_reservoir, rc_data, true,
+          seed, true, 1.f, true); // "true" means hypothetically selected as the sample
+
+      daxa_f32 neighbor_weight = 0.f;
+
+      if (possible_to_be_selected) {
+        neighbor_weight =
+            path_reservoir_compute_weight(neighbor_reservoir.F, false) / dst_jacobian *
+            neighbor_reservoir.M /
+            ((path_reservoir_compute_weight(neighbor_reservoir.F, false) / dst_jacobian) *
+                 neighbor_reservoir.M +
+             path_reservoir_compute_weight(temporal_destination_reservoir.F, false) *
+                 central_reservoir.M / (neighbor_count));
+        if (isnan(neighbor_weight) || isinf(neighbor_weight))
+          neighbor_weight = 0.f;
+      }
+
+      merge_reservoir_with_resampling_MIS(
+          params, temporal_destination_reservoir.F, dst_jacobian, destination_reservoir,
+          temporal_destination_reservoir, neighbor_reservoir, seed, true, neighbor_weight);
+    }
+
+    merge_reservoir_with_resampling_MIS(
+        params, central_reservoir.F, 1.f, destination_reservoir, central_reservoir,
+        central_reservoir, seed, true, canonical_weight);
+
+    if (destination_reservoir.weight > 0) {
+      path_reservoir_finalize_GRIS(destination_reservoir);
+      destination_reservoir.weight /=
+          (valid_neighbor_count + 1); // compensate for the fact that pairwise
+                                    // resampling MIS was not divided by (k+1)
+    }
+
+    if (destination_reservoir.weight < 0.f) destination_reservoir.weight = 0.f;
+        if (isnan(destination_reservoir.weight) || isinf(destination_reservoir.weight)) destination_reservoir.weight = 0.f;
+
+    indirect_color = destination_reservoir.F * destination_reservoir.weight;
+
+    set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
+  }
 }
 
 #endif // INDIRECT_ILLUMINATION_GLSL
