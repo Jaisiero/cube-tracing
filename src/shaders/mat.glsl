@@ -22,7 +22,8 @@ daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
 }
 
 daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 wo, daxa_f32vec3 wi) {
-  return mat.diffuse * INV_DAXA_PI * get_cos_theta(wo, wi);
+    if (min(wo.z, wi.z) < MIN_COS_THETA) return daxa_f32vec3(0.f);
+    return mat.diffuse * INV_DAXA_PI * wi.z;
 }
 
 
@@ -55,11 +56,11 @@ daxa_f32vec3 get_constant_medium_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f3
 
 // TODO: check this
 daxa_f32vec3 to_local(daxa_f32vec3 n, daxa_f32vec3 v) {
-//   daxa_f32vec3 u, v2, w;
-//   w = normalize(n);
-//   calculate_orthonormal_basis(w, u, v2);
-//   return daxa_f32vec3(dot(u, w), dot(v2, w), dot(n, w));
-    return v;
+  daxa_f32vec3 u, v2, w;
+  w = normalize(n);
+  calculate_orthonormal_basis(w, u, v2);
+  return daxa_f32vec3(dot(u, w), dot(v2, w), dot(v, w));
+    // return v;
 }
 
 daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
@@ -79,7 +80,7 @@ daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
   } break;
   default: {
 
-    color = get_diffuse_BRDF(mat, n, wi_l);
+    color = get_diffuse_BRDF(mat, wo_l, wi_l);
   } break;
   }
 

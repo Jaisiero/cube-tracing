@@ -161,8 +161,8 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
   } break;
   default: {
 #if COSINE_HEMISPHERE_SAMPLING == 1
-    daxa_f32 cos_theta = get_cos_theta(n, wi);
-    return cos_theta < MIN_COS_THETA ? 0.f : cos_theta / DAXA_PI;
+    if (min(wo_l.z, wi_l.z) < MIN_COS_THETA) return 0.f;
+    return  INV_DAXA_PI * wi_l.z;
 #else
     return INV_DAXA_2PI;
 #endif

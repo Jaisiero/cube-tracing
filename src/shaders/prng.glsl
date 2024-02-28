@@ -135,19 +135,6 @@ daxa_f32vec3 random_cube_normal(inout daxa_u32 seed) {
     return daxa_f32vec3(-1, 0, 0);
 }
 
-// daxa_f32vec3 random_position_in_cube(daxa_f32vec3 p, daxa_f32vec3 s, inout daxa_u32 seed, out daxa_f32vec3 l_nor) {
-//     daxa_f32vec3 n = random_cube_normal(seed);
-//     daxa_f32vec3 l_p = random_quad(n, p, s.xy, seed);
-//     l_nor = n;
-//     l_p += s.z * 0.5 + p;
-//     return l_p;
-// }
-
-// void calculate_orthonormal_basis(daxa_f32vec3 normal, inout daxa_f32vec3 tangent1, inout daxa_f32vec3 tangent2) {
-//     tangent1 = normalize(normalize(daxa_f32vec3(1.0, 0.0, 0.0)) - normal * dot(normalize(daxa_f32vec3(1.0, 0.0, 0.0)), normal));
-//     tangent2 = normalize(cross(normal, tangent1));
-// }
-
 void calculate_orthonormal_basis(daxa_f32vec3 normal, inout daxa_f32vec3 tangent1, inout daxa_f32vec3 tangent2) {
     if (abs(normal.x) > abs(normal.y)) {
         tangent1 = normalize(daxa_f32vec3(-normal.z, 0.0, normal.x));

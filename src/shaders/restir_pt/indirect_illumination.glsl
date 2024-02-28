@@ -82,23 +82,23 @@ INTERSECT
 path_get_neighbor_primary_hit(const daxa_u32 neighbor_index) {
 
   // Get temporal reprojection primary hit
-  DIRECT_ILLUMINATION_INFO di_info_previous =
+  DIRECT_ILLUMINATION_INFO di_info =
       get_di_from_current_frame(neighbor_index);
 
   MATERIAL previus_material =
-      get_material_from_material_index(di_info_previous.mat_index);
+      get_material_from_material_index(di_info.mat_index);
 
-  daxa_b32 is_hit = di_info_previous.distance > 0.0;
+  daxa_b32 is_hit = di_info.distance > 0.0;
 
-  daxa_f32vec3 wo = di_info_previous.ray_origin - di_info_previous.position;
+  daxa_f32vec3 wo = di_info.ray_origin - di_info.position;
 
   // TODO: wi is half vector between wo and normal
-  daxa_f32vec3 wi = daxa_f32vec3(0.0); // normalize(wo + di_info_previous.normal);
+  daxa_f32vec3 wi = daxa_f32vec3(0.0); // normalize(wo + di_info.normal);
     // normalize(wo + di_info_previous.normal);
 
-  return INTERSECT(is_hit, di_info_previous.distance, di_info_previous.position,
-                   di_info_previous.normal, wo, wi,
-                   di_info_previous.instance_hit, di_info_previous.mat_index,
+  return INTERSECT(is_hit, di_info.distance, di_info.position,
+                   di_info.normal, wo, wi,
+                   di_info.instance_hit, di_info.mat_index,
                    previus_material);
 }
 
