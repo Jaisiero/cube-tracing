@@ -114,13 +114,11 @@ void main()
 
         daxa_f32 distance = -1.0;
 
-        prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, distance, prd.world_hit, prd.world_nrm, model, inv_model, false, true, true) ? distance : -1.0;
-
-
-        // daxa_f32vec4 world_hit_4 = (model * vec4(prd.world_hit, 1));
-        // prd.world_hit = (world_hit_4 / world_hit_4.w).xyz;
-        // prd.world_nrm = (transpose(inv_model) * vec4(prd.world_nrm, 0)).xyz;
-        // prd.world_hit = compute_ray_origin(prd.world_hit, prd.world_nrm);
+        prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent,
+                                       distance, prd.world_hit, prd.world_nrm,
+                                       model, inv_model, false, true, true)
+                           ? distance
+                           : -1.0;
         prd.distance = length(prd.world_hit - ray.origin);
 
         prd.mat_index = get_material_index_from_instance_and_primitive_id(prd.instance_hit);
@@ -161,7 +159,9 @@ void main()
         set_indirect_color_by_index(screen_pos, daxa_f32vec3(0.f));
 #endif // INDIRECT_ILLUMINATION_ON
     } else {      
+#if SER != 1
         model = get_geometry_transform_from_instance_id(di_info.instance_hit.instance_id);
+#endif // SER
 
         // Previous frame screen coord
         daxa_f32vec2 motion_vector = get_motion_vector(index.xy, di_info.position, rt_size.xy, di_info.instance_hit.instance_id, model);

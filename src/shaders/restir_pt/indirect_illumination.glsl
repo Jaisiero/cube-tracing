@@ -27,7 +27,7 @@ daxa_f32vec3 trace_hybrid_shift_rays(const SCENE_PARAMS params,
 
 PATH_RESERVOIR temporal_path_get_reprojected(
     const daxa_i32vec2 index, const daxa_u32vec2 rt_size,
-    out daxa_u32 current_index, out daxa_u32 prev_predicted_index) {
+    out daxa_u32 current_index, out daxa_u32 prev_predicted_index, inout daxa_u32 seed) {
   current_index = index.y * rt_size.x + index.x;
 
   // Compute offset into per-sample buffers. All samples are stored
@@ -35,13 +35,15 @@ PATH_RESERVOIR temporal_path_get_reprojected(
   VELOCITY velocity = velocity_buffer_get_velocity(index, rt_size);
 
   // X from current pixel position
-  daxa_f32vec2 Xi = daxa_f32vec2(index.xy) + 0.5;
+  daxa_f32vec2 Xi = daxa_f32vec2(index.xy);
 
   // X from previous pixel position
-  daxa_f32vec2 Xi_1 = Xi + velocity.velocity;
+  daxa_f32vec2 Xi_1 = Xi + (velocity.velocity) + daxa_f32vec2(rnd(seed), rnd(seed));
 
   // Predicted coordinate
   daxa_u32vec2 predicted_coord = daxa_u32vec2(Xi_1);
+
+  // prev predicted index
   prev_predicted_index = predicted_coord.x + predicted_coord.y * rt_size.x;
 
   // Max screen pos
@@ -288,7 +290,7 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
   daxa_u32 current_index;
   daxa_u32 prev_predicted_index;
   PATH_RESERVOIR temporal_reservoir = temporal_path_get_reprojected(
-      index, rt_size, current_index, prev_predicted_index);
+      index, rt_size, current_index, prev_predicted_index, seed);
 
   INTERSECT prev_i =
       temporal_path_get_reprojected_primary_hit(prev_predicted_index);

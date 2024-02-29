@@ -235,18 +235,17 @@ daxa_b32 path_generate_light_sample(const SCENE_PARAMS params, INTERSECT i,
 
   daxa_f32 pdf = 1.0 / params.light_count;
 
-  Ray ray = Ray(i.world_hit, i.wo);
-
   // intersection info
   HIT_INFO_INPUT hit =
       HIT_INFO_INPUT(i.world_hit, i.world_nrm, i.distance, -i.wo,
                      i.instance_hit, i.material_idx, seed, 0);
 
   daxa_f32vec3 l_pos;
+  daxa_f32vec3 l_nor;
 
   // TODO: Use sample_lights instead of calculate_sampled_light_and_get_light_info
   // NOTE: visibility check is done inside calculate_sampled_light
-  daxa_b32 found = sample_lights(hit, light, pdf, l_pos, ls.dir, ls.Li, true, true);
+  daxa_b32 found = sample_lights(hit, light, pdf, l_pos, l_nor, ls.Li, true, true);
 
   ls.dir = normalize(l_pos - i.world_hit);
 
@@ -505,8 +504,8 @@ daxa_b32 path_check_rc_vertex(inout PATH_STATE path, INTERSECT i,
       path.path_builder.cached_jacobian.z =
           abs(dot(i.world_nrm, i.wo)) / dot(disp, disp);
 
-      // if(isnan(path.path_builder.cached_jacobian.z)) 
-      //   path.path_builder.cached_jacobian.z = 0.f;
+      if(isnan(path.path_builder.cached_jacobian.z)) 
+        path.path_builder.cached_jacobian.z = 0.f;
 
       // save the current path length as the rc vertex length
       if (can_connect || !path.use_hybrid_shift) {

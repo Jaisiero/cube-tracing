@@ -467,9 +467,6 @@ INTERSECT load_intersection_data_vertex_position(
                           true)) {
     intersect_initiliaze(i);
   } else {
-    // daxa_f32vec4 pos_4 = model * daxa_f32vec4(pos, 1);
-    // pos = pos_4.xyz / pos_4.w;
-    // nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
     pos = compute_ray_origin(pos, nor);
     distance = length(world_pos - pos);
 
@@ -526,9 +523,6 @@ INTERSECT load_intersection_data_vertex_position_by_ray(
                           true)) {
     intersect_initiliaze(i);
   } else {
-    // daxa_f32vec4 pos_4 = model * daxa_f32vec4(pos, 1);
-    // pos = pos_4.xyz / pos_4.w;
-    // nor = normalize((transpose(inv_model) * daxa_f32vec4(nor, 0)).xyz);
     pos = compute_ray_origin(pos, nor);
     distance = length(ray.origin - pos);
 
@@ -549,55 +543,3 @@ INTERSECT load_intersection_data_vertex_position_by_ray(
 
   return i;
 }
-
-// daxa_b32 is_plane_visible_from_point(daxa_f32vec3 n, daxa_f32vec3 p0, daxa_f32vec3 l0, daxa_f32vec3 l, out daxa_f32 t) {
-//     // assuming vectors are all normalized
-//     daxa_f32 denom = dot(n, l);
-//     if (denom > 1e-6) {
-//         daxa_f32vec3 p0l0 = p0 - l0;
-//         t = dot(p0l0, n) / denom; 
-//         return (t >= 0);
-//     }
-    
-//     return false;
-// }
-
-
-// /**
-//     * @brief Get a random normal of a valid cube surface
-//     * 
-//     * @param p The point from where we are sampling
-//     * @param light The light that we are sampling (l.position, l.size)
-//     * @param seed The seed for the random number generator
-//     * @return daxa_f32vec3 The random point in the cube
-//     */
-// daxa_f32vec3 random_cube_normal_from_a_given_point(daxa_f32vec3 p, LIGHT light, out daxa_f32vec3 l_nor, inout daxa_u32 seed) {
-//     // Get the normal of the face of the cube that contains the point
-
-//     l_nor = daxa_f32vec3(0.0, 0.0, 0.0);
-
-//     daxa_b32 face_found = false;
-
-//     // daxa_f32vec2 s = daxa_f32vec2(light.size * 0.5);
-
-//     daxa_f32 half_size = light.size * 0.5;
-//     daxa_f32vec2 s = daxa_f32vec2(half_size, half_size);
-
-//     daxa_f32 t = 0;
-
-//     daxa_f32vec3 position = daxa_f32vec3(0.0, 0.0, 0.0);
-
-//     while(!face_found) {
-//         l_nor = random_cube_normal(seed);
-
-//         // Get the position of the face
-//         position = light.position + l_nor * half_size;
-        
-//         // Get a position inside the quad face randomly considering the size of the light and the position of the face
-//         position = random_quad(l_nor, position, s, seed);
-
-//         face_found = is_plane_visible_from_point(l_nor, position, p, normalize(position - p), t);
-//     }
-
-//     return position;
-// }

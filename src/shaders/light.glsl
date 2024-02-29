@@ -67,15 +67,6 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_targ
             break;
           }
           is_hit = true;
-          //         material_idx =
-          //         get_material_index_from_instance_and_primitive_id(instance_hit);
-          //         intersected_mat =
-          //         get_material_from_material_index(material_idx);
-
-          //         daxa_f32vec4 int_hit_4 = model * vec4(int_hit, 1);
-          //         int_hit = int_hit_4.xyz / int_hit_4.w;
-          //         int_nor = (transpose(inv_model) * vec4(int_nor, 0)).xyz;
-          //         break;
         }
       }
     }
