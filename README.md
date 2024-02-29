@@ -17,3 +17,8 @@ And emissive geometries:
 
 
 There's a current ReSTIR DI implementation and a work in progress ReSTIR PT implementation.
+
+Here's a teaser showing GI off and on:
+
+![temporal_ReSTIR_PT_OFF_ON](https://github.com/Jaisiero/cube-tracing/assets/6051981/2f2138a6-07ad-4d8f-9415-201b69cae1d1)
+
