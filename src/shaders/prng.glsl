@@ -81,7 +81,7 @@ daxa_f32vec3 random_on_hemisphere(inout daxa_u32 seed, daxa_f32vec3 normal) {
         return -on_unit_sphere;
 }
 
-daxa_f32vec3 random_cosine_direction(inout uint seed) {
+daxa_f32vec3 random_cosine_direction(inout uint seed, daxa_f32vec3 normal) {
     daxa_f32 r1 = randomLCG(seed);
     daxa_f32 r2 = randomLCG(seed);
     daxa_f32 z = sqrt(1.0f - r2);
@@ -90,8 +90,22 @@ daxa_f32vec3 random_cosine_direction(inout uint seed) {
     daxa_f32 x = cos(phi) * sqrt(r2);
     daxa_f32 y = sin(phi) * sqrt(r2);
 
-    return daxa_f32vec3(x, y, z);
+
+    daxa_f32vec3 u, v;
+
+    if (abs(normal.x) > 0.1f) {
+        u = daxa_f32vec3(0.0f, 1.0f, 0.0f);
+    } else {
+        u = daxa_f32vec3(1.0f, 0.0f, 0.0f);
+    }
+
+    u = normalize(cross(normal, u));
+
+    v = cross(normal, u);
+
+    return x * u + y * v + z * normal;
 }
+
 
 daxa_f32vec3 random_in_unit_disk(inout daxa_u32 seed) {
     while (true) {
@@ -101,31 +115,86 @@ daxa_f32vec3 random_in_unit_disk(inout daxa_u32 seed) {
     }
 }
 
-daxa_f32vec3 random_quad(daxa_f32vec3 normal, daxa_f32vec2 size, inout daxa_u32 seed) {
-    // Generate a random point on a quad with normal n and size s
-    daxa_f32vec3 quad_point = daxa_f32vec3(0, 0, 0);
-    daxa_f32vec3 u = daxa_f32vec3(0, 0, 0);
-    daxa_f32vec3 v = daxa_f32vec3(0, 0, 0);
+// Get a random unit vector of one of the six faces of a cube
+daxa_f32vec3 random_cube_normal(inout daxa_u32 seed) {
+    daxa_u32 face = min(urnd_interval(seed, 0, CUBE_FACE_COUNT), CUBE_FACE_COUNT-1);
+    switch (face) {
+    case 0:
+        return daxa_f32vec3(-1, 0, 0);
+    case 1:
+        return daxa_f32vec3(1, 0, 0);
+    case 2:
+        return daxa_f32vec3(0, -1, 0);
+    case 3:
+        return daxa_f32vec3(0, 1, 0);
+    case 4:
+        return daxa_f32vec3(0, 0, -1);
+    case 5:
+        return daxa_f32vec3(0, 0, 1);
+    }
+    return daxa_f32vec3(-1, 0, 0);
+}
 
-    // Check front facing and back facing quads
+void calculate_orthonormal_basis(daxa_f32vec3 normal, inout daxa_f32vec3 tangent1, inout daxa_f32vec3 tangent2) {
+    if (abs(normal.x) > abs(normal.y)) {
+        tangent1 = normalize(daxa_f32vec3(-normal.z, 0.0, normal.x));
+    } else {
+        tangent1 = normalize(daxa_f32vec3(0.0, normal.z, -normal.y));
+    }
+    tangent2 = normalize(cross(normal, tangent1));
+}
 
-    if (normal.x == 0 && normal.y == 0) {
-        u = daxa_f32vec3(1, 0, 0);
-        v = daxa_f32vec3(0, sign(normal.z), 0);
-    }
-    else if (normal.x == 0 && normal.z == 0) {
-        u = daxa_f32vec3(1, 0, 0);
-        v = daxa_f32vec3(0, 0, sign(normal.y));
-    }
-    else {
-        u = daxa_f32vec3(0, 1, 0);
-        v = daxa_f32vec3(sign(normal.x), 0, 0);
-    }
-    quad_point = quad_point.x * u * size.x + quad_point.y * v * size.y;
+/**
+    * @brief Get a random point in a quad wich can be oriented in any direction
+    * 
+    * @param n Normal of the quad
+    * @param p Origin of the quad
+    * @param s Half size of the quad
+    * @param seed Random seed
+    * @return daxa_f32vec3 Random point in the quad
+    */
+daxa_f32vec3 random_quad(daxa_f32vec3 n, daxa_f32vec3 p, daxa_f32vec2 s, inout daxa_u32 seed) {
+    // 1. Generar dos números aleatorios en el rango [0, 1)
+    daxa_f32 u = rnd(seed);
+    daxa_f32 v = rnd(seed);
+
+    // 2. Calcular un punto aleatorio en el plano del cuadrado unitario en el espacio local del cuadrado
+    daxa_f32vec2 q = daxa_f32vec2(u, v);
+
+    // 3. Escalar q por el tamaño del cuadrado
+    q *= s;
+
+    // 4. Transformar q al espacio del mundo utilizando la orientación proporcionada por la normal n y el punto p
+    daxa_f32vec3 x_axis, y_axis;
+    calculate_orthonormal_basis(n, x_axis, y_axis);
+    daxa_f32vec3 qWorld = p + x_axis * q.x + y_axis * q.y;
+
+    return qWorld;
+}
+
+daxa_f32vec3 random_in_unit_rectangle(daxa_f32vec3 normal, daxa_f32vec3 origin, daxa_f32vec2 dimensions, inout daxa_u32 seed) {
+    // Calcula dos vectores ortogonales al vector normal
+    daxa_f32vec3 tangent1, tangent2;
+    calculate_orthonormal_basis(normal, tangent1, tangent2);
     
-    return quad_point;
-
-
+    daxa_f32vec3 p;
+    while (true) {
+        // Genera coordenadas aleatorias en el rango [-1, 1]
+        daxa_f32 x = randomInRangeLCG(seed, -1.0f, 1.0f);
+        daxa_f32 y = randomInRangeLCG(seed, -1.0f, 1.0f);
+        
+        // Escala las coordenadas para que estén en el rango de las dimensiones del rectángulo
+        daxa_f32vec3 point_on_plane = origin + tangent1 * (dimensions.x * x) + tangent2 * (dimensions.y * y);
+        
+        // Verifica si el punto está dentro del rectángulo proyectado
+        daxa_f32vec3 to_point = point_on_plane - origin;
+        daxa_f32 projected_length = dot(to_point, normal);
+        if (projected_length > 0 && projected_length < length(normal)) {
+            p = point_on_plane;
+            break;
+        }
+    }
+    return p;
 }
 
 
@@ -162,7 +231,7 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, ino
     {
     case MATERIAL_TYPE_METAL:
         daxa_f32vec3 reflected = reflection(direction, world_nrm);
-        scatter_direction = reflected + min(m.roughness, 1.0) * random_cosine_direction(seed);
+        scatter_direction = reflected + min(m.roughness, 1.0) * random_cosine_direction(seed, reflected);
         return dot(scatter_direction, world_nrm) > 0.0f;
     case MATERIAL_TYPE_DIELECTRIC:
         daxa_f32 etai_over_etat = m.ior;
@@ -189,7 +258,7 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, ino
         return true;
     case MATERIAL_TYPE_LAMBERTIAN:
     default:
-        scatter_direction = world_nrm + random_cosine_direction(seed);
+        scatter_direction = random_cosine_direction(seed, world_nrm);
         // Catch degenerate scatter direction
         if (normal_near_zero(scatter_direction))
             scatter_direction = world_nrm;
@@ -197,6 +266,32 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, ino
         return true;
     }
     return false;
+}
+
+
+daxa_i32vec2 get_next_neighbor_pixel(daxa_u32 start_index, daxa_i32vec2 pixel, daxa_i32 i, daxa_i32 small_window_radius, inout daxa_u32 seed) {
+    daxa_i32vec2 neighbor_pixel = daxa_i32vec2(0.f);
+
+    // daxa_i32 small_window_diameter = 2 * small_window_radius + 1;
+    // neighbor_pixel =
+    //     pixel + daxa_i32vec2(-small_window_radius + (i % small_window_diameter),
+    //                          -small_window_radius + (i / small_window_diameter));
+    // if (all(equal(neighbor_pixel, pixel)))
+    //   neighbor_pixel = daxa_i32vec2(-1);
+
+
+    daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(seed), rnd(seed)) - 1;
+
+    // Scale offset
+    offset.x = pixel.x + daxa_i32(offset.x * small_window_radius);
+    offset.y = pixel.y + daxa_i32(offset.y * small_window_radius);
+
+    neighbor_pixel = daxa_i32vec2(offset);
+
+    if (all(equal(neighbor_pixel, pixel)))
+      neighbor_pixel = daxa_i32vec2(-1);
+
+    return neighbor_pixel;
 }
 
 #endif // PRNG_GLSL

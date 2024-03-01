@@ -2,12 +2,28 @@
 #ifndef MATERIAL_GLSL
 #define MATERIAL_GLSL
 #include <daxa/daxa.inl>
-#include "shared.inl"
+#include "defines.glsl"
 #include "prng.glsl"
 
 
-daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
-    return mat.diffuse * INV_DAXA_PI;
+void set_indirect_color_by_index(daxa_u32 screen_pos, daxa_f32vec3 color) {
+    INDIRECT_COLOR_BUFFER indirect_color_buffer = INDIRECT_COLOR_BUFFER(deref(p.restir_buffer).indirect_color_address);
+    indirect_color_buffer.colors[screen_pos] = color;
+}
+
+daxa_f32vec3 get_indirect_color_by_index(daxa_u32 screen_pos) {
+    INDIRECT_COLOR_BUFFER indirect_color_buffer = INDIRECT_COLOR_BUFFER(deref(p.restir_buffer).indirect_color_address);
+    return indirect_color_buffer.colors[screen_pos];
+}
+
+
+daxa_f32 get_cos_theta(daxa_f32vec3 n, daxa_f32vec3 w_i) {
+  return max(dot(n, w_i), 0.0);
+}
+
+daxa_f32vec3 get_diffuse_BRDF(MATERIAL mat, daxa_f32vec3 wo, daxa_f32vec3 wi) {
+    if (min(wo.z, wi.z) < MIN_COS_THETA) return daxa_f32vec3(0.f);
+    return mat.diffuse * INV_DAXA_PI * wi.z;
 }
 
 
@@ -35,7 +51,44 @@ daxa_f32vec3 get_dialectric_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3
 
 
 daxa_f32vec3 get_constant_medium_BRDF(MATERIAL mat, daxa_f32vec3 normal, daxa_f32vec3 light_dir, daxa_f32vec3 view_dir) {
-    return mat.diffuse;
+    return mat.diffuse * INV_DAXA_4PI;
+}
+
+// TODO: check this
+daxa_f32vec3 to_local(daxa_f32vec3 n, daxa_f32vec3 v) {
+  daxa_f32vec3 u, v2, w;
+  w = normalize(n);
+  calculate_orthonormal_basis(w, u, v2);
+  return daxa_f32vec3(dot(u, w), dot(v2, w), dot(v, w));
+    // return v;
+}
+
+daxa_f32vec3 evaluate_material(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
+                               daxa_f32vec3 wi) {
+  daxa_f32vec3 wo_l = to_local(n, wo);
+  daxa_f32vec3 wi_l = to_local(n, wi);
+  daxa_f32vec3 color = daxa_f32vec3(0.0);
+  switch (mat.type & MATERIAL_TYPE_MASK) {
+  case MATERIAL_TYPE_METAL: {
+    color = get_metal_BRDF(mat, n, wi, wo);
+  } break;
+  case MATERIAL_TYPE_DIELECTRIC: {
+    color = get_dialectric_BRDF(mat, n, wi, wo);
+  } break;
+  case MATERIAL_TYPE_CONSTANT_MEDIUM: {
+    color = get_constant_medium_BRDF(mat, n, wi, wo);
+  } break;
+  default: {
+
+    color = get_diffuse_BRDF(mat, wo_l, wi_l);
+  } break;
+  }
+
+  return color;
+}
+
+daxa_f32vec3 eval_bsdf_cosine(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo, daxa_f32vec3 wi)  {
+    return evaluate_material(mat, n, wo, wi);
 }
 
 

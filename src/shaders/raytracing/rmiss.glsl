@@ -5,8 +5,6 @@
 #include "shared.inl"
 #include "mat.glsl"
 
-DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
-
 #if defined(MISS_SHADOW)
 
 layout(location = 1) rayPayloadInEXT bool isShadowed;

@@ -17,7 +17,12 @@
 
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
-#define DYNAMIC_SUN_LIGHT 0
+
+#define DYNAMIC_SUN_LIGHT 1
+#define POINT_LIGHT_ON 1
+#define SUN_MIDDAY 1
+#define SUN_MAX_INTENSITY 5000.0f
+#define SUN_TOP_POSITION 20.0f
 
 // #define LEVEL_0_VOXEL_EXTENT 0.25
 // #define LEVEL_1_VOXEL_EXTENT 0.125
@@ -31,22 +36,41 @@
 #define CHUNK_EXTENT VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS
 
 #define DAXA_PI 3.1415926535897932384626433832795f
+#define DAXA_2PI 6.283185307179586476925286766559f
+#define DAXA_4PI 12.566370614359172953850573533118f
 #define INV_DAXA_PI 0.31830988618379067153776752674503f
+#define INV_DAXA_2PI 0.15915494309189533576888376337251f
+#define INV_DAXA_4PI 0.079577471545947667884441881686255f
 
 #define SAMPLES_PER_PIXEL 1
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
 #define MAX_DEPTH 3
-#define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define AVOID_VOXEL_COLLAIDE 1e-9f   // Delta ray offset for shadow rays
+#define CUBE_FACE_COUNT 6
 
 #define PERLIN_FACTOR 500
 
-#define SUN_MAX_INTENSITY 5000.0f
+#define SCREEN_SIZE_X 3840
+#define SCREEN_SIZE_Y 2160
+
+#define MAX_RESERVOIRS SCREEN_SIZE_X * SCREEN_SIZE_Y
 
 struct AABB
 {
   daxa_f32vec3 minimum;
   daxa_f32vec3 maximum;
+};
+
+struct OBJECT_INFO
+{
+  daxa_u32 instance_id;
+  daxa_u32 primitive_id;
+};
+
+struct OBJECT_HIT
+{
+  OBJECT_INFO object;
+  daxa_f32vec3 hit;
 };
 
 struct Ray
@@ -66,9 +90,9 @@ struct HIT_PAY_LOAD
     daxa_f32 distance;
     daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
+    daxa_u32 mat_index;
     daxa_f32vec3 ray_scatter_dir;
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
+    OBJECT_INFO instance_hit;
 };
 
 struct HIT_INDIRECT_PAY_LOAD
@@ -96,8 +120,7 @@ struct HIT_SCATTER_PAY_LOAD
     daxa_f32vec3 scatter_dir;
     daxa_u32 mat_idx;
     daxa_b32 done;
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
+    OBJECT_INFO instance_hit;
     daxa_f32 pdf;
 };
 
@@ -109,8 +132,7 @@ struct HIT_INFO
   daxa_f32vec3 world_hit;
   daxa_f32vec3 world_nrm;
   daxa_f32vec3 obj_hit;
-  daxa_i32 instance_id;
-  daxa_i32 primitive_id;
+  OBJECT_INFO instance_hit;
   daxa_f32vec3 primitive_center;
   daxa_u32 material_index;
   daxa_f32vec2 uv;
@@ -118,13 +140,25 @@ struct HIT_INFO
 
 struct HIT_INFO_INPUT
 {
-  daxa_f32vec3 hit_value;
   daxa_f32vec3 world_hit;
   daxa_f32vec3 world_nrm;
-  daxa_u32 instance_id;
-  daxa_u32 primitive_id;
+  daxa_f32 distance;
+  daxa_f32vec3 scatter_dir;
+  OBJECT_INFO instance_hit;
+  daxa_u32 mat_idx;
   daxa_u32 seed;
   daxa_u32 depth;
+};
+
+struct HIT_INFO_OUTPUT
+{
+    daxa_f32vec3 world_hit;
+    daxa_f32vec3 world_nrm;
+    OBJECT_INFO instance_hit;
+    daxa_f32vec3 scatter_dir;
+    daxa_u32 mat_idx;
+    daxa_u32 seed;
+    daxa_u32 depth;
 };
 
 
@@ -141,7 +175,7 @@ DAXA_DECL_BUFFER_PTR(camera_view)
 struct Status
 {
     daxa_u32 frame_number;
-    daxa_u32 num_accumulated_frames;
+    daxa_u64 num_accumulated_frames;
     daxa_u32vec2 pixel;
     daxa_b32 is_active;
     daxa_u32 light_count;
@@ -211,10 +245,13 @@ struct MATERIAL
 
 struct INTERSECT {
     daxa_b32 is_hit;
+    daxa_f32 distance;
     daxa_f32vec3 world_hit;
     daxa_f32vec3 world_nrm;
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
+    daxa_f32vec3 wo;
+    daxa_f32vec3 wi;
+    OBJECT_INFO instance_hit;
+    daxa_u32 material_idx;
     MATERIAL mat;
 };
 
@@ -222,22 +259,23 @@ struct INTERSECT {
 #define GEOMETRY_LIGHT_POINT 0
 #define GEOMETRY_LIGHT_CUBE 1
 #define GEOMETRY_LIGHT_SPEHERE 2
-#define GEOMETRY_LIGHT_MAX_ENUM 3
+#define GEOMETRY_LIGHT_ANALITIC 3
+#define GEOMETRY_LIGHT_ENV_MAP 4
+#define GEOMETRY_LIGHT_MAX_ENUM GEOMETRY_LIGHT_ENV_MAP + 1
 
 struct LIGHT
 {
     daxa_f32vec3 position;
     daxa_f32vec3 emissive;
-    daxa_u32 instance_index;
-    daxa_u32 primitive_index;
+    OBJECT_INFO instance_info;
+    daxa_f32 size;
     daxa_u32 type; // 0: point, 1: quad, 2: sphere
 };
 
 
 // struct STATUS_OUTPUT
 // {
-//     daxa_u32 instance_id;
-//     daxa_u32 primitive_id;
+//     OBJECT_INFO instance_hit;
 //     daxa_f32 hit_distance;
 //     daxa_f32 exit_distance;
 //     daxa_f32vec3 hit_position;
@@ -258,6 +296,10 @@ struct RESTIR {
     daxa_u64 previous_di_address;
     daxa_u64 di_address;
     daxa_u64 velocity_address;
+    daxa_u64 pixel_reconnection_data_address;
+    daxa_u64 output_path_reservoir_address;
+    daxa_u64 temporal_path_reservoir_address;
+    daxa_u64 indirect_color_address;
 };
 DAXA_DECL_BUFFER_PTR(RESTIR)
 
@@ -270,11 +312,62 @@ struct RESERVOIR
     daxa_f32 p_hat; // p_hat of the light
 };
 
-#define SCREEN_SIZE_X 3840
-#define SCREEN_SIZE_Y 2160
 
-#define MAX_RESERVOIRS SCREEN_SIZE_X * SCREEN_SIZE_Y
 
+
+// credits: Generalized Resampled Importance Sampling: Foundations of ReSTIR - Daqi 2022
+struct RECONNECTION_DATA
+{
+    OBJECT_HIT rc_prev_hit;
+    daxa_f32vec3 rc_prev_wo;
+    daxa_f32vec3 path_throughput;
+};
+
+#define RCDATA_PAD_SIZE 2U
+#define MAX_RESTIR_PT_NEIGHBOR_COUNT 3U
+#define RCDATA_PATH_NUM MAX_RESTIR_PT_NEIGHBOR_COUNT * 2U // 2 for each depth cause we need to evaluate that the reconnection is bijective
+
+
+struct PIXEL_RECONNECTION_DATA 
+{
+    RECONNECTION_DATA data[RCDATA_PATH_NUM];
+};
+
+
+#if BPR// path reuse
+const int K_RC_ATTR_COUNT = 2;
+#else
+const int K_RC_ATTR_COUNT = 1;
+#endif
+
+
+// TODO: not sure if this is needed
+// struct PATH_REUSE_MIS_WEIGHT
+// {
+//     float rc_BSDF_MIS_weight;
+//     float rc_NEE_MIS_weight;
+// };
+
+// 88/128 B
+struct PATH_RESERVOIR
+{
+    daxa_f32 M; // this is a float, because temporal history length is allowed to be a fraction. 
+    daxa_f32 weight; // during RIS and when used as a "RisState", this is w_sum; during RIS when used as an incoming reservoir or after RIS, this is 1/p(y) * 1/M * w_sum
+    daxa_u32 path_flags; // this is a path type indicator, see the struct definition for details
+    daxa_u32 rc_random_seed; // saved random seed after rc_vertex (due to the need of blending half-vector reuse and random number replay)
+    daxa_f32vec3 F; // cached integrand (always updated after a new path is chosen in RIS)
+    daxa_f32 light_pdf; // NEE light pdf (might change after shift if transmission is included since light sampling considers "upperHemisphere" of the previous bounce)?
+    daxa_f32vec3 cached_jacobian; // saved previous vertex scatter PDF, scatter PDF, and geometry term at rc_vertex (used when rc_vertex is not v2)
+    daxa_u32 init_random_seed; // saved random seed at the first bounce (for recovering the random distance threshold for hybrid shift)
+    OBJECT_HIT rc_vertex_hit; // hitinfo of the reconnection vertex
+    daxa_f32vec3 rc_vertex_wi[K_RC_ATTR_COUNT]; // incident direction on reconnection vertex
+    daxa_f32vec3 rc_vertex_irradiance[K_RC_ATTR_COUNT]; // sampled irradiance on reconnection vertex
+
+#if BPR
+    daxa_f32 rc_light_pdf; 
+    daxa_f32vec3 rc_vertex_BSDF_light_sampling_irradiance;
+#endif
+};
 
 struct VELOCITY
 {
@@ -286,10 +379,11 @@ struct DIRECT_ILLUMINATION_INFO
     daxa_f32vec3 position;
     daxa_f32 distance;
     daxa_f32vec3 normal;
-    daxa_f32vec3 scatter_dir;
+    daxa_f32vec3 ray_origin;
     daxa_u32 seed;
-    daxa_u32 instance_id;
-    daxa_u32 primitive_id;
+    OBJECT_INFO instance_hit;
+    daxa_u32 mat_index;
+    daxa_f32 confidence;
 };
 
 // struct INSTANCE_LEVEL

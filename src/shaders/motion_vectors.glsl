@@ -21,6 +21,12 @@ VELOCITY velocity_buffer_get_velocity(daxa_u32vec2 pixel_coord, daxa_u32vec2 rt_
 }
 
 
+
+daxa_b32 is_valid_screen_region(daxa_i32vec2 pixel_coord, daxa_u32vec2 rt_size) {
+    return all(lessThan(pixel_coord, daxa_i32vec2(rt_size))) && all(greaterThanEqual(pixel_coord, daxa_i32vec2(0)));
+}
+
+
 // credits: Ray Tracing gems 2, cp. 25.2  https://link.springer.com/content/pdf/10.1007/978-1-4842-7185-8.pdf
 
 // NOTE: P = Mv Mmvp as the viewport Mv times the model-view-projection transformation Mmvp per frame
@@ -50,40 +56,20 @@ daxa_f32vec2 calculate_previous_frame_screen_space(daxa_f32vec3 world_hit, daxa_
     return Xi_1;
 }
 
-
-daxa_u32vec2 get_previous_frame_pixel_coord(daxa_u32vec2 current_pixel_coord, daxa_f32vec3 world_hit, daxa_u32vec2 rt_size, daxa_u32 instance_id, daxa_f32mat4x4 instance_model) {
-    // X from current pixel position
-    daxa_f32vec2 Xi = daxa_f32vec2(current_pixel_coord.xy) + 0.5;
-
-    // Get the previous model matrix
-    daxa_f32mat4x4 previous_model = get_geometry_previous_transform_from_instance_id(instance_id);
-
-    // Get the camera matrices
-    daxa_f32mat4x4 prev_inv_view = deref(p.camera_buffer).prev_inv_view;
-    daxa_f32mat4x4 prev_inv_proj = deref(p.camera_buffer).prev_inv_proj;
-
-    daxa_f32mat4x4 inv_prev_Mmvp = inverse(prev_inv_proj) * inverse(prev_inv_view);
-
-    // Get T from the difference between the current and previous model matrices
-    daxa_f32mat4x4 geometry_T = previous_model * inverse(instance_model);
-
-    // Calculate the motion vector
-    daxa_f32vec2 Xi_1 = calculate_previous_frame_screen_space(world_hit, inv_prev_Mmvp, geometry_T);
-
-    daxa_f32vec2 motion_vector = Xi_1 - (Xi / daxa_f32vec2(rt_size.xy));
-
-    VELOCITY velocity = VELOCITY(motion_vector);
-    velocity_buffer_set_velocity(current_pixel_coord, rt_size, velocity);
-
-    // Return the previous uvec2 view position
-    return daxa_u32vec2(Xi_1 * daxa_f32vec2(rt_size.xy));
-}
-
-
+/**
+ * @brief Get the motion vector object from the current pixel position
+ * 
+ * @param current_pixel_coord  The current pixel position
+ * @param world_hit This is the world position of the hit
+ * @param rt_size The size of the render frame
+ * @param instance_id instance id to get the object's previous model matrix
+ * @param instance_model The current model matrix of the object
+ * @return daxa_f32vec2 
+ */
 
 daxa_f32vec2 get_motion_vector(daxa_u32vec2 current_pixel_coord, daxa_f32vec3 world_hit, daxa_u32vec2 rt_size, daxa_u32 instance_id, daxa_f32mat4x4 instance_model) {
     // X from current pixel position
-    daxa_f32vec2 Xi = daxa_f32vec2(current_pixel_coord.xy) + 0.5;
+    daxa_f32vec2 Xi = daxa_f32vec2(current_pixel_coord.xy)  + 0.5f;
 
     // Get the previous model matrix
     daxa_f32mat4x4 previous_model = get_geometry_previous_transform_from_instance_id(instance_id);
