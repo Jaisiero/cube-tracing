@@ -332,13 +332,13 @@ void indirect_illumination_path_tracing(
 
     HIT_INFO_INPUT hit =
         HIT_INFO_INPUT(i.world_hit, i.world_nrm, i.distance, i.wo,
-                       i.instance_hit, i.material_idx, seed, max_depth);
+                       i.instance_hit, i.material_idx);
     Ray scattered_ray = Ray(i.world_hit, -i.wo);
 
     if (i.is_hit) {
 
       daxa_u32 light_index =
-          min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
+          min(urnd_interval(seed, 0, light_count), light_count - 1);
 
       LIGHT light = get_light_from_light_index(light_index);
 
@@ -346,7 +346,7 @@ void indirect_illumination_path_tracing(
 
       daxa_f32vec3 radiance =
           direct_mis(scattered_ray, hit, light_count, light, object_count,
-                     i.mat, i, pdf_out, true, true);
+                     i.mat, i, pdf_out, seed, true, true);
 
       throughput *= radiance;
       prd.done = false;

@@ -182,7 +182,7 @@ daxa_f32 eval_voxel_pdf(const daxa_f32vec3 pos_W, const INTERSECT i) {
   // Compute light vector and squared distance.
   daxa_f32vec3 to_light = i.world_hit - pos_W; // Unnormalized light vector
   const daxa_f32 dist_sqr = dot(to_light, to_light);
-  if (dist_sqr <= FLT_MIN)
+  if (dist_sqr <= HLF_MIN)
     return 0.f; // Avoid NaNs below
   daxa_f32vec3 L = to_light / sqrt(dist_sqr);
 
@@ -202,7 +202,7 @@ daxa_f32 eval_voxel_pdf(const daxa_f32vec3 pos_W, const INTERSECT i) {
   // Note: Guard against div-by-zero here by clamping.
   // TODO: Do we need the clamp here? distSqr is already clamped, so NaN should
   // not be possible (but +inf is).
-  daxa_f32 denom = max(FLT_MIN, cos_theta * area);
+  daxa_f32 denom = max(HLF_MIN, cos_theta * area);
   return dist_sqr / denom;
 }
 
@@ -238,20 +238,18 @@ daxa_b32 path_generate_light_sample(const SCENE_PARAMS params, INTERSECT i,
   // intersection info
   HIT_INFO_INPUT hit =
       HIT_INFO_INPUT(i.world_hit, i.world_nrm, i.distance, -i.wo,
-                     i.instance_hit, i.material_idx, seed, 0);
+                     i.instance_hit, i.material_idx);
 
   daxa_f32vec3 l_pos;
   daxa_f32vec3 l_nor;
 
   // TODO: Use sample_lights instead of calculate_sampled_light_and_get_light_info
   // NOTE: visibility check is done inside calculate_sampled_light
-  daxa_b32 found = sample_lights(hit, light, pdf, l_pos, l_nor, ls.Li, true, true);
+  daxa_b32 found = sample_lights(hit, light, pdf, l_pos, l_nor, ls.Li, seed, true, true);
 
   ls.dir = normalize(l_pos - i.world_hit);
 
   ls.Li /= pdf;
-
-  seed = hit.seed;
 
   return found;
 }

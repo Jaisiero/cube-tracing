@@ -137,18 +137,15 @@ void main()
         distance,
         prd.ray_scatter_dir,
         instance_hit,
-        mat_index,
-        prd.seed,
-        prd.depth);
+        mat_index);
 
     hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
-    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, true);
+    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, prd.seed, true, true, true);
 
     prd.distance = distance;
     prd.instance_hit = instance_hit;
     prd.mat_index = mat_index;
-    prd.seed = hit.seed;
 
     prd.hit_value *= radiance;
     prd.hit_value += mat.emission;

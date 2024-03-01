@@ -166,12 +166,12 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
 
 daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit,
                          daxa_f32vec3 wo, inout daxa_f32vec3 wi,
-                         out daxa_f32 pdf, daxa_u32 object_count) {
+                         out daxa_f32 pdf, daxa_u32 object_count, inout daxa_u32 seed) {
 
   call_scatter.hit = hit.world_hit;
   call_scatter.nrm = hit.world_nrm;
   call_scatter.ray_dir = ray.direction;
-  call_scatter.seed = hit.seed;
+  call_scatter.seed = seed;
   call_scatter.scatter_dir = vec3(0.0);
   call_scatter.done = false;
   call_scatter.mat_idx = hit.mat_idx;
@@ -195,12 +195,12 @@ daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit,
     break;
   }
   wi = call_scatter.scatter_dir;
+  seed = call_scatter.seed;
 
   pdf = sample_material_pdf(mat, call_scatter.nrm, wo, wi);
 
   hit = HIT_INFO_INPUT(call_scatter.hit, call_scatter.nrm, hit.distance, wi,
-                       call_scatter.instance_hit, call_scatter.mat_idx,
-                       hit.depth, call_scatter.seed);
+                       call_scatter.instance_hit, call_scatter.mat_idx);
 
   return !call_scatter.done;
 }
@@ -230,8 +230,8 @@ daxa_f32 sample_lights_pdf(inout HIT_INFO_INPUT hit, INTERSECT i,
 
 daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
                        out daxa_f32vec3 P_out, out daxa_f32vec3 n_out,
-                       out daxa_f32vec3 Le_out, const in daxa_b32 calc_pdf,
-                       daxa_b32 visibility) {
+                       out daxa_f32vec3 Le_out, inout daxa_u32 seed,
+                       const in daxa_b32 calc_pdf, daxa_b32 visibility) {
   daxa_f32vec3 l_pos, l_nor;
 
   daxa_f32vec3 P = hit.world_hit;
@@ -279,13 +279,13 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
     do {
       vis = true;
 
-      l_nor = random_cube_normal(hit.seed);
+      l_nor = random_cube_normal(seed);
 
       // Getting the position of the light on the quad surface by stepping half
       // the extent of the voxel from the very center
       l_pos = l.position + l_nor * half_extent;
       // Get random position in the light on the quad surface
-      l_pos = random_quad(l_nor, l_pos, quad_size * 0.5, hit.seed);
+      l_pos = random_quad(l_nor, l_pos, quad_size * 0.5, seed);
 
       l_wi = normalize(P - l_pos);
 
@@ -297,7 +297,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
     vis = is_hit_from_origin(P, l.instance_info, half_extent, distance, l_pos,
                              l_nor, model, inv_model, true, false);
                              
-    // l_pos = l_pos + random_quad(l_nor, size, hit.seed);
+    // l_pos = l_pos + random_quad(l_nor, size, seed);
 #endif // 0
 
     l_pos = compute_ray_origin(l_pos, l_nor);
@@ -335,7 +335,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
 
 daxa_f32vec3 calculate_sampled_light(
     Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count,
-    LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, const in daxa_b32 calc_pdf,
+    LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, inout daxa_u32 seed, const in daxa_b32 calc_pdf,
     const in daxa_b32 use_pdf, daxa_b32 use_visibility) {
   // 2. Get light direction
   daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
@@ -348,7 +348,7 @@ daxa_f32vec3 calculate_sampled_light(
 
   daxa_f32vec3 result = vec3(0.0);
 
-  if (sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, calc_pdf,
+  if (sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, seed, calc_pdf,
                     use_visibility)) {
     daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wo, wi);
     daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
@@ -365,7 +365,7 @@ daxa_f32vec3 calculate_sampled_light(
 
 daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
                         LIGHT light, daxa_u32 object_count, MATERIAL mat,
-                        out INTERSECT i, out daxa_f32 pdf_out,
+                        out INTERSECT i, out daxa_f32 pdf_out, inout daxa_u32 seed,
                         const in daxa_b32 use_pdf,
                         const in daxa_b32 use_visibility) {
   daxa_f32vec3 result = vec3(0.0);
@@ -382,7 +382,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
   daxa_f32vec3 wo = normalize(ray.origin - P);
 
   // Light sampling
-  if (sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, use_pdf,
+  if (sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, seed, use_pdf,
                     use_visibility)) {
     daxa_f32vec3 l_wi = normalize(l_pos - P);
     daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
@@ -404,7 +404,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
 
   if (use_visibility) {
     // Material sampling
-    if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, object_count)) {
+    if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, object_count, seed)) {
       i = intersect(Ray(P, m_wi));
       if (i.is_hit && i.mat.emission != vec3(0.0)) {
         daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);

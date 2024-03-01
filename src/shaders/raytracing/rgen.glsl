@@ -191,9 +191,7 @@ void main()
                                             di_info.distance,
                                             daxa_f32vec3(0.0),
                                             di_info.instance_hit,
-                                            di_info.mat_index,
-                                            di_info.seed,
-                                            max_depth);
+                                            di_info.mat_index);
 
         hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
@@ -223,11 +221,9 @@ void main()
 
             INTERSECT i;
 
-            RESERVOIR reservoir = FIRST_GATHER(light_count, object_count, screen_pos, confidence, ray, hit, mat, p_hat, i);
+            RESERVOIR reservoir = FIRST_GATHER(light_count, object_count, screen_pos, confidence, ray, hit, mat, p_hat, di_info.seed, i);
 
             calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
-
-            di_info.seed = hit.seed;
 
 
 #if (RESTIR_DI_TEMPORAL_ON == 1)
@@ -239,8 +235,8 @@ void main()
                                ray,
                                hit,
                                mat,
-                               light_count);
-                di_info.seed = hit.seed;
+                               light_count,
+                               di_info.seed);
             }
 
 #endif // RESTIR_DI_TEMPORAL_ON
@@ -398,9 +394,7 @@ void main()
                                             di_info.distance,
                                             daxa_f32vec3(0.f),
                                             di_info.instance_hit,
-                                            di_info.mat_index,
-                                            di_info.seed,
-                                            max_depth);
+                                            di_info.mat_index);
 
         hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
@@ -419,7 +413,7 @@ void main()
 #if (RESTIR_DI_SPATIAL_ON == 1)        
         // TODO: artifacts when using spatial reuse
         // if(confidence < 0.2) {
-            SPATIAL_REUSE(spatial_reservoir, confidence, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf);
+            SPATIAL_REUSE(spatial_reservoir, confidence, index, rt_size, ray, hit, di_info.mat_index, mat, light_count, pdf, di_info.seed);
         // }
 #endif // RESTIR_DI_SPATIAL_ON        
 
@@ -431,7 +425,7 @@ void main()
         hit_value += radiance * spatial_reservoir.W_y;
 #endif // DIRECT_ILLUMINATION_ON        
 #else // RESTIR_DI_ON
-        daxa_u32 light_index = min(urnd_interval(hit.seed, 0, light_count), light_count - 1);
+        daxa_u32 light_index = min(urnd_interval(di_info.seed, 0, light_count), light_count - 1);
         // Get light
         LIGHT light = get_light_from_light_index(light_index);
         // Calculate radiance
@@ -442,9 +436,6 @@ void main()
         hit_value += radiance;
 #endif // DIRECT_ILLUMINATION_ON        
 #endif // RESTIR_DI_ON
-
-
-        di_info.seed = hit.seed;
 
 #if INDIRECT_ILLUMINATION_ON == 1     
         daxa_f32vec3 indirect_color = daxa_f32vec3(0.f);

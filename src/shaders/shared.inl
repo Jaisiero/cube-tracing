@@ -42,10 +42,13 @@
 #define INV_DAXA_2PI 0.15915494309189533576888376337251f
 #define INV_DAXA_4PI 0.079577471545947667884441881686255f
 
+#define HLF_MAX 6.5504e+4F // max value for half float
+#define HLF_MIN 1.175494351e-38F  // min value for float
+
 #define SAMPLES_PER_PIXEL 1
 #define SAMPLE_OFFSET 1e-6f // Multi sample offset
 #define MAX_DEPTH 3
-#define AVOID_VOXEL_COLLAIDE 1e-9f   // Delta ray offset for shadow rays
+#define AVOID_VOXEL_COLLAIDE HLF_MIN   // minimum offset to avoid voxel collision
 #define CUBE_FACE_COUNT 6
 
 #define PERLIN_FACTOR 500
@@ -146,8 +149,6 @@ struct HIT_INFO_INPUT
   daxa_f32vec3 scatter_dir;
   OBJECT_INFO instance_hit;
   daxa_u32 mat_idx;
-  daxa_u32 seed;
-  daxa_u32 depth;
 };
 
 struct HIT_INFO_OUTPUT
@@ -306,6 +307,7 @@ DAXA_DECL_BUFFER_PTR(RESTIR)
 struct RESERVOIR
 {
     daxa_u32 Y; // index of most important light
+    daxa_u32 seed; // random seed for resampling
     daxa_f32 W_y; // light weight
     daxa_f32 W_sum; // sum of all weights for all lights processed
     daxa_f32 M; // number of lights processed for this reservoir

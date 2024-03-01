@@ -46,9 +46,6 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 
 #define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
-#define HLF_MAX 6.5504e+4F // max value for half float
-#define FLT_MIN 1.175494351e-38F  // min normalized positive value
-
 #define MIN_COS_THETA 1e-6f
 
 
