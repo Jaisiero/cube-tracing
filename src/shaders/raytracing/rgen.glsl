@@ -246,7 +246,7 @@ void main()
 #endif // RESTIR_DI_ON
 
 #if INDIRECT_ILLUMINATION_ON == 1
-        // TODO: pass this from status struct
+        daxa_f32vec3 final_indirect_color = daxa_f32vec3(0.f);
 
         daxa_f32vec3 indirect_color = daxa_f32vec3(0.0);
         // Build the intersect struct
@@ -267,10 +267,27 @@ void main()
         indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed,
                               indirect_color);
 
+        // Replace NaN components with zero.
+        if(any(isinf(indirect_color)) || any(isnan(indirect_color))) indirect_color = vec3(0.0);
+#if (ACCUMULATOR_ON == 1 && RESTIR_PT_ON == 0 || RESTIR_PT_ON == 1 &&  RESTIR_PT_SPATIAL_ON != 1  || FORCE_ACCUMULATOR_ON == 1)
+        daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
+        if (num_accumulated_frames > 0)
+        {
+            vec3 previous_frame_pixel = get_indirect_color_by_index(screen_pos);
 
-#if RESTIR_PT_SPATIAL_ON != 1
-        set_indirect_color_by_index(screen_pos, indirect_color);
-#endif // RESTIR_PT_SPATIAL_ON        
+            vec3 current_frame_pixel = indirect_color;
+
+            daxa_f32 weight = daxa_f32(1.0f / (double(num_accumulated_frames) + 1.0f));
+            final_indirect_color = mix(previous_frame_pixel, current_frame_pixel, weight);
+        }
+        else
+        {
+            final_indirect_color = indirect_color;
+        }
+#else
+        final_indirect_color = indirect_color;
+#endif // ACCUMULATOR_ON || FORCE_ACCUMULATOR_ON  
+        set_indirect_color_by_index(screen_pos, final_indirect_color);      
 #endif // INDIRECT_ILLUMINATION_ON
     }
 
@@ -429,7 +446,7 @@ void main()
         // Get light
         LIGHT light = get_light_from_light_index(light_index);
         // Calculate radiance
-        radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, true, true, false);
+        radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, di_info.seed, true, true, false);
         
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value
@@ -477,7 +494,7 @@ void main()
         clamp(hit_value, 0.0, 0.99999999);
 
         daxa_f32vec4 final_pixel;
-#if (ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0 && RESTIR_PT_ON == 0 || FORCE_ACCUMULATOR_ON == 1 && DIRECT_ILLUMINATION_ON == 0)
+#if (ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0 && RESTIR_PT_ON == 0 || FORCE_ACCUMULATOR_ON == 1)
         daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {
