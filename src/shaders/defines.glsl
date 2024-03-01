@@ -72,8 +72,8 @@ const daxa_f32 JACOBIAN_REJECTION_THRESHOLD = 0.1f;
 const daxa_f32 MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD_PT = 20.0f;
 const daxa_b32 USE_RUSSIAN_ROULETTE = false;
 const daxa_b32 COMPUTE_ENVIRONMENT_LIGHT = true;
-const daxa_i32 NEIGHBOR_COUNT = 8;
-const daxa_i32 NEIGHBOR_RADIUS = 3;
+const daxa_i32 NEIGHBOR_COUNT = 3;
+const daxa_i32 NEIGHBOR_RADIUS = 1;
 
 
 
