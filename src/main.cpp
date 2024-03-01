@@ -500,6 +500,7 @@ namespace tests
 
 #endif // DYNAMIC_SUN_LIGHT
                 light.type = GEOMETRY_LIGHT_POINT;
+                light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
                 lights.push_back(light);
                 ++status.light_count;
 

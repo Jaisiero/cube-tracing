@@ -69,7 +69,7 @@ daxa_f32vec2 calculate_previous_frame_screen_space(daxa_f32vec3 world_hit, daxa_
 
 daxa_f32vec2 get_motion_vector(daxa_u32vec2 current_pixel_coord, daxa_f32vec3 world_hit, daxa_u32vec2 rt_size, daxa_u32 instance_id, daxa_f32mat4x4 instance_model) {
     // X from current pixel position
-    daxa_f32vec2 Xi = daxa_f32vec2(current_pixel_coord.xy);
+    daxa_f32vec2 Xi = daxa_f32vec2(current_pixel_coord.xy)  + 0.5f;
 
     // Get the previous model matrix
     daxa_f32mat4x4 previous_model = get_geometry_previous_transform_from_instance_id(instance_id);

@@ -251,7 +251,6 @@ void main()
 
 #if INDIRECT_ILLUMINATION_ON == 1
         // TODO: pass this from status struct
-        daxa_b32 temporal_update_for_dynamic_scene = true;
 
         daxa_f32vec3 indirect_color = daxa_f32vec3(0.0);
         // Build the intersect struct
@@ -261,10 +260,13 @@ void main()
                                 di_info.instance_hit, di_info.mat_index, mat);
         SCENE_PARAMS params = SCENE_PARAMS(
             light_count, object_count, max_depth,
-            temporal_update_for_dynamic_scene, SHIFT_MAPPING_RECONNECTION,
+            TEMPORAL_UPDATE_FOR_DYNAMIC_SCENE, SHIFT_MAPPING_RECONNECTION,
             0, // TODO: pack every flag here
-            false, NEAR_FIELD_DISTANCE, false, SPECULAR_ROUGHNESS_THRESHOLD,
-            false, JACOBIAN_REJECTION_THRESHOLD, false, true, 3, 1);
+            NEAR_FIELD_REJECTION, NEAR_FIELD_DISTANCE,
+            ROUGHNESS_BASED_REJECTION, SPECULAR_ROUGHNESS_THRESHOLD,
+            REJECT_BASED_ON_JACOBIAN, JACOBIAN_REJECTION_THRESHOLD,
+            USE_RUSSIAN_ROULETTE, COMPUTE_ENVIRONMENT_LIGHT, NEIGHBOR_COUNT,
+            NEIGHBOR_RADIUS);
 
         indirect_illumination(params, index, rt_size, ray, mat, i, di_info.seed,
                               indirect_color);
@@ -448,24 +450,18 @@ void main()
         daxa_f32vec3 indirect_color = daxa_f32vec3(0.f);
         // Build the intersect struct
         daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
-        INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position, di_info.normal, wo, daxa_f32vec3(0.f), di_info.instance_hit, di_info.mat_index, mat);
-        SCENE_PARAMS params =
-            SCENE_PARAMS(light_count,
-                         object_count,
-                         max_depth,
-                         true,
-                         SHIFT_MAPPING_RECONNECTION,
-                         0, // TODO: pack every flag here
-                         false,
-                         NEAR_FIELD_DISTANCE,
-                         false,
-                         SPECULAR_ROUGHNESS_THRESHOLD,
-                         false,
-                         JACOBIAN_REJECTION_THRESHOLD,
-                         false,
-                         true,
-                         3,
-                         1);
+        INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position,
+                                di_info.normal, wo, daxa_f32vec3(0.f),
+                                di_info.instance_hit, di_info.mat_index, mat);
+        SCENE_PARAMS params = SCENE_PARAMS(
+            light_count, object_count, max_depth,
+            TEMPORAL_UPDATE_FOR_DYNAMIC_SCENE, SHIFT_MAPPING_RECONNECTION,
+            0, // TODO: pack every flag here
+            NEAR_FIELD_REJECTION, NEAR_FIELD_DISTANCE,
+            ROUGHNESS_BASED_REJECTION, SPECULAR_ROUGHNESS_THRESHOLD,
+            REJECT_BASED_ON_JACOBIAN, JACOBIAN_REJECTION_THRESHOLD,
+            USE_RUSSIAN_ROULETTE, COMPUTE_ENVIRONMENT_LIGHT, NEIGHBOR_COUNT,
+            NEIGHBOR_RADIUS);
 
 #if RESTIR_PT_SPATIAL_ON == 1
         daxa_f32vec3 camera_pos = daxa_f32vec3(inv_view[3]);

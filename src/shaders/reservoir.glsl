@@ -175,7 +175,7 @@ void calculate_reservoir_aggregation(inout RESERVOIR reservoir, RESERVOIR aggreg
     daxa_f32 pdf_out = 1.0;
 
     // add sample from previous frame
-    update_reservoir(reservoir, get_reservoir_light_index(aggregation_reservoir), aggregation_reservoir.p_hat * aggregation_reservoir.W_y * aggregation_reservoir.M, aggregation_reservoir.M, prd.seed);
+    update_reservoir(reservoir, get_reservoir_light_index(aggregation_reservoir), aggregation_reservoir.p_hat * aggregation_reservoir.W_y * aggregation_reservoir.M, aggregation_reservoir.M, hit.seed);
   }
 }
 
@@ -268,7 +268,7 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, dax
   initialise_reservoir(temporal_reservoir);
 
   // add current reservoir sample
-  update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), reservoir.p_hat * reservoir.W_y * reservoir.M, reservoir.M, prd.seed);
+  update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir), reservoir.p_hat * reservoir.W_y * reservoir.M, reservoir.M, hit.seed);
 
   // // TODO: re-check this
   // daxa_f32 influence = max(1.0, mix(clamp(reservoir_previous.M / reservoir.M, 0.0, 1.0), MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
@@ -316,11 +316,11 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
   for (daxa_u32 i = 0; i < spatial_heuristic_num_of_neighbors; i++)
   {
     // Random offset
-    daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(prd.seed), rnd(prd.seed)) - 1;
+    daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(hit.seed), rnd(hit.seed)) - 1;
 
     // Scale offset
-    offset.x = predicted_coord.x + int(offset.x * spatial_heuristic_radius);
-    offset.y = predicted_coord.y + int(offset.y * spatial_heuristic_radius);
+    offset.x = predicted_coord.x + daxa_i32(offset.x * spatial_heuristic_radius);
+    offset.y = predicted_coord.y + daxa_i32(offset.y * spatial_heuristic_radius);
 
     // Clamp offset
     offset.x = min(rt_size.x - 1, max(0, min(rt_size.x - 1, offset.x)));

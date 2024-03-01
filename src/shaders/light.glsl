@@ -15,7 +15,7 @@ LIGHT get_light_from_light_index(daxa_u32 light_index) {
   return instance_buffer.lights[light_index];
 }
 
-daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_target, const daxa_b32 check_instance, const daxa_b32 previous_frame) {
+daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_target, daxa_b32 check_instance, const daxa_b32 previous_frame) {
   // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
   daxa_f32 t_min = 0.0;
@@ -247,6 +247,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
     return false;
   }
   daxa_b32 vis = true;
+  daxa_b32 check_instance = false;
 
   // // if (l.type == GEOMETRY_LIGHT_SPEHERE)
   // // {
@@ -307,11 +308,14 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
       daxa_f32 area = quad_size.x * quad_size.y * 6.0;
       pdf /= area;
     }
+    check_instance = true;
   } else if (l.type == GEOMETRY_LIGHT_POINT) {
     l_pos = l.position;
     l_nor = normalize(P - l_pos);
     l_pos = compute_ray_origin(l_pos, l_nor);
     distance = length(P - l_pos);
+    check_instance = false;
+    l_wi = -l_nor;
   }
   
   daxa_f32vec3 l_v = -l_wi;
@@ -320,7 +324,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
 
   if (visibility && vis) {
     // TODO: check if we need to use the previous frame
-    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, true, false);
+    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, check_instance, false);
   }
 
   P_out = l_pos;

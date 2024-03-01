@@ -429,7 +429,7 @@ void indirect_illumination_spatial_reuse(const SCENE_PARAMS params,
     daxa_f32 canonical_weight = 1;
 
     for (daxa_i32 i = 0; i < neighbor_count; ++i) {
-      daxa_i32vec2 neighbor_pixel = get_next_neighbor_pixel(start_index, index, i, small_window_radius);
+      daxa_i32vec2 neighbor_pixel = get_next_neighbor_pixel(start_index, index, i, small_window_radius, seed);
 
       if (!is_valid_screen_region(neighbor_pixel, rt_size))
         continue;

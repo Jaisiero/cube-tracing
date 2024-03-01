@@ -269,13 +269,25 @@ daxa_b32 scatter(MATERIAL m, daxa_f32vec3 direction, daxa_f32vec3 world_nrm, ino
 }
 
 
-daxa_i32vec2 get_next_neighbor_pixel(daxa_u32 start_index, daxa_i32vec2 pixel, daxa_i32 i, daxa_i32 small_window_radius) {
+daxa_i32vec2 get_next_neighbor_pixel(daxa_u32 start_index, daxa_i32vec2 pixel, daxa_i32 i, daxa_i32 small_window_radius, inout daxa_u32 seed) {
     daxa_i32vec2 neighbor_pixel = daxa_i32vec2(0.f);
 
-    daxa_i32 small_window_diameter = 2 * small_window_radius + 1;
-    neighbor_pixel =
-        pixel + daxa_i32vec2(-small_window_radius + (i % small_window_diameter),
-                             -small_window_radius + (i / small_window_diameter));
+    // daxa_i32 small_window_diameter = 2 * small_window_radius + 1;
+    // neighbor_pixel =
+    //     pixel + daxa_i32vec2(-small_window_radius + (i % small_window_diameter),
+    //                          -small_window_radius + (i / small_window_diameter));
+    // if (all(equal(neighbor_pixel, pixel)))
+    //   neighbor_pixel = daxa_i32vec2(-1);
+
+
+    daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(seed), rnd(seed)) - 1;
+
+    // Scale offset
+    offset.x = pixel.x + daxa_i32(offset.x * small_window_radius);
+    offset.y = pixel.y + daxa_i32(offset.y * small_window_radius);
+
+    neighbor_pixel = daxa_i32vec2(offset);
+
     if (all(equal(neighbor_pixel, pixel)))
       neighbor_pixel = daxa_i32vec2(-1);
 
