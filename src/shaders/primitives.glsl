@@ -122,7 +122,7 @@ daxa_f32vec3 compute_ray_origin(daxa_f32vec3 pos, daxa_f32vec3 normal)
     const daxa_f32 i_scale = 256.f;
 
     // Per-component integer offset to bit representation of fp32 position.
-    ivec3 i_off = ivec3(normal * i_scale);
+    daxa_i32vec3 i_off = daxa_i32vec3(normal * i_scale);
     daxa_f32vec3 i_pos;
     i_pos.x = intBitsToFloat(floatBitsToInt(pos.x) + (pos.x < 0.0 ? -i_off.x : i_off.x));
     i_pos.y = intBitsToFloat(floatBitsToInt(pos.y) + (pos.y < 0.0 ? -i_off.y : i_off.y));
@@ -141,6 +141,8 @@ daxa_f32vec3 compute_ray_origin(daxa_f32vec3 pos, daxa_f32vec3 normal)
 
 daxa_f32vec3 compute_new_ray_origin(daxa_f32vec3 pos, daxa_f32vec3 normal, daxa_b32 view_side)
 {
+    // TODO: revisit this function
+    pos = compute_ray_origin(pos, view_side ? normal : -normal);
     return compute_ray_origin(pos, view_side ? normal : -normal);
 }
 
@@ -468,6 +470,7 @@ INTERSECT load_intersection_data_vertex_position(
     intersect_initiliaze(i);
   } else {
     pos = compute_ray_origin(pos, nor);
+    pos = compute_ray_origin(pos, nor);
     distance = length(world_pos - pos);
 
     daxa_f32vec3 wo = normalize(world_pos - pos);
@@ -523,6 +526,7 @@ INTERSECT load_intersection_data_vertex_position_by_ray(
                           true)) {
     intersect_initiliaze(i);
   } else {
+    pos = compute_ray_origin(pos, nor);
     pos = compute_ray_origin(pos, nor);
     distance = length(ray.origin - pos);
 

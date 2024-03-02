@@ -301,6 +301,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
 #endif // 0
 
     l_pos = compute_ray_origin(l_pos, l_nor);
+    l_pos = compute_ray_origin(l_pos, l_nor);
     // TODO: check this cause we should need to substrac the half extent
     distance = length(P - l_pos);
 
@@ -312,6 +313,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
   } else if (l.type == GEOMETRY_LIGHT_POINT) {
     l_pos = l.position;
     l_nor = normalize(P - l_pos);
+    l_pos = compute_ray_origin(l_pos, l_nor);
     l_pos = compute_ray_origin(l_pos, l_nor);
     distance = length(P - l_pos);
     check_instance = false;

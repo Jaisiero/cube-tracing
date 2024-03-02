@@ -446,6 +446,7 @@ daxa_b32 path_handle_primary_hit(const SCENE_PARAMS params,
 
   // Compute origin for rays traced from this path vertex.
   path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
+  path.origin = compute_ray_origin(path.origin, i.world_nrm);
 
   path_set_light_sampled(path, false, false);
 
@@ -637,6 +638,7 @@ void path_handle_hit(const SCENE_PARAMS params, inout PATH_STATE path,
 
   // Compute origin for rays traced from this path vertex.
   path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
+  path.origin = compute_ray_origin(path.origin, i.world_nrm);
 
   // TODO: Some lobe stuff (pathtracer:1136)
 
@@ -906,6 +908,7 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(
   dst_rc_prev_vertex_wo = daxa_f32vec3(0.0);
 
   path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
+  // TODO: more computation for the origin
 
   // this is also applicable for random number reuse
   path.path_builder.path_flags = 0;

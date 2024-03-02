@@ -140,6 +140,7 @@ void main()
         mat_index);
 
     hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
+    hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
     radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, prd.seed, true, true, true);
 

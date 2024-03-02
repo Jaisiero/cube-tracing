@@ -329,6 +329,7 @@ void indirect_illumination_path_tracing(
   for (;;) {
 
     i.world_hit = compute_ray_origin(i.world_hit, i.world_nrm);
+    i.world_hit = compute_ray_origin(i.world_hit, i.world_nrm);
 
     HIT_INFO_INPUT hit =
         HIT_INFO_INPUT(i.world_hit, i.world_nrm, i.distance, i.wo,

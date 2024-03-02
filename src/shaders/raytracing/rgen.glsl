@@ -194,6 +194,7 @@ void main()
                                             di_info.mat_index);
 
         hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
+        hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
         daxa_f32 confidence = 1.0;
 
@@ -222,9 +223,6 @@ void main()
             INTERSECT i;
 
             RESERVOIR reservoir = FIRST_GATHER(light_count, object_count, screen_pos, confidence, ray, hit, mat, p_hat, di_info.seed, i);
-
-            calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
-
 
 #if (RESTIR_DI_TEMPORAL_ON == 1)
             if(reservoir_previous.W_y > 0.0) {
@@ -413,6 +411,7 @@ void main()
                                             di_info.instance_hit,
                                             di_info.mat_index);
 
+        hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
         hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
         daxa_f32 p_hat = 0.0;
