@@ -195,7 +195,7 @@ void main()
 
         daxa_f32 confidence = 1.0;
 
-#if RESTIR_DI_ON == 1
+#if RESTIR_ON == 1 && RESTIR_DI_ON == 1
 #if (RESTIR_DI_TEMPORAL_ON == 1)
         // Reservoir from previous frame
         RESERVOIR reservoir_previous = GATHER_TEMPORAL_RESERVOIR(predicted_coord, rt_size, hit);
@@ -264,7 +264,7 @@ void main()
 
         // Replace NaN components with zero.
         if(any(isinf(indirect_color)) || any(isnan(indirect_color))) indirect_color = vec3(0.0);
-#if (ACCUMULATOR_ON == 1 && RESTIR_PT_ON == 0 || FORCE_ACCUMULATOR_ON == 1)
+#if (ACCUMULATOR_ON == 1 && RESTIR_ON == 0 && RESTIR_PT_ON == 0 || FORCE_ACCUMULATOR_ON == 1)
         daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {
@@ -292,7 +292,7 @@ void main()
 
 #elif SPATIAL_REUSE_PASS == 1
 void main() {
-// #if RESTIR_DI_ON == 1
+// #if RESTIR_ON == 1 && RESTIR_DI_ON == 1
 // #if (RESTIR_DI_SPATIAL_ON == 1)
 //     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
 //     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
@@ -375,7 +375,7 @@ void main()
     DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
 
 
-#if RESTIR_DI_ON == 1
+#if RESTIR_ON == 1 && RESTIR_DI_ON == 1
     // Get sample info from reservoir
     RESERVOIR reservoir = 
         get_reservoir_from_intermediate_frame_by_index(screen_pos);
@@ -419,7 +419,7 @@ void main()
         daxa_f32 pdf_out = 0.0; 
 
 
-#if RESTIR_DI_ON == 1
+#if RESTIR_ON == 1 && RESTIR_DI_ON == 1
         daxa_f32 confidence = di_info.confidence;
 
         RESERVOIR spatial_reservoir = reservoir;
@@ -452,7 +452,7 @@ void main()
 
 #if INDIRECT_ILLUMINATION_ON == 1     
         daxa_f32vec3 indirect_color = daxa_f32vec3(0.f);
-#if RESTIR_PT_ON == 1 && RESTIR_PT_SPATIAL_ON == 1
+#if RESTIR_ON == 1 && RESTIR_PT_ON == 1 && RESTIR_PT_SPATIAL_ON == 1
         // Build the intersect struct
         daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
         INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position,
@@ -489,7 +489,7 @@ void main()
         clamp(hit_value, 0.0, 0.99999999);
 
         daxa_f32vec4 final_pixel;
-#if (ACCUMULATOR_ON == 1 && RESTIR_DI_ON == 0 && RESTIR_PT_ON == 0 || FORCE_ACCUMULATOR_ON == 1)
+#if (ACCUMULATOR_ON == 1 && RESTIR_ON == 0 || FORCE_ACCUMULATOR_ON == 1)
         daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {
@@ -509,7 +509,7 @@ void main()
 #endif
         imageStore(daxa_image2D(p.swapchain), index, final_pixel);
 
-#if RESTIR_DI_ON == 1
+#if RESTIR_ON == 1 && RESTIR_DI_ON == 1
         // Store the reservoir
         set_reservoir_from_previous_frame_by_index(screen_pos, reservoir);
 #endif // RESTIR_DI_ON    

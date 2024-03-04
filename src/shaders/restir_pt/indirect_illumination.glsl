@@ -540,7 +540,7 @@ void indirect_illumination(const SCENE_PARAMS params, const daxa_i32vec2 index,
                            const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat,
                            const INTERSECT i, inout daxa_u32 seed,
                            inout daxa_f32vec3 indirect_color) {
-#if RESTIR_PT_ON == 1
+#if RESTIR_ON == 1 && RESTIR_PT_ON == 1
   indirect_illumination_restir_path_tracing(params, index, rt_size, ray, i,
                                             seed, indirect_color);
 #else
