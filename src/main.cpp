@@ -42,6 +42,7 @@ namespace tests
 
             Status status = {};
             camera camera = {};
+            LIGHT_CONFIG light_config = {};
 
             daxa_u32 invocation_reorder_mode;
 
@@ -64,6 +65,10 @@ namespace tests
             const daxa_u32 ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
 
             // BUFFERS
+            daxa::BufferId light_config_buffer = {};
+            size_t light_config_buffer_size = sizeof(LIGHT_CONFIG);
+
+
             daxa::BufferId cam_buffer = {};
             size_t cam_buffer_size = sizeof(camera_view);
             size_t previous_matrices = sizeof(daxa_f32mat4x4) * 2;
@@ -161,6 +166,7 @@ namespace tests
                     device.destroy_tlas(tlas);
                     for(auto blas : proc_blas)
                         device.destroy_blas(blas);
+                    device.destroy_buffer(light_config_buffer);
                     device.destroy_buffer(cam_buffer);
                     device.destroy_buffer(instance_buffer);
                     device.destroy_buffer(primitive_buffer);
@@ -478,11 +484,6 @@ namespace tests
                 // TODO: add more lights (random values?)
                 status.is_afternoon = true;
 
-                if(status.light_count > MAX_LIGHTS) {
-                    std::cout << "status.light_count > MAX_LIGHTS" << std::endl;
-                    abort();
-                }
-
                 LIGHT light = {}; // 0: point light, 1: directional light
                 light.position = daxa_f32vec3(0.0, SUN_TOP_POSITION, 0.0);
 #if DYNAMIC_SUN_LIGHT == 1
@@ -502,27 +503,57 @@ namespace tests
                 light.type = GEOMETRY_LIGHT_POINT;
                 light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
                 lights.push_back(light);
-                ++status.light_count;
+                ++light_config.point_light_count;
 
                 // LIGHT light2 = {};
                 // light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0001);
                 // light2.emissive = daxa_f32vec3(3.0, 3.0, 3.0);
                 // light2.type = GEOMETRY_LIGHT_POINT;
                 // lights.push_back(light2);
-                // ++status.light_count;
+                // ++light_config.point_light_count;
 
                 // LIGHT light3 = {};
                 // light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0001);
                 // light3.emissive = daxa_f32vec3(4.0, 4.0, 4.0);
                 // light3.type = GEOMETRY_LIGHT_POINT;
                 // lights.push_back(light3);
-                // ++status.light_count;
+                // ++light_config.point_light_count;
+            }
+
+
+            void create_environment_light() {
+                LIGHT light = {};
+                light.type = GEOMETRY_LIGHT_ENV_MAP;
+                light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
+                light.position = daxa_f32vec3(0.0, 0.0, 0.0);
+                light.emissive = daxa_f32vec3(5.0, 5.0, 5.0);
+                light.size = 0.f;
+                lights.push_back(light);
+                ++light_config.env_map_count;
             }
 
             void load_lights() {
+                
+                light_config.light_count = light_config.point_light_count + light_config.cube_light_count + light_config.sphere_light_count + light_config.analytic_light_count + light_config.env_map_count;
+
+                light_config.point_light_pdf =  light_config.point_light_count == 0 ? 0.f : 1.0f / (light_config.point_light_count / light_config.light_count);
+                light_config.cube_light_pdf = light_config.cube_light_count == 0 ? 0.f : 1.0f / (light_config.cube_light_count / light_config.light_count);
+                light_config.sphere_light_pdf = light_config.sphere_light_count == 0 ? 0.f : 1.0f / (light_config.sphere_light_count / light_config.light_count);
+                light_config.analytic_light_pdf = light_config.analytic_light_count == 0 ? 0.f : 1.0f / (light_config.analytic_light_count / light_config.light_count);
+                light_config.env_map_pdf = light_config.env_map_count == 0 ? 0.f : 1.0f / (light_config.env_map_count / light_config.light_count);
+
+                if(light_config.light_count > MAX_LIGHTS) {
+                    std::cout << "light_config.light_count > MAX_LIGHTS" << std::endl;
+                    abort();
+                }
+                
+                std::cout << "Num of lights: " << light_config.light_count << std::endl;
+                std::cout << "  Num of point lights: " << light_config.point_light_count << std::endl;
+                std::cout << "  Num of cube lights: " << light_config.cube_light_count << std::endl;
+                std::cout << "  Num of environment map lights: " << light_config.env_map_count << std::endl;
 
                 // Calculate light buffer size
-                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
+                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config.light_count);
                 if(light_buffer_size > max_light_buffer_size) {
                     std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
                     abort();
@@ -535,6 +566,36 @@ namespace tests
                 std::memcpy(light_staging_buffer_ptr,
                     lights.data(),
                     light_buffer_size);
+
+                auto light_config_staging_buffer = device.create_buffer({
+                    .size = light_config_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("light_config_staging_buffer"),
+                });
+                defer { device.destroy_buffer(light_config_staging_buffer); };
+
+                auto * light_config_buffer_ptr = device.get_host_address_as<LIGHT_CONFIG>(light_config_staging_buffer).value();
+                std::memcpy(light_config_buffer_ptr,
+                    &light_config,
+                    light_config_buffer_size);
+
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = light_config_staging_buffer,
+                        .dst_buffer = light_config_buffer,
+                        .size = max_light_buffer_size,
+                    });
+
+                    return recorder.complete_current_commands();
+                }();
+                device.submit_commands({.command_lists = std::array{exec_cmds}});
+                device.wait_idle();
+
+
+                status.light_config_address = device.get_device_address(light_config_buffer).value();
             }
 
              void update_lights() {
@@ -543,19 +604,19 @@ namespace tests
                     return;
                 }
 
-                if(status.light_count == 0) {
+                if(light_config.cube_light_count == 0) {
                     return;
                 }
 
-                if(status.light_count > MAX_LIGHTS) {
+                if(light_config.cube_light_count > MAX_LIGHTS) {
                     std::cout << "current_light_count > MAX_LIGHTS" << std::endl;
                     abort();
                 }
 
-                if(status.light_count != lights.size()) {
-                    std::cout << "current_light_count != lights.size()" << std::endl;
-                    abort();
-                }
+                // if(light_config.light_count != lights.size()) {
+                //     std::cout << "current_light_count != lights.size()" << std::endl;
+                //     abort();
+                // }
 
                 // Speed of time progression
                 float timeSpeed = 0.001;
@@ -574,7 +635,7 @@ namespace tests
                 lights[0].emissive = daxa_f32vec3(intensity, intensity, intensity);
 
                 // Calculate light buffer size
-                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * status.light_count);
+                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config.cube_light_count);
                 if(light_buffer_size > max_light_buffer_size) {
                     std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
                     abort();
@@ -698,7 +759,7 @@ namespace tests
                             // TODO: this will be based on voxel size
                             surface_light.size = VOXEL_EXTENT;
                             lights.push_back(surface_light);
-                            status.light_count++;
+                            light_config.cube_light_count++;
                         }
 
                         primitives.push_back(PRIMITIVE{
@@ -739,7 +800,6 @@ namespace tests
 
                 std::cout << "Num of instances: " << instance_count << std::endl;
                 std::cout << "Num of cubes: " << current_primitive_count << std::endl;
-                std::cout << "Num of lights: " << status.light_count << std::endl;
                 std::cout << "Num of materials: " << current_material_count << std::endl;
 
                 // reserve blas build infos
@@ -1328,6 +1388,11 @@ namespace tests
                     .image_usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
                 });
 
+                light_config_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = light_config_buffer_size,
+                    .name = ("light_config_buffer"),
+                });
+
                 cam_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = cam_buffer_size,
                     .name = ("cam_buffer"),
@@ -1637,11 +1702,12 @@ namespace tests
                     proc_blas.reserve(current_instance_count);
                 }
 
-                status.light_count = 0;
+                light_config.light_count = 0;
                 lights.reserve(MAX_LIGHTS);
 #if POINT_LIGHT_ON == 1                
                 create_point_lights();
 #endif
+                create_environment_light();
 
                 // call build tlas
                 if(!build_tlas(current_instance_count)) {

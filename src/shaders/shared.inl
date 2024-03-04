@@ -18,9 +18,9 @@
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 
-#define DYNAMIC_SUN_LIGHT 0
+#define DYNAMIC_SUN_LIGHT 1
 #define POINT_LIGHT_ON 1
-#define SUN_MIDDAY 1
+#define SUN_MIDDAY 0
 #define SUN_MAX_INTENSITY 5000.0f
 #define SUN_TOP_POSITION 20.0f
 
@@ -173,13 +173,28 @@ struct camera_view{
 };
 DAXA_DECL_BUFFER_PTR(camera_view)
 
+
+struct LIGHT_CONFIG {
+    daxa_u32 point_light_count;
+    daxa_f32 point_light_pdf;
+    daxa_u32 cube_light_count;
+    daxa_f32 cube_light_pdf;
+    daxa_u32 sphere_light_count;
+    daxa_f32 sphere_light_pdf;
+    daxa_u32 analytic_light_count;
+    daxa_f32 analytic_light_pdf;
+    daxa_u32 env_map_count;
+    daxa_f32 env_map_pdf;
+    daxa_u32 light_count;
+};
+
 struct Status
 {
     daxa_u32 frame_number;
     daxa_u64 num_accumulated_frames;
     daxa_u32vec2 pixel;
     daxa_b32 is_active;
-    daxa_u32 light_count;
+    daxa_u64 light_config_address;
     daxa_u32 obj_count;
     daxa_f32 time;
     daxa_b32 is_afternoon;

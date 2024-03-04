@@ -10,9 +10,22 @@
 #include "mat.glsl"
 
 LIGHT get_light_from_light_index(daxa_u32 light_index) {
-  LIGHT_BUFFER instance_buffer =
+  LIGHT_BUFFER light_buffer =
       LIGHT_BUFFER(deref(p.world_buffer).light_address);
-  return instance_buffer.lights[light_index];
+  return light_buffer.lights[light_index];
+}
+
+LIGHT_CONFIG get_light_config_from_light_index() {
+  LIGHT_CONFIG_BUFFER light_config_buffer =
+      LIGHT_CONFIG_BUFFER(deref(p.status_buffer).light_config_address);
+  return light_config_buffer.light_config;
+}
+
+daxa_f32 env_map_sampler_eval_pdf(daxa_f32vec3 dir) { return INV_DAXA_4PI; }
+
+daxa_f32vec3 env_map_sampler_eval(daxa_f32vec3 dir) {
+  return calculate_sky_color(deref(p.status_buffer).time,
+                             deref(p.status_buffer).is_afternoon, dir);
 }
 
 daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_target, daxa_b32 check_instance, const daxa_b32 previous_frame) {
@@ -231,13 +244,14 @@ daxa_f32 sample_lights_pdf(inout HIT_INFO_INPUT hit, INTERSECT i,
 daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
                        out daxa_f32vec3 P_out, out daxa_f32vec3 n_out,
                        out daxa_f32vec3 Le_out, inout daxa_u32 seed,
+                       out daxa_f32 G_out,
                        const in daxa_b32 calc_pdf, daxa_b32 visibility) {
   daxa_f32vec3 l_pos, l_nor;
 
   daxa_f32vec3 P = hit.world_hit;
   daxa_f32vec3 n = hit.world_nrm;
   daxa_f32 distance = -1.0;
-  daxa_f32vec3 l_wi = vec3(0.0);
+  daxa_f32vec3 l_wi = daxa_f32vec3(0.0);
 
   // // TODO: Check this
   // // Fast discard
@@ -248,17 +262,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
   }
   daxa_b32 vis = true;
   daxa_b32 check_instance = false;
-
-  // // if (l.type == GEOMETRY_LIGHT_SPEHERE)
-  // // {
-  // //     // daxa_f32 r = l.size.x;
-  // //     // // Choose a normal on the side of the sphere visible to P.
-  // //     // l_nor = random_hemisphere(P - l.pos);
-  // //     // l_pos = l.pos + l_nor * r;
-  // //     // daxa_f32 area_half_sphere = 2.0 * PI * r * r;
-  // //     // pdf /= area_half_sphere;
-  // // }
-  // // else
+  
   if (l.type == GEOMETRY_LIGHT_CUBE) {
 
     daxa_f32mat4x4 model;
@@ -269,11 +273,6 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
     daxa_f32vec2 quad_size = daxa_f32vec2(l.size, l.size);
 
 #if KNOWN_LIGHT_POSITION == 1
-  //  // Get normal from position and light position
-  //   l_nor = normalize(P - l.position);
-  //   // Get the normal of the voxel surface ie (0, 0, 1)
-  //   l_nor = cube_like_normal(l_nor);
-
     daxa_u32 i = 0;
 
     do {
@@ -310,14 +309,27 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
       pdf /= area;
     }
     check_instance = true;
+    G_out = geom_fact_sa(P, l_pos, l_nor);
   } else if (l.type == GEOMETRY_LIGHT_POINT) {
     l_pos = l.position;
     l_nor = normalize(P - l_pos);
-    l_pos = compute_ray_origin(l_pos, l_nor);
-    l_pos = compute_ray_origin(l_pos, l_nor);
     distance = length(P - l_pos);
     check_instance = false;
-    l_wi = -l_nor;
+    l_wi = l_nor;
+    G_out = geom_fact_sa(P, l_pos, l_nor);
+  } else if (l.type == GEOMETRY_LIGHT_ENV_MAP) {
+    // TODO: check this
+    daxa_f32vec3 l_dir = random_on_hemisphere(seed, n);
+    l_pos = P + (l_dir * MAX_DISTANCE);
+    l_nor = normalize(P - l_pos);
+    distance = length(P - l_pos);
+    check_instance = false;
+    l_wi = l_nor;
+    l.emissive *= env_map_sampler_eval(l_dir);
+    if (calc_pdf) {
+      pdf /= env_map_sampler_eval_pdf(l_dir);
+    }
+    G_out = 1.0;
   }
   
   daxa_f32vec3 l_v = -l_wi;
@@ -342,7 +354,6 @@ daxa_f32vec3 calculate_sampled_light(
   // 2. Get light direction
   daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
   daxa_f32vec3 wo = -normalize(ray.direction);
-  daxa_f32vec3 wi = normalize(light.position - hit.world_hit);
 
   daxa_f32vec3 l_pos, l_nor, Le;
 
@@ -350,10 +361,13 @@ daxa_f32vec3 calculate_sampled_light(
 
   daxa_f32vec3 result = vec3(0.0);
 
-  if (sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, seed, calc_pdf,
+  daxa_f32 G;
+
+  if (sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, seed, G, calc_pdf,
                     use_visibility)) {
+    daxa_f32vec3 wi = normalize(l_pos - hit.world_hit);
     daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wo, wi);
-    daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
+    // daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
 
     if (use_pdf) {
       result = brdf * Le * G / pdf_out;
@@ -384,12 +398,13 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
   daxa_f32vec3 P = hit.world_hit;
   daxa_f32vec3 n = hit.world_nrm;
   daxa_f32vec3 wo = normalize(ray.origin - P);
+  daxa_f32 G;
 
   // Light sampling
-  if (sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, seed, use_pdf,
+  if (sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, seed, G, use_pdf,
                     use_visibility)) {
     daxa_f32vec3 l_wi = normalize(l_pos - P);
-    daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
+    // daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
     daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);
     daxa_f32 mis_weight = eval_mis(1, l_pdf, 1, m_pdf * G, 2.0);
     daxa_f32vec3 brdf = evaluate_material(mat, n, wo, l_wi);
@@ -433,11 +448,4 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
   }
 
   return result;
-}
-
-daxa_f32 env_map_sampler_eval_pdf(daxa_f32vec3 dir) { return INV_DAXA_4PI; }
-
-daxa_f32vec3 env_map_sampler_eval(daxa_f32vec3 dir) {
-  return calculate_sky_color(deref(p.status_buffer).time,
-                             deref(p.status_buffer).is_afternoon, dir);
 }

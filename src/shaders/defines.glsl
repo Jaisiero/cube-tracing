@@ -25,7 +25,6 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define ACCUMULATOR_ON 1
 #define FORCE_ACCUMULATOR_ON 0
 
-#define LIGHT_SAMPLING_ON 1
 #define RESTIR_ON 1
 #define RESTIR_DI_ON 1
 #define RESTIR_DI_TEMPORAL_ON 1
@@ -129,6 +128,7 @@ layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[M
 layout(buffer_reference, scalar) buffer AABB_BUFFER {AABB aabbs[MAX_PRIMITIVES]; }; // Positions of a primitive
 layout(buffer_reference, scalar) buffer MATERIAL_BUFFER {MATERIAL materials[MAX_MATERIALS]; }; // Materials
 layout(buffer_reference, scalar) buffer LIGHT_BUFFER {LIGHT lights[MAX_LIGHTS]; }; // Lights
+layout(buffer_reference, scalar) buffer LIGHT_CONFIG_BUFFER {LIGHT_CONFIG light_config; }; // Lights
 
 layout(buffer_reference, scalar) buffer PREV_RESERVOIR_BUFFER {RESERVOIR reservoirs[MAX_RESERVOIRS]; }; // Reservoirs from the previous frame
 layout(buffer_reference, scalar) buffer INT_RESERVOIR_BUFFER {RESERVOIR reservoirs[MAX_RESERVOIRS]; }; // Intermediate reservoirs

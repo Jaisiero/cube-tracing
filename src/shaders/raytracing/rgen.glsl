@@ -165,9 +165,11 @@ void main()
 
         VELOCITY velocity = VELOCITY(motion_vector);
         velocity_buffer_set_velocity(index, rt_size, velocity);
-        
 
-        daxa_u32 light_count = deref(p.status_buffer).light_count;
+        // Get light configuration
+        LIGHT_CONFIG light_config = get_light_config_from_light_index();
+        
+        daxa_u32 light_count = light_config.light_count;
         // OBJECTS
         daxa_u32 object_count = deref(p.status_buffer).obj_count;
 
@@ -396,8 +398,11 @@ void main()
         // Get material
         MATERIAL mat = get_material_from_material_index(di_info.mat_index);
 
+        // Get light configuration
+        LIGHT_CONFIG light_config = get_light_config_from_light_index();
+
         // Get light count
-        daxa_u32 light_count = deref(p.status_buffer).light_count;
+        daxa_u32 light_count = light_config.light_count;
         // OBJECTS
         daxa_u32 object_count = deref(p.status_buffer).obj_count;
 

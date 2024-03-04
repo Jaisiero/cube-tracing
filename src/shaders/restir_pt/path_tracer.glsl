@@ -242,10 +242,11 @@ daxa_b32 path_generate_light_sample(const SCENE_PARAMS params, INTERSECT i,
 
   daxa_f32vec3 l_pos;
   daxa_f32vec3 l_nor;
+  daxa_f32 G;
 
   // TODO: Use sample_lights instead of calculate_sampled_light_and_get_light_info
   // NOTE: visibility check is done inside calculate_sampled_light
-  daxa_b32 found = sample_lights(hit, light, pdf, l_pos, l_nor, ls.Li, seed, true, true);
+  daxa_b32 found = sample_lights(hit, light, pdf, l_pos, l_nor, ls.Li, seed, G, true, true);
 
   ls.dir = normalize(l_pos - i.world_hit);
 

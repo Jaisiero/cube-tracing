@@ -115,8 +115,11 @@ void main()
     prd.world_nrm = call_scatter.nrm;
     prd.ray_scatter_dir = call_scatter.scatter_dir;
 
+    // Get light configuration
+    LIGHT_CONFIG light_config = get_light_config_from_light_index();
+
     // LIGHTS
-    daxa_u32 light_count = deref(p.status_buffer).light_count;
+    daxa_u32 light_count = light_config.light_count;
 
     // // OBJECTS
     // daxa_u32 object_count = deref(p.status_buffer).obj_count;
