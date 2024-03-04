@@ -367,7 +367,9 @@ daxa_f32vec3 calculate_sampled_light(
 
 daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
                         LIGHT light, daxa_u32 object_count, MATERIAL mat,
-                        out INTERSECT i, out daxa_f32 pdf_out, inout daxa_u32 seed,
+                        out INTERSECT i, out daxa_f32 pdf_out,
+                        inout daxa_u32 seed, out daxa_f32 path_pdf,
+                        inout daxa_f32vec3 throughput,
                         const in daxa_b32 use_pdf,
                         const in daxa_b32 use_visibility) {
   daxa_f32vec3 result = vec3(0.0);
@@ -391,10 +393,13 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
     daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);
     daxa_f32 mis_weight = eval_mis(1, l_pdf, 1, m_pdf * G, 2.0);
     daxa_f32vec3 brdf = evaluate_material(mat, n, wo, l_wi);
+
+    throughput *= brdf * G;
+
     if (use_pdf) {
-      result += brdf * mis_weight * G * Le / l_pdf;
+      result += throughput * mis_weight * Le / l_pdf;
     } else {
-      result += brdf * mis_weight * G * Le;
+      result += throughput * mis_weight * Le;
     }
     pdf_out *= l_pdf;
   }
@@ -407,17 +412,20 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
   if (use_visibility) {
     // Material sampling
     if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, object_count, seed)) {
+      // Get pdf for the material
+      path_pdf = m_pdf_2;
       i = intersect(Ray(P, m_wi));
-      if (i.is_hit && i.mat.emission != vec3(0.0)) {
+      if (i.is_hit && any(greaterThan(i.mat.emission,vec3(0.0)))) {
         daxa_f32 G = geom_fact_sa(P, i.world_hit, i.world_nrm);
         daxa_f32 light_pdf = sample_lights_pdf(hit, i, light_count);
         daxa_f32 mis_weight = eval_mis(1, m_pdf_2 * G, 1, light_pdf, 2.0);
         daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
         daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
+        throughput *= brdf;
         if (use_pdf) {
-          result += brdf * mis_weight * Le / m_pdf_2;
+          result += throughput * mis_weight * Le / m_pdf_2;
         } else {
-          result += brdf * mis_weight * Le;
+          result += throughput * mis_weight * Le;
         }
         pdf_out *= m_pdf_2;
       }

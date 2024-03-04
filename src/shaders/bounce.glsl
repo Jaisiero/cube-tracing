@@ -12,6 +12,7 @@ INTERSECT intersect(Ray ray)
     daxa_f32 t_max = MAX_DISTANCE;
     daxa_f32vec3 ray_origin = ray.origin;
     daxa_f32vec3 ray_dir = ray.direction;
+    ray.origin = compute_ray_origin(ray_origin, ray_dir);
     daxa_u32 cull_mask = 0xff;
     daxa_u32 ray_flags = gl_RayFlagsNoneEXT;
 

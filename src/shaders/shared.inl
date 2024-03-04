@@ -20,7 +20,7 @@
 
 #define DYNAMIC_SUN_LIGHT 0
 #define POINT_LIGHT_ON 1
-#define SUN_MIDDAY 0
+#define SUN_MIDDAY 1
 #define SUN_MAX_INTENSITY 5000.0f
 #define SUN_TOP_POSITION 20.0f
 

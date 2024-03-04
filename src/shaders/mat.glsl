@@ -119,19 +119,19 @@ daxa_f32vec3 night_light_background_color(daxa_f32vec3 dir)
 {
     daxa_f32vec3 unit_dir = normalize(dir);
     daxa_f32 t = 0.5 * (unit_dir.y + 1.0);
-    return mix(daxa_f32vec3(0.0, 0.0, 0.0), daxa_f32vec3(0.2, 0.2, 0.5), t);
+    return mix(daxa_f32vec3(0.2, 0.2, 0.3), daxa_f32vec3(0.2, 0.2, 0.5), t);
 }
 
 daxa_f32vec3 sunset_background_color(daxa_f32vec3 dir) {
     daxa_f32vec3 unit_dir = normalize(dir);
     daxa_f32 t = 0.5 * (unit_dir.y + 1.0);
-    return mix(daxa_f32vec3(0.0, 0.0, 0.0), daxa_f32vec3(1.0, 0.4, 0.0), t);
+    return mix(daxa_f32vec3(0.8, 0.4, 0.0), daxa_f32vec3(1.0, 0.4, 0.0), t);
 }
 
 daxa_f32vec3 sunrise_background_color(daxa_f32vec3 dir) {
     daxa_f32vec3 unit_dir = normalize(dir);
     daxa_f32 t = 0.5 * (unit_dir.y + 1.0);
-    return mix(daxa_f32vec3(0.0, 0.0, 0.0), daxa_f32vec3(0.8, 0.4, 0.0), t);
+    return mix(daxa_f32vec3(0.7, 0.35, 0.0), daxa_f32vec3(0.8, 0.4, 0.0), t);
 }
 
 vec3 calculate_sky_color(float time, daxa_b32 is_afternoon, daxa_f32vec3 dir) {

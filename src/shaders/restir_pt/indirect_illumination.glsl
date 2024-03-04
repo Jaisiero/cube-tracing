@@ -305,89 +305,7 @@ void indirect_illumination_restir_path_tracing(const SCENE_PARAMS params,
 #endif // RESTIR_PT_TEMPORAL_ON                      
 }
 
-void indirect_illumination_path_tracing(
-    const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat,
-    INTERSECT i, daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count,
-    daxa_u32 object_count, inout daxa_f32vec3 indirect_color) {
 
-  // prd.indirect_color = vec3(1.0);
-  prd.seed = seed;
-  prd.depth = max_depth;
-  prd.world_hit = i.world_hit;
-  prd.distance = i.distance;
-  prd.world_nrm = i.world_nrm;
-  prd.ray_scatter_dir = i.wi;
-  prd.mat_index = i.material_idx;
-  prd.instance_hit = i.instance_hit;
-  prd.hit_value = daxa_f32vec3(0.0);
-
-  daxa_f32vec3 throughput = daxa_f32vec3(1.0);
-  // prd.done = true;
-
-  // generate_scatter_ray(i, seed);
-
-  for (;;) {
-
-    i.world_hit = compute_ray_origin(i.world_hit, i.world_nrm);
-    i.world_hit = compute_ray_origin(i.world_hit, i.world_nrm);
-
-    HIT_INFO_INPUT hit =
-        HIT_INFO_INPUT(i.world_hit, i.world_nrm, i.distance, i.wo,
-                       i.instance_hit, i.material_idx);
-    Ray scattered_ray = Ray(i.world_hit, -i.wo);
-
-    if (i.is_hit) {
-
-      daxa_u32 light_index =
-          min(urnd_interval(seed, 0, light_count), light_count - 1);
-
-      LIGHT light = get_light_from_light_index(light_index);
-
-      daxa_f32 pdf_out = 1.0;
-
-      daxa_f32vec3 radiance =
-          direct_mis(scattered_ray, hit, light_count, light, object_count,
-                     i.mat, i, pdf_out, seed, true, true);
-
-      throughput *= radiance;
-      prd.done = false;
-    } else {
-      prd.done = true;
-      throughput *= calculate_sky_color(deref(p.status_buffer).time,
-                                        deref(p.status_buffer).is_afternoon,
-                                        scattered_ray.direction);
-    }
-    prd.hit_value += throughput;
-
-    if(any(lessThanEqual(throughput, daxa_f32vec3(0.0))))
-      prd.done = true;
-
-    prd.depth--;
-    daxa_b32 done = prd.done || prd.depth == 0;
-#if SER == 1
-    reorderThreadNV(daxa_u32(done), 1);
-#endif // SER
-    if (done)
-      break;
-
-    prd.done = true; // Will stop if a reflective material isn't hit
-  }
-  indirect_color = prd.hit_value;
-}
-
-void indirect_illumination(const SCENE_PARAMS params, const daxa_i32vec2 index,
-                           const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat,
-                           const INTERSECT i, daxa_u32 seed,
-                           inout daxa_f32vec3 indirect_color) {
-#if RESTIR_PT_ON == 1
-  indirect_illumination_restir_path_tracing(params, index, rt_size, ray, i,
-                                            seed, indirect_color);
-#else
-  indirect_illumination_path_tracing(index, rt_size, ray, mat, i, seed,
-                                     params.max_depth, params.light_count,
-                                     params.object_count, indirect_color);
-#endif
-}
 
 void indirect_illumination_spatial_reuse(const SCENE_PARAMS params,
                                          const daxa_i32vec2 index,
@@ -529,6 +447,107 @@ void indirect_illumination_spatial_reuse(const SCENE_PARAMS params,
 
     set_temporal_path_reservoir_by_index(current_index, destination_reservoir);
   }
+}
+
+void indirect_illumination_path_tracing(
+    const daxa_i32vec2 index, const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat,
+    INTERSECT i, inout daxa_u32 seed, daxa_u32 max_depth, daxa_u32 light_count,
+    daxa_u32 object_count, inout daxa_f32vec3 indirect_color) {
+
+  // prd.indirect_color = vec3(1.0);
+  prd.seed = seed;
+  prd.depth = max_depth;
+  prd.world_hit = i.world_hit;
+  prd.distance = i.distance;
+  prd.world_nrm = i.world_nrm;
+  prd.ray_scatter_dir = i.wi;
+  prd.mat_index = i.material_idx;
+  prd.instance_hit = i.instance_hit;
+  prd.hit_value = daxa_f32vec3(0.0);
+
+  daxa_f32vec3 throughput = daxa_f32vec3(1.0);
+  // prd.done = true;
+
+  // generate_scatter_ray(i, seed);
+
+  daxa_b32 first_bounce = true;
+
+  daxa_f32 path_pdf = 1.0;
+
+  for (;;) {
+
+    i.world_hit = compute_ray_origin(i.world_hit, i.world_nrm);
+    i.world_hit = compute_ray_origin(i.world_hit, i.world_nrm);
+
+    HIT_INFO_INPUT hit =
+        HIT_INFO_INPUT(i.world_hit, i.world_nrm, i.distance, i.wo,
+                       i.instance_hit, i.material_idx);
+    Ray scattered_ray = Ray(i.world_hit, -i.wo);
+
+    if (i.is_hit) {
+
+      daxa_u32 light_index =
+          min(urnd_interval(seed, 0, light_count), light_count - 1);
+
+      LIGHT light = get_light_from_light_index(light_index);
+
+      daxa_f32 pdf_out = 1.0;
+
+      daxa_f32vec3 radiance =
+          direct_mis(scattered_ray, hit, light_count, light, object_count,
+                     i.mat, i, pdf_out, seed, path_pdf, throughput, true, true);
+
+      prd.hit_value += radiance;
+      prd.done = false;
+    } else {
+      prd.done = true;
+      daxa_f32 light_pdf = env_map_sampler_eval_pdf(scattered_ray.direction);
+      daxa_f32 mis_weight = eval_mis(path_pdf, 1, light_pdf, 1, 2.f);
+      prd.hit_value += throughput * mis_weight * env_map_sampler_eval(scattered_ray.direction);
+    }
+
+    if(all(lessThanEqual(throughput, daxa_f32vec3(0.0))))
+      prd.done = true;
+
+    prd.depth--;
+    daxa_b32 done = prd.done || prd.depth == 0;
+
+    // switch (prd.depth) {
+    // case 0:
+    //   prd.hit_value = vec3(1.0, 0.0, 0.0);
+    //   break;
+    // case 1:
+    //   prd.hit_value = vec3(0.0, 1.0, 0.0);
+    //   break;
+    // default:
+    //   prd.hit_value = vec3(0.0, 0.0, 1.0);
+    //   break;
+    // }
+// #if SER == 1
+//     reorderThreadNV(daxa_u32(done), 1);
+// #endif // SER
+    if (done)
+      break;
+
+    prd.done = true; // Will stop if a reflective material isn't hit
+
+    first_bounce = false;
+  }
+  indirect_color = prd.hit_value;
+}
+
+void indirect_illumination(const SCENE_PARAMS params, const daxa_i32vec2 index,
+                           const daxa_u32vec2 rt_size, Ray ray, MATERIAL mat,
+                           const INTERSECT i, inout daxa_u32 seed,
+                           inout daxa_f32vec3 indirect_color) {
+#if RESTIR_PT_ON == 1
+  indirect_illumination_restir_path_tracing(params, index, rt_size, ray, i,
+                                            seed, indirect_color);
+#else
+  indirect_illumination_path_tracing(index, rt_size, ray, mat, i, seed,
+                                     params.max_depth, params.light_count,
+                                     params.object_count, indirect_color);
+#endif
 }
 
 #endif // INDIRECT_ILLUMINATION_GLSL

@@ -123,10 +123,7 @@ void main()
 
         prd.mat_index = get_material_index_from_instance_and_primitive_id(prd.instance_hit);
     }  else {
-        prd.hit_value *= calculate_sky_color(
-            deref(p.status_buffer).time,
-            deref(p.status_buffer).is_afternoon,
-            ray.direction);
+        prd.hit_value *= env_map_sampler_eval(ray.direction.xyz);
     }
 
 #else
@@ -267,7 +264,7 @@ void main()
 
         // Replace NaN components with zero.
         if(any(isinf(indirect_color)) || any(isnan(indirect_color))) indirect_color = vec3(0.0);
-#if (ACCUMULATOR_ON == 1 && RESTIR_PT_ON == 0 || RESTIR_PT_ON == 1 &&  RESTIR_PT_SPATIAL_ON != 1  || FORCE_ACCUMULATOR_ON == 1)
+#if (ACCUMULATOR_ON == 1 && RESTIR_PT_ON == 0 || FORCE_ACCUMULATOR_ON == 1)
         daxa_u64 num_accumulated_frames = deref(p.status_buffer).num_accumulated_frames;
         if (num_accumulated_frames > 0)
         {
@@ -455,6 +452,7 @@ void main()
 
 #if INDIRECT_ILLUMINATION_ON == 1     
         daxa_f32vec3 indirect_color = daxa_f32vec3(0.f);
+#if RESTIR_PT_ON == 1 && RESTIR_PT_SPATIAL_ON == 1
         // Build the intersect struct
         daxa_f32vec3 wo = normalize(ray.origin - di_info.position);
         INTERSECT i = INTERSECT(is_hit, di_info.distance, di_info.position,
@@ -469,13 +467,11 @@ void main()
             REJECT_BASED_ON_JACOBIAN, JACOBIAN_REJECTION_THRESHOLD,
             USE_RUSSIAN_ROULETTE, COMPUTE_ENVIRONMENT_LIGHT, NEIGHBOR_COUNT,
             NEIGHBOR_RADIUS);
-
-#if RESTIR_PT_SPATIAL_ON == 1
         daxa_f32vec3 camera_pos = daxa_f32vec3(inv_view[3]);
         indirect_illumination_spatial_reuse(params, index, rt_size, i, camera_pos, di_info.seed, indirect_color);
 #else 
         indirect_color = get_indirect_color_by_index(screen_pos);
-#endif // RESTIR_PT_SPATIAL_ON
+#endif // RESTIR_PT_ON && RESTIR_PT_SPATIAL_ON
         hit_value += indirect_color;
 #endif // INDIRECT_ILLUMINATION_ON
 
