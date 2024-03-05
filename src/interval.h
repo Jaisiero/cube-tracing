@@ -2,6 +2,8 @@
 #define INTERVAL_H
 #include <limits>
 
+float infinity = std::numeric_limits<float>::infinity();
+
 //==============================================================================================
 // To the extent possible under law, the author(s) have dedicated all copyright and related and
 // neighboring rights to this software to the public domain worldwide. This software is

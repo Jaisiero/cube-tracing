@@ -1,14 +1,15 @@
-#include <iostream>
 #include <algorithm>
 #include <thread>
 
-#include <daxa/daxa.hpp>
 #include <daxa/utils/pipeline_manager.hpp>
 #include <daxa/utils/task_graph.hpp>
 
 #include <window.hpp>
 #include <shared.hpp>
 
+#include <map_loader.hpp>
+
+#include "defines.h"
 #include "shaders/shared.inl"
 #include "rng.h"
 #include "camera.h"
@@ -39,6 +40,8 @@ namespace tests
             const u32 MATERIAL_COUNT_UP_TO_EMISSIVE = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT;
 
             const char* RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
+            const char* MODEL_PATH = "assets/models/";
+            const char* MAP_NAME = "monu5.vox";
 
             Status status = {};
             camera camera = {};
@@ -157,10 +160,16 @@ namespace tests
 
             std::vector<daxa_f32mat4x4> transforms = {};
 
+            MapLoader map_loader = {};
+
+
             App() : AppWindow<App>("Cubeland") {}
 
             ~App()
             {
+                map_loader.destroy_gvox_context();
+                device.wait_idle();
+                device.collect_garbage();
                 if (device.is_valid())
                 {
                     device.destroy_tlas(tlas);
@@ -1516,6 +1525,17 @@ namespace tests
 
                 upload_world();
                 upload_restir();
+
+                // Create a new context for the gvox library
+                map_loader.create_gvox_context();
+
+                // load map
+                GvoxModelData gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + MAP_NAME);
+
+                std::cout << "gvox_map size: " << gvox_map.size << std::endl;
+
+                size_t map_size = gvox_map.size;
+                delete gvox_map.ptr;
 
                 // hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
                 //     .size = max_hit_distance_buffer_size,
