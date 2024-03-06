@@ -1266,7 +1266,7 @@ namespace tests
 
 
             // TODO: This could be load from a file
-            void create_procedural_blas() {
+            daxa_Bool8 create_procedural_blas() {
 
                 u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
                 u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
@@ -1448,6 +1448,9 @@ namespace tests
                         .sampler_id = MAX_TEXTURES,
                     });
                 }
+
+
+                return load_blas_info(current_instance_count);
             }
 
             void initialize()
@@ -1622,17 +1625,6 @@ namespace tests
                 upload_world();
                 upload_restir();
 
-                // Create a new context for the gvox library
-                map_loader.create_gvox_context();
-
-                // load map
-                GvoxModelData gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + MAP_NAME);
-
-                std::cout << "gvox_map size: " << gvox_map.size << std::endl;
-
-                size_t map_size = gvox_map.size;
-                delete gvox_map.ptr;
-
                 // hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
                 //     .size = max_hit_distance_buffer_size,
                 //     .name = ("hit_distance_buffer"),
@@ -1648,17 +1640,27 @@ namespace tests
 #endif
                 create_environment_light();
 
-                create_procedural_blas();
+                // Create a new context for the gvox library
+                map_loader.create_gvox_context();
 
-                // call build tlas
-                if(!load_blas_info(current_instance_count)) {
-                    std::cout << "Failed to load blas info" << std::endl;
+                // load map
+                GvoxModelData gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + MAP_NAME);
+
+                // TODO: Replace this by a function that loads the map inside the gvox library
+                if(!create_procedural_blas()) {
+                    std::cout << "Failed to create procedural blas" << std::endl;
                     abort();
                 }
+
                 if(!build_tlas()) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
+                
+                std::cout << "gvox_map size: " << gvox_map.size << std::endl;
+
+                size_t map_size = gvox_map.size;
+                delete gvox_map.ptr;
 
                 load_lights();
 
