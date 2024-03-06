@@ -1263,6 +1263,193 @@ namespace tests
                 }
             }
 
+
+
+            // TODO: This could be load from a file
+            void create_procedural_blas() {
+
+                u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
+                u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
+
+                daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
+
+                if (estimated_instance_count > MAX_INSTANCES)
+                {
+                    std::cout << "estimated_instance_count (" << estimated_instance_count << ") > MAX_INSTANCES (" << MAX_INSTANCES << ")." << std::endl;
+                    abort();
+                }
+
+                if (estimated_instance_count == 0)
+                {
+                    std::cout << "estimated_instance_count == 0" << std::endl;
+                    abort();
+                }
+
+                transforms.reserve(estimated_instance_count);
+
+                // Centered around 0, 0, 0 positioning instances like a mirror
+                f32 x_axis_initial_position = ((INSTANCE_X_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
+                f32 z_axis_initial_position = ((INSTANCE_Z_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
+
+                for (i32 x_instance = -INSTANCE_X_AXIS_COUNT; x_instance < (i32)INSTANCE_X_AXIS_COUNT; x_instance++)
+                {
+                    auto x_instance_displacement = (x_instance * (AXIS_DISPLACEMENT));
+                    for (i32 z_instance = -INSTANCE_Z_AXIS_COUNT; z_instance < (i32)INSTANCE_Z_AXIS_COUNT; z_instance++)
+                    {
+                        auto z_instance_displacement = (z_instance * (AXIS_DISPLACEMENT));
+                        for (u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++)
+                        {
+                            for (u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++)
+                            {
+                                for (u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++)
+                                {
+                                    // if(random_float(0.0, 1.0) > 0.95) {
+                                    if (random_float(0.0, 1.0) > 0.75)
+                                    {
+                                        auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
+                                        transforms.push_back(daxa_f32mat4x4{
+                                            {1, 0, 0, x_instance_displacement + position_instance.x},
+                                            {0, 1, 0, position_instance.y},
+                                            {0, 0, 1, z_instance_displacement + position_instance.z},
+                                            {0, 0, 0, 1},
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // transforms.push_back(daxa_f32mat4x4{
+                //     {1, 0, 0, -AXIS_DISPLACEMENT},
+                //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
+                //     {0, 0, 1, 0},
+                //     {0, 0, 0, 1},
+                // });
+
+                // transforms.push_back(daxa_f32mat4x4{
+                //     {1, 0, 0, 0},
+                //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
+                //     {0, 0, 1, 0},
+                //     {0, 0, 0, 1},
+                // });
+
+                current_instance_count = transforms.size();
+
+                upload_textures();
+
+                current_material_count = MATERIAL_COUNT;
+
+                materials.reserve(current_material_count);
+
+                for (u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++)
+                {
+
+                    daxa_u32 texture_id = MAX_TEXTURES;
+                    daxa_f32 random_float_value = random_float(0.0, 1.0);
+                    if (random_float_value > 0.80)
+                    {
+                        texture_id = random_uint(0, current_texture_count - 1);
+                    }
+
+                    materials.push_back(MATERIAL{
+                        .type = MATERIAL_TYPE_LAMBERTIAN + ((texture_id == MAX_TEXTURES) ? 0 : ((texture_id == current_texture_count - 1) ? MATERIAL_PERLIN_ON : MATERIAL_TEXTURE_ON)),
+                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .transmittance = {0.0f, 0.0f, 0.0f},
+                        .emission = {0.0, 0.0, 0.0},
+                        .shininess = random_float(0.0, 4.0),
+                        .roughness = random_float(0.0, 1.0),
+                        .ior = random_float(1.0, 2.65),
+                        // .dissolve = (-1/random_float(0.1, 1.0)),
+                        // .dissolve = (random_float(0.1, 1.0)),
+                        .dissolve = 1.0,
+                        .illum = 3,
+                        .texture_id = (texture_id != MAX_TEXTURES) ? images.at(texture_id).default_view() : daxa::ImageViewId{},
+                        .sampler_id = samplers.at(0),
+                    });
+                }
+
+                for (u32 i = 0; i < METAL_MATERIAL_COUNT; i++)
+                {
+                    materials.push_back(MATERIAL{
+                        .type = MATERIAL_TYPE_METAL,
+                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .transmittance = {0.0f, 0.0f, 0.0f},
+                        .emission = {0.0, 0.0, 0.0},
+                        .shininess = random_float(0.0, 4.0),
+                        .roughness = random_float(0.0, 1.0),
+                        .ior = random_float(1.0, 2.65),
+                        // .dissolve = (-1/random_float(0.1, 1.0)),
+                        // .dissolve = (random_float(0.1, 1.0)),
+                        .dissolve = 1.0,
+                        .illum = 3,
+                        .texture_id = MAX_TEXTURES,
+                        .sampler_id = MAX_TEXTURES,
+                    });
+                }
+
+                for (u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++)
+                {
+                    materials.push_back(MATERIAL{
+                        .type = MATERIAL_TYPE_DIELECTRIC,
+                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .transmittance = {0.0f, 0.0f, 0.0f},
+                        .emission = {0.0, 0.0, 0.0},
+                        .shininess = random_float(0.0, 4.0),
+                        .roughness = random_float(0.0, 1.0),
+                        .ior = random_float(1.0, 2.65),
+                        .dissolve = 1.0,
+                        .illum = 3,
+                        .texture_id = MAX_TEXTURES,
+                        .sampler_id = MAX_TEXTURES,
+                    });
+                }
+
+                for (u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++)
+                {
+                    materials.push_back(MATERIAL{
+                        .type = MATERIAL_TYPE_LAMBERTIAN,
+                        .ambient = {1.0, 1.0, 1.0},
+                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .specular = {1.0, 1.0, 1.0},
+                        .transmittance = {0.0, 0.0, 0.0},
+                        .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
+                        .shininess = random_float(0.0, 4.0),
+                        .roughness = random_float(0.0, 1.0),
+                        .ior = random_float(1.0, 2.65),
+                        .dissolve = 1.0,
+                        .illum = 3,
+                        .texture_id = MAX_TEXTURES,
+                        .sampler_id = MAX_TEXTURES,
+                    });
+                }
+
+                for (u32 i = 0; i < CONSTANT_MEDIUM_MATERIAL_COUNT; i++)
+                {
+                    materials.push_back(MATERIAL{
+                        .type = MATERIAL_TYPE_CONSTANT_MEDIUM,
+                        .ambient = {0.999, 0.999, 0.999},
+                        .diffuse = {0.999, 0.999, 0.999},
+                        .specular = {0.999, 0.999, 0.999},
+                        .transmittance = {random_float(0.9, 0.999), random_float(0.9, 0.999), random_float(0.9, 0.999)},
+                        .emission = {0.0, 0.0, 0.0},
+                        .shininess = random_float(0.0, 4.0),
+                        .roughness = random_float(0.0, 1.0),
+                        .ior = random_float(1.0, 2.65),
+                        // .dissolve = (-1.0f/random_float(0.1, 0.5)),
+                        .dissolve = random_float(0.1, 0.3),
+                        .illum = 4,
+                        .texture_id = MAX_TEXTURES,
+                        .sampler_id = MAX_TEXTURES,
+                    });
+                }
+            }
+
             void initialize()
             {
                 daxa_ctx = daxa::create_instance({});
@@ -1454,187 +1641,14 @@ namespace tests
                 // DEBUGGING
                 // hit_distances.resize(WIDTH_RES * HEIGHT_RES);
 
-                // TODO: This could be load from a file
-                {
-
-                    u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
-                    u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
-
-                    daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
-
-                    if(estimated_instance_count > MAX_INSTANCES) {
-                        std::cout << "estimated_instance_count (" << estimated_instance_count << ") > MAX_INSTANCES (" << MAX_INSTANCES << ")." << std::endl;
-                        abort();
-                    }
-
-                    if(estimated_instance_count == 0) {
-                        std::cout << "estimated_instance_count == 0" << std::endl;
-                        abort();
-                    }
-
-                    transforms.reserve(estimated_instance_count);
-
-                    // Centered around 0, 0, 0 positioning instances like a mirror
-                    f32 x_axis_initial_position = ((INSTANCE_X_AXIS_COUNT) * AXIS_DISPLACEMENT / 2);
-                    f32 z_axis_initial_position = ((INSTANCE_Z_AXIS_COUNT) * AXIS_DISPLACEMENT / 2);
-
-
-                    for(i32 x_instance = -INSTANCE_X_AXIS_COUNT; x_instance < (i32)INSTANCE_X_AXIS_COUNT; x_instance++) {
-                        auto x_instance_displacement = (x_instance * (AXIS_DISPLACEMENT));
-                        for(i32 z_instance = -INSTANCE_Z_AXIS_COUNT; z_instance < (i32)INSTANCE_Z_AXIS_COUNT; z_instance++) {
-                            auto z_instance_displacement = (z_instance * (AXIS_DISPLACEMENT));
-                            for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
-                                for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
-                                    for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
-                                        // if(random_float(0.0, 1.0) > 0.95) {
-                                        if(random_float(0.0, 1.0) > 0.75) {
-                                            auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
-                                            transforms.push_back(daxa_f32mat4x4{
-                                                {1, 0, 0, x_instance_displacement + position_instance.x},
-                                                {0, 1, 0, position_instance.y},
-                                                {0, 0, 1, z_instance_displacement + position_instance.z},
-                                                {0, 0, 0, 1},
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // transforms.push_back(daxa_f32mat4x4{
-                    //     {1, 0, 0, -AXIS_DISPLACEMENT},
-                    //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
-                    //     {0, 0, 1, 0},
-                    //     {0, 0, 0, 1},
-                    // });
-
-                    // transforms.push_back(daxa_f32mat4x4{
-                    //     {1, 0, 0, 0},
-                    //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
-                    //     {0, 0, 1, 0},
-                    //     {0, 0, 0, 1},
-                    // });
-
-                    current_instance_count = transforms.size();
-
-                    upload_textures();
-
-
-                    current_material_count = MATERIAL_COUNT;
-
-                    materials.reserve(current_material_count);
-
-                    for(u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++) {
-
-                        daxa_u32 texture_id = MAX_TEXTURES;
-                        daxa_f32 random_float_value = random_float(0.0, 1.0);
-                        if(random_float_value > 0.80) {
-                            texture_id = random_uint(0, current_texture_count - 1);
-                        }
-
-                        materials.push_back(MATERIAL{
-                            .type = MATERIAL_TYPE_LAMBERTIAN + ((texture_id == MAX_TEXTURES) ? 0 : ((texture_id == current_texture_count -1) ? MATERIAL_PERLIN_ON : MATERIAL_TEXTURE_ON)),
-                            .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .transmittance = {0.0f, 0.0f, 0.0f},
-                            .emission = {0.0, 0.0, 0.0},
-                            .shininess = random_float(0.0, 4.0),
-                            .roughness = random_float(0.0, 1.0),
-                            .ior = random_float(1.0, 2.65),
-                            // .dissolve = (-1/random_float(0.1, 1.0)),
-                            // .dissolve = (random_float(0.1, 1.0)),
-                            .dissolve = 1.0,
-                            .illum = 3,
-                            .texture_id = (texture_id != MAX_TEXTURES) ? images.at(texture_id).default_view()  : daxa::ImageViewId{},
-                            .sampler_id = samplers.at(0),
-                        });
-                    }
-
-                    for(u32 i = 0; i < METAL_MATERIAL_COUNT; i++) {
-                        materials.push_back(MATERIAL{
-                            .type = MATERIAL_TYPE_METAL,
-                            .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .transmittance = {0.0f, 0.0f, 0.0f},
-                            .emission = {0.0, 0.0, 0.0},
-                            .shininess = random_float(0.0, 4.0),
-                            .roughness = random_float(0.0, 1.0),
-                            .ior = random_float(1.0, 2.65),
-                            // .dissolve = (-1/random_float(0.1, 1.0)),
-                            // .dissolve = (random_float(0.1, 1.0)),
-                            .dissolve = 1.0,
-                            .illum = 3,
-                            .texture_id = MAX_TEXTURES,
-                            .sampler_id = MAX_TEXTURES,
-                        });
-                    }
-
-
-
-                    for(u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++) {
-                        materials.push_back(MATERIAL{
-                            .type = MATERIAL_TYPE_DIELECTRIC,
-                            .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .transmittance = {0.0f, 0.0f, 0.0f},
-                            .emission = {0.0, 0.0, 0.0},
-                            .shininess = random_float(0.0, 4.0),
-                            .roughness = random_float(0.0, 1.0),
-                            .ior = random_float(1.0, 2.65),
-                            .dissolve = 1.0,
-                            .illum = 3,
-                            .texture_id = MAX_TEXTURES,
-                            .sampler_id = MAX_TEXTURES,
-                        });
-                    }
-
-                    for(u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++) {
-                        materials.push_back(MATERIAL{
-                            .type = MATERIAL_TYPE_LAMBERTIAN,
-                            .ambient = {1.0, 1.0, 1.0},
-                            .diffuse =  {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                            .specular = {1.0, 1.0, 1.0},
-                            .transmittance = {0.0, 0.0, 0.0},
-                            .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
-                            .shininess = random_float(0.0, 4.0),
-                            .roughness = random_float(0.0, 1.0),
-                            .ior = random_float(1.0, 2.65),
-                            .dissolve = 1.0,
-                            .illum = 3,
-                            .texture_id = MAX_TEXTURES,
-                            .sampler_id = MAX_TEXTURES,
-                        });
-                    }
-
-                    for(u32 i = 0; i < CONSTANT_MEDIUM_MATERIAL_COUNT; i++) {
-                        materials.push_back(MATERIAL{
-                            .type = MATERIAL_TYPE_CONSTANT_MEDIUM,
-                            .ambient = {0.999, 0.999, 0.999},
-                            .diffuse =  {0.999, 0.999, 0.999},
-                            .specular = {0.999, 0.999, 0.999},
-                            .transmittance =  {random_float(0.9, 0.999), random_float(0.9, 0.999), random_float(0.9, 0.999)},
-                            .emission = {0.0, 0.0, 0.0},
-                            .shininess = random_float(0.0, 4.0),
-                            .roughness = random_float(0.0, 1.0),
-                            .ior = random_float(1.0, 2.65),
-                            // .dissolve = (-1.0f/random_float(0.1, 0.5)),
-                            .dissolve = random_float(0.1, 0.3),
-                            .illum = 4,
-                            .texture_id = MAX_TEXTURES,
-                            .sampler_id = MAX_TEXTURES,
-                        });
-                    }
-                }
-
                 light_config.light_count = 0;
                 lights.reserve(MAX_LIGHTS);
 #if POINT_LIGHT_ON == 1                
                 create_point_lights();
 #endif
                 create_environment_light();
+
+                create_procedural_blas();
 
                 // call build tlas
                 if(!load_blas_info(current_instance_count)) {
