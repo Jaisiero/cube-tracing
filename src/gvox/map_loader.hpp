@@ -6,9 +6,6 @@
 #include <filesystem>
 
 #include <gvox/gvox.h>
-#include <gvox/adapters/input/byte_buffer.h>
-#include <gvox/adapters/output/byte_buffer.h>
-#include <gvox/adapters/parse/voxlap.h>
 
 struct MapLoader {
 public:

@@ -10,7 +10,6 @@
 #include <map_loader.hpp>
 
 #include "defines.h"
-#include "shaders/shared.inl"
 #include "rng.h"
 #include "camera.h"
 #include "texture.hpp"
@@ -22,33 +21,15 @@ namespace tests
     {
         struct App : AppWindow<App>
         {
-            const f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
-            const u32 INSTANCE_X_AXIS_COUNT = 1; // X^2 (mirrored on both sides of the x axis)
-            const u32 INSTANCE_Z_AXIS_COUNT = 1; // Z^2 (mirrored on both sides of the z axis)
-            const u32 CLOUD_INSTANCE_COUNT = 1; // 2^1 (mirrored on both sides of the x axis)
-            const u32 CLOUD_INSTANCE_COUNT_X = (CLOUD_INSTANCE_COUNT * 2);
-            // const u32 INSTANCE_COUNT = INSTANCE_X_AXIS_COUNT * INSTANCE_Z_AXIS_COUNT;
-            const u32 LAMBERTIAN_MATERIAL_COUNT = 3000;
-            // const u32 METAL_MATERIAL_COUNT = 15;
-            const u32 METAL_MATERIAL_COUNT = 0;
-            // const u32 DIALECTRIC_MATERIAL_COUNT = 5;
-            const u32 DIALECTRIC_MATERIAL_COUNT = 0;
-            const u32 EMISSIVE_MATERIAL_COUNT = 1;
-            const u32 CONSTANT_MEDIUM_MATERIAL_COUNT = 5;
-            const u32 MATERIAL_COUNT = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
-            const u32 MATERIAL_COUNT_UP_TO_DIALECTRIC = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT;
-            const u32 MATERIAL_COUNT_UP_TO_EMISSIVE = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT;
-
-            const char* RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
-            const char* MODEL_PATH = "assets/models/";
-            const char* MAP_NAME = "monu5.vox";
+            const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
+            const char *MODEL_PATH = "assets/models/";
+            const char *MAP_NAME = "monu5.vox";
 
             Status status = {};
             camera camera = {};
             LIGHT_CONFIG light_config = {};
 
             daxa_u32 invocation_reorder_mode;
-
 
             daxa::Instance daxa_ctx = {};
             daxa::Device device = {};
@@ -206,95 +187,6 @@ namespace tests
                     // DEBUGGING
                     // device.destroy_buffer(hit_distance_buffer);
                 }
-            }
-
-            daxa_f32mat4x4 glm_mat4_to_daxa_f32mat4x4(glm::mat4 const & mat)
-            {
-                return daxa_f32mat4x4{
-                    {mat[0][0], mat[0][1], mat[0][2], mat[0][3]},
-                    {mat[1][0], mat[1][1], mat[1][2], mat[1][3]},
-                    {mat[2][0], mat[2][1], mat[2][2], mat[2][3]},
-                    {mat[3][0], mat[3][1], mat[3][2], mat[3][3]},
-                };
-            }
-
-            daxa_f32mat3x4 daxa_f32mat4x4_to_daxa_f32mat3x4(daxa_f32mat4x4 const & mat)
-            {
-                return daxa_f32mat3x4{
-                    {mat.x.x, mat.y.x, mat.z.x, mat.w.x},
-                    {mat.x.y, mat.y.y, mat.z.y, mat.w.y},
-                    {mat.x.z, mat.y.z, mat.z.z, mat.w.z}
-                };
-            }
-
-            daxa_f32mat4x4 get_daxa_f32mat4x4_transpose(daxa_f32mat4x4 const & mat)
-            {
-                return daxa_f32mat4x4{
-                    {mat.x.x, mat.y.x, mat.z.x, mat.w.x},
-                    {mat.x.y, mat.y.y, mat.z.y, mat.w.y},
-                    {mat.x.z, mat.y.z, mat.z.z, mat.w.z},
-                    {mat.x.w, mat.y.w, mat.z.w, mat.w.w},
-                };
-            }
-
-            // Generate min max by coord (x, y, z) where x, y, z are 0 to VOXEL_COUNT_BY_AXIS-1 where VOXEL_COUNT_BY_AXIS / 2 is the center at (0, 0, 0)
-            constexpr daxa_f32mat2x3 generate_min_max_by_coord(u32 x, u32 y, u32 z, daxa_f32 voxel_extent) const {
-                return daxa_f32mat2x3{
-                    {
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + (x * voxel_extent) + AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + (y * voxel_extent) + AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + (z * voxel_extent) + AVOID_VOXEL_COLLAIDE
-                    },
-                    {
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + ((x + 1) * voxel_extent) - AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + ((y + 1) * voxel_extent) - AVOID_VOXEL_COLLAIDE,
-                        -((VOXEL_COUNT_BY_AXIS/ 2) * voxel_extent) + ((z + 1) * voxel_extent) - AVOID_VOXEL_COLLAIDE
-                    }
-                };
-            }
-
-
-            constexpr daxa_f32vec3 generate_center_by_coord(u32 x, u32 y, u32 z, daxa_f32 chunck_extent) const {
-                return daxa_f32vec3{
-                    -((VOXEL_COUNT_BY_AXIS/ 2) * chunck_extent) + (x * chunck_extent) + (chunck_extent / 2),
-                    -((VOXEL_COUNT_BY_AXIS/ 2) * chunck_extent) + (y * chunck_extent) + (chunck_extent / 2),
-                    -((VOXEL_COUNT_BY_AXIS/ 2) * chunck_extent) + (z * chunck_extent) + (chunck_extent / 2)
-                };
-            }
-
-            constexpr daxa_f32mat2x3 generate_min_max_at_origin(daxa_f32 extent) {
-                return daxa_f32mat2x3{
-                    {
-                        daxa_f32vec3(-extent + AVOID_VOXEL_COLLAIDE, -extent + AVOID_VOXEL_COLLAIDE, -extent + AVOID_VOXEL_COLLAIDE),
-                    },
-                    {
-                        daxa_f32vec3(extent - AVOID_VOXEL_COLLAIDE, extent - AVOID_VOXEL_COLLAIDE, extent - AVOID_VOXEL_COLLAIDE),
-                    }
-                };
-            }
-
-            constexpr daxa_f32vec3 daxa_f32mat4x4_multiply_by_daxa_f32vec4(daxa_f32mat4x4 const & mat, daxa_f32vec4 const & vec) {
-                return daxa_f32vec3{
-                    mat.x.x * vec.x + mat.y.x * vec.y + mat.z.x * vec.z + mat.w.x * vec.w,
-                    mat.x.y * vec.x + mat.y.y * vec.y + mat.z.y * vec.z + mat.w.y * vec.w,
-                    mat.x.z * vec.x + mat.y.z * vec.y + mat.z.z * vec.z + mat.w.z * vec.w,
-                };
-            }
-
-            constexpr daxa_f32vec3 daxa_f32vec3_add_daxa_f32vec3(daxa_f32vec3 const & vec1, daxa_f32vec3 const & vec2) {
-                return daxa_f32vec3{
-                    vec1.x + vec2.x,
-                    vec1.y + vec2.y,
-                    vec1.z + vec2.z,
-                };
-            }
-
-            constexpr daxa_f32vec3 daxa_f32vec3_multiply_by_scalar(daxa_f32vec3 const & vec, daxa_f32 const & scalar) {
-                return daxa_f32vec3{
-                    vec.x * scalar,
-                    vec.y * scalar,
-                    vec.z * scalar,
-                };
             }
 
             void change_random_material_primitives() {
@@ -607,17 +499,21 @@ namespace tests
                 status.light_config_address = device.get_device_address(light_config_buffer).value();
             }
 
-             void update_lights() {
+            void update_lights()
+            {
 
-                if(lights.size() == 0) {
+                if (lights.size() == 0)
+                {
                     return;
                 }
 
-                if(light_config.cube_light_count == 0) {
+                if (light_config.cube_light_count == 0)
+                {
                     return;
                 }
 
-                if(light_config.cube_light_count > MAX_LIGHTS) {
+                if (light_config.cube_light_count > MAX_LIGHTS)
+                {
                     std::cout << "current_light_count > MAX_LIGHTS" << std::endl;
                     abort();
                 }
@@ -634,7 +530,8 @@ namespace tests
                 status.time += timeSpeed * (status.is_afternoon ? 1.0 : -1.0);
 
                 // Check for boundaries and reverse direction if needed
-                if (status.time < 0.0 || status.time > 1.0) {
+                if (status.time < 0.0 || status.time > 1.0)
+                {
                     status.is_afternoon = !status.is_afternoon;
                     status.time = std::clamp(status.time, 0.0f, 1.0f);
                 }
@@ -645,13 +542,14 @@ namespace tests
 
                 // Calculate light buffer size
                 auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config.cube_light_count);
-                if(light_buffer_size > max_light_buffer_size) {
+                if (light_buffer_size > max_light_buffer_size)
+                {
                     std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
                     abort();
                 }
 
                 // get light buffer host mapped pointer
-                auto * light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
+                auto *light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
 
                 // copy lights to buffer
                 std::memcpy(light_staging_buffer_ptr,
@@ -679,7 +577,7 @@ namespace tests
                 device.wait_idle();
             }
 
-            daxa_Bool8 build_tlas(u32 instance_count) {
+            daxa_Bool8 load_blas_info(u32 instance_count) {
                 daxa_Bool8 some_level_changed = false;
 
                 if(instance_count == 0) {
@@ -699,15 +597,6 @@ namespace tests
                 this->primitives.clear();
                 this->primitives.reserve(this->max_current_primitive_count);
 
-                if(this->tlas != daxa::TlasId{})
-                    device.destroy_tlas(tlas);
-                for(auto blas : this->proc_blas)
-                    device.destroy_blas(blas);
-
-                proc_blas_buffer_offset = 0;
-
-                this->proc_blas.clear();
-                this->proc_blas.reserve(instance_count);
 
                 current_primitive_count = 0;
 
@@ -805,32 +694,55 @@ namespace tests
 
                 // Update status for shaders
                 status.obj_count = current_primitive_count;
+                
+                // Update instance count
+                this->current_instance_count = instance_count;
 
-
-                std::cout << "Num of instances: " << instance_count << std::endl;
+                std::cout << "Num of instances: " << current_instance_count << std::endl;
                 std::cout << "Num of cubes: " << current_primitive_count << std::endl;
                 std::cout << "Num of materials: " << current_material_count << std::endl;
 
+
+                return true;
+            }
+
+
+            daxa_Bool8 build_tlas() {
+                
+                // Blas buffer offset to zero
+                proc_blas_buffer_offset = 0;
+
+                // Clear previous blas build infos
+                if(this->tlas != daxa::TlasId{})
+                    device.destroy_tlas(tlas);
+                for(auto blas : this->proc_blas)
+                    device.destroy_blas(blas);
+
+
+                // Clear previous procedural blas
+                this->proc_blas.clear();
+                this->proc_blas.reserve(current_instance_count);
+
                 // reserve blas build infos
-                blas_build_infos.reserve(instance_count);
+                blas_build_infos.reserve(current_instance_count);
 
                 std::vector<daxa_BlasInstanceData> blas_instance_array = {};
-                blas_instance_array.reserve(instance_count);
+                blas_instance_array.reserve(current_instance_count);
 
                 // TODO: As much geometry as instances for now
-                aabb_geometries.resize(instance_count);
+                aabb_geometries.resize(current_instance_count);
 
 
                 u32 current_instance_index = 0;
 
                 // build procedural blas
-                for(u32 i = 0; i < instance_count; i++) {
+                for(u32 i = 0; i < current_instance_count; i++) {
                     aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
                         .data = device.get_device_address(aabb_buffer).value() + (instances.at(i).first_primitive_index * sizeof(AABB)),
                         .stride = sizeof(AABB),
                         .count = instances.at(i).primitive_count,
                         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                        .flags = i < instance_count - CLOUD_INSTANCE_COUNT_X ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+                        .flags = i < current_instance_count - CLOUD_INSTANCE_COUNT_X ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
                     });
 
                     // Crear un daxa::Span a partir del vector
@@ -898,17 +810,14 @@ namespace tests
                 proc_blas_scratch_buffer_offset = 0;
 
                 // Check if all instances were processed
-                if(current_instance_index != instance_count) {
-                    std::cout << "current_instance_index != instance_count" << std::endl;
+                if(current_instance_index != current_instance_count) {
+                    std::cout << "current_instance_index != current_instance_count" << std::endl;
                     return false;
                 }
 
-                // Update instance count
-                this->current_instance_count = instance_count;
-
                 /// create blas instances for tlas:
                 auto blas_instances_buffer = device.create_buffer({
-                    .size = sizeof(daxa_BlasInstanceData) * instance_count,
+                    .size = sizeof(daxa_BlasInstanceData) * current_instance_count,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = "blas instances array buffer",
                 });
@@ -1718,8 +1627,6 @@ namespace tests
                             .sampler_id = MAX_TEXTURES,
                         });
                     }
-
-                    proc_blas.reserve(current_instance_count);
                 }
 
                 light_config.light_count = 0;
@@ -1730,10 +1637,15 @@ namespace tests
                 create_environment_light();
 
                 // call build tlas
-                if(!build_tlas(current_instance_count)) {
+                if(!load_blas_info(current_instance_count)) {
+                    std::cout << "Failed to load blas info" << std::endl;
+                    abort();
+                }
+                if(!build_tlas()) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
+
                 load_lights();
 
 
