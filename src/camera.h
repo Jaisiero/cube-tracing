@@ -303,7 +303,7 @@ void rotate_camera(camera& cam, float currentX, float currentY)
     // Rotation
 	if (deltaX != 0.0f || deltaY != 0.0f)
 	{
-		float pitch_delta = deltaY * MOUSE_SENSITIVITY;
+		float pitch_delta = -deltaY * MOUSE_SENSITIVITY;
 		float yaw_delta = deltaX * MOUSE_SENSITIVITY;
 
 		glm::quat q = glm::normalize(glm::cross(glm::angleAxis(-pitch_delta, right_direction),

@@ -9,7 +9,6 @@
 #include <gvox/adapters/output/byte_buffer.h>
 #include <gvox/adapters/parse/voxlap.h>
 
-
 GvoxOffset3D operator+(GvoxOffset3D const &lhs, GvoxOffset3D const &rhs)
 {
     return GvoxOffset3D{lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z};
@@ -23,6 +22,7 @@ void create(GvoxAdapterContext *ctx, void const *config) {
     //   void *my_pointer = malloc(sizeof(int));
     //   gvox_adapter_set_user_pointer(ctx, my_pointer);
     // which can be retrieved at any time with the get variant of this function.
+    gvox_adapter_set_user_pointer(ctx, (void *)config);
 }
 // Called when destroying the adapter context (for freeing any resources created by the adapter)
 void destroy(GvoxAdapterContext *ctx) {
@@ -47,57 +47,47 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
     //  `.channels` is the channel flags, in this case it should just be `GVOX_CHANNEL_BIT_COLOR`.
     //  `.flags` is a set of GVOX_REGION_FLAG_ bits, which describe extra metadata about the region.
 
-    GvoxOffset3D sample_position = region->range.offset;
+    // GvoxOffset3D sample_position = region->range.offset;
     // In order to sample voxel data from the region, use `gvox_sample_region()`:
     //  - blit_ctx is necessary as the data is extracted from the parser's custom region data format.
     //  - region is the pointer to the region that has been acquired.
     //  - sample position is the coordinate from [ range.offset, range.offset + range.extent ) that the serializer
     //    would like to query. If a coordinate is specified outside this range, the resulting sample should have
     //    0 for `.is_present`.
-    GvoxSample region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_COLOR);
+    // GvoxSample region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_COLOR);
     // `GvoxSample` description:
     //  `.is_present` is either 0 or 1 depending on whether there is valid data at the specified coordinate.
     //  `.data` is a single uint32_t that holds the actual data. How this data is represented is defined by
     //     the channel in question. If, for example, one requested GVOX_CHANNEL_ID_COLOR, the 8bpc color data
     //     would be packed into the first 24 bits of the uint32_t.
 
+    auto &user_state = *static_cast<GvoxRayTracingSerializeAdapterConfig *>(gvox_adapter_get_user_pointer(ctx));
+
     {
-        static auto printf_mtx = std::mutex{};
-
-        // If necessary in our application, we may need to synchronize. For example,
-        // here we need to lock printf because we only want one thread writing to
-        // the console at any time.
-        auto lock = std::lock_guard{printf_mtx};
-
-        uint8_t r = 0;
-        uint8_t g = 0;
-        uint8_t b = 0;
-        if (region_sample.is_present != 0) {
-            r = (region_sample.data >> 0u) & 0xff;
-            g = (region_sample.data >> 8u) & 0xff;
-            b = (region_sample.data >> 16u) & 0xff;
-        }
-        // print-out the color of the voxel in the 0, 0, 0 corner of the region
-        printf("\033[48;2;%03d;%03d;%03dm  \033[0m", r, g, b);
-        printf("offset: (%d %d %d) extent: (%d %d %d) channels: %d flags: %d\n",
-               region->range.offset.x,
-               region->range.offset.y,
-               region->range.offset.z,
-               region->range.extent.x,
-               region->range.extent.y,
-               region->range.extent.z,
-               region->channels,
-               region->flags);
-
         uint32_t voxel_count = 0;
         uint32_t light_count = 0;
 
         struct palette_entry {
             uint8_t id;
-            uint8_t count;
+            uint32_t buffer_id;
+            uint32_t count;
+            float rgb[3];
         };
 
         std::vector<palette_entry> palette_data;
+        // std::vector<AABB> aabbs;
+        // std::vector<PRIMITIVE> primitives;
+        // std::vector<MATERIAL> materials;
+        // std::vector<LIGHT> lights;
+            
+        static auto printf_mtx = std::mutex{};
+        // TODO: optimize this
+        // If necessary in our application, we may need to synchronize. For example,
+        // here we need to lock printf because we only want one thread writing to
+        // the console at any time.
+        auto lock = std::lock_guard{printf_mtx};
+
+        uint32_t first_voxel_index = user_state.model_data->primitive_count;
 
         for(int z = 0; z < region->range.extent.z; ++z) {
             for(int y = 0; y < region->range.extent.y; ++y) {
@@ -111,8 +101,6 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                         r = (region_sample.data >> 0u) & 0xff;
                         g = (region_sample.data >> 8u) & 0xff;
                         b = (region_sample.data >> 16u) & 0xff;
-
-                        ++voxel_count;
                     }
                     // printf("\033[48;2;%03d;%03d;%03dm  \033[0m", r, g, b);
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_EMISSIVITY);
@@ -133,38 +121,59 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                         // printf(" %u ", id);
 
                         bool found = false;
+                        uint32_t buffer_id = 0;
 
                         for(auto &entry : palette_data) {
                             if(entry.id == id) {
                                 ++entry.count;
+                                buffer_id = entry.buffer_id;
                                 found = true;
                             } 
                         }
 
-                        if(!found) {
-                            palette_data.push_back({id, 1});
+                        {
+                            if(!found) {
+                                // TODO: delay this unti we know if the material is new
+                                buffer_id = user_state.model_data->material_count++;
+                                palette_data.push_back({id, buffer_id, 1, {r/255.f, g/255.f, b/255.f}});
+                            }
+
+                            uint32_t primitive_count = user_state.model_data->primitive_count;
+                            PRIMITIVE prim = {buffer_id};
+                            user_state.primitives[primitive_count] = prim;
+                            AABB aabb = {0};
+                            aabb.minimum.x = sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE;
+                            aabb.minimum.y = sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE;
+                            aabb.minimum.z = sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE;
+                            aabb.maximum.x = (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE;
+                            aabb.maximum.y = (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE;
+                            aabb.maximum.z = (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE;
+                            user_state.aabbs[primitive_count] = aabb;
+                            ++user_state.model_data->primitive_count;
                         }
+
+                        ++voxel_count;
                     }
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_ROUGHNESS);
                     float roughtness = 0;
                     if (region_sample.is_present != 0) {
                         roughtness = *(float *)(&region_sample.data);
-                        if(roughtness != 0.0f)
-                            printf("roughtness: %f\n", roughtness);
+                        // if(roughtness != 0.0f)
+                        //     printf("roughtness: %f\n", roughtness);
                     }
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_METALNESS);
                     float metalness = 0;
                     if (region_sample.is_present != 0) {
                         metalness = *(float *)(&region_sample.data);
-                        if(metalness != 0.0f)
-                            printf("metalness: %f\n", metalness);
+                        // if(metalness != 0.0f)
+                        //     printf("metalness: %f\n", metalness);
                     }
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_IOR);
                     float ior = 0;
                     if (region_sample.is_present != 0) {
                         ior = *(float *)(&region_sample.data);
-                        if(ior != 0.0f)
-                            printf("ior: %f\n", ior);
+                        // if(ior != 0.0f)
+                        //     printf("ior: %f\n", ior);
                     }
                     // printf("\033[48;2;%03d;%03d;%03dm\033[38;2;%03d;%03d;%03dm\033[30;1m%02x\033[0m", r, g, b, l_r, l_g, l_b, id);
                 }
@@ -173,13 +182,48 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
             // printf("\n");
         }
 
+        {
+            // TODO: Add everything here after we know the size of the model
+
+            // user_state->model_data->primitive_count += voxel_count;
+            uint32_t instance_count = user_state.model_data->instance_count;
+
+
+            INSTANCE inst = {0};
+            inst.transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f));
+            inst.prev_transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f));
+            inst.first_primitive_index = first_voxel_index;
+            inst.primitive_count = voxel_count;
+
+            user_state.instances[user_state.model_data->instance_count++] = inst;
+
+            // for(auto &entry : palette_data) {
+            //     printf("id: %u count: %u\n", entry.id, entry.count);
+            //     MATERIAL mat = {0};
+            //     mat.type = MATERIAL_TYPE_LAMBERTIAN;
+            //     mat.diffuse.x = entry.rgb[0];
+            //     mat.diffuse.y = entry.rgb[1];
+            //     mat.diffuse.z = entry.rgb[2];
+                
+            //     user_state.materials[entry.buffer_id] = mat;
+            // }
+        }
+
         printf("voxel count: %d\n", voxel_count);
         printf("light count: %d\n", light_count);
 
 
         for(auto &entry : palette_data) {
-            printf("id: %u count: %u\n", entry.id, entry.count);
+            printf("    id: %u buffer_id: %u count: %u\n", entry.id, entry.buffer_id, entry.count);
         }
+
+        // for(uint32_t i = 0; i < user_state.model_data->primitive_count; ++i) {
+        //     if(user_state.primitives[i].material_index != 0) {
+        //         printf("primitive: %u\n", i);
+        //         printf("    aabb: %f %f %f %f %f %f\n", user_state.aabbs[i].minimum.x, user_state.aabbs[i].minimum.y, user_state.aabbs[i].minimum.z, user_state.aabbs[i].maximum.x, user_state.aabbs[i].maximum.y, user_state.aabbs[i].maximum.z);
+        //         printf("    primitive: %u\n", user_state.primitives[i].material_index);
+        //     }
+        // }
     }
 }
 
@@ -228,10 +272,9 @@ void MapLoader::destroy_gvox_context()
     gvox_destroy_context(gvox_ctx);
 }
 
-
-auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path) -> GvoxModelData
+auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path, GvoxRayTracingSerializeAdapterConfig gvox_adapter_config) -> GvoxRayTracingModelData
 {
-    auto result = GvoxModelData{};
+    auto result = GvoxRayTracingModelData{};
     auto file = std::ifstream(gvox_model_path, std::ios::binary);
     if (!file.is_open())
     {
@@ -256,11 +299,11 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path) -> GvoxMod
         .data = temp_gvox_model.data(),
         .size = temp_gvox_model_size,
     };
-    GvoxByteBufferOutputAdapterConfig o_config = {
-        .out_size = &result.size,
-        .out_byte_buffer_ptr = &result.ptr,
-        .allocate = nullptr,
-    };
+    // GvoxByteBufferOutputAdapterConfig o_config = {
+    //     .out_size = &result.size,
+    //     .out_byte_buffer_ptr = &result.ptr,
+    //     .allocate = nullptr,
+    // };
     void *i_config_ptr = nullptr;
     auto voxlap_config = GvoxVoxlapParseAdapterConfig{
         .size_x = 512,
@@ -311,10 +354,13 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path) -> GvoxMod
     auto *region_range_ptr = (GvoxRegionRange *)nullptr;
 #endif
 
+    gvox_adapter_config.model_data = &result;
+
     GvoxAdapterContext *i_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_input_adapter(gvox_ctx, "byte_buffer"), &i_config);
-    GvoxAdapterContext *o_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_output_adapter(gvox_ctx, "byte_buffer"), &o_config);
+    // GvoxAdapterContext *o_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_output_adapter(gvox_ctx, "byte_buffer"), &o_config);
+    GvoxAdapterContext *o_ctx = nullptr;
     GvoxAdapterContext *p_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_parse_adapter(gvox_ctx, gvox_model_type), i_config_ptr);
-    GvoxAdapterContext *s_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_serialize_adapter(gvox_ctx, "my_adapter"), nullptr);
+    GvoxAdapterContext *s_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_serialize_adapter(gvox_ctx, "my_adapter"), &gvox_adapter_config);
 
     {
         // time_t start = clock();
@@ -345,7 +391,7 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path) -> GvoxMod
     }
 
     gvox_destroy_adapter_context(i_ctx);
-    gvox_destroy_adapter_context(o_ctx);
+    // gvox_destroy_adapter_context(o_ctx);
     gvox_destroy_adapter_context(p_ctx);
     gvox_destroy_adapter_context(s_ctx);
     return result;

@@ -126,20 +126,24 @@ namespace tests
             // CPU DATA
             std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
             std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
+            
+            uint32_t current_instance_count = 0;
+            uint32_t max_instance_count = MAX_INSTANCES;
+            std::unique_ptr<INSTANCE[]> instances;
 
-            u32 current_instance_count = 0;
-            std::vector<INSTANCE> instances = {};
+            uint32_t current_primitive_count = 0;
+            uint32_t max_primitive_count = MAX_PRIMITIVES;
+            std::unique_ptr<PRIMITIVE[]> primitives;
 
-            u32 current_primitive_count = 0;
-            u32 max_current_primitive_count = 0;
-            std::vector<PRIMITIVE> primitives = {};
+            uint32_t current_material_count = 0;
+            uint32_t max_material_count = MAX_MATERIALS;
+            std::unique_ptr<MATERIAL[]> materials;
 
-            u32 current_material_count = 0;
-            std::vector<MATERIAL> materials = {};
+            uint32_t max_light_count = MAX_LIGHTS;
+            // TODO: change to unique_ptr
+            std::vector<LIGHT> lights;
 
-            std::vector<LIGHT> lights = {};
-
-            std::vector<daxa_f32mat4x4> transforms = {};
+            // std::vector<daxa_f32mat4x4> transforms = {};
 
             MapLoader map_loader = {};
 
@@ -190,12 +194,12 @@ namespace tests
             }
 
             void change_random_material_primitives() {
-                if(primitives.size() == 0) {
+                if(current_primitive_count == 0) {
                     return;
                 }
 
                 // Change every primitive material
-                for(u32 i = 0; i < primitives.size(); i++) {
+                for(u32 i = 0; i < current_primitive_count; i++) {
                     primitives[i].material_index = random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1);
                     // primitives[i].material_index = random_uint(0, current_material_count - 1);
                 }
@@ -218,7 +222,7 @@ namespace tests
 
                 auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
                 std::memcpy(primitive_buffer_ptr,
-                    primitives.data(),
+                    primitives.get(),
                     current_primitive_buffer_size);
 
                 auto exec_cmds = [&]()
@@ -577,135 +581,6 @@ namespace tests
                 device.wait_idle();
             }
 
-            daxa_Bool8 load_blas_info(u32 instance_count) {
-                daxa_Bool8 some_level_changed = false;
-
-                if(instance_count == 0) {
-                    std::cout << "instance_count == 0" << std::endl;
-                    return false;
-                }
-
-                this->max_current_primitive_count = instance_count * CHUNK_VOXEL_COUNT;
-
-                if(this->max_current_primitive_count > MAX_PRIMITIVES) {
-                    std::cout << "max_current_primitive_count: " << max_current_primitive_count <<  " MAX_PRIMITIVES: " << MAX_PRIMITIVES << std::endl;
-                    return false;
-                }
-
-                this->current_instance_count = 0;
-
-                this->primitives.clear();
-                this->primitives.reserve(this->max_current_primitive_count);
-
-
-                current_primitive_count = 0;
-
-                std::vector<daxa_f32mat2x3> min_max;
-                min_max.reserve(CHUNK_VOXEL_COUNT);
-
-                instances.reserve(instance_count);
-
-                for(u32 i = 0; i < instance_count; i++) {
-                    min_max.clear();
-
-                    for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
-                        for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
-                            for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
-                                if(random_float(0.0, 1.0) > 0.75) {
-                                    min_max.push_back(generate_min_max_by_coord(x, y, z, VOXEL_EXTENT));
-                                }
-                            }
-                        }
-                    }
-                    // min_max.push_back(generate_min_max_by_coord(VOXEL_COUNT_BY_AXIS*0.5, VOXEL_COUNT_BY_AXIS*0.5, VOXEL_COUNT_BY_AXIS*0.5));
-                    // min_max.push_back(generate_min_max_at_origin(VOXEL_EXTENT));
-
-                    u32 primitive_count_current_instance = min_max.size();
-
-                    daxa_f32mat4x4 transpose_mat = get_daxa_f32mat4x4_transpose(transforms[i]);
-
-                    INSTANCE instance = {};
-
-                    instance.transform = {
-                        transpose_mat,
-                    },
-                    // TODO: get previous transform from previous build
-                    instance.prev_transform = {
-                        transpose_mat,
-                    },
-                    instance.primitive_count = primitive_count_current_instance;
-                    instance.first_primitive_index = current_primitive_count;
-
-                    if(instance.primitive_count == 0) {
-                        std::cout << "primitive count is 0 for instance " << i << std::endl;
-                        return false;
-                    }
-
-                    // push primitives
-                    for(u32 j = 0; j < instance.primitive_count; j++) {
-
-                        daxa_u32 material_index = (i < instance_count - CLOUD_INSTANCE_COUNT_X) ? random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1) : random_uint(current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT, current_material_count - 1);
-                        if(material_index >= MATERIAL_COUNT_UP_TO_DIALECTRIC && material_index < MATERIAL_COUNT_UP_TO_EMISSIVE) {
-                            daxa_f32mat2x3 aabb = min_max.at(j);
-                            LIGHT surface_light = {};
-                            daxa_f32vec3 center = daxa_f32vec3_multiply_by_scalar(daxa_f32vec3_add_daxa_f32vec3(aabb.x, aabb.y), 0.5);
-                            surface_light.position = daxa_f32mat4x4_multiply_by_daxa_f32vec4(instance.transform, 
-                                daxa_f32vec4(center.x, center.y, center.z, 1.0));
-                            surface_light.emissive = materials[material_index].emission;
-                            surface_light.instance_info = OBJECT_INFO(i, j);
-                            surface_light.type = GEOMETRY_LIGHT_CUBE;
-                            // TODO: this will be based on voxel size
-                            surface_light.size = VOXEL_EXTENT;
-                            lights.push_back(surface_light);
-                            light_config.cube_light_count++;
-                        }
-
-                        primitives.push_back(PRIMITIVE{
-                            .material_index = material_index,
-                        });
-                    }
-
-                    
-                    // push AABB primitives
-                    u64 current_primitive_size = (current_aabb_host_count + instance.primitive_count) * sizeof(AABB);
-
-                    if(current_primitive_size > max_aabb_host_buffer_size) {
-                        size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
-                        upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
-                        aabb_buffer_offset += aabb_copy_size;
-                        current_aabb_host_count = 0;
-                    }
-
-                    std::memcpy((device.get_host_address_as<AABB>(aabb_host_buffer).value() + current_aabb_host_count),
-                        min_max.data(),
-                        instance.primitive_count * sizeof(AABB));
-                    current_primitive_count += instance.primitive_count;
-                    current_aabb_host_count += instance.primitive_count;
-
-                    instances.push_back(instance);
-                }
-
-                if(current_aabb_host_count > 0) {
-                    size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
-                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
-                    aabb_buffer_offset += aabb_copy_size;
-                    current_aabb_host_count = 0;
-                }
-
-                // Update status for shaders
-                status.obj_count = current_primitive_count;
-                
-                // Update instance count
-                this->current_instance_count = instance_count;
-
-                std::cout << "Num of instances: " << current_instance_count << std::endl;
-                std::cout << "Num of cubes: " << current_primitive_count << std::endl;
-                std::cout << "Num of materials: " << current_material_count << std::endl;
-
-
-                return true;
-            }
-
 
             daxa_Bool8 build_tlas() {
                 
@@ -738,11 +613,11 @@ namespace tests
                 // build procedural blas
                 for(u32 i = 0; i < current_instance_count; i++) {
                     aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
-                        .data = device.get_device_address(aabb_buffer).value() + (instances.at(i).first_primitive_index * sizeof(AABB)),
+                        .data = device.get_device_address(aabb_buffer).value() + (instances.get()[i].first_primitive_index * sizeof(AABB)),
                         .stride = sizeof(AABB),
-                        .count = instances.at(i).primitive_count,
+                        .count = instances.get()[i].primitive_count,
                         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                        .flags = i < current_instance_count - CLOUD_INSTANCE_COUNT_X ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+                        .flags = (u32)0x1, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
                     });
 
                     // Crear un daxa::Span a partir del vector
@@ -796,7 +671,7 @@ namespace tests
 
                     blas_instance_array.push_back(daxa_BlasInstanceData{
                         .transform =
-                            daxa_f32mat4x4_to_daxa_f32mat3x4(instances.at(i).transform),
+                            daxa_f32mat4x4_to_daxa_f32mat3x4(instances.get()[i].transform),
                         .instance_custom_index = i, // Is also default
                         .mask = 0xFF,
                         .instance_shader_binding_table_record_offset = {}, // Is also default
@@ -878,7 +753,7 @@ namespace tests
 
                 auto * instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
                 std::memcpy(instance_buffer_ptr,
-                    instances.data(),
+                    instances.get(),
                     instance_buffer_size);
 
                 // Copy primitives to buffer
@@ -898,8 +773,17 @@ namespace tests
 
                 auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
                 std::memcpy(primitive_buffer_ptr,
-                    primitives.data(),
+                    primitives.get(),
                     primitive_buffer_size);
+
+                    
+                // printf("current_primitive_count: %d\n", current_primitive_count);
+                // for(uint32_t i = 0; i < current_primitive_count; i++) {
+                //     uint32_t mat_index = primitives[i].material_index;
+                //     if(mat_index != 0) {
+                //         printf("    mat_index: %d\n", mat_index);
+                //     }
+                // }
 
 
                 // TODO: Refactor materials copies
@@ -918,9 +802,14 @@ namespace tests
 
                 auto * material_buffer_ptr = device.get_host_address_as<MATERIAL>(material_staging_buffer).value();
                 std::memcpy(material_buffer_ptr,
-                    materials.data(),
+                    materials.get(),
                     material_buffer_size);
 
+                printf("current_material_count: %d\n", current_material_count);
+                for(uint32_t i = 0; i < current_material_count; i++) {
+                    daxa_f32vec3 diffuse = material_buffer_ptr[i].diffuse;
+                    printf("    diffuse: %f %f %f\n", diffuse.x, diffuse.y, diffuse.z);
+                }
 
                 /// Record build commands:
                 auto exec_cmds = [&]()
@@ -1263,196 +1152,6 @@ namespace tests
                 }
             }
 
-
-
-            // TODO: This could be load from a file
-            daxa_Bool8 create_procedural_blas() {
-
-                u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
-                u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
-
-                daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
-
-                if (estimated_instance_count > MAX_INSTANCES)
-                {
-                    std::cout << "estimated_instance_count (" << estimated_instance_count << ") > MAX_INSTANCES (" << MAX_INSTANCES << ")." << std::endl;
-                    abort();
-                }
-
-                if (estimated_instance_count == 0)
-                {
-                    std::cout << "estimated_instance_count == 0" << std::endl;
-                    abort();
-                }
-
-                transforms.reserve(estimated_instance_count);
-
-                // Centered around 0, 0, 0 positioning instances like a mirror
-                f32 x_axis_initial_position = ((INSTANCE_X_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
-                f32 z_axis_initial_position = ((INSTANCE_Z_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
-
-                for (i32 x_instance = -INSTANCE_X_AXIS_COUNT; x_instance < (i32)INSTANCE_X_AXIS_COUNT; x_instance++)
-                {
-                    auto x_instance_displacement = (x_instance * (AXIS_DISPLACEMENT));
-                    for (i32 z_instance = -INSTANCE_Z_AXIS_COUNT; z_instance < (i32)INSTANCE_Z_AXIS_COUNT; z_instance++)
-                    {
-                        auto z_instance_displacement = (z_instance * (AXIS_DISPLACEMENT));
-                        for (u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++)
-                        {
-                            for (u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++)
-                            {
-                                for (u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++)
-                                {
-                                    // if(random_float(0.0, 1.0) > 0.95) {
-                                    if (random_float(0.0, 1.0) > 0.75)
-                                    {
-                                        auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
-                                        transforms.push_back(daxa_f32mat4x4{
-                                            {1, 0, 0, x_instance_displacement + position_instance.x},
-                                            {0, 1, 0, position_instance.y},
-                                            {0, 0, 1, z_instance_displacement + position_instance.z},
-                                            {0, 0, 0, 1},
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                // transforms.push_back(daxa_f32mat4x4{
-                //     {1, 0, 0, -AXIS_DISPLACEMENT},
-                //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
-                //     {0, 0, 1, 0},
-                //     {0, 0, 0, 1},
-                // });
-
-                // transforms.push_back(daxa_f32mat4x4{
-                //     {1, 0, 0, 0},
-                //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
-                //     {0, 0, 1, 0},
-                //     {0, 0, 0, 1},
-                // });
-
-                current_instance_count = transforms.size();
-
-                upload_textures();
-
-                current_material_count = MATERIAL_COUNT;
-
-                materials.reserve(current_material_count);
-
-                for (u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++)
-                {
-
-                    daxa_u32 texture_id = MAX_TEXTURES;
-                    daxa_f32 random_float_value = random_float(0.0, 1.0);
-                    if (random_float_value > 0.80)
-                    {
-                        texture_id = random_uint(0, current_texture_count - 1);
-                    }
-
-                    materials.push_back(MATERIAL{
-                        .type = MATERIAL_TYPE_LAMBERTIAN + ((texture_id == MAX_TEXTURES) ? 0 : ((texture_id == current_texture_count - 1) ? MATERIAL_PERLIN_ON : MATERIAL_TEXTURE_ON)),
-                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .transmittance = {0.0f, 0.0f, 0.0f},
-                        .emission = {0.0, 0.0, 0.0},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        // .dissolve = (-1/random_float(0.1, 1.0)),
-                        // .dissolve = (random_float(0.1, 1.0)),
-                        .dissolve = 1.0,
-                        .illum = 3,
-                        .texture_id = (texture_id != MAX_TEXTURES) ? images.at(texture_id).default_view() : daxa::ImageViewId{},
-                        .sampler_id = samplers.at(0),
-                    });
-                }
-
-                for (u32 i = 0; i < METAL_MATERIAL_COUNT; i++)
-                {
-                    materials.push_back(MATERIAL{
-                        .type = MATERIAL_TYPE_METAL,
-                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .transmittance = {0.0f, 0.0f, 0.0f},
-                        .emission = {0.0, 0.0, 0.0},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        // .dissolve = (-1/random_float(0.1, 1.0)),
-                        // .dissolve = (random_float(0.1, 1.0)),
-                        .dissolve = 1.0,
-                        .illum = 3,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
-                    });
-                }
-
-                for (u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++)
-                {
-                    materials.push_back(MATERIAL{
-                        .type = MATERIAL_TYPE_DIELECTRIC,
-                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .transmittance = {0.0f, 0.0f, 0.0f},
-                        .emission = {0.0, 0.0, 0.0},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        .dissolve = 1.0,
-                        .illum = 3,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
-                    });
-                }
-
-                for (u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++)
-                {
-                    materials.push_back(MATERIAL{
-                        .type = MATERIAL_TYPE_LAMBERTIAN,
-                        .ambient = {1.0, 1.0, 1.0},
-                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .specular = {1.0, 1.0, 1.0},
-                        .transmittance = {0.0, 0.0, 0.0},
-                        .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        .dissolve = 1.0,
-                        .illum = 3,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
-                    });
-                }
-
-                for (u32 i = 0; i < CONSTANT_MEDIUM_MATERIAL_COUNT; i++)
-                {
-                    materials.push_back(MATERIAL{
-                        .type = MATERIAL_TYPE_CONSTANT_MEDIUM,
-                        .ambient = {0.999, 0.999, 0.999},
-                        .diffuse = {0.999, 0.999, 0.999},
-                        .specular = {0.999, 0.999, 0.999},
-                        .transmittance = {random_float(0.9, 0.999), random_float(0.9, 0.999), random_float(0.9, 0.999)},
-                        .emission = {0.0, 0.0, 0.0},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        // .dissolve = (-1.0f/random_float(0.1, 0.5)),
-                        .dissolve = random_float(0.1, 0.3),
-                        .illum = 4,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
-                    });
-                }
-
-
-                return load_blas_info(current_instance_count);
-            }
-
             void initialize()
             {
                 daxa_ctx = daxa::create_instance({});
@@ -1634,7 +1333,7 @@ namespace tests
                 // hit_distances.resize(WIDTH_RES * HEIGHT_RES);
 
                 light_config.light_count = 0;
-                lights.reserve(MAX_LIGHTS);
+                lights.reserve(max_light_count);
 #if POINT_LIGHT_ON == 1                
                 create_point_lights();
 #endif
@@ -1643,24 +1342,89 @@ namespace tests
                 // Create a new context for the gvox library
                 map_loader.create_gvox_context();
 
-                // load map
-                GvoxModelData gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + MAP_NAME);
+                instances = std::make_unique<INSTANCE[]>(max_instance_count);
 
-                // TODO: Replace this by a function that loads the map inside the gvox library
-                if(!create_procedural_blas()) {
-                    std::cout << "Failed to create procedural blas" << std::endl;
-                    abort();
+                primitives = std::make_unique<PRIMITIVE[]>(max_primitive_count);
+
+                materials = std::make_unique<MATERIAL[]>(max_material_count);
+                
+
+                // instances.reserve(MAX_INSTANCES);
+
+                // primitives.reserve(MAX_PRIMITIVES);
+
+                // materials.reserve(MAX_MATERIALS);
+
+                LIGHT* p_next_light = lights.empty() ? lights.data() : &(lights.back()) + 1;
+
+                // TODO: Change vectors for arrays (or smart pointer arrays?)
+                GvoxRayTracingSerializeAdapterConfig gvox_adapter_config =
+                    {nullptr, max_instance_count, instances.get(),
+                     max_primitive_count, primitives.get(),
+                     device.get_host_address_as<AABB>(aabb_host_buffer).value(),
+                     max_material_count, materials.get(),
+                     max_light_count,  p_next_light};
+
+                std::filesystem::path path = std::string(MODEL_PATH) + "/" + MAP_NAME;
+
+                // load map
+                GvoxRayTracingModelData gvox_map = map_loader.load_gvox_data(path, gvox_adapter_config);
+
+                current_instance_count += gvox_map.instance_count;
+                current_aabb_host_count += gvox_map.primitive_count;
+                current_material_count += gvox_map.material_count;
+                light_config.cube_light_count += gvox_map.light_count;
+
+                // // TODO: Replace this by a function that loads the map inside the gvox library
+                // if(!create_procedural_blas()) {
+                //     std::cout << "Failed to create procedural blas" << std::endl;
+                //     abort();
+                // }
+
+                if(current_aabb_host_count > 0) {
+                    size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
+                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
+                    aabb_buffer_offset += aabb_copy_size;
+                    current_primitive_count += current_aabb_host_count;
+                    current_aabb_host_count = 0;
                 }
+
+
+                // Iterate over materials
+                for(uint32_t i = 0; i < current_material_count; i++) {
+                    MATERIAL material = MATERIAL{
+                        .type = MATERIAL_TYPE_LAMBERTIAN,
+                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+                        .transmittance = {0.0f, 0.0f, 0.0f},
+                        .emission = {0.0, 0.0, 0.0},
+                        .shininess = random_float(0.0, 4.0),
+                        .roughness = random_float(0.0, 1.0),
+                        .ior = random_float(1.0, 2.65),
+                        // .dissolve = (-1/random_float(0.1, 1.0)),
+                        // .dissolve = (random_float(0.1, 1.0)),
+                        .dissolve = 1.0,
+                        .illum = 3,
+                        .texture_id = daxa::ImageViewId{},
+                        .sampler_id = daxa::SamplerId{},
+                    };
+                    materials[i] = material;
+                }
+                
+
+                // Update status for shaders
+                status.obj_count = current_primitive_count;
+                
+                std::cout << "Num of instances: " << current_instance_count << std::endl;
+                std::cout << "Num of cubes: " << current_primitive_count << std::endl;
+                std::cout << "Num of materials: " << current_material_count << std::endl;
+
 
                 if(!build_tlas()) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
-                
-                std::cout << "gvox_map size: " << gvox_map.size << std::endl;
-
-                size_t map_size = gvox_map.size;
-                delete gvox_map.ptr;
 
                 load_lights();
 
@@ -1972,7 +1736,7 @@ namespace tests
                 };
 
                 // NOTE: Vulkan has inverted y axis in NDC
-                camera_view.inv_proj.y.y *= -1;
+                // camera_view.inv_proj.y.y *= -1;
 
                 auto cam_staging_buffer = device.create_buffer({
                     .size = cam_update_size,
@@ -2375,8 +2139,8 @@ namespace tests
 
                 // print out the levels & distances
                 // for(u32 i = 0; i < current_instance_count; i++) {
-                //     if(instance_levels[i].level_index != instances.at(i).level_index) {
-                //         std::cout << "instance " << i << " level changed from " << instances.at(i).level_index << " to " << instance_levels[i].level_index << std::endl;
+                //     if(instance_levels[i].level_index != instances.get()[i].level_index) {
+                //         std::cout << "instance " << i << " level changed from " << instances.get()[i].level_index << " to " << instance_levels[i].level_index << std::endl;
                 //     }
                 //     if(instance_distances[i].distance >= 0.0f) {
                 //         std::cout << "instance " << i << " distance " << instance_distances[i].distance << std::endl;
