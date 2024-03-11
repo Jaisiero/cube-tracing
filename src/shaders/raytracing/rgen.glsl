@@ -436,7 +436,7 @@ void main()
 #endif // RESTIR_DI_SPATIAL_ON        
 
         //Calculate reservoir radiance
-        calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance, false);
+        calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
       
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value (reservoir radiance)
@@ -516,7 +516,7 @@ void main()
 
 #if RESTIR_ON == 1 && RESTIR_DI_ON == 1
         // Store the reservoir
-        set_reservoir_from_previous_frame_by_index(screen_pos, reservoir);
+        set_reservoir_from_previous_frame_by_index(screen_pos, spatial_reservoir);
 #endif // RESTIR_DI_ON    
 
         set_di_from_previous_frame(screen_pos, di_info);

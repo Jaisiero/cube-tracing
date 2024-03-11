@@ -14,7 +14,8 @@
 #include "camera.h"
 #include "texture.hpp"
 
-
+using namespace std::chrono_literals;
+using Clock = std::chrono::high_resolution_clock;   
 namespace tests
 {
     void cubeland_app()
@@ -25,6 +26,9 @@ namespace tests
             const char *MODEL_PATH = "assets/models/";
             const char *MAP_NAME = "monu5.vox";
 
+            const float day_duration = 60.0f; // Duración de un día en segundos
+
+            Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
             Status status = {};
             camera camera = {};
             LIGHT_CONFIG* light_config = nullptr;
@@ -250,8 +254,8 @@ namespace tests
 
             daxa_f32vec3 interpolate_sun_light(float t, bool is_afternoon) {
                 // Definir las posiciones clave para el medio día y el atardecer
-                glm::vec3 middayPosition = glm::vec3(0.0, SUN_TOP_POSITION, 0.0);
-                glm::vec3 sunsetPosition = glm::vec3(50.0, 0.0, 0.0);  // Modificar la posición del atardecer
+                glm::vec3 middayPosition = glm::vec3(SUN_TOP_POSITION_X, SUN_TOP_POSITION_Y, SUN_TOP_POSITION_Z);
+                glm::vec3 sunsetPosition = glm::vec3(20.0, 0.0, 0.0);  // Modificar la posición del atardecer
 
                 // Calcular las coordenadas elípticas basadas en el tiempo
                 float angle = t * 2.0 * 3.14159; // Ángulo en radianes
@@ -385,7 +389,7 @@ namespace tests
                 // TODO: add more lights (random values?)
 
                 LIGHT light = {}; // 0: point light, 1: directional light
-                light.position = daxa_f32vec3(0.0, SUN_TOP_POSITION, 0.0);
+                light.position = daxa_f32vec3(SUN_TOP_POSITION_X, SUN_TOP_POSITION_Y, SUN_TOP_POSITION_Z);
 #if DYNAMIC_SUN_LIGHT == 1
                 light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2);
 #else
@@ -426,7 +430,7 @@ namespace tests
                 light.type = GEOMETRY_LIGHT_ENV_MAP;
                 light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
                 light.position = daxa_f32vec3(0.0, 0.0, 0.0);
-                light.emissive = daxa_f32vec3(10.0, 10.0, 10.0);
+                light.emissive = daxa_f32vec3(5.0, 5.0, 5.0);
                 light.size = 0.f;
                 lights.push_back(light);
                 ++light_config->env_map_count;
@@ -498,8 +502,16 @@ namespace tests
                 // Speed of time progression
                 float timeSpeed = 0.0001;
 
+                previous_time = start_time;
+
+                start_time = std::chrono::steady_clock::now();
+
+                auto time = std::chrono::duration<float>(start_time - previous_time).count();
+
+                time = std::fmod(time / day_duration, 1.0f);
+
                 // Increment or decrement time
-                status.time += timeSpeed * (status.is_afternoon ? 1.0 : -1.0);
+                status.time += time * (status.is_afternoon ? 1.0 : -1.0);
 
                 // Check for boundaries and reverse direction if needed
                 if (status.time < 0.0 || status.time > 1.0)
