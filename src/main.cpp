@@ -500,8 +500,6 @@ namespace tests
                 // }
 
                 // Speed of time progression
-                float timeSpeed = 0.0001;
-
                 previous_time = start_time;
 
                 start_time = std::chrono::steady_clock::now();
@@ -525,7 +523,7 @@ namespace tests
                 lights[0].emissive = daxa_f32vec3(intensity, intensity, intensity);
 
                 // Calculate light buffer size
-                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config->cube_light_count);
+                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config->light_count);
                 if (light_buffer_size > max_light_buffer_size)
                 {
                     std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
