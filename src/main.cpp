@@ -480,12 +480,12 @@ namespace tests
                     return;
                 }
 
-                if (light_config->cube_light_count == 0)
+                if (light_config->point_light_count == 0)
                 {
                     return;
                 }
 
-                if (light_config->cube_light_count > MAX_LIGHTS)
+                if (light_config->point_light_count > MAX_LIGHTS)
                 {
                     std::cout << "current_light_count > MAX_LIGHTS" << std::endl;
                     abort();
@@ -1089,9 +1089,7 @@ namespace tests
                         // .dissolve = (-1/random_float(0.1, 1.0)),
                         // .dissolve = (random_float(0.1, 1.0)),
                         .dissolve = 1.0,
-                        .illum = 3,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
+                        .illum = 3
                     };
                 }
 
@@ -1110,9 +1108,7 @@ namespace tests
                         // .dissolve = (-1/random_float(0.1, 1.0)),
                         // .dissolve = (random_float(0.1, 1.0)),
                         .dissolve = 1.0,
-                        .illum = 3,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
+                        .illum = 3
                     };
                 }
 
@@ -1129,9 +1125,7 @@ namespace tests
                         .roughness = random_float(0.0, 1.0),
                         .ior = random_float(1.0, 2.65),
                         .dissolve = 1.0,
-                        .illum = 3,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
+                        .illum = 3
                     };
                 }
 
@@ -1148,9 +1142,7 @@ namespace tests
                         .roughness = random_float(0.0, 1.0),
                         .ior = random_float(1.0, 2.65),
                         .dissolve = 1.0,
-                        .illum = 3,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
+                        .illum = 3
                     };
                 }
 
@@ -1168,9 +1160,7 @@ namespace tests
                         .ior = random_float(1.0, 2.65),
                         // .dissolve = (-1.0f/random_float(0.1, 0.5)),
                         .dissolve = random_float(0.1, 0.3),
-                        .illum = 4,
-                        .texture_id = MAX_TEXTURES,
-                        .sampler_id = MAX_TEXTURES,
+                        .illum = 4
                     };
                 }
 
@@ -1381,6 +1371,7 @@ namespace tests
                     .instances = instances.get(),
                     .max_primitive_count = MAX_PRIMITIVES,
                     .primitives = primitives.get(),
+                    .aabbs = device.get_host_address_as<AABB>(aabb_host_buffer).value(),
                     .max_material_count = MAX_MATERIALS,
                     .materials = materials.get(),
                     .max_light_count = MAX_LIGHTS,
@@ -1395,7 +1386,18 @@ namespace tests
                 std::cout << "  primitives: " << gvox_map.primitive_count << std::endl;
                 std::cout << "  materials: " << gvox_map.material_count << std::endl;
 
-                current_material_count = gvox_map.material_count;
+                current_material_count += gvox_map.material_count;
+                current_aabb_host_count += gvox_map.primitive_count;
+                current_instance_count += gvox_map.instance_count;
+                light_config->cube_light_count += gvox_map.light_count;
+
+                if(current_aabb_host_count > 0) {
+                    size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
+                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
+                    aabb_buffer_offset += aabb_copy_size;
+                    current_primitive_count += current_aabb_host_count;
+                    current_aabb_host_count = 0;
+                }
 
                 // if(!create_materials()) {
                 //     std::cout << "Failed to create materials" << std::endl;
@@ -1403,15 +1405,15 @@ namespace tests
                 // }
 
                 // TODO: Replace this by a function that loads the map inside the gvox library
-                if(!create_procedural_blas()) {
-                    std::cout << "Failed to create procedural blas" << std::endl;
-                    abort();
-                }
+                // if(!create_procedural_blas()) {
+                //     std::cout << "Failed to create procedural blas" << std::endl;
+                //     abort();
+                // }
 
-                if(!load_blas_info(current_instance_count)) {
-                    std::cout << "Failed to load blas info" << std::endl;
-                    abort();
-                }
+                // if(!load_blas_info(current_instance_count)) {
+                //     std::cout << "Failed to load blas info" << std::endl;
+                //     abort();
+                // }
 
                 if(!build_tlas()) {
                     std::cout << "Failed to build tlas" << std::endl;
@@ -1728,7 +1730,7 @@ namespace tests
                 };
 
                 // NOTE: Vulkan has inverted y axis in NDC
-                camera_view.inv_proj.y.y *= -1;
+                // camera_view.inv_proj.y.y *= -1;
 
                 auto cam_staging_buffer = device.create_buffer({
                     .size = cam_update_size,

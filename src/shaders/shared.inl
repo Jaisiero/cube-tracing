@@ -18,9 +18,9 @@
 #define PERFECT_PIXEL_ON 0
 #define DIALECTRICS_DONT_BLOCK_LIGHT 1
 
-#define DYNAMIC_SUN_LIGHT 1
+#define DYNAMIC_SUN_LIGHT 0
 #define POINT_LIGHT_ON 1
-#define SUN_MIDDAY 0
+#define SUN_MIDDAY 1
 #define SUN_MAX_INTENSITY 5000.0f
 #define SUN_TOP_POSITION 20.0f
 
@@ -252,8 +252,8 @@ struct MATERIAL
     daxa_f32 ior;       // index of refraction
     daxa_f32 dissolve;  // 1 == opaque; 0 == fully transparent
     daxa_i32   illum;     // illumination model (see http://www.fileformat.info/format/material/)
-    daxa_ImageViewId   texture_id;
-    daxa_SamplerId   sampler_id;
+    // daxa_ImageViewId   texture_id;
+    // daxa_SamplerId   sampler_id;
 };
 
 

@@ -75,25 +75,16 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
         uint8_t r = 0;
         uint8_t g = 0;
         uint8_t b = 0;
-        if (region_sample.is_present != 0) {
-            r = (region_sample.data >> 0u) & 0xff;
-            g = (region_sample.data >> 8u) & 0xff;
-            b = (region_sample.data >> 16u) & 0xff;
+
+        uint32_t instance_index = user_state.params.max_instance_count;
+
+        if(user_state.params.max_instance_count > user_state.scene_info.instance_count) {
+            instance_index = user_state.scene_info.instance_count++;
         }
-        // print-out the color of the voxel in the 0, 0, 0 corner of the region
-        printf("\033[48;2;%03d;%03d;%03dm  \033[0m", r, g, b);
-        printf("offset: (%d %d %d) extent: (%d %d %d) channels: %d flags: %d\n",
-               region->range.offset.x,
-               region->range.offset.y,
-               region->range.offset.z,
-               region->range.extent.x,
-               region->range.extent.y,
-               region->range.extent.z,
-               region->channels,
-               region->flags);
 
         uint32_t voxel_count = 0;
         uint32_t light_count = 0;
+        uint32_t first_voxel_index = user_state.scene_info.primitive_count;
 
         struct palette_entry {
             uint8_t id;
@@ -114,8 +105,6 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                         r = (region_sample.data >> 0u) & 0xff;
                         g = (region_sample.data >> 8u) & 0xff;
                         b = (region_sample.data >> 16u) & 0xff;
-
-                        ++voxel_count;
                     }
                     // printf("\033[48;2;%03d;%03d;%03dm  \033[0m", r, g, b);
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_EMISSIVITY);
@@ -148,6 +137,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             palette_data.push_back({id, 1});
                             user_state.params.materials[user_state.scene_info.material_count++] = MATERIAL{
                                 .type = MATERIAL_TYPE_LAMBERTIAN,
+                                .ambient = {0.0f, 0.0f, 0.0f},
                                 .diffuse = {r / 255.0f, g / 255.0f, b / 255.0f},
                                 .specular = {0.f, 0.f, 0.f},
                                 .transmittance = {0.0f, 0.0f, 0.0f},
@@ -155,14 +145,31 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                 .shininess = 1.f,
                                 .roughness = 1.f,
                                 .ior = 1.f,
-                                // .dissolve = (-1/random_float(0.1, 1.0)),
-                                // .dissolve = (random_float(0.1, 1.0)),
                                 .dissolve = 1.0,
-                                .illum = 3,
-                                .texture_id = MAX_TEXTURES,
-                                .sampler_id = MAX_TEXTURES,
+                                .illum = 3
                             };
                         }
+
+                        
+                        if(user_state.params.max_primitive_count > user_state.scene_info.primitive_count) {
+                            uint32_t index = user_state.scene_info.primitive_count;
+                            user_state.params.primitives[index] = PRIMITIVE{id
+                            };
+
+                            user_state.params.aabbs[index] = AABB{
+                                .minimum = {sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                    sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                    sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
+                                .maximum = {(sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                    (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                    (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
+                            };
+                            ++user_state.scene_info.primitive_count;
+                        } else {
+                            printf("max_primitive_count exceeded\n");
+                        }
+
+                        ++voxel_count;
                     }
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_ROUGHNESS);
                     float roughtness = 0;
@@ -190,6 +197,16 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                 // printf("\n");
             }
             // printf("\n");
+        }
+
+        if(instance_index != user_state.params.max_instance_count) {
+            INSTANCE inst = {0};
+            inst.transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f));
+            inst.prev_transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f));
+            inst.first_primitive_index = first_voxel_index;
+            inst.primitive_count = voxel_count;
+
+            user_state.params.instances[instance_index] = inst;
         }
 
         printf("voxel count: %d\n", voxel_count);

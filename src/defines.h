@@ -45,6 +45,7 @@ struct GvoxModelDataSerialize {
     INSTANCE* const instances;
     uint32_t max_primitive_count;
     PRIMITIVE* const primitives;
+    AABB* const aabbs;
     uint32_t max_material_count;
     MATERIAL* const materials;
     uint32_t max_light_count;
