@@ -23,6 +23,7 @@ void create(GvoxAdapterContext *ctx, void const *config) {
     //   void *my_pointer = malloc(sizeof(int));
     //   gvox_adapter_set_user_pointer(ctx, my_pointer);
     // which can be retrieved at any time with the get variant of this function.
+    gvox_adapter_set_user_pointer(ctx, (void *)config);
 }
 // Called when destroying the adapter context (for freeing any resources created by the adapter)
 void destroy(GvoxAdapterContext *ctx) {
@@ -60,6 +61,8 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
     //  `.data` is a single uint32_t that holds the actual data. How this data is represented is defined by
     //     the channel in question. If, for example, one requested GVOX_CHANNEL_ID_COLOR, the 8bpc color data
     //     would be packed into the first 24 bits of the uint32_t.
+
+    auto &user_state = *static_cast<GvoxModelDataSerializeInternal *>(gvox_adapter_get_user_pointer(ctx));
 
     {
         static auto printf_mtx = std::mutex{};
@@ -141,8 +144,24 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             } 
                         }
 
-                        if(!found) {
+                        if(!found && user_state.params.max_material_count > user_state.scene_info.material_count) {
                             palette_data.push_back({id, 1});
+                            user_state.params.materials[user_state.scene_info.material_count++] = MATERIAL{
+                                .type = MATERIAL_TYPE_LAMBERTIAN,
+                                .diffuse = {r / 255.0f, g / 255.0f, b / 255.0f},
+                                .specular = {0.f, 0.f, 0.f},
+                                .transmittance = {0.0f, 0.0f, 0.0f},
+                                .emission = {0.0, 0.0, 0.0},
+                                .shininess = 1.f,
+                                .roughness = 1.f,
+                                .ior = 1.f,
+                                // .dissolve = (-1/random_float(0.1, 1.0)),
+                                // .dissolve = (random_float(0.1, 1.0)),
+                                .dissolve = 1.0,
+                                .illum = 3,
+                                .texture_id = MAX_TEXTURES,
+                                .sampler_id = MAX_TEXTURES,
+                            };
                         }
                     }
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_ROUGHNESS);
@@ -229,7 +248,7 @@ void MapLoader::destroy_gvox_context()
 }
 
 
-auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path) -> GvoxModelData
+auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path, GvoxModelDataSerialize& serialize_params) -> GvoxModelData
 {
     auto result = GvoxModelData{};
     auto file = std::ifstream(gvox_model_path, std::ios::binary);
@@ -256,11 +275,11 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path) -> GvoxMod
         .data = temp_gvox_model.data(),
         .size = temp_gvox_model_size,
     };
-    GvoxByteBufferOutputAdapterConfig o_config = {
-        .out_size = &result.size,
-        .out_byte_buffer_ptr = &result.ptr,
-        .allocate = nullptr,
-    };
+    // GvoxByteBufferOutputAdapterConfig o_config = {
+    //     .out_size = &result.size,
+    //     .out_byte_buffer_ptr = &result.ptr,
+    //     .allocate = nullptr,
+    // };
     void *i_config_ptr = nullptr;
     auto voxlap_config = GvoxVoxlapParseAdapterConfig{
         .size_x = 512,
@@ -311,10 +330,16 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path) -> GvoxMod
     auto *region_range_ptr = (GvoxRegionRange *)nullptr;
 #endif
 
+    auto s_config = GvoxModelDataSerializeInternal{
+        .scene_info = result,
+        .params = serialize_params,
+    };
+
     GvoxAdapterContext *i_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_input_adapter(gvox_ctx, "byte_buffer"), &i_config);
-    GvoxAdapterContext *o_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_output_adapter(gvox_ctx, "byte_buffer"), &o_config);
+    // GvoxAdapterContext *o_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_output_adapter(gvox_ctx, "byte_buffer"), &o_config);
+    GvoxAdapterContext *o_ctx = nullptr;
     GvoxAdapterContext *p_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_parse_adapter(gvox_ctx, gvox_model_type), i_config_ptr);
-    GvoxAdapterContext *s_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_serialize_adapter(gvox_ctx, "my_adapter"), nullptr);
+    GvoxAdapterContext *s_ctx = gvox_create_adapter_context(gvox_ctx, gvox_get_serialize_adapter(gvox_ctx, "my_adapter"), &s_config);
 
     {
         // time_t start = clock();
@@ -345,7 +370,7 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path) -> GvoxMod
     }
 
     gvox_destroy_adapter_context(i_ctx);
-    gvox_destroy_adapter_context(o_ctx);
+    // gvox_destroy_adapter_context(o_ctx);
     gvox_destroy_adapter_context(p_ctx);
     gvox_destroy_adapter_context(s_ctx);
     return result;

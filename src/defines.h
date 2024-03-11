@@ -34,8 +34,26 @@ const daxa_u32 MATERIAL_COUNT_UP_TO_EMISSIVE = LAMBERTIAN_MATERIAL_COUNT + METAL
 
 
 struct GvoxModelData {
-    size_t size = 0;
-    uint8_t *ptr = nullptr;
+    uint32_t instance_count;
+    uint32_t primitive_count;
+    uint32_t material_count;
+    uint32_t light_count;
+};
+
+struct GvoxModelDataSerialize {
+    uint32_t max_instance_count;
+    INSTANCE* const instances;
+    uint32_t max_primitive_count;
+    PRIMITIVE* const primitives;
+    uint32_t max_material_count;
+    MATERIAL* const materials;
+    uint32_t max_light_count;
+    LIGHT* const lights;
+};
+
+struct GvoxModelDataSerializeInternal {
+  GvoxModelData& scene_info;
+  GvoxModelDataSerialize& params;
 };
 
 constexpr daxa_f32mat4x4 glm_mat4_to_daxa_f32mat4x4(glm::mat4 const &mat)
