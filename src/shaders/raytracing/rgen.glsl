@@ -447,7 +447,7 @@ void main()
         // Get light
         LIGHT light = get_light_from_light_index(light_index);
         // Calculate radiance
-        radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, di_info.seed, true, true, false);
+        radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, di_info.seed, true, true, true);
         
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value

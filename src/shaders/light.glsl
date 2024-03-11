@@ -351,7 +351,7 @@ daxa_f32vec3 calculate_sampled_light(
     Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count,
     LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, inout daxa_u32 seed, const in daxa_b32 calc_pdf,
     const in daxa_b32 use_pdf, daxa_b32 use_visibility) {
-  // 2. Get light direction
+  //2. Get light direction
   daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
   daxa_f32vec3 wo = -normalize(ray.direction);
 
@@ -362,6 +362,10 @@ daxa_f32vec3 calculate_sampled_light(
   daxa_f32vec3 result = vec3(0.0);
 
   daxa_f32 G;
+
+  if(all(lessThanEqual(light.emissive, vec3(0.0)))) {
+    return result;
+  }
 
   if (sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, seed, G, calc_pdf,
                     use_visibility)) {

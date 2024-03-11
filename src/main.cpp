@@ -383,7 +383,6 @@ namespace tests
 
             void create_point_lights() {
                 // TODO: add more lights (random values?)
-                status.is_afternoon = true;
 
                 LIGHT light = {}; // 0: point light, 1: directional light
                 light.position = daxa_f32vec3(0.0, SUN_TOP_POSITION, 0.0);
@@ -427,7 +426,7 @@ namespace tests
                 light.type = GEOMETRY_LIGHT_ENV_MAP;
                 light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
                 light.position = daxa_f32vec3(0.0, 0.0, 0.0);
-                light.emissive = daxa_f32vec3(5.0, 5.0, 5.0);
+                light.emissive = daxa_f32vec3(10.0, 10.0, 10.0);
                 light.size = 0.f;
                 lights.push_back(light);
                 ++light_config->env_map_count;
@@ -497,7 +496,7 @@ namespace tests
                 // }
 
                 // Speed of time progression
-                float timeSpeed = 0.001;
+                float timeSpeed = 0.0001;
 
                 // Increment or decrement time
                 status.time += timeSpeed * (status.is_afternoon ? 1.0 : -1.0);
@@ -1352,6 +1351,9 @@ namespace tests
 
                 light_config->light_count = 0;
                 lights.reserve(MAX_LIGHTS);
+                
+                status.time = 1.0;
+                status.is_afternoon = true;
 #if POINT_LIGHT_ON == 1                
                 create_point_lights();
 #endif

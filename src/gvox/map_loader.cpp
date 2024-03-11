@@ -89,6 +89,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
         struct palette_entry {
             uint8_t id;
             uint8_t count;
+            uint32_t index;
         };
 
         std::vector<palette_entry> palette_data;
@@ -120,6 +121,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                     }
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_MATERIAL_ID);
                     uint8_t id = 0;
+                    uint32_t mat_index = 0;
                     if (region_sample.is_present != 0) {
                         id = (region_sample.data >> 0u) & 0xff;
                         // printf(" %u ", id);
@@ -129,13 +131,15 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                         for(auto &entry : palette_data) {
                             if(entry.id == id) {
                                 ++entry.count;
+                                mat_index = entry.index;
                                 found = true;
                             } 
                         }
 
                         if(!found && user_state.params.max_material_count > user_state.scene_info.material_count) {
-                            palette_data.push_back({id, 1});
-                            user_state.params.materials[user_state.scene_info.material_count++] = MATERIAL{
+                            mat_index = user_state.scene_info.material_count;
+                            palette_data.push_back({id, 1, mat_index});
+                            user_state.params.materials[mat_index] = MATERIAL{
                                 .type = MATERIAL_TYPE_LAMBERTIAN,
                                 .ambient = {0.0f, 0.0f, 0.0f},
                                 .diffuse = {r / 255.0f, g / 255.0f, b / 255.0f},
@@ -148,12 +152,13 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                 .dissolve = 1.0,
                                 .illum = 3
                             };
+                            ++user_state.scene_info.material_count;
                         }
 
                         
                         if(user_state.params.max_primitive_count > user_state.scene_info.primitive_count) {
                             uint32_t index = user_state.scene_info.primitive_count;
-                            user_state.params.primitives[index] = PRIMITIVE{id
+                            user_state.params.primitives[index] = PRIMITIVE{mat_index
                             };
 
                             user_state.params.aabbs[index] = AABB{
