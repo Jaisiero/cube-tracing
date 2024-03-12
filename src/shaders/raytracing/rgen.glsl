@@ -436,7 +436,7 @@ void main()
 #endif // RESTIR_DI_SPATIAL_ON        
 
         //Calculate reservoir radiance
-        calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
+        calculate_reservoir_radiance(spatial_reservoir, ray, hit, mat, light_count, p_hat, radiance, false);
       
 #if DIRECT_ILLUMINATION_ON == 1      
         // Add the radiance to the hit value (reservoir radiance)

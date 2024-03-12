@@ -287,8 +287,8 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, dax
 
   // NOTE: It is recommended to check the visibility function of the previous frame.
   daxa_f32 p_hat = 0.0;
-  daxa_f32vec3 radiance = vec3(0.0);
-  calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
+  // daxa_f32vec3 radiance = vec3(0.0);
+  // calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
 
   // NOTE: restrict influence from past samples.
   reservoir_previous.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
