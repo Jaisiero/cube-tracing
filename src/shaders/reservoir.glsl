@@ -165,7 +165,7 @@ void calculate_reservoir_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, in
     daxa_f32 pdf = 1.0;
     daxa_f32 pdf_out = 1.0;
     // get weight of this reservoir
-    p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, pdf_out, seed, false, false, false);
+    p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, pdf_out, seed, false, false, true);
 
     // calculate weight of the selected lights
     reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat)): 0.0;
@@ -255,8 +255,9 @@ RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord, daxa_u32vec2 r
 
     // some simple rejection based on normals' divergence, can be improved
     daxa_b32 valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 && 
-      di_info_previous.instance_hit.instance_id == hit.instance_hit.instance_id && 
-      di_info_previous.instance_hit.primitive_id == hit.instance_hit.primitive_id;
+      di_info_previous.mat_index == hit.mat_idx; //&&
+      // di_info_previous.instance_hit.instance_id == hit.instance_hit.instance_id && 
+      // di_info_previous.instance_hit.primitive_id == hit.instance_hit.primitive_id;
 
     if (valid_history)
     {
@@ -374,9 +375,9 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
   calculate_reservoir_weight(spatial_reservoir, ray, hit, mat, light_count);
 
   // Calculate p_hat
-  // daxa_f32 p_hat = 0.0;
+  daxa_f32 p_hat = 0.0;
 
-  // calculate_reservoir_p_hat_and_weight(spatial_reservoir, ray, hit, mat, light_count, p_hat);
+  calculate_reservoir_p_hat_and_weight(spatial_reservoir, ray, hit, mat, light_count, p_hat);
 
   reservoir = spatial_reservoir;
 }
