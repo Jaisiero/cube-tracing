@@ -161,14 +161,70 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             user_state.params.primitives[index] = PRIMITIVE{mat_index
                             };
 
-                            user_state.params.aabbs[index] = AABB{
-                                .minimum = {sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                    sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                    sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
-                                .maximum = {(sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                    (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                    (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
-                            };
+                            if(user_state.params.axis_direction == AXIS_DIRECTION::Z_BOTTOM_TOP) {
+                                user_state.params.aabbs[index] = AABB{
+                                    .minimum = {sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
+                                    .maximum = {(sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
+                                };
+                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::X_BOTTOM_TOP) {
+                                user_state.params.aabbs[index] = AABB{
+                                    .minimum = {sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
+                                    .maximum = {(sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
+                                };
+                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::Y_BOTTOM_TOP) {
+                                user_state.params.aabbs[index] = AABB{
+                                    .minimum = {sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
+                                    .maximum = {(sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
+                                };
+                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::X_TOP_BOTTOM) {
+                                user_state.params.aabbs[index] = AABB{
+                                    .minimum = {sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
+                                    .maximum = {(sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
+                                };
+                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::Y_TOP_BOTTOM) {
+                                user_state.params.aabbs[index] = AABB{
+                                    .minimum = {sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
+                                    .maximum = {(sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
+                                };
+                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::Z_TOP_BOTTOM) {
+                                user_state.params.aabbs[index] = AABB{
+                                    .minimum = {sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                                        sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
+                                    .maximum = {(sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                                        (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
+                                };
+                            }
+
+                            // user_state.params.aabbs[index] = AABB{
+                            //     .minimum = {sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                            //         sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
+                            //         sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
+                            //     .maximum = {(sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                            //         (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
+                            //         (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
+                            // };
                             ++user_state.scene_info.primitive_count;
                         } else {
                             printf("max_primitive_count exceeded\n");

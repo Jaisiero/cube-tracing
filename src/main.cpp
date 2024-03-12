@@ -24,7 +24,9 @@ namespace tests
         {
             const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
             const char *MODEL_PATH = "assets/models/";
-            const char *MAP_NAME = "monu5.vox";
+            // const char *MAP_NAME = "monu5.vox";
+            const char *MAP_NAME = "monu6.vox";
+            // const char *MAP_NAME = "monu9.vox";
 
             const float day_duration = 60.0f; // Duración de un día en segundos
 
@@ -1379,6 +1381,7 @@ namespace tests
                 map_loader.create_gvox_context();
 
                 GvoxModelDataSerialize gvox_map_serialize = {
+                    .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
                     .max_instance_count = MAX_INSTANCES,
                     .instances = instances.get(),
                     .max_primitive_count = MAX_PRIMITIVES,
@@ -1742,7 +1745,7 @@ namespace tests
                 };
 
                 // NOTE: Vulkan has inverted y axis in NDC
-                // camera_view.inv_proj.y.y *= -1;
+                camera_view.inv_proj.y.y *= -1;
 
                 auto cam_staging_buffer = device.create_buffer({
                     .size = cam_update_size,

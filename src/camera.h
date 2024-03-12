@@ -306,7 +306,7 @@ void rotate_camera(camera& cam, float currentX, float currentY)
 		float pitch_delta = deltaY * MOUSE_SENSITIVITY;
 		float yaw_delta = deltaX * MOUSE_SENSITIVITY;
 
-		glm::quat q = glm::normalize(glm::cross(glm::angleAxis(pitch_delta, right_direction),
+		glm::quat q = glm::normalize(glm::cross(glm::angleAxis(-pitch_delta, right_direction),
 			glm::angleAxis(-yaw_delta, glm::vec3(0.f, 1.0f, 0.0f))));
 		cam.forward = glm::rotate(q, cam.forward);
 

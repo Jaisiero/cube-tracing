@@ -40,7 +40,18 @@ struct GvoxModelData {
     uint32_t light_count;
 };
 
+enum AXIS_DIRECTION {
+    X_BOTTOM_TOP = 0,
+    Y_BOTTOM_TOP = 1,
+    Z_BOTTOM_TOP = 2,
+    X_TOP_BOTTOM = 3,
+    Y_TOP_BOTTOM = 4,
+    Z_TOP_BOTTOM = 5
+};
+
+
 struct GvoxModelDataSerialize {
+    AXIS_DIRECTION axis_direction;
     uint32_t max_instance_count;
     INSTANCE* const instances;
     uint32_t max_primitive_count;
