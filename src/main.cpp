@@ -24,8 +24,8 @@ namespace tests
         {
             const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
             const char *MODEL_PATH = "assets/models/";
-            // const char *MAP_NAME = "monu5.vox";
-            const char *MAP_NAME = "monu6.vox";
+            const char *MAP_NAME = "monu5.vox";
+            // const char *MAP_NAME = "monu6.vox";
             // const char *MAP_NAME = "monu9.vox";
 
             const float day_duration = 60.0f; // Duración de un día en segundos
@@ -143,7 +143,8 @@ namespace tests
             u32 current_material_count = 0;
             std::unique_ptr<MATERIAL[]> materials = {};
 
-            std::vector<LIGHT> lights = {};
+            // lights data from mapped buffer
+            LIGHT* lights = nullptr;
 
             std::vector<daxa_f32mat4x4> transforms = {};
 
@@ -386,9 +387,27 @@ namespace tests
                 device.wait_idle();
             }
 
+            bool check_light_count(uint32_t max_light_count, uint32_t current_light_count) {
+                if(current_light_count+1 > max_light_count) {
+                    std::cout << "light_config->light_count > MAX_LIGHTS" << std::endl;
+                    return false;
+                }
+                return true;
+            }
 
-            void create_point_lights() {
+
+            bool create_point_lights() {
                 // TODO: add more lights (random values?)
+
+                if(!lights) {
+                    std::cout << "lights is nullptr" << std::endl;
+                    return false;
+                }
+
+                if(!check_light_count(MAX_LIGHTS, light_config->light_count)) {
+                    std::cout << "light_config->light_count > MAX_LIGHTS" << std::endl;
+                    return false;
+                }
 
                 LIGHT light = {}; // 0: point light, 1: directional light
                 light.position = daxa_f32vec3(SUN_TOP_POSITION_X, SUN_TOP_POSITION_Y, SUN_TOP_POSITION_Z);
@@ -408,7 +427,7 @@ namespace tests
 #endif // DYNAMIC_SUN_LIGHT
                 light.type = GEOMETRY_LIGHT_POINT;
                 light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
-                lights.push_back(light);
+                lights[light_config->light_count++] = light;
                 ++light_config->point_light_count;
 
                 // LIGHT light2 = {};
@@ -424,23 +443,30 @@ namespace tests
                 // light3.type = GEOMETRY_LIGHT_POINT;
                 // lights.push_back(light3);
                 // ++light_config->point_light_count;
+
+                return true;
             }
 
 
-            void create_environment_light() {
+            bool create_environment_light() {
+                if(!check_light_count(MAX_LIGHTS, light_config->light_count)) {
+                    std::cout << "light_config->light_count > MAX_LIGHTS" << std::endl;
+                    return false;
+                }
+
                 LIGHT light = {};
                 light.type = GEOMETRY_LIGHT_ENV_MAP;
                 light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
                 light.position = daxa_f32vec3(0.0, 0.0, 0.0);
                 light.emissive = daxa_f32vec3(5.0, 5.0, 5.0);
                 light.size = 0.f;
-                lights.push_back(light);
+                lights[light_config->light_count++] = light;
                 ++light_config->env_map_count;
             }
 
             void load_lights() {
                 
-                light_config->light_count = light_config->point_light_count + light_config->cube_light_count + light_config->sphere_light_count + light_config->analytic_light_count + light_config->env_map_count;
+                // light_config->light_count = light_config->point_light_count + light_config->cube_light_count + light_config->sphere_light_count + light_config->analytic_light_count + light_config->env_map_count;
 
                 light_config->point_light_pdf =  light_config->point_light_count == 0 ? 0.f : 1.0f / (light_config->point_light_count / light_config->light_count);
                 light_config->cube_light_pdf = light_config->cube_light_count == 0 ? 0.f : 1.0f / (light_config->cube_light_count / light_config->light_count);
@@ -458,20 +484,20 @@ namespace tests
                 std::cout << "  Num of cube lights: " << light_config->cube_light_count << std::endl;
                 std::cout << "  Num of environment map lights: " << light_config->env_map_count << std::endl;
 
-                // Calculate light buffer size
-                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config->light_count);
-                if(light_buffer_size > max_light_buffer_size) {
-                    std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
-                    abort();
-                }
+                // // Calculate light buffer size
+                // auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config->light_count);
+                // if(light_buffer_size > max_light_buffer_size) {
+                //     std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
+                //     abort();
+                // }
 
-                // get light buffer host mapped pointer
-                auto * light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
+                // // get light buffer host mapped pointer
+                // auto * light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
 
-                // copy lights to buffer
-                std::memcpy(light_staging_buffer_ptr,
-                    lights.data(),
-                    light_buffer_size);
+                // // copy lights to buffer
+                // std::memcpy(light_staging_buffer_ptr,
+                //     lights.data(),
+                //     light_buffer_size);
 
 
                 status.light_config_address = device.get_device_address(light_config_buffer).value();
@@ -480,12 +506,7 @@ namespace tests
             void update_lights()
             {
 
-                if (lights.size() == 0)
-                {
-                    return;
-                }
-
-                if (light_config->point_light_count == 0)
+                if (light_config->light_count == 0 || light_config->point_light_count == 0)
                 {
                     return;
                 }
@@ -532,13 +553,13 @@ namespace tests
                     abort();
                 }
 
-                // get light buffer host mapped pointer
-                auto *light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
+                // // get light buffer host mapped pointer
+                // auto *light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
 
-                // copy lights to buffer
-                std::memcpy(light_staging_buffer_ptr,
-                    lights.data(),
-                    light_buffer_size);
+                // // copy lights to buffer
+                // std::memcpy(light_staging_buffer_ptr,
+                //     lights.data(),
+                //     light_buffer_size);
 
              }
 
@@ -636,7 +657,7 @@ namespace tests
                             surface_light.type = GEOMETRY_LIGHT_CUBE;
                             // TODO: this will be based on voxel size
                             surface_light.size = VOXEL_EXTENT;
-                            lights.push_back(surface_light);
+                            lights[light_config->light_count++] = surface_light;
                             light_config->cube_light_count++;
                         }
 
@@ -1361,15 +1382,22 @@ namespace tests
 
                 light_config = device.get_host_address_as<LIGHT_CONFIG>(light_config_buffer).value();
 
-                light_config->light_count = 0;
-                lights.reserve(MAX_LIGHTS);
+                light_config->light_count = light_config->point_light_count = light_config->cube_light_count = light_config->env_map_count = 0;
+
+                lights = device.get_host_address_as<LIGHT>(light_buffer).value();
                 
                 status.time = 1.0;
                 status.is_afternoon = true;
 #if POINT_LIGHT_ON == 1                
-                create_point_lights();
+                if(!create_point_lights()) {
+                    std::cout << "Failed to create point lights" << std::endl;
+                    abort();
+                }
 #endif
-                create_environment_light();
+                if(!create_environment_light()) {
+                    std::cout << "Failed to create environment light" << std::endl;
+                    abort();
+                }
 
 
 
@@ -1389,8 +1417,8 @@ namespace tests
                     .aabbs = device.get_host_address_as<AABB>(aabb_host_buffer).value(),
                     .max_material_count = MAX_MATERIALS,
                     .materials = materials.get(),
-                    .max_light_count = MAX_LIGHTS,
-                    .lights = lights.data(),
+                    .max_light_count = MAX_LIGHTS - light_config->light_count,
+                    .lights = &lights[light_config->light_count],
                 };
 
                 // load map
