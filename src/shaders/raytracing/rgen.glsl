@@ -516,7 +516,7 @@ void main()
 
 #if RESTIR_ON == 1 && RESTIR_DI_ON == 1
         // Store the reservoir
-        set_reservoir_from_previous_frame_by_index(screen_pos, spatial_reservoir);
+        set_reservoir_from_previous_frame_by_index(screen_pos, reservoir);
 #endif // RESTIR_DI_ON    
 
         set_di_from_previous_frame(screen_pos, di_info);

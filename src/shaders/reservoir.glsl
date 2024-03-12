@@ -366,7 +366,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
     
     daxa_f32 p_hat = 0.0;
     daxa_f32vec3 radiance = vec3(0.0);
-    calculate_reservoir_radiance(neighbor_reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
+    calculate_reservoir_radiance(neighbor_reservoir, ray, hit, mat, light_count, p_hat, radiance, false);
 
     calculate_reservoir_aggregation(spatial_reservoir, neighbor_reservoir, ray, hit, mat, light_count, seed);
   }
@@ -374,9 +374,9 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
   calculate_reservoir_weight(spatial_reservoir, ray, hit, mat, light_count);
 
   // Calculate p_hat
-  daxa_f32 p_hat = 0.0;
+  // daxa_f32 p_hat = 0.0;
 
-  calculate_reservoir_p_hat_and_weight(spatial_reservoir, ray, hit, mat, light_count, p_hat);
+  // calculate_reservoir_p_hat_and_weight(spatial_reservoir, ray, hit, mat, light_count, p_hat);
 
   reservoir = spatial_reservoir;
 }

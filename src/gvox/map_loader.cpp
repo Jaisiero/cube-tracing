@@ -9,15 +9,14 @@
 #include <gvox/adapters/output/byte_buffer.h>
 #include <gvox/adapters/parse/voxlap.h>
 
-
 GvoxOffset3D operator+(GvoxOffset3D const &lhs, GvoxOffset3D const &rhs)
 {
     return GvoxOffset3D{lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z};
 }
 
-
 // Called when creating the adapter context
-void create(GvoxAdapterContext *ctx, void const *config) {
+void create(GvoxAdapterContext *ctx, void const *config)
+{
     // here you can create any resources you want to associate with your adapter.
     // you can tie your state to the adapter context `ctx` with this function:
     //   void *my_pointer = malloc(sizeof(int));
@@ -26,22 +25,27 @@ void create(GvoxAdapterContext *ctx, void const *config) {
     gvox_adapter_set_user_pointer(ctx, (void *)config);
 }
 // Called when destroying the adapter context (for freeing any resources created by the adapter)
-void destroy(GvoxAdapterContext *ctx) {
+void destroy(GvoxAdapterContext *ctx)
+{
     // here we'd free `my_pointer`
     //   void *my_pointer = gvox_adapter_get_user_pointer(ctx);
     //   free(my_pointer);
 }
 // Called at the beginning of a blit operation.
-void blit_begin(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegionRange const *range, uint32_t channel_flags) {
+void blit_begin(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegionRange const *range, uint32_t channel_flags)
+{
     // We get a minimal description of the volume we're
 }
-void blit_end(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx) {
+void blit_end(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx)
+{
 }
-void serialize_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegionRange const *range, uint32_t channel_flags) {
+void serialize_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegionRange const *range, uint32_t channel_flags)
+{
 }
 
 // This function may be called in a parallel nature by the parse adapter.
-void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegion const *region) {
+void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegion const *region)
+{
     // `GvoxRegion` description:
     //  `.range.offset` is the 3D location of the 3D array in world-space
     //  `.range.extent` is the dimensions of the 3D array.
@@ -78,7 +82,8 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
 
         uint32_t instance_index = user_state.params.max_instance_count;
 
-        if(user_state.params.max_instance_count > user_state.scene_info.instance_count) {
+        if (user_state.params.max_instance_count > user_state.scene_info.instance_count)
+        {
             instance_index = user_state.scene_info.instance_count++;
         }
 
@@ -86,7 +91,8 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
         uint32_t light_count = 0;
         uint32_t first_voxel_index = user_state.scene_info.primitive_count;
 
-        struct palette_entry {
+        struct palette_entry
+        {
             uint8_t id;
             uint8_t count;
             uint32_t index;
@@ -94,49 +100,91 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
 
         std::vector<palette_entry> palette_data;
 
-        for(int z = 0; z < region->range.extent.z; ++z) {
-            for(int y = 0; y < region->range.extent.y; ++y) {
-                for(int x = 0; x < region->range.extent.x; ++x) {
+        for (int z = 0; z < region->range.extent.z; ++z)
+        {
+            for (int y = 0; y < region->range.extent.y; ++y)
+            {
+                for (int x = 0; x < region->range.extent.x; ++x)
+                {
                     GvoxOffset3D sample_position = region->range.offset + GvoxOffset3D{x, y, z};
                     GvoxSample region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_COLOR);
                     uint8_t r = 0;
                     uint8_t g = 0;
                     uint8_t b = 0;
-                    if (region_sample.is_present != 0) {
+                    uint8_t id = 0;
+                    uint32_t mat_index = 0;
+                    uint8_t l_r = 0;
+                    uint8_t l_g = 0;
+                    uint8_t l_b = 0;
+                    float roughtness = 0;
+                    float metalness = 0;
+                    float ior = 0;
+                    bool light_found = false;
+                    int32_t x_grid = sample_position.x;
+                    int32_t y_grid = sample_position.y;
+                    int32_t z_grid = sample_position.z;
+
+                    if (region_sample.is_present != 0)
+                    {
                         r = (region_sample.data >> 0u) & 0xff;
                         g = (region_sample.data >> 8u) & 0xff;
                         b = (region_sample.data >> 16u) & 0xff;
                     }
                     // printf("\033[48;2;%03d;%03d;%03dm  \033[0m", r, g, b);
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_EMISSIVITY);
-                    uint8_t l_r = 0;
-                    uint8_t l_g = 0;
-                    uint8_t l_b = 0;
-                    if (region_sample.is_present != 0) {
+                    if (region_sample.is_present != 0)
+                    {
                         l_r = (region_sample.data >> 0u) & 0xff;
                         l_g = (region_sample.data >> 8u) & 0xff;
                         l_b = (region_sample.data >> 16u) & 0xff;
-                        if(l_r != 0 || l_g != 0 || l_b != 0)
+                        if (l_r != 0 || l_g != 0 || l_b != 0)
+                        {
                             ++light_count;
+                            light_found = true;
+                        }
+                    }
+
+                    region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_ROUGHNESS);
+                    if (region_sample.is_present != 0)
+                    {
+                        roughtness = *(float *)(&region_sample.data);
+                        // if(roughtness != 0.0f)
+                        //     printf("roughtness: %f\n", roughtness);
+                    }
+                    region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_METALNESS);
+                    if (region_sample.is_present != 0)
+                    {
+                        metalness = *(float *)(&region_sample.data);
+                        // if(metalness != 0.0f)
+                        //     printf("metalness: %f\n", metalness);
+                    }
+                    region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_IOR);
+                    if (region_sample.is_present != 0)
+                    {
+                        ior = *(float *)(&region_sample.data);
+                        // if(ior != 0.0f)
+                        //     printf("ior: %f\n", ior);
                     }
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_MATERIAL_ID);
-                    uint8_t id = 0;
-                    uint32_t mat_index = 0;
-                    if (region_sample.is_present != 0) {
+                    if (region_sample.is_present != 0)
+                    {
                         id = (region_sample.data >> 0u) & 0xff;
                         // printf(" %u ", id);
 
                         bool found = false;
 
-                        for(auto &entry : palette_data) {
-                            if(entry.id == id) {
+                        for (auto &entry : palette_data)
+                        {
+                            if (entry.id == id)
+                            {
                                 ++entry.count;
                                 mat_index = entry.index;
                                 found = true;
-                            } 
+                            }
                         }
 
-                        if(!found && user_state.params.max_material_count > user_state.scene_info.material_count) {
+                        if (!found && user_state.params.max_material_count > user_state.scene_info.material_count)
+                        {
                             mat_index = user_state.scene_info.material_count;
                             palette_data.push_back({id, 1, mat_index});
                             user_state.params.materials[mat_index] = MATERIAL{
@@ -150,108 +198,88 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                 .roughness = 1.f,
                                 .ior = 1.f,
                                 .dissolve = 1.0,
-                                .illum = 3
-                            };
+                                .illum = 3};
                             ++user_state.scene_info.material_count;
                         }
 
-                        
-                        if(user_state.params.max_primitive_count > user_state.scene_info.primitive_count) {
+                        if (user_state.params.max_primitive_count > user_state.scene_info.primitive_count)
+                        {
                             uint32_t index = user_state.scene_info.primitive_count;
-                            user_state.params.primitives[index] = PRIMITIVE{mat_index
-                            };
+                            user_state.params.primitives[index] = PRIMITIVE{mat_index};
 
-                            if(user_state.params.axis_direction == AXIS_DIRECTION::Z_BOTTOM_TOP) {
-                                user_state.params.aabbs[index] = AABB{
-                                    .minimum = {sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
-                                    .maximum = {(sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
-                                };
-                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::X_BOTTOM_TOP) {
-                                user_state.params.aabbs[index] = AABB{
-                                    .minimum = {sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
-                                    .maximum = {(sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
-                                };
-                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::Y_BOTTOM_TOP) {
-                                user_state.params.aabbs[index] = AABB{
-                                    .minimum = {sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
-                                    .maximum = {(sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
-                                };
-                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::X_TOP_BOTTOM) {
-                                user_state.params.aabbs[index] = AABB{
-                                    .minimum = {sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
-                                    .maximum = {(sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
-                                };
-                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::Y_TOP_BOTTOM) {
-                                user_state.params.aabbs[index] = AABB{
-                                    .minimum = {sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
-                                    .maximum = {(sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
-                                };
-                            } else if(user_state.params.axis_direction == AXIS_DIRECTION::Z_TOP_BOTTOM) {
-                                user_state.params.aabbs[index] = AABB{
-                                    .minimum = {sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                                        sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
-                                    .maximum = {(sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                                        (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
-                                };
+                            if (user_state.params.axis_direction == AXIS_DIRECTION::Z_BOTTOM_TOP)
+                            {
+                                x_grid = sample_position.x;
+                                y_grid = sample_position.y;
+                                z_grid = sample_position.z;
+                            }
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::X_BOTTOM_TOP)
+                            {
+                                x_grid = sample_position.y;
+                                y_grid = sample_position.z;
+                                z_grid = sample_position.x;
+                            }
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::Y_BOTTOM_TOP)
+                            {
+                                x_grid = sample_position.z;
+                                y_grid = sample_position.x;
+                                z_grid = sample_position.y;
+                            }
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::X_TOP_BOTTOM)
+                            {
+                                x_grid = sample_position.y;
+                                y_grid = sample_position.z;
+                                z_grid = sample_position.x;
+
+                            }
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::Y_TOP_BOTTOM)
+                            {
+                                x_grid = sample_position.z;
+                                y_grid = sample_position.x;
+                                z_grid = sample_position.y;
+                            }
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::Z_TOP_BOTTOM)
+                            {
+                                x_grid = sample_position.x;
+                                y_grid = sample_position.y;
+                                z_grid = sample_position.z;
                             }
 
-                            // user_state.params.aabbs[index] = AABB{
-                            //     .minimum = {sample_position.x * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                            //         sample_position.y * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE,
-                            //         sample_position.z * VOXEL_EXTENT + AVOID_VOXEL_COLLAIDE},
-                            //     .maximum = {(sample_position.x + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                            //         (sample_position.y + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE,
-                            //         (sample_position.z + 1) * VOXEL_EXTENT - AVOID_VOXEL_COLLAIDE},
-                            // };
+                            user_state.params.aabbs[index] = AABB{
+                                .minimum = {x_grid * VOXEL_EXTENT,
+                                    y_grid * VOXEL_EXTENT,
+                                    z_grid * VOXEL_EXTENT},
+                                .maximum = {(x_grid + 1) * VOXEL_EXTENT,
+                                    (y_grid + 1) * VOXEL_EXTENT,
+                                    (z_grid + 1) * VOXEL_EXTENT},
+                            };
                             ++user_state.scene_info.primitive_count;
-                        } else {
+
+                            if (light_found)
+                            {
+                                daxa_f32vec3 center_position = {x_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f, 
+                                    y_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f, 
+                                    z_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f};
+                                LIGHT light = {
+                                    .position = center_position,
+                                    .emissive = {(l_r / 255.0f) * 20.0f, (l_g / 255.0f) * 20.0f, (l_b / 255.0f) * 20.0f},
+                                    .instance_info = OBJECT_INFO(instance_index, index),
+                                    .size = VOXEL_EXTENT,
+                                    .type = GEOMETRY_LIGHT_CUBE};
+                                    
+
+                                if (user_state.params.max_light_count > user_state.scene_info.light_count)
+                                {
+                                    user_state.params.lights[user_state.scene_info.light_count++] = light;
+                                }
+                            }
+                        }
+                        else
+                        {
                             printf("max_primitive_count exceeded\n");
                         }
 
                         ++voxel_count;
-                    }
-                    region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_ROUGHNESS);
-                    float roughtness = 0;
-                    if (region_sample.is_present != 0) {
-                        roughtness = *(float *)(&region_sample.data);
-                        if(roughtness != 0.0f)
-                            printf("roughtness: %f\n", roughtness);
-                    }
-                    region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_METALNESS);
-                    float metalness = 0;
-                    if (region_sample.is_present != 0) {
-                        metalness = *(float *)(&region_sample.data);
-                        if(metalness != 0.0f)
-                            printf("metalness: %f\n", metalness);
-                    }
-                    region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_IOR);
-                    float ior = 0;
-                    if (region_sample.is_present != 0) {
-                        ior = *(float *)(&region_sample.data);
-                        if(ior != 0.0f)
-                            printf("ior: %f\n", ior);
                     }
                     // printf("\033[48;2;%03d;%03d;%03dm\033[38;2;%03d;%03d;%03dm\033[30;1m%02x\033[0m", r, g, b, l_r, l_g, l_b, id);
                 }
@@ -260,7 +288,8 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
             // printf("\n");
         }
 
-        if(instance_index != user_state.params.max_instance_count) {
+        if (instance_index != user_state.params.max_instance_count)
+        {
             INSTANCE inst = {0};
             inst.transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f));
             inst.prev_transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f));
@@ -273,17 +302,19 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
         printf("voxel count: %d\n", voxel_count);
         printf("light count: %d\n", light_count);
 
-
-        for(auto &entry : palette_data) {
+        for (auto &entry : palette_data)
+        {
             printf("id: %u count: %u\n", entry.id, entry.count);
         }
     }
 }
 
-void handle_gvox_error(GvoxContext *gvox_ctx) {
+void handle_gvox_error(GvoxContext *gvox_ctx)
+{
     GvoxResult res = gvox_get_result(gvox_ctx);
     int error_count = 0;
-    while (res != GVOX_RESULT_SUCCESS) {
+    while (res != GVOX_RESULT_SUCCESS)
+    {
         size_t size = 0;
         gvox_get_result_message(gvox_ctx, nullptr, &size);
         char *str = new char[size + 1];
@@ -295,7 +326,8 @@ void handle_gvox_error(GvoxContext *gvox_ctx) {
         res = gvox_get_result(gvox_ctx);
         ++error_count;
     }
-    if (error_count != 0) {
+    if (error_count != 0)
+    {
         exit(-error_count);
     }
 }
@@ -312,7 +344,6 @@ auto const my_adapter_info = GvoxSerializeAdapterInfo{
     .receive_region = receive_region,
 };
 
-
 void MapLoader::create_gvox_context()
 {
     gvox_ctx = gvox_create_context();
@@ -325,8 +356,7 @@ void MapLoader::destroy_gvox_context()
     gvox_destroy_context(gvox_ctx);
 }
 
-
-auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path, GvoxModelDataSerialize& serialize_params) -> GvoxModelData
+auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path, GvoxModelDataSerialize &serialize_params) -> GvoxModelData
 {
     auto result = GvoxModelData{};
     auto file = std::ifstream(gvox_model_path, std::ios::binary);
@@ -424,8 +454,8 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path, GvoxModelD
         gvox_blit_region(
             i_ctx, o_ctx, p_ctx, s_ctx,
             region_range_ptr,
-            // GVOX_CHANNEL_BIT_COLOR | GVOX_CHANNEL_BIT_MATERIAL_ID | GVOX_CHANNEL_BIT_EMISSIVITY);
-            GVOX_CHANNEL_BIT_COLOR);
+            GVOX_CHANNEL_BIT_COLOR | GVOX_CHANNEL_BIT_MATERIAL_ID | GVOX_CHANNEL_BIT_ROUGHNESS | GVOX_CHANNEL_BIT_IOR | GVOX_CHANNEL_BIT_METALNESS | GVOX_CHANNEL_BIT_TRANSPARENCY | GVOX_CHANNEL_BIT_EMISSIVITY);
+        // GVOX_CHANNEL_BIT_COLOR);
         // time_t end = clock();
         // double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
         // AppUi::Console::s_instance->add_log("{}s, new size: {} bytes", cpu_time_used, result.size);

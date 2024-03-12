@@ -24,9 +24,10 @@ namespace tests
         {
             const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
             const char *MODEL_PATH = "assets/models/";
-            const char *MAP_NAME = "monu5.vox";
+            // const char *MAP_NAME = "monu5.vox";
             // const char *MAP_NAME = "monu6.vox";
             // const char *MAP_NAME = "monu9.vox";
+            const char *MAP_NAME = "room.vox";
 
             const float day_duration = 60.0f; // Duración de un día en segundos
 
@@ -1433,6 +1434,7 @@ namespace tests
                 current_aabb_host_count += gvox_map.primitive_count;
                 current_instance_count += gvox_map.instance_count;
                 light_config->cube_light_count += gvox_map.light_count;
+                light_config->light_count += gvox_map.light_count;
 
                 if(current_aabb_host_count > 0) {
                     size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
