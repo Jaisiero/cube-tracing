@@ -76,6 +76,8 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
         // the console at any time.
         auto lock = std::lock_guard{printf_mtx};
 
+        constexpr float emission = 50.0f;
+
         uint8_t r = 0;
         uint8_t g = 0;
         uint8_t b = 0;
@@ -262,7 +264,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                     z_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f};
                                 LIGHT light = {
                                     .position = center_position,
-                                    .emissive = {(l_r / 255.0f) * 20.0f, (l_g / 255.0f) * 20.0f, (l_b / 255.0f) * 20.0f},
+                                    .emissive = {(l_r / 255.0f) * emission, (l_g / 255.0f) * emission, (l_b / 255.0f) * emission},
                                     .instance_info = OBJECT_INFO(instance_index, index),
                                     .size = VOXEL_EXTENT,
                                     .type = GEOMETRY_LIGHT_CUBE};
