@@ -319,7 +319,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
   // daxa_f32 spatial_influence_threshold = max(1.0, (INFLUENCE_FROM_THE_PAST_THRESHOLD) / NUM_OF_NEIGHBORS);
 
   // Heuristically determine the radius of the spatial reuse based on distance to the camera
-  daxa_f32 spatial_heuristic_radius = mix(MAX_NEIGHBORS_RADIUS, MIN_NEIGHBORS_RADIUS, clamp(hit.distance / 10.f, 0.0, 1.0));
+  daxa_f32 spatial_heuristic_radius = mix(MAX_NEIGHBORS_RADIUS, MIN_NEIGHBORS_RADIUS, clamp(hit.distance / MAX_DISTANCE_TO_HIT, 0.0, 1.0));
 
   // Heuristically determine the number of neighbors based on the confidence index
   daxa_u32 spatial_heuristic_num_of_neighbors = daxa_u32(mix(MAX_NUM_OF_NEIGHBORS, MIN_NUM_OF_NEIGHBORS, confidence));
@@ -357,7 +357,8 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
         // (neighbor_depth_linear > 1.1f * depth_linear || neighbor_depth_linear < 0.9f * depth_linear)   ||
         // abs(neighbor_hit_dist - gl_HitTEXT) > VOXEL_EXTENT ||
         neighbor_mat_index != current_mat_index ||
-        dot(hit.world_nrm, neighbor_di_info.normal.xyz) < 0.906)
+        (dot(hit.world_nrm, neighbor_di_info.normal.xyz) < 0.906) || 
+        (abs(hit.distance - neighbor_hit_dist) > VOXEL_EXTENT))
     {
       // skip this neighbour sample if not suitable
       continue;
