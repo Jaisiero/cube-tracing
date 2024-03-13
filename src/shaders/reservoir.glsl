@@ -358,7 +358,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
         // abs(neighbor_hit_dist - gl_HitTEXT) > VOXEL_EXTENT ||
         neighbor_mat_index != current_mat_index ||
         (dot(hit.world_nrm, neighbor_di_info.normal.xyz) < 0.906) || 
-        (abs(hit.distance - neighbor_hit_dist) > VOXEL_EXTENT))
+        (abs(hit.distance - neighbor_hit_dist) > 0.1 * hit.distance))
     {
       // skip this neighbour sample if not suitable
       continue;
