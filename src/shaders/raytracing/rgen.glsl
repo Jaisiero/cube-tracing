@@ -205,10 +205,10 @@ void main()
         // TODO: re-check this
         // Confidence when using temporal reuse and M is the number of samples in the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%). Interpolated between those values
         // daxa_f32 predicted = clamp((reservoir_previous.M) / (MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD *  daxa_f32(MAX_RIS_SAMPLE_COUNT)), 0.0, 1.0);
-        daxa_f32 predicted = clamp((reservoir_previous.M) / (MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD *  daxa_f32(MAX_RIS_SAMPLE_COUNT)), 0.0, 1.0);
+        daxa_f32 predicted = clamp((reservoir_previous.M) / (MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD), 0.0, 1.0);
 
-        // confidence = (reservoir_previous.W_y > 0.0) ? predicted
-        //                                             : 0.0;
+        confidence = (reservoir_previous.W_y > 0.0) ? predicted
+                                                    : 0.0;
 
 #endif // RESTIR_DI_TEMPORAL_ON
 
