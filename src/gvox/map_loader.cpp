@@ -76,7 +76,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
         // the console at any time.
         auto lock = std::lock_guard{printf_mtx};
 
-        constexpr float emission = 50.0f;
+        constexpr float vox_emission = 100.0f;
 
         uint8_t r = 0;
         uint8_t g = 0;
@@ -125,6 +125,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                     int32_t x_grid = sample_position.x;
                     int32_t y_grid = sample_position.y;
                     int32_t z_grid = sample_position.z;
+                    float flux = 1.0f;
 
                     if (region_sample.is_present != 0)
                     {
@@ -144,6 +145,11 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             ++light_count;
                             light_found = true;
                         }
+                    }
+                    region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_FLUX);
+                    if (region_sample.is_present != 0)
+                    {
+                        flux = *(float *)(&region_sample.data);
                     }
 
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_ROUGHNESS);
@@ -232,7 +238,6 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                 x_grid = sample_position.y;
                                 y_grid = sample_position.z;
                                 z_grid = sample_position.x;
-
                             }
                             else if (user_state.params.axis_direction == AXIS_DIRECTION::Y_TOP_BOTTOM)
                             {
@@ -249,26 +254,27 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
 
                             user_state.params.aabbs[index] = AABB{
                                 .minimum = {x_grid * VOXEL_EXTENT,
-                                    y_grid * VOXEL_EXTENT,
-                                    z_grid * VOXEL_EXTENT},
+                                            y_grid * VOXEL_EXTENT,
+                                            z_grid * VOXEL_EXTENT},
                                 .maximum = {(x_grid + 1) * VOXEL_EXTENT,
-                                    (y_grid + 1) * VOXEL_EXTENT,
-                                    (z_grid + 1) * VOXEL_EXTENT},
+                                            (y_grid + 1) * VOXEL_EXTENT,
+                                            (z_grid + 1) * VOXEL_EXTENT},
                             };
                             ++user_state.scene_info.primitive_count;
 
                             if (light_found)
                             {
-                                daxa_f32vec3 center_position = {x_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f, 
-                                    y_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f, 
-                                    z_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f};
+                                daxa_f32vec3 center_position = {x_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f,
+                                                                y_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f,
+                                                                z_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f};
+
+                                flux *= vox_emission;
                                 LIGHT light = {
                                     .position = center_position,
-                                    .emissive = {(l_r / 255.0f) * emission, (l_g / 255.0f) * emission, (l_b / 255.0f) * emission},
+                                    .emissive = {(l_r / 255.0f) * flux, (l_g / 255.0f) * flux, (l_b / 255.0f) * flux},
                                     .instance_info = OBJECT_INFO(instance_index, index),
                                     .size = VOXEL_EXTENT,
                                     .type = GEOMETRY_LIGHT_CUBE};
-                                    
 
                                 if (user_state.params.max_light_count > user_state.scene_info.light_count)
                                 {
@@ -456,7 +462,10 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path, GvoxModelD
         gvox_blit_region(
             i_ctx, o_ctx, p_ctx, s_ctx,
             region_range_ptr,
-            GVOX_CHANNEL_BIT_COLOR | GVOX_CHANNEL_BIT_MATERIAL_ID | GVOX_CHANNEL_BIT_ROUGHNESS | GVOX_CHANNEL_BIT_IOR | GVOX_CHANNEL_BIT_METALNESS | GVOX_CHANNEL_BIT_TRANSPARENCY | GVOX_CHANNEL_BIT_EMISSIVITY);
+            GVOX_CHANNEL_BIT_COLOR | GVOX_CHANNEL_BIT_MATERIAL_ID | 
+            GVOX_CHANNEL_BIT_ROUGHNESS | GVOX_CHANNEL_BIT_IOR | 
+            GVOX_CHANNEL_BIT_METALNESS | GVOX_CHANNEL_BIT_TRANSPARENCY | 
+            GVOX_CHANNEL_BIT_EMISSIVITY);
         // GVOX_CHANNEL_BIT_COLOR);
         // time_t end = clock();
         // double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;

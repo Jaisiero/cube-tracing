@@ -21,7 +21,7 @@
     "vcpkg-configuration": {
       "overlay-ports": [
         "deps/Daxa",
-        "deps/gvox/cmake/vcpkg-port"
+        "deps/gvox"
       ]
     }
   }
