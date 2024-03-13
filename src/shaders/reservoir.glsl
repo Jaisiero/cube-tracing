@@ -211,7 +211,6 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_u32 object_count, daxa_f32 confidence, 
     update_reservoir(reservoir, light_index, current_seed, w, 1.0f, seed);
   }
 
-  daxa_f32 p_hat = 0.0;
   daxa_f32vec3 radiance = vec3(0.0);
   calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
 
