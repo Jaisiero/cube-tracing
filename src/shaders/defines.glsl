@@ -57,7 +57,7 @@ const daxa_f32 MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
 const daxa_u32 MIN_NUM_OF_NEIGHBORS = 3;
 const daxa_u32 MAX_NUM_OF_NEIGHBORS = 8;
 const daxa_f32 MIN_NEIGHBORS_RADIUS = 3.0f;
-const daxa_f32 MAX_NEIGHBORS_RADIUS = 20.0f;
+const daxa_f32 MAX_NEIGHBORS_RADIUS = 25.0f;
 
 const daxa_b32 TEMPORAL_UPDATE_FOR_DYNAMIC_SCENE = true;
 const daxa_b32 NEAR_FIELD_REJECTION = true;

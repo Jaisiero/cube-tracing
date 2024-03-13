@@ -463,6 +463,8 @@ namespace tests
                 light.size = 0.f;
                 lights[light_config->light_count++] = light;
                 ++light_config->env_map_count;
+
+                return true;
             }
 
             void load_lights() {

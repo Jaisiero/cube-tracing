@@ -319,7 +319,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence, daxa_u32vec2 
   // daxa_f32 spatial_influence_threshold = max(1.0, (INFLUENCE_FROM_THE_PAST_THRESHOLD) / NUM_OF_NEIGHBORS);
 
   // Heuristically determine the radius of the spatial reuse based on distance to the camera
-  daxa_f32 spatial_heuristic_radius = mix(MAX_NEIGHBORS_RADIUS, MIN_NEIGHBORS_RADIUS, clamp(hit.distance / MAX_DISTANCE, 0.0, 1.0));
+  daxa_f32 spatial_heuristic_radius = mix(MAX_NEIGHBORS_RADIUS, MIN_NEIGHBORS_RADIUS, clamp(hit.distance / 10.f, 0.0, 1.0));
 
   // Heuristically determine the number of neighbors based on the confidence index
   daxa_u32 spatial_heuristic_num_of_neighbors = daxa_u32(mix(MAX_NUM_OF_NEIGHBORS, MIN_NUM_OF_NEIGHBORS, confidence));
