@@ -165,7 +165,7 @@ void calculate_reservoir_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, in
     daxa_f32 pdf = 1.0;
     daxa_f32 pdf_out = 1.0;
     // get weight of this reservoir
-    p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, pdf_out, seed, false, false, true);
+    p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, pdf_out, seed, false, false, false);
 
     // calculate weight of the selected lights
     reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat)): 0.0;
@@ -211,7 +211,9 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_u32 object_count, daxa_f32 confidence, 
     update_reservoir(reservoir, light_index, current_seed, w, 1.0f, seed);
   }
 
-  calculate_reservoir_p_hat_and_weight(reservoir, ray, hit, mat, light_count, p_hat);
+  daxa_f32 p_hat = 0.0;
+  daxa_f32vec3 radiance = vec3(0.0);
+  calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
 
   return reservoir;
 }
@@ -287,8 +289,8 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous, dax
 
   // NOTE: It is recommended to check the visibility function of the previous frame.
   daxa_f32 p_hat = 0.0;
-  // daxa_f32vec3 radiance = vec3(0.0);
-  // calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
+  daxa_f32vec3 radiance = vec3(0.0);
+  calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat, radiance, true);
 
   // NOTE: restrict influence from past samples.
   reservoir_previous.M = min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M, reservoir_previous.M);
