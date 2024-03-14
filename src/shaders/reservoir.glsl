@@ -81,6 +81,11 @@ void initialise_reservoir(inout RESERVOIR reservoir)
   reservoir.p_hat = 0.0;
 }
 
+daxa_b32 is_weight_invalid(daxa_f32 w)
+{
+ return w < 0.0 || isnan(w) || isinf(w);
+}
+
 daxa_b32 update_reservoir(inout RESERVOIR reservoir, daxa_u32 X, daxa_u32 random_seed, daxa_f32 w, daxa_f32 c, inout daxa_u32 seed)
 {
   reservoir.W_sum += w;
@@ -133,11 +138,11 @@ void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray, inout HIT_
     // calculate the weight of this light
     p_hat = length(radiance);
 
-    // calculate the weight of this light
-    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat))  : 0.0;
-
     // keep track of p_hat
-    reservoir.p_hat = p_hat;
+    reservoir.p_hat = is_weight_invalid(p_hat) ? 0.0 : p_hat;
+
+    // calculate the weight of this light
+    reservoir.W_y = reservoir.p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * reservoir.p_hat))  : 0.0;
   }
 }
 
@@ -148,6 +153,9 @@ void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray, inout HIT_IN
   {
     daxa_f32 pdf = 1.0;
     daxa_f32 pdf_out = 1.0;
+    
+    // keep track of p_hat
+    reservoir.p_hat = is_weight_invalid(reservoir.p_hat) ? 0.0 : reservoir.p_hat;
 
     // calculate weight of the selected lights
     reservoir.W_y = reservoir.p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * reservoir.p_hat)) : 0.0;
@@ -166,12 +174,12 @@ void calculate_reservoir_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray, in
     daxa_f32 pdf_out = 1.0;
     // get weight of this reservoir
     p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, pdf_out, seed, false, false, false);
+    
+    // keep track of p_hat
+    reservoir.p_hat = is_weight_invalid(p_hat) ? 0.0 : p_hat;
 
     // calculate weight of the selected lights
-    reservoir.W_y = p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * p_hat)): 0.0;
-
-    // keep track of p_hat
-    reservoir.p_hat = p_hat;
+    reservoir.W_y = reservoir.p_hat > 0.0 ? (reservoir.W_sum / (reservoir.M * reservoir.p_hat)): 0.0;
   }
 }
 
