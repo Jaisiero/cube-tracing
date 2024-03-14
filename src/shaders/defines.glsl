@@ -60,7 +60,7 @@ const daxa_f32 MIN_NEIGHBORS_RADIUS = 2.0f;
 const daxa_f32 MAX_NEIGHBORS_RADIUS = 25.0f;
 const daxa_f32 MIN_CLOSE_NEIGHBORS_RADIUS = 2.0f;
 const daxa_f32 MAX_CLOSE_NEIGHBORS_RADIUS = 5.0f;
-const daxa_f32 MAX_DISTANCE_TO_HIT = 100000.f;
+const daxa_f32 MAX_DISTANCE_TO_HIT = 1e2f;
 
 const daxa_b32 TEMPORAL_UPDATE_FOR_DYNAMIC_SCENE = true;
 const daxa_b32 NEAR_FIELD_REJECTION = true;

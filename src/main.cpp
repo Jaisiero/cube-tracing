@@ -36,10 +36,13 @@ namespace tests
             LIGHT_CONFIG* light_config = nullptr;
 
             daxa_u32 invocation_reorder_mode;
+            daxa_b32 activate_filtering = false;
 
             daxa::Instance daxa_ctx = {};
             daxa::Device device = {};
             daxa::Swapchain swapchain = {};
+            daxa::ImageId previous_frame = {};
+            daxa::ImageId taa_image[2] = {};
             daxa::PipelineManager pipeline_manager = {};
             std::shared_ptr<daxa::RayTracingPipeline> rt_pipeline = {};
             std::shared_ptr<daxa::ComputePipeline> compute_motion_vectors_pipeline = {};
@@ -193,6 +196,8 @@ namespace tests
                     device.destroy_buffer(proc_blas_buffer);
                     // DEBUGGING
                     // device.destroy_buffer(hit_distance_buffer);
+                    for(auto image : taa_image)
+                        device.destroy_image(image);
                 }
             }
 
@@ -1244,6 +1249,20 @@ namespace tests
                     .image_usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
                 });
 
+                taa_image[0] = device.create_image({
+                    .format = swapchain.get_format(),
+                    .size = {swapchain.get_surface_extent().x, swapchain.get_surface_extent().y, 1},
+                    .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
+                    .name = "taa_image_0",
+                });
+
+                taa_image[1] = device.create_image({
+                    .format = swapchain.get_format(),
+                    .size = {swapchain.get_surface_extent().x, swapchain.get_surface_extent().y, 1},
+                    .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
+                    .name = "taa_image_1",
+                });
+
                 light_config_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = light_config_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
@@ -1796,6 +1815,25 @@ namespace tests
                     camera_reset_moved(camera);
                     status.num_accumulated_frames = 0;
                 }
+                
+                auto swapchain_image_view = swapchain_image.default_view();
+                auto previous_swapchain_image_view = previous_frame.is_empty() ? swapchain_image_view : previous_frame.default_view();
+                auto taa_image_view = taa_image[status.frame_number % 2].default_view();
+                auto previous_taa_image_view = taa_image[(status.frame_number + 1) % 2].default_view();
+
+                daxa_b32 filter_activated = previous_swapchain_image_view != swapchain_image_view && activate_filtering;
+
+
+                if(filter_activated) {
+                    status.is_active += TAA_BIT;
+
+                    recorder.pipeline_barrier_image_transition({
+                        .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                        .src_layout = daxa::ImageLayout::UNDEFINED,
+                        .dst_layout = daxa::ImageLayout::GENERAL,
+                        .image_id = previous_frame,
+                    });
+                }
 
                 auto status_staging_buffer = device.create_buffer({
                     .size = status_buffer_size,
@@ -1828,7 +1866,6 @@ namespace tests
                     }
                 );
 
-
                 recorder.pipeline_barrier({
                     .src_access = daxa::AccessConsts::TRANSFER_WRITE,
                     .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
@@ -1841,13 +1878,14 @@ namespace tests
                     .image_id = swapchain_image,
                 });
 
-                auto swapchain_image_view = swapchain_image.default_view();
-
                 recorder.set_pipeline(*rt_pipeline);
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
                     .tlas = tlas,
                     .swapchain = swapchain_image_view,
+                    .previous_swapchain = previous_swapchain_image_view,
+                    .taa_frame = taa_image_view,
+                    .taa_prev_frame = previous_taa_image_view,
                     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
                     .status_buffer = this->device.get_device_address(status_buffer).value(),
                     .world_buffer = this->device.get_device_address(world_buffer).value(),
@@ -1897,10 +1935,12 @@ namespace tests
                     .size = {width, height},
                     .tlas = tlas,
                     .swapchain = swapchain_image_view,
+                    .previous_swapchain = previous_swapchain_image_view,
+                    .taa_frame = taa_image_view,
+                    .taa_prev_frame = previous_taa_image_view,
                     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
                     .status_buffer = this->device.get_device_address(status_buffer).value(),
                     .world_buffer = this->device.get_device_address(world_buffer).value(),
-                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .restir_buffer = this->device.get_device_address(restir_buffer).value(),
                 });
 
@@ -1920,10 +1960,12 @@ namespace tests
                     .size = {width, height},
                     .tlas = tlas,
                     .swapchain = swapchain_image_view,
+                    .previous_swapchain = previous_swapchain_image_view,
+                    .taa_frame = taa_image_view,
+                    .taa_prev_frame = previous_taa_image_view,
                     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
                     .status_buffer = this->device.get_device_address(status_buffer).value(),
                     .world_buffer = this->device.get_device_address(world_buffer).value(),
-                    // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
                     .restir_buffer = this->device.get_device_address(restir_buffer).value(),
                 });
 
@@ -1934,11 +1976,44 @@ namespace tests
                     .raygen_shader_binding_table_offset = 3,
                 });
 
+                if(filter_activated) {
 
-                recorder.pipeline_barrier({
-                    .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
-                    .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                });
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                        .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+                    });
+
+                    recorder.set_pipeline(*compute_motion_vectors_pipeline);
+
+                    recorder.push_constant(PushConstant{
+                        .size = {width, height},
+                        .tlas = tlas,
+                        .swapchain = swapchain_image_view,
+                        .previous_swapchain = previous_swapchain_image_view,
+                        .taa_frame = taa_image_view,
+                        .taa_prev_frame = previous_taa_image_view,
+                        .camera_buffer = this->device.get_device_address(cam_buffer).value(),
+                        .status_buffer = this->device.get_device_address(status_buffer).value(),
+                        .world_buffer = this->device.get_device_address(world_buffer).value(),
+                        .restir_buffer = this->device.get_device_address(restir_buffer).value(),
+                    });
+
+                    recorder.dispatch({
+                        .x = width / 8,
+                        .y = height / 8,
+                        .z = 1,
+                    });
+
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::COMPUTE_SHADER_WRITE,
+                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                    });
+                } else {
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
+                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
+                    });
+                }
 
                 recorder.copy_buffer_to_buffer({
                     .src_buffer = cam_buffer,
@@ -1982,6 +2057,7 @@ namespace tests
                 // Update/restore status
                 status.frame_number++;
                 status.num_accumulated_frames++;
+                previous_frame = swapchain_image;
             }
 
             void download_gpu_info() {
@@ -2126,7 +2202,7 @@ namespace tests
 #endif // PERFECT_PIXEL_ON
 
 
-                status.is_active = false;
+                status.is_active = 0;
                 status.pixel = {0, 0};
 
                 // /// NOTE: this must wait for the commands to finish
@@ -2211,7 +2287,7 @@ namespace tests
                         glfwGetCursorPos(glfw_window_ptr, &mouse_x, &mouse_y);
 
                         status.pixel = {static_cast<daxa_u32>(mouse_x), static_cast<daxa_u32>(mouse_y)};
-                        status.is_active = true;
+                        status.is_active += 1 << PERFECT_PIXEL_BIT;
 
                         camera_set_mouse_left_press(camera, true);
                     }
@@ -2326,8 +2402,8 @@ namespace tests
                         break;
                     case GLFW_KEY_M:
                         if(action == GLFW_PRESS) {
-                            change_random_material_primitives();
-                            camera_set_moved(camera);
+                            // change_random_material_primitives();
+                            // camera_set_moved(camera);
                         }
                         break;
                     case GLFW_KEY_LEFT_SHIFT:
@@ -2335,6 +2411,11 @@ namespace tests
                             camera_shift_pressed(camera);
                         } else if(action == GLFW_RELEASE) {
                             camera_shift_released(camera);
+                        }
+                        break;
+                    case GLFW_KEY_F:
+                        if(action == GLFW_PRESS) {
+                            activate_filtering = !activate_filtering;
                         }
                         break;
                     default:
@@ -2351,6 +2432,26 @@ namespace tests
                     swapchain.resize();
                     size_x = swapchain.get_surface_extent().x;
                     size_y = swapchain.get_surface_extent().y;
+
+                    previous_frame = daxa::ImageId{};
+
+                    for(auto image : taa_image)
+                        device.destroy_image(image);
+                    
+                    taa_image[0] = device.create_image({
+                        .format = swapchain.get_format(),
+                        .size = {size_x, size_y, 1},
+                        .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
+                        .name = "taa_image_0",
+                    });
+
+                    taa_image[1] = device.create_image({
+                        .format = swapchain.get_format(),
+                        .size = {size_x, size_y, 1},
+                        .usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
+                        .name = "taa_image_1",
+                    });
+
                     draw();
                     // compute_motion_vectors();
                     // update_status();
