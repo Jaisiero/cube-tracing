@@ -16,8 +16,12 @@ layout(location = 0) hitObjectAttributeNV vec3 hit_value;
 #include "indirect_illumination.glsl"
 
 
-Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size, daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj) {
-    const daxa_f32vec2 pixel_center = index + vec2(0.5);
+Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size, daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj, inout daxa_u32 seed, inout daxa_f32vec2 jitter) {
+
+    jitter = daxa_f32vec2(rnd_interval(seed, 0.0f, 1.0f - HLF_MIN), rnd_interval(seed, 0.0f, 1.0f - HLF_MIN));
+    // jitter = daxa_f32vec2(0.5);
+
+    const daxa_f32vec2 pixel_center = index + jitter;
     const daxa_f32vec2 inv_UV = pixel_center / rt_size;
     daxa_f32vec2 d = inv_UV * 2.0 - 1.0;
     
@@ -45,14 +49,16 @@ void main()
     // Camera setup
     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
-
-    Ray ray = get_ray_from_current_pixel(daxa_f32vec2(index), daxa_f32vec2(rt_size), inv_view, inv_proj);
     
     daxa_u32 max_depth = deref(p.status_buffer).max_depth;
     daxa_u32 frame_number = deref(p.status_buffer).frame_number;
 
     // daxa_u32 seed = tea(index.y * rt_size.x + index.x, frame_number * SAMPLES_PER_PIXEL);
     daxa_u32 seed = tea(index.y * rt_size.x + index.x, frame_number);
+
+    daxa_f32vec2 jitter;
+
+    Ray ray = get_ray_from_current_pixel(daxa_f32vec2(index), daxa_f32vec2(rt_size), inv_view, inv_proj, seed, jitter);
 
     prd.hit_value = vec3(1.0);
     prd.seed = seed;
@@ -179,7 +185,7 @@ void main()
         MATERIAL mat = get_material_from_material_index(di_info.mat_index);
             
         // X from current pixel position
-        daxa_f32vec2 Xi = daxa_f32vec2(index.xy) + 0.5;
+        daxa_f32vec2 Xi = daxa_f32vec2(index) + jitter;
 
         daxa_f32vec2 Xi_1 = Xi + velocity.velocity;
 
@@ -359,16 +365,9 @@ void main()
 {
     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
-
-    // Camera setup
-    daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
-    daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
     
     // TODO: check if we can reduce this to 1 or 2
     daxa_u32 max_depth = deref(p.status_buffer).max_depth;
-
-    // Ray setup
-    Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view, inv_proj);
 
     // screen_pos is the index of the pixel in the screen
     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
@@ -391,6 +390,9 @@ void main()
     {
         daxa_f32vec3 hit_value = vec3(0.0);
         prd.hit_value = vec3(1.0);
+        
+
+        Ray ray = Ray(di_info.ray_origin, normalize(di_info.position - di_info.ray_origin));
 
 #if(DEBUG_NORMALS_ON == 1)
         hit_value = di_info.normal * 0.5 + 0.5;

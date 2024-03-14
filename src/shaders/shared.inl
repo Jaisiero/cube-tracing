@@ -48,7 +48,7 @@
 #define HLF_MIN 1.175494351e-38F  // min value for float
 
 #define SAMPLES_PER_PIXEL 1
-#define SAMPLE_OFFSET 1e-6f // Multi sample offset
+#define SAMPLE_OFFSET 1e-3f // Multi sample offset
 #define MAX_DEPTH 3
 #define AVOID_VOXEL_COLLAIDE HLF_MIN   // minimum offset to avoid voxel collision
 #define CUBE_FACE_COUNT 6
