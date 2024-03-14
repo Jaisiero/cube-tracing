@@ -24,10 +24,10 @@ namespace tests
         {
             const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
             const char *MODEL_PATH = "assets/models/";
-            // const char *MAP_NAME = "monu5.vox";
+            const char *MAP_NAME = "monu5.vox";
             // const char *MAP_NAME = "monu6.vox";
             // const char *MAP_NAME = "monu9.vox";
-            const char *MAP_NAME = "room.vox";
+            // const char *MAP_NAME = "room.vox";
             const float day_duration = 60.0f; // Duración de un día en segundos
 
             Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
