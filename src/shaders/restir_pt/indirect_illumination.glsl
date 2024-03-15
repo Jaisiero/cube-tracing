@@ -3,6 +3,8 @@
 #define INDIRECT_ILLUMINATION_GLSL
 #include <daxa/daxa.inl>
 #include "shared.inl"
+#include "motion_vectors.glsl"
+#include "direct_light_info.glsl"
 #include "path_state.glsl"
 #include "path_tracer.glsl"
 #include "shift.glsl"

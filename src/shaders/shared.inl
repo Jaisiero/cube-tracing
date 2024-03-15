@@ -60,6 +60,9 @@
 
 #define MAX_RESERVOIRS SCREEN_SIZE_X * SCREEN_SIZE_Y
 
+#define PERFECT_PIXEL_BIT 1U << 0
+#define TAA_BIT 1U << 1
+
 struct AABB
 {
   daxa_f32vec3 minimum;
@@ -195,7 +198,7 @@ struct Status
     daxa_u32 frame_number;
     daxa_u64 num_accumulated_frames;
     daxa_u32vec2 pixel;
-    daxa_b32 is_active;
+    daxa_u32 is_active;
     daxa_u64 light_config_address;
     daxa_u32 obj_count;
     daxa_f32 time;
@@ -452,6 +455,9 @@ struct PushConstant
     daxa_u32vec2 size;
     daxa_TlasId tlas;
     daxa_ImageViewId swapchain;
+    daxa_ImageViewId previous_swapchain;
+    daxa_ImageViewId taa_frame;
+    daxa_ImageViewId taa_prev_frame;
     daxa_BufferPtr(camera_view) camera_buffer;
     daxa_BufferPtr(Status) status_buffer;
     daxa_BufferPtr(WORLD) world_buffer;
