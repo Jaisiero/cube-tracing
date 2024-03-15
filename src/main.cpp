@@ -25,9 +25,9 @@ namespace tests
             const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
             const char *MODEL_PATH = "assets/models/";
             // const char *MAP_NAME = "monu5.vox";
-            // const char *MAP_NAME = "monu6.vox";
+            const char *MAP_NAME = "monu6.vox";
             // const char *MAP_NAME = "monu9.vox";
-            const char *MAP_NAME = "room.vox";
+            // const char *MAP_NAME = "room.vox";
             const float day_duration = 60.0f; // Duración de un día en segundos
 
             Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
@@ -37,6 +37,9 @@ namespace tests
 
             daxa_u32 invocation_reorder_mode;
             daxa_b32 activate_filtering = false;
+            daxa_b32 activate_day_night_cycle = false;
+            daxa_b32 activate_midday = false;
+            daxa_b32 activate_sun_light = false;
 
             daxa::Instance daxa_ctx = {};
             daxa::Device device = {};
@@ -401,6 +404,21 @@ namespace tests
             }
 
 
+            void set_midday(bool midday_activated, LIGHT& light) {
+                if(midday_activated) {
+                    light.position = daxa_f32vec3(SUN_TOP_POSITION_X, SUN_TOP_POSITION_Y, SUN_TOP_POSITION_Z);
+                    light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY, SUN_MAX_INTENSITY, SUN_MAX_INTENSITY);
+                    status.time = 1.0;
+                    status.is_afternoon = true;
+                } else {
+                    light.position = daxa_f32vec3(SUN_TOP_POSITION_X, -SUN_TOP_POSITION_Y, SUN_TOP_POSITION_Z);
+                    light.emissive = daxa_f32vec3(0.0, 0.0, 0.0);
+                    status.time = 0.0;
+                    status.is_afternoon = false;
+                }
+            }
+
+
             bool create_point_lights() {
                 // TODO: add more lights (random values?)
 
@@ -416,20 +434,20 @@ namespace tests
 
                 LIGHT light = {}; // 0: point light, 1: directional light
                 light.position = daxa_f32vec3(SUN_TOP_POSITION_X, SUN_TOP_POSITION_Y, SUN_TOP_POSITION_Z);
-#if DYNAMIC_SUN_LIGHT == 1
-                light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2);
-#else
-#if SUN_MIDDAY == 1
+// #if DYNAMIC_SUN_LIGHT == 1
+//                 light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2, SUN_MAX_INTENSITY * 0.2);
+// #else
+// #if SUN_MIDDAY == 1
                 light.emissive = daxa_f32vec3(SUN_MAX_INTENSITY, SUN_MAX_INTENSITY, SUN_MAX_INTENSITY);
                 status.time = 1.0;
                 status.is_afternoon = true;
-#else
-                light.emissive = daxa_f32vec3(0.0, 0.0, 0.0);
-                status.time = 0.0;
-                status.is_afternoon = false;
-#endif
+// #else
+//                 light.emissive = daxa_f32vec3(0.0, 0.0, 0.0);
+//                 status.time = 0.0;
+//                 status.is_afternoon = false;
+// #endif
 
-#endif // DYNAMIC_SUN_LIGHT
+// #endif // DYNAMIC_SUN_LIGHT
                 light.type = GEOMETRY_LIGHT_POINT;
                 light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
                 lights[light_config->light_count++] = light;
@@ -491,28 +509,40 @@ namespace tests
                 std::cout << "  Num of cube lights: " << light_config->cube_light_count << std::endl;
                 std::cout << "  Num of environment map lights: " << light_config->env_map_count << std::endl;
 
-                // // Calculate light buffer size
-                // auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config->light_count);
-                // if(light_buffer_size > max_light_buffer_size) {
-                //     std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
-                //     abort();
-                // }
-
-                // // get light buffer host mapped pointer
-                // auto * light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
-
-                // // copy lights to buffer
-                // std::memcpy(light_staging_buffer_ptr,
-                //     lights.data(),
-                //     light_buffer_size);
-
 
                 status.light_config_address = device.get_device_address(light_config_buffer).value();
             }
 
-            void update_lights()
-            {
 
+
+            void add_time(float time) {
+                // Increment or decrement time
+                status.time += time * (status.is_afternoon ? 1.0 : -1.0);
+            }
+
+
+            void update_time_and_sun_light() {
+                if(activate_day_night_cycle) {
+                    update_time();
+                    if(activate_sun_light && lights) {
+                        update_sun_light();
+                    }
+                }
+            }
+
+
+            void add_time_and_sun_light(daxa_f32 time) {
+                if(!activate_day_night_cycle) {
+                    add_time(time);
+                    if(activate_sun_light && lights) {
+                        update_sun_light();
+                    }
+                }
+            }
+
+
+            void update_time() {
+                
                 if (light_config->light_count == 0 || light_config->point_light_count == 0)
                 {
                     return;
@@ -524,11 +554,6 @@ namespace tests
                     abort();
                 }
 
-                // if(light_config->light_count != lights.size()) {
-                //     std::cout << "current_light_count != lights.size()" << std::endl;
-                //     abort();
-                // }
-
                 // Speed of time progression
                 previous_time = start_time;
 
@@ -539,7 +564,11 @@ namespace tests
                 time = std::fmod(time / day_duration, 1.0f);
 
                 // Increment or decrement time
-                status.time += time * (status.is_afternoon ? 1.0 : -1.0);
+                add_time(time);
+            }
+
+            void update_sun_light()
+            {
 
                 // Check for boundaries and reverse direction if needed
                 if (status.time < 0.0 || status.time > 1.0)
@@ -551,22 +580,6 @@ namespace tests
                 lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
                 daxa_f32 intensity = interpolate_sun_intensity(status.time, status.is_afternoon, SUN_MAX_INTENSITY /*max_intensity*/, 0.0f /*min_intensity*/);
                 lights[0].emissive = daxa_f32vec3(intensity, intensity, intensity);
-
-                // Calculate light buffer size
-                auto light_buffer_size = static_cast<u32>(sizeof(LIGHT) * light_config->light_count);
-                if (light_buffer_size > max_light_buffer_size)
-                {
-                    std::cout << "light_buffer_size > max_light_buffer_size" << std::endl;
-                    abort();
-                }
-
-                // // get light buffer host mapped pointer
-                // auto *light_staging_buffer_ptr = device.get_host_address(light_buffer).value();
-
-                // // copy lights to buffer
-                // std::memcpy(light_staging_buffer_ptr,
-                //     lights.data(),
-                //     light_buffer_size);
 
              }
 
@@ -1409,16 +1422,17 @@ namespace tests
                 
                 status.time = 1.0;
                 status.is_afternoon = true;
-#if POINT_LIGHT_ON == 1                
+#if POINT_LIGHT_ON == 1     
+                activate_sun_light = true;           
                 if(!create_point_lights()) {
                     std::cout << "Failed to create point lights" << std::endl;
                     abort();
                 }
 #endif
-                if(!create_environment_light()) {
-                    std::cout << "Failed to create environment light" << std::endl;
-                    abort();
-                }
+                // if(!create_environment_light()) {
+                //     std::cout << "Failed to create environment light" << std::endl;
+                //     abort();
+                // }
 
 
 
@@ -1751,8 +1765,8 @@ namespace tests
 
                 if (!minimized)
                 {
-#if DYNAMIC_SUN_LIGHT == 1 && POINT_LIGHT_ON == 1
-                    update_lights();
+#if POINT_LIGHT_ON == 1
+                update_time_and_sun_light();
 #endif // DYNAMIC_SUN_LIGHT == 1
                     draw();
                     download_gpu_info();
@@ -2402,6 +2416,12 @@ namespace tests
                         break;
                     case GLFW_KEY_M:
                         if(action == GLFW_PRESS) {
+                            if(!activate_day_night_cycle) {
+                                activate_midday = !activate_midday;
+                                if(activate_sun_light && lights) {
+                                    set_midday(activate_midday, lights[0]);
+                                }
+                            }
                             // change_random_material_primitives();
                             // camera_set_moved(camera);
                         }
@@ -2416,6 +2436,24 @@ namespace tests
                     case GLFW_KEY_F:
                         if(action == GLFW_PRESS) {
                             activate_filtering = !activate_filtering;
+                        }
+                        break;  
+                    case GLFW_KEY_N:
+                        if(action == GLFW_PRESS) {
+                            activate_day_night_cycle = !activate_day_night_cycle;
+                            start_time = std::chrono::steady_clock::now();
+                        }
+                        break;
+                    case GLFW_KEY_V:
+                    case GLFW_KEY_KP_SUBTRACT:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            add_time_and_sun_light(-0.01f);
+                        }
+                        break;
+                    case GLFW_KEY_B:
+                    case GLFW_KEY_KP_ADD:
+                        if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+                            add_time_and_sun_light(0.01f);
                         }
                         break;
                     default:

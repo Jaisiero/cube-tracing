@@ -19,11 +19,11 @@ Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size,
                                daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj,
                                inout daxa_u32 seed, inout daxa_f32vec2 jitter) {
 
-  jitter = daxa_f32vec2(rnd_interval(seed, 0.0f, 1.0f - HLF_MIN),
-                        rnd_interval(seed, 0.0f, 1.0f - HLF_MIN));
-  // jitter = daxa_f32vec2(0.5);
+  // jitter = daxa_f32vec2(rnd_interval(seed, -0.5f + HLF_MIN, 0.5f - HLF_MIN),
+  //                       rnd_interval(seed, -0.5f + HLF_MIN, 0.5f - HLF_MIN));
+  jitter = daxa_f32vec2(0.0);
 
-  const daxa_f32vec2 pixel_center = index + jitter;
+  const daxa_f32vec2 pixel_center = index + jitter + daxa_f32vec2(0.5);
   const daxa_f32vec2 inv_UV = pixel_center / rt_size;
   daxa_f32vec2 d = inv_UV * 2.0 - 1.0;
 
@@ -180,9 +180,12 @@ void main() {
         di_info.instance_hit.instance_id);
 #endif // SER
 
+    // X from current pixel position
+    daxa_f32vec2 Xi = daxa_f32vec2(index.xy)  + 0.5f;
+
     // Previous frame screen coord
     daxa_f32vec2 motion_vector =
-        get_motion_vector(index.xy, di_info.position, rt_size.xy,
+        get_motion_vector(Xi, di_info.position, rt_size.xy,
                           di_info.instance_hit.instance_id, model);
 
     VELOCITY velocity = VELOCITY(motion_vector);
@@ -199,9 +202,6 @@ void main() {
 
     // Get material
     MATERIAL mat = get_material_from_material_index(di_info.mat_index);
-
-    // X from current pixel position
-    daxa_f32vec2 Xi = daxa_f32vec2(index) + jitter;
 
     daxa_f32vec2 Xi_1 = Xi + velocity.velocity;
 
@@ -495,6 +495,8 @@ void main() {
         SPECULAR_ROUGHNESS_THRESHOLD, REJECT_BASED_ON_JACOBIAN,
         JACOBIAN_REJECTION_THRESHOLD, USE_RUSSIAN_ROULETTE,
         COMPUTE_ENVIRONMENT_LIGHT, NEIGHBOR_COUNT, NEIGHBOR_RADIUS);
+        
+    daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
     daxa_f32vec3 camera_pos = daxa_f32vec3(inv_view[3]);
     indirect_illumination_spatial_reuse(params, index, rt_size, i, camera_pos,
                                         di_info.seed, indirect_color);
@@ -540,17 +542,21 @@ void main() {
 #endif
     imageStore(daxa_image2D(p.swapchain), index, final_pixel);
 
-#if RESTIR_ON == 1 && RESTIR_DI_ON == 1
-    // Store the reservoir
-    set_reservoir_from_previous_frame_by_index(screen_pos, spatial_reservoir);
-#endif // RESTIR_DI_ON
-
 #if RESTIR_ON == 1
     if ((deref(p.status_buffer).is_active & TAA_BIT) != 0U) {
       // Store the DI info
       imageStore(daxa_image2D(p.taa_frame), index, final_pixel);
+    } else {
+      imageStore(daxa_image2D(p.swapchain), index, final_pixel);
     }
+#else 
+    imageStore(daxa_image2D(p.swapchain), index, final_pixel);
 #endif // RESTIR_ON
+
+#if RESTIR_ON == 1 && RESTIR_DI_ON == 1
+    // Store the reservoir
+    set_reservoir_from_previous_frame_by_index(screen_pos, spatial_reservoir);
+#endif // RESTIR_DI_ON
 
     set_di_from_previous_frame(screen_pos, di_info);
   }

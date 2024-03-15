@@ -233,7 +233,7 @@ RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord,
 
     // some simple rejection based on normals' divergence, can be improved
     daxa_b32 valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 &&
-                             // di_info_previous.mat_index == hit.mat_idx; //&&
+                            //  di_info_previous.mat_index == hit.mat_idx; //&&
                              di_info_previous.instance_hit.instance_id ==
                                  hit.instance_hit.instance_id &&
                              di_info_previous.instance_hit.primitive_id ==
@@ -366,7 +366,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
     // TODO: Adjust dist threshold dynamically
     if (neighbor_mat_index != current_mat_index ||
         (dot(hit.world_nrm, neighbor_di_info.normal.xyz) < 0.906) ||
-        (abs(hit.distance - neighbor_hit_dist) > 0.05 * hit.distance)) {
+        (abs(hit.distance - neighbor_hit_dist) > 0.1 * hit.distance)) {
       // skip this neighbour sample if not suitable
       continue;
     }

@@ -59,7 +59,7 @@ daxa_f32vec2 calculate_previous_frame_screen_space(daxa_f32vec3 world_hit, daxa_
 /**
  * @brief Get the motion vector object from the current pixel position
  * 
- * @param current_pixel_coord  The current pixel position
+ * @param Xi The current pixel position in screen space
  * @param world_hit This is the world position of the hit
  * @param rt_size The size of the render frame
  * @param instance_id instance id to get the object's previous model matrix
@@ -67,10 +67,7 @@ daxa_f32vec2 calculate_previous_frame_screen_space(daxa_f32vec3 world_hit, daxa_
  * @return daxa_f32vec2 
  */
 
-daxa_f32vec2 get_motion_vector(daxa_u32vec2 current_pixel_coord, daxa_f32vec3 world_hit, daxa_u32vec2 rt_size, daxa_u32 instance_id, daxa_f32mat4x4 instance_model) {
-    // X from current pixel position
-    daxa_f32vec2 Xi = daxa_f32vec2(current_pixel_coord.xy)  + 0.5f;
-
+daxa_f32vec2 get_motion_vector(daxa_f32vec2 Xi, daxa_f32vec3 world_hit, daxa_u32vec2 rt_size, daxa_u32 instance_id, daxa_f32mat4x4 instance_model) {
     // Get the previous model matrix
     daxa_f32mat4x4 previous_model = get_geometry_previous_transform_from_instance_id(instance_id);
 
