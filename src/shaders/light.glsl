@@ -28,6 +28,10 @@ daxa_f32vec3 env_map_sampler_eval(daxa_f32vec3 dir) {
                              deref(p.status_buffer).is_afternoon, dir);
 }
 
+float luminance(daxa_f32vec3 linearRGB) {
+  return dot(daxa_f32vec3(0.2126f, 0.7152f, 0.0722f), linearRGB);
+}
+
 daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_target, daxa_b32 check_instance, const daxa_b32 previous_frame) {
   // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 

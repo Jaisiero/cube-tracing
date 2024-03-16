@@ -19,8 +19,8 @@ void initialise_reservoir(inout RESERVOIR reservoir) {
   reservoir.seed = 0;
   reservoir.W_sum = 0.0;
   reservoir.M = 0.0;
-  reservoir.Y = 0;
-  reservoir.p_hat = 0.0;
+  reservoir.Y = MAX_LIGHTS;
+  reservoir.F = daxa_f32vec3(0.0);
 }
 
 daxa_b32 is_weight_invalid(daxa_f32 w) {
@@ -28,18 +28,35 @@ daxa_b32 is_weight_invalid(daxa_f32 w) {
 }
 
 daxa_b32 update_reservoir(inout RESERVOIR reservoir, daxa_u32 X,
-                          daxa_u32 random_seed, daxa_f32 w, daxa_f32 c,
-                          inout daxa_u32 seed) {
-  reservoir.W_sum += w;
+                          daxa_u32 random_seed, daxa_f32vec3 F, daxa_f32 w,
+                          daxa_f32 c, inout daxa_u32 seed) {
   reservoir.M += c;
+
+  if (isnan(w) || w == 0.f)
+    return false;
+
+  reservoir.W_sum += w;
 
   if (rnd(seed) < (w / reservoir.W_sum)) {
     reservoir.Y = X;
     reservoir.seed = random_seed;
+    reservoir.F = F;
     return true;
   }
 
   return false;
+}
+
+
+// Performs normalization of the reservoir after streaming. Equation (6) from the ReSTIR paper.
+void reservoir_finalize_resampling(
+    inout RESERVOIR reservoir,
+    float normalizationNumerator,
+    float normalizationDenominator)
+{
+    float denominator = length(reservoir.F) * normalizationDenominator;
+
+    reservoir.W_sum = (denominator == 0.0) ? 0.0 : (reservoir.W_sum * normalizationNumerator) / denominator;
 }
 
 daxa_u32 get_reservoir_light_index(in RESERVOIR reservoir) {
@@ -52,110 +69,73 @@ daxa_b32 is_reservoir_valid(in RESERVOIR reservoir) {
   return reservoir.M > 0.0;
 }
 
-daxa_f32 calculate_phat(Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat,
-                        daxa_u32 light_count, LIGHT light, daxa_f32 pdf,
-                        out daxa_f32 pdf_out, inout daxa_u32 seed,
-                        const in daxa_b32 calc_pdf, const in daxa_b32 use_pdf,
-                        daxa_b32 use_visibility) {
-  return length(calculate_sampled_light(ray, hit, mat, light_count, light, pdf,
-                                        pdf_out, seed, calc_pdf, use_pdf,
-                                        use_visibility));
-}
-
-// Use the reservoir to calculate the final radiance.
-void calculate_reservoir_radiance(inout RESERVOIR reservoir, Ray ray,
-                                  inout HIT_INFO_INPUT hit, MATERIAL mat,
-                                  daxa_u32 light_count, inout daxa_f32 p_hat,
-                                  out daxa_f32vec3 radiance,
-                                  const in daxa_b32 use_visibility) {
-
+daxa_b32 reservoir_check_visibility(inout RESERVOIR reservoir, Ray ray,
+                                    HIT_INFO_INPUT hit, MATERIAL mat,
+                                    daxa_u32 light_count) {
   if (is_reservoir_valid(reservoir)) {
+
+    daxa_f32vec3 l_pos;
+    daxa_f32vec3 l_nor;
+    daxa_f32vec3 Le = vec3(0.0);
+    daxa_f32 G;
+    daxa_f32 l_pdf = 1.0 / light_count;
+
     LIGHT light =
         get_light_from_light_index(get_reservoir_light_index(reservoir));
-    daxa_u32 seed = get_reservoir_seed(reservoir);
-
-    daxa_f32 pdf = 1.0;
-    daxa_f32 pdf_out = 1.0;
-    // calculate the radiance of this light
-    radiance =
-        calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out,
-                                seed, false, false, use_visibility);
-
-    // calculate the weight of this light
-    p_hat = length(radiance);
-
-    // keep track of p_hat
-    reservoir.p_hat = is_weight_invalid(p_hat) ? 0.0 : p_hat;
-
-    // calculate the weight of this light
-    reservoir.W_y = reservoir.p_hat > 0.0
-                        ? (reservoir.W_sum / (reservoir.M * reservoir.p_hat))
-                        : 0.0;
+    daxa_u32 seed = reservoir.seed;
+    return sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, seed, G, false,
+                         true);
   }
+
+  return false;
 }
 
-void calculate_reservoir_weight(inout RESERVOIR reservoir, Ray ray,
-                                inout HIT_INFO_INPUT hit, MATERIAL mat,
-                                daxa_u32 light_count) {
 
+daxa_f32vec3 reservoir_get_radiance(RESERVOIR reservoir, Ray ray,
+                                    HIT_INFO_INPUT hit, MATERIAL mat,
+                                    daxa_u32 light_count) {
+  daxa_f32vec3 F = vec3(0.0);
+                                      
   if (is_reservoir_valid(reservoir)) {
-    daxa_f32 pdf = 1.0;
-    daxa_f32 pdf_out = 1.0;
+    LIGHT light = get_light_from_light_index(get_reservoir_light_index(reservoir));
 
-    // keep track of p_hat
-    reservoir.p_hat =
-        is_weight_invalid(reservoir.p_hat) ? 0.0 : reservoir.p_hat;
-
-    // calculate weight of the selected lights
-    reservoir.W_y = reservoir.p_hat > 0.0
-                        ? (reservoir.W_sum / (reservoir.M * reservoir.p_hat))
-                        : 0.0;
+    daxa_f32 pdf = 1.0 / light_count;
+    daxa_f32 current_pdf = 1.0;
+    daxa_f32vec3 F =
+        calculate_sampled_light(ray, hit, mat, light_count, light, pdf,
+                                current_pdf, reservoir.seed, false, false, true);
   }
+
+  return F;
 }
 
-void calculate_reservoir_p_hat_and_weight(inout RESERVOIR reservoir, Ray ray,
-                                          inout HIT_INFO_INPUT hit,
-                                          MATERIAL mat, daxa_u32 light_count,
-                                          inout daxa_f32 p_hat) {
+void reservoir_visibility_pass(inout RESERVOIR reservoir, Ray ray,
+                               HIT_INFO_INPUT hit, MATERIAL mat,
+                               daxa_u32 light_count) {
+  // TODO: Check visibility here
+  reservoir.W_y =
+      reservoir_check_visibility(reservoir, ray, hit, mat, light_count)
+          ? (reservoir.W_sum / (reservoir.M * luminance(reservoir.F)))
+          : 0.0;
 
-  if (is_reservoir_valid(reservoir)) {
-    LIGHT light =
-        get_light_from_light_index(get_reservoir_light_index(reservoir));
-    daxa_u32 seed = get_reservoir_seed(reservoir);
-
-    daxa_f32 pdf = 1.0;
-    daxa_f32 pdf_out = 1.0;
-    // get weight of this reservoir
-    p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, pdf_out,
-                           seed, false, false, false);
-
-    // keep track of p_hat
-    reservoir.p_hat = is_weight_invalid(p_hat) ? 0.0 : p_hat;
-
-    // calculate weight of the selected lights
-    reservoir.W_y = reservoir.p_hat > 0.0
-                        ? (reservoir.W_sum / (reservoir.M * reservoir.p_hat))
-                        : 0.0;
-  }
+  reservoir.W_sum = reservoir.W_y > 0.f ? reservoir.W_sum : 0.0;
 }
 
 void calculate_reservoir_aggregation(inout RESERVOIR reservoir,
-                                     RESERVOIR aggregation_reservoir, Ray ray,
-                                     inout HIT_INFO_INPUT hit, MATERIAL mat,
-                                     daxa_u32 light_count,
+                                     RESERVOIR aggregation_reservoir,
                                      inout daxa_u32 seed) {
 
   if (is_reservoir_valid(aggregation_reservoir)) {
-    daxa_f32 pdf = 1.0;
-    daxa_f32 pdf_out = 1.0;
 
     // add sample from previous frame
-    update_reservoir(reservoir,
-                     get_reservoir_light_index(aggregation_reservoir),
-                     get_reservoir_seed(aggregation_reservoir),
-                     aggregation_reservoir.p_hat * aggregation_reservoir.W_y *
-                         aggregation_reservoir.M,
-                     aggregation_reservoir.M, seed);
+    update_reservoir(
+        reservoir, get_reservoir_light_index(aggregation_reservoir),
+        get_reservoir_seed(aggregation_reservoir), aggregation_reservoir.F,
+        luminance(aggregation_reservoir.F) * aggregation_reservoir.W_y *
+            aggregation_reservoir.M,
+        aggregation_reservoir.M, seed);
+
+    reservoir.W_y = (reservoir.W_sum / (reservoir.M * luminance(reservoir.F)));
   }
 }
 
@@ -179,16 +159,15 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_u32 object_count, daxa_f32 confidence,
 
     daxa_f32 current_pdf = 1.0;
     daxa_u32 current_seed = seed;
-    p_hat = calculate_phat(ray, hit, mat, light_count, light, pdf, current_pdf,
-                           seed, true, false, false);
+    daxa_f32vec3 F =
+        calculate_sampled_light(ray, hit, mat, light_count, light, pdf,
+                                current_pdf, seed, true, false, false);
 
-    daxa_f32 w = p_hat / current_pdf;
-    update_reservoir(reservoir, light_index, current_seed, w, 1.0f, seed);
+    daxa_f32 w = luminance(F) / current_pdf;
+    update_reservoir(reservoir, light_index, current_seed, F, w, 1.0f, seed);
   }
 
-  daxa_f32vec3 radiance = vec3(0.0);
-  calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat,
-                               radiance, true);
+  reservoir_visibility_pass(reservoir, ray, hit, mat, light_count);
 
   return reservoir;
 }
@@ -214,11 +193,9 @@ RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord,
   daxa_u32 prev_predicted_index =
       predicted_coord.x + predicted_coord.y * rt_size.x;
 
-  // Max screen pos
-  daxa_u32 max_screen_pos = rt_size.x * rt_size.y - 1;
-
-  // Clamp screen pos for
-  prev_predicted_index = min(max_screen_pos, prev_predicted_index);
+  if(prev_predicted_index >= rt_size.x * rt_size.y) {
+    return reservoir_previous;
+  }
 
   // Temporal reuse
   {
@@ -233,7 +210,7 @@ RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord,
 
     // some simple rejection based on normals' divergence, can be improved
     daxa_b32 valid_history = dot(normal_previous, hit.world_nrm) >= 0.99 &&
-                            //  di_info_previous.mat_index == hit.mat_idx; //&&
+                             //  di_info_previous.mat_index == hit.mat_idx; //&&
                              di_info_previous.instance_hit.instance_id ==
                                  hit.instance_hit.instance_id &&
                              di_info_previous.instance_hit.primitive_id ==
@@ -249,6 +226,76 @@ RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord,
   return reservoir_previous;
 }
 
+// void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
+//                     daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray,
+//                     inout HIT_INFO_INPUT hit, MATERIAL mat,
+//                     daxa_u32 light_count, inout daxa_u32 seed) {
+
+//   const daxa_f32 prevM = reservoir_previous.M;
+//   const daxa_f32 newM = reservoir.M + prevM;
+
+//   if (reservoir.W_sum > 0.f) {
+//     float targetLumAtPrev = 0.0f;
+
+//     if (luminance(reservoir.F) > 1e-6) {
+
+//       daxa_u32 prev_predicted_index =
+//         predicted_coord.x + predicted_coord.y * rt_size.x;
+
+//       // compute target at current pixel with previous reservoir's sample
+//       DIRECT_ILLUMINATION_INFO di_info_previous =
+//           get_di_from_previous_frame(prev_predicted_index);
+
+//       HIT_INFO_INPUT prev_hit = HIT_INFO_INPUT(di_info_previous.position,
+//                                                 di_info_previous.normal,
+//                                                 di_info_previous.distance,
+//                                                 daxa_f32vec3(0.0),
+//                                                 di_info_previous.instance_hit,
+//                                                 di_info_previous.mat_index);
+
+//       prev_hit.world_hit = compute_ray_origin(prev_hit.world_hit, prev_hit.world_nrm);
+//       prev_hit.world_hit = compute_ray_origin(prev_hit.world_hit, prev_hit.world_nrm);
+      
+//       MATERIAL prev_mat = get_material_from_material_index(di_info_previous.mat_index);
+
+//       Ray prev_ray = Ray(di_info_previous.ray_origin, normalize(prev_hit.world_hit - di_info_previous.ray_origin));
+
+//       // calculate target at previous pixel with current reservoir's sample
+//       targetLumAtPrev = luminance(reservoir_get_radiance(reservoir, prev_ray, prev_hit, prev_mat,
+//                                                light_count));
+//     }
+
+//     const float p_curr = reservoir.M * luminance(reservoir.F);
+//     const float m_curr = p_curr / max(p_curr + prevM * targetLumAtPrev, 1e-6);
+//     reservoir.W_sum *= m_curr;
+//   }
+
+//   if (is_reservoir_valid(reservoir_previous)) {
+//     daxa_f32vec3 currTarget = reservoir_get_radiance(reservoir_previous, ray, hit, mat,
+//                                                      light_count);
+//     const float targetLumAtCurr = luminance(currTarget);
+
+//     // w_prev becomes zero; then only M needs to be updated, which is done at
+//     // the end anyway
+//     if (targetLumAtCurr > 1e-6) {
+//       const float w_sum_prev = reservoir_previous.W_sum;
+//       const float targetLumAtPrev = reservoir_previous.W_y > 0 ? w_sum_prev / reservoir_previous.W_y : 0;
+//       // balance heuristic
+//       const float p_prev = reservoir_previous.M * targetLumAtPrev;
+//       const float m_prev = p_prev / max(p_prev + reservoir.M * targetLumAtCurr, 1e-6);
+//       const float w_prev = m_prev * targetLumAtCurr * reservoir_previous.W_y;
+
+//       update_reservoir(reservoir, get_reservoir_light_index(reservoir_previous),
+//                        get_reservoir_seed(reservoir_previous), currTarget, w_prev,
+//                        1.f, seed);
+//     }
+//   }
+
+//   float targetLum = luminance(reservoir.F);
+//   reservoir.W_y = targetLum > 0.0 ? reservoir.W_sum / targetLum : 0.0;
+//   reservoir.M = newM;
+// }
+
 void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
                     daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray,
                     inout HIT_INFO_INPUT hit, MATERIAL mat,
@@ -258,37 +305,22 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
   initialise_reservoir(temporal_reservoir);
 
   // add current reservoir sample
-  update_reservoir(temporal_reservoir, get_reservoir_light_index(reservoir),
-                   get_reservoir_seed(reservoir),
-                   reservoir.p_hat * reservoir.W_y * reservoir.M, reservoir.M,
-                   seed);
-
-  // // TODO: re-check this
-  // daxa_f32 influence = max(1.0, mix(clamp(reservoir_previous.M / reservoir.M,
-  // 0.0, 1.0), MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD,
-  // MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD));
-
-  // NOTE: It is recommended to check the visibility function of the previous
-  // frame.
-  daxa_f32 p_hat = 0.0;
-  daxa_f32vec3 radiance = vec3(0.0);
-  calculate_reservoir_radiance(reservoir, ray, hit, mat, light_count, p_hat,
-                               radiance, true);
+  calculate_reservoir_aggregation(temporal_reservoir, reservoir, seed);
 
   // NOTE: restrict influence from past samples.
-  reservoir_previous.M =
-      min(MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M,
-          reservoir_previous.M);
 
-  // add sample from previous frame
-  calculate_reservoir_aggregation(temporal_reservoir, reservoir_previous, ray,
-                                  hit, mat, light_count, seed);
+  if(reservoir_previous.M > MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M) {
+    reservoir_previous.M = MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M;
+    reservoir_previous.W_sum = MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.W_sum / temporal_reservoir.W_sum;
+  }
 
-  // calculate the weight of this light
-  calculate_reservoir_weight(temporal_reservoir, ray, hit, mat, light_count);
+  // Check visibility
+  reservoir_visibility_pass(reservoir_previous, ray, hit, mat, light_count);
 
-  calculate_reservoir_p_hat_and_weight(temporal_reservoir, ray, hit, mat,
-                                       light_count, p_hat);
+  // // add sample from previous frame
+  calculate_reservoir_aggregation(temporal_reservoir, reservoir_previous, seed);
+
+  // reservoir_finalize_resampling(temporal_reservoir, 1.0f, temporal_reservoir.M);
 
   reservoir = temporal_reservoir;
 }
@@ -305,12 +337,11 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
   confidence = clamp(confidence, 0.0, 1.0);
 
   // add previous samples
-  calculate_reservoir_aggregation(spatial_reservoir, reservoir, ray, hit, mat,
-                                  light_count, seed);
+  calculate_reservoir_aggregation(spatial_reservoir, reservoir, seed);
 
   RESERVOIR neighbor_reservoir;
 
-  if(spatial_reservoir.W_y == 0) {
+  if (spatial_reservoir.W_y == 0) {
     confidence = 0.0;
   }
 
@@ -325,8 +356,8 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
 
   // Heuristically determine the number of neighbors based on the confidence
   // index
-  daxa_u32 spatial_heuristic_num_of_neighbors =
-      daxa_u32(mix(MIN_NUM_OF_NEIGHBORS, MAX_NUM_OF_NEIGHBORS, clamp(confidence, 0.0, 1.0)));
+  daxa_u32 spatial_heuristic_num_of_neighbors = daxa_u32(mix(
+      MIN_NUM_OF_NEIGHBORS, MAX_NUM_OF_NEIGHBORS, clamp(confidence, 0.0, 1.0)));
 
   for (daxa_u32 i = 0; i < spatial_heuristic_num_of_neighbors; i++) {
     // Random offset
@@ -342,7 +373,7 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
     offset.x = min(rt_size.x - 1, max(0, min(rt_size.x - 1, offset.x)));
     offset.y = min(rt_size.y - 1, max(0, min(rt_size.y - 1, offset.y)));
 
-    if(offset.x == predicted_coord.x && offset.y == predicted_coord.y) {
+    if (offset.x == predicted_coord.x && offset.y == predicted_coord.y) {
       continue;
     }
 
@@ -351,10 +382,6 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
 
     // Convert offset to linear
     daxa_u32 offset_u32_linear = offset_u32.y * rt_size.x + offset_u32.x;
-
-    // TODO: Should depth buffer be used?
-    // daxa_f32 neighbor_depth_linear =
-    // linearise_depth(deref(p.depth_buffer).depth[daxa_f32vec2(offset)].x);
 
     DIRECT_ILLUMINATION_INFO neighbor_di_info =
         get_di_from_current_frame(offset_u32_linear);
@@ -374,27 +401,11 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
     neighbor_reservoir =
         get_reservoir_from_intermediate_frame_by_index(offset_u32_linear);
 
-    daxa_f32 p_hat = 0.0;
-    daxa_f32vec3 radiance = vec3(0.0);
-    calculate_reservoir_radiance(neighbor_reservoir, ray, hit, mat, light_count,
-                                 p_hat, radiance, true);
+    reservoir_visibility_pass(neighbor_reservoir, ray, hit, mat, light_count);
 
-    // // Reject the neighbor reservoir when weight difference is too large
-    // if(neighbor_reservoir.W_y - spatial_reservoir.W_y > REJECTING_THRESHOLD) {
-    //   continue;
-    // }
-
-    calculate_reservoir_aggregation(spatial_reservoir, neighbor_reservoir, ray,
-                                    hit, mat, light_count, seed);
+    calculate_reservoir_aggregation(spatial_reservoir, neighbor_reservoir,
+                                    seed);
   }
-
-  calculate_reservoir_weight(spatial_reservoir, ray, hit, mat, light_count);
-
-  // Calculate p_hat
-  daxa_f32 p_hat = 0.0;
-
-  calculate_reservoir_p_hat_and_weight(spatial_reservoir, ray, hit, mat,
-                                       light_count, p_hat);
 
   reservoir = spatial_reservoir;
 }
