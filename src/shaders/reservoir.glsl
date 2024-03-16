@@ -115,10 +115,8 @@ void reservoir_visibility_pass(inout RESERVOIR reservoir, Ray ray,
   // TODO: Check visibility here
   reservoir.W_y =
       reservoir_check_visibility(reservoir, ray, hit, mat, light_count)
-          ? (reservoir.W_sum / (reservoir.M * luminance(reservoir.F)))
+          ? (reservoir.W_sum / (luminance(reservoir.F)))
           : 0.0;
-
-  reservoir.W_sum = reservoir.W_y > 0.f ? reservoir.W_sum : 0.0;
 }
 
 void calculate_reservoir_aggregation(inout RESERVOIR reservoir,
@@ -135,7 +133,7 @@ void calculate_reservoir_aggregation(inout RESERVOIR reservoir,
             aggregation_reservoir.M,
         aggregation_reservoir.M, seed);
 
-    reservoir.W_y = (reservoir.W_sum / (reservoir.M * luminance(reservoir.F)));
+    reservoir.W_y = (reservoir.W_sum / (luminance(reservoir.F)));
   }
 }
 
@@ -163,8 +161,10 @@ RESERVOIR RIS(daxa_u32 light_count, daxa_u32 object_count, daxa_f32 confidence,
         calculate_sampled_light(ray, hit, mat, light_count, light, pdf,
                                 current_pdf, seed, true, false, false);
 
-    daxa_f32 w = luminance(F) / current_pdf;
-    update_reservoir(reservoir, light_index, current_seed, F, w, 1.0f, seed);
+    daxa_f32 m_i = (1.0 / num_of_samples) * current_pdf;
+
+    daxa_f32 w_i = luminance(F) * m_i;
+    update_reservoir(reservoir, light_index, current_seed, F, w_i, 1.0f, seed);
   }
 
   reservoir_visibility_pass(reservoir, ray, hit, mat, light_count);
@@ -226,104 +226,104 @@ RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord,
   return reservoir_previous;
 }
 
-// void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
-//                     daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray,
-//                     inout HIT_INFO_INPUT hit, MATERIAL mat,
-//                     daxa_u32 light_count, inout daxa_u32 seed) {
-
-//   const daxa_f32 prevM = reservoir_previous.M;
-//   const daxa_f32 newM = reservoir.M + prevM;
-
-//   if (reservoir.W_sum > 0.f) {
-//     float targetLumAtPrev = 0.0f;
-
-//     if (luminance(reservoir.F) > 1e-6) {
-
-//       daxa_u32 prev_predicted_index =
-//         predicted_coord.x + predicted_coord.y * rt_size.x;
-
-//       // compute target at current pixel with previous reservoir's sample
-//       DIRECT_ILLUMINATION_INFO di_info_previous =
-//           get_di_from_previous_frame(prev_predicted_index);
-
-//       HIT_INFO_INPUT prev_hit = HIT_INFO_INPUT(di_info_previous.position,
-//                                                 di_info_previous.normal,
-//                                                 di_info_previous.distance,
-//                                                 daxa_f32vec3(0.0),
-//                                                 di_info_previous.instance_hit,
-//                                                 di_info_previous.mat_index);
-
-//       prev_hit.world_hit = compute_ray_origin(prev_hit.world_hit, prev_hit.world_nrm);
-//       prev_hit.world_hit = compute_ray_origin(prev_hit.world_hit, prev_hit.world_nrm);
-      
-//       MATERIAL prev_mat = get_material_from_material_index(di_info_previous.mat_index);
-
-//       Ray prev_ray = Ray(di_info_previous.ray_origin, normalize(prev_hit.world_hit - di_info_previous.ray_origin));
-
-//       // calculate target at previous pixel with current reservoir's sample
-//       targetLumAtPrev = luminance(reservoir_get_radiance(reservoir, prev_ray, prev_hit, prev_mat,
-//                                                light_count));
-//     }
-
-//     const float p_curr = reservoir.M * luminance(reservoir.F);
-//     const float m_curr = p_curr / max(p_curr + prevM * targetLumAtPrev, 1e-6);
-//     reservoir.W_sum *= m_curr;
-//   }
-
-//   if (is_reservoir_valid(reservoir_previous)) {
-//     daxa_f32vec3 currTarget = reservoir_get_radiance(reservoir_previous, ray, hit, mat,
-//                                                      light_count);
-//     const float targetLumAtCurr = luminance(currTarget);
-
-//     // w_prev becomes zero; then only M needs to be updated, which is done at
-//     // the end anyway
-//     if (targetLumAtCurr > 1e-6) {
-//       const float w_sum_prev = reservoir_previous.W_sum;
-//       const float targetLumAtPrev = reservoir_previous.W_y > 0 ? w_sum_prev / reservoir_previous.W_y : 0;
-//       // balance heuristic
-//       const float p_prev = reservoir_previous.M * targetLumAtPrev;
-//       const float m_prev = p_prev / max(p_prev + reservoir.M * targetLumAtCurr, 1e-6);
-//       const float w_prev = m_prev * targetLumAtCurr * reservoir_previous.W_y;
-
-//       update_reservoir(reservoir, get_reservoir_light_index(reservoir_previous),
-//                        get_reservoir_seed(reservoir_previous), currTarget, w_prev,
-//                        1.f, seed);
-//     }
-//   }
-
-//   float targetLum = luminance(reservoir.F);
-//   reservoir.W_y = targetLum > 0.0 ? reservoir.W_sum / targetLum : 0.0;
-//   reservoir.M = newM;
-// }
-
 void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
                     daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray,
                     inout HIT_INFO_INPUT hit, MATERIAL mat,
                     daxa_u32 light_count, inout daxa_u32 seed) {
 
-  RESERVOIR temporal_reservoir;
-  initialise_reservoir(temporal_reservoir);
+  const daxa_f32 prevM = reservoir_previous.M;
+  const daxa_f32 newM = reservoir.M + prevM;
 
-  // add current reservoir sample
-  calculate_reservoir_aggregation(temporal_reservoir, reservoir, seed);
+  if (reservoir.W_sum > 0.f) {
+    float targetLumAtPrev = 0.0f;
 
-  // NOTE: restrict influence from past samples.
+    if (luminance(reservoir.F) > 1e-6) {
 
-  if(reservoir_previous.M > MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M) {
-    reservoir_previous.M = MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M;
-    reservoir_previous.W_sum = MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.W_sum / temporal_reservoir.W_sum;
+      daxa_u32 prev_predicted_index =
+        predicted_coord.x + predicted_coord.y * rt_size.x;
+
+      // compute target at current pixel with previous reservoir's sample
+      DIRECT_ILLUMINATION_INFO di_info_previous =
+          get_di_from_previous_frame(prev_predicted_index);
+
+      HIT_INFO_INPUT prev_hit = HIT_INFO_INPUT(di_info_previous.position,
+                                                di_info_previous.normal,
+                                                di_info_previous.distance,
+                                                daxa_f32vec3(0.0),
+                                                di_info_previous.instance_hit,
+                                                di_info_previous.mat_index);
+
+      prev_hit.world_hit = compute_ray_origin(prev_hit.world_hit, prev_hit.world_nrm);
+      prev_hit.world_hit = compute_ray_origin(prev_hit.world_hit, prev_hit.world_nrm);
+      
+      MATERIAL prev_mat = get_material_from_material_index(di_info_previous.mat_index);
+
+      Ray prev_ray = Ray(di_info_previous.ray_origin, normalize(prev_hit.world_hit - di_info_previous.ray_origin));
+
+      // calculate target at previous pixel with current reservoir's sample
+      targetLumAtPrev = luminance(reservoir_get_radiance(reservoir, prev_ray, prev_hit, prev_mat,
+                                               light_count));
+    }
+
+    const float p_curr = reservoir.M * luminance(reservoir.F);
+    const float m_curr = p_curr / max(p_curr + prevM * targetLumAtPrev, 1e-6);
+    reservoir.W_sum *= m_curr;
   }
 
-  // Check visibility
-  reservoir_visibility_pass(reservoir_previous, ray, hit, mat, light_count);
+  if (is_reservoir_valid(reservoir_previous)) {
+    daxa_f32vec3 currTarget = reservoir_get_radiance(reservoir_previous, ray, hit, mat,
+                                                     light_count);
+    const float targetLumAtCurr = luminance(currTarget);
 
-  // // add sample from previous frame
-  calculate_reservoir_aggregation(temporal_reservoir, reservoir_previous, seed);
+    // w_prev becomes zero; then only M needs to be updated, which is done at
+    // the end anyway
+    if (targetLumAtCurr > 1e-6) {
+      const float w_sum_prev = reservoir_previous.W_sum;
+      const float targetLumAtPrev = reservoir_previous.W_y > 0 ? w_sum_prev / reservoir_previous.W_y : 0;
+      // balance heuristic
+      const float p_prev = reservoir_previous.M * targetLumAtPrev;
+      const float m_prev = p_prev / max(p_prev + reservoir.M * targetLumAtCurr, 1e-6);
+      const float w_prev = m_prev * targetLumAtCurr * reservoir_previous.W_y;
 
-  // reservoir_finalize_resampling(temporal_reservoir, 1.0f, temporal_reservoir.M);
+      update_reservoir(reservoir, get_reservoir_light_index(reservoir_previous),
+                       get_reservoir_seed(reservoir_previous), currTarget, w_prev,
+                       1.f, seed);
+    }
+  }
 
-  reservoir = temporal_reservoir;
+  float targetLum = luminance(reservoir.F);
+  reservoir.W_y = targetLum > 0.0 ? reservoir.W_sum / targetLum : 0.0;
+  reservoir.M = newM;
 }
+
+// void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
+//                     daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray,
+//                     inout HIT_INFO_INPUT hit, MATERIAL mat,
+//                     daxa_u32 light_count, inout daxa_u32 seed) {
+
+//   RESERVOIR temporal_reservoir;
+//   initialise_reservoir(temporal_reservoir);
+
+//   // add current reservoir sample
+//   calculate_reservoir_aggregation(temporal_reservoir, reservoir, seed);
+
+//   // NOTE: restrict influence from past samples.
+
+//   if(reservoir_previous.M > MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M) {
+//     reservoir_previous.M = MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M;
+//     reservoir_previous.W_sum = MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.W_sum / temporal_reservoir.W_sum;
+//   }
+
+//   // Check visibility
+//   reservoir_visibility_pass(reservoir_previous, ray, hit, mat, light_count);
+
+//   // // add sample from previous frame
+//   calculate_reservoir_aggregation(temporal_reservoir, reservoir_previous, seed);
+
+//   // reservoir_finalize_resampling(temporal_reservoir, 1.0f, temporal_reservoir.M);
+
+//   reservoir = temporal_reservoir;
+// }
 
 void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
                    daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray,

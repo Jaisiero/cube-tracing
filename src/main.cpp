@@ -1429,10 +1429,10 @@ namespace tests
                     abort();
                 }
 #endif
-                if(!create_environment_light()) {
-                    std::cout << "Failed to create environment light" << std::endl;
-                    abort();
-                }
+                // if(!create_environment_light()) {
+                //     std::cout << "Failed to create environment light" << std::endl;
+                //     abort();
+                // }
 
 
 

@@ -393,12 +393,6 @@ void main() {
   // Get hit info
   DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
 
-#if RESTIR_ON == 1 && RESTIR_DI_ON == 1
-  // Get sample info from reservoir
-  RESERVOIR reservoir =
-      get_reservoir_from_intermediate_frame_by_index(screen_pos);
-#endif // RESTIR_DI_ON
-
   daxa_b32 is_hit = di_info.distance > 0.0;
   // #if SER == 1
   //     reorderThreadNV(daxa_u32(hit_value), 1);
@@ -439,6 +433,10 @@ void main() {
     daxa_f32 pdf_out = 0.0;
 
 #if RESTIR_ON == 1 && RESTIR_DI_ON == 1
+  // Get sample info from reservoir
+  RESERVOIR reservoir =
+      get_reservoir_from_intermediate_frame_by_index(screen_pos);
+      
     daxa_f32 confidence = di_info.confidence;
 
     RESERVOIR spatial_reservoir = reservoir;
