@@ -436,7 +436,6 @@ void main() {
   // Get sample info from reservoir
   RESERVOIR reservoir =
       get_reservoir_from_intermediate_frame_by_index(screen_pos);
-      
     daxa_f32 confidence = di_info.confidence;
 
     RESERVOIR spatial_reservoir = reservoir;

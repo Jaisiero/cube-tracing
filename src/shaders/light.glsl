@@ -249,7 +249,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
                        out daxa_f32vec3 P_out, out daxa_f32vec3 n_out,
                        out daxa_f32vec3 Le_out, inout daxa_u32 seed,
                        out daxa_f32 G_out,
-                       const in daxa_b32 calc_pdf, daxa_b32 visibility) {
+                       const in daxa_b32 calc_pdf, const daxa_b32 visibility) {
   daxa_f32vec3 l_pos, l_nor;
 
   daxa_f32vec3 P = hit.world_hit;
@@ -354,7 +354,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
 daxa_f32vec3 calculate_sampled_light(
     Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count,
     LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, inout daxa_u32 seed, const in daxa_b32 calc_pdf,
-    const in daxa_b32 use_pdf, daxa_b32 use_visibility) {
+    const in daxa_b32 use_pdf, const daxa_b32 use_visibility) {
   //2. Get light direction
   daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
   daxa_f32vec3 wo = -normalize(ray.direction);
