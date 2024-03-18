@@ -50,10 +50,12 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 
 
 // TODO: M by parameter?
-const daxa_u32 MIN_RIS_POINT_SAMPLE_COUNT = 4;
-const daxa_u32 MAX_RIS_POINT_SAMPLE_COUNT = 32;
+const daxa_u32 MIN_RIS_POINT_SAMPLE_COUNT = 1;
+const daxa_u32 MAX_RIS_POINT_SAMPLE_COUNT = 4;
 const daxa_u32 MIN_RIS_ENV_SAMPLE_COUNT = 1;
 const daxa_u32 MAX_RIS_ENV_SAMPLE_COUNT = 4;
+const daxa_u32 MIN_RIS_CUBE_SAMPLE_COUNT = 4;
+const daxa_u32 MAX_RIS_CUBE_SAMPLE_COUNT = 32;
 const daxa_f32 MIN_INFLUENCE_FROM_THE_PAST_THRESHOLD = 10.0f;
 const daxa_f32 MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
 const daxa_u32 MIN_NUM_OF_NEIGHBORS = 3;

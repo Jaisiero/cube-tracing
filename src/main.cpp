@@ -25,9 +25,9 @@ namespace tests
             const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
             const char *MODEL_PATH = "assets/models/";
             // const char *MAP_NAME = "monu5.vox";
-            const char *MAP_NAME = "monu6.vox";
+            // const char *MAP_NAME = "monu6.vox";
             // const char *MAP_NAME = "monu9.vox";
-            // const char *MAP_NAME = "room.vox";
+            const char *MAP_NAME = "room.vox";
             const float day_duration = 60.0f; // Duración de un día en segundos
 
             Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
@@ -38,8 +38,9 @@ namespace tests
             daxa_u32 invocation_reorder_mode;
             daxa_b32 activate_filtering = false;
             daxa_b32 activate_day_night_cycle = false;
-            daxa_b32 activate_point_lights = true;
+            daxa_b32 activate_point_lights = false;
             daxa_b32 activate_env_map = false;
+            daxa_b32 activate_cube_lights = true;
             daxa_b32 activate_midday = false;
             daxa_b32 activate_sun_light = false;
 
@@ -1859,6 +1860,10 @@ namespace tests
                     status.is_active += RIS_ENV_LIGHT_BIT;
                 }
 
+                if(activate_cube_lights) {
+                    status.is_active += RIS_CUBE_LIGHT_BIT;
+                }
+
 
                 if(filter_activated) {
                     status.is_active += TAA_BIT;
@@ -2494,6 +2499,16 @@ namespace tests
                             if(env_lights) {
                                 activate_env_map = !activate_env_map;
                                 std::string env_map_msg = activate_env_map ? "Activated env map" : "Deactivated env map";
+                                std::cout << env_map_msg << std::endl;
+                            }
+                        }
+                        break;
+                    case GLFW_KEY_3:
+                    case GLFW_KEY_KP_3:
+                        if(action == GLFW_PRESS) {
+                            if(cube_lights) {
+                                activate_cube_lights = !activate_cube_lights;
+                                std::string env_map_msg = activate_cube_lights ? "Activated cube lights" : "Deactivated cube lights";
                                 std::cout << env_map_msg << std::endl;
                             }
                         }

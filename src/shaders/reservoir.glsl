@@ -150,10 +150,15 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config, daxa_u32 obje
 
   confidence = clamp(confidence, 0.0, 1.0);
 
-  daxa_b32 point_light_active = (active_features & RIS_POINT_LIGHT_BIT) == RIS_POINT_LIGHT_BIT;
-  daxa_b32 env_light_active = (active_features & RIS_ENV_LIGHT_BIT) == RIS_ENV_LIGHT_BIT;
+  daxa_b32 point_light_active =
+      (active_features & RIS_POINT_LIGHT_BIT) == RIS_POINT_LIGHT_BIT;
+  daxa_b32 env_light_active =
+      (active_features & RIS_ENV_LIGHT_BIT) == RIS_ENV_LIGHT_BIT;
+  daxa_b32 cube_geometry_active =
+      (active_features & RIS_CUBE_LIGHT_BIT) == RIS_CUBE_LIGHT_BIT;
 
-  daxa_u32 point_light_count = point_light_active ? light_config.point_light_count : 0;
+  daxa_u32 point_light_count =
+      point_light_active ? light_config.point_light_count : 0;
 
   daxa_u32 num_of_point_samples =
       max(daxa_u32(min(MAX_RIS_POINT_SAMPLE_COUNT * (1.0 - confidence),
@@ -167,7 +172,16 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config, daxa_u32 obje
                        env_light_count)),
           MIN_RIS_ENV_SAMPLE_COUNT);
 
-  daxa_u32 mis_samples = num_of_point_samples + num_of_env_samples;
+  daxa_u32 cube_light_count =
+      cube_geometry_active ? light_config.cube_light_count : 0;
+
+  daxa_u32 num_of_cube_samples =
+      max(daxa_u32(min(MAX_RIS_CUBE_SAMPLE_COUNT * (1.0 - confidence),
+                       cube_light_count)),
+          MIN_RIS_CUBE_SAMPLE_COUNT);
+
+  daxa_u32 mis_samples =
+      num_of_point_samples + num_of_env_samples + num_of_cube_samples;
 
   daxa_f32 mis_weight = 1.0 / mis_samples;
 
@@ -176,7 +190,7 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config, daxa_u32 obje
   // Point light sampling
   if(point_light_count > 0) {
 
-    daxa_f32 pdf = 1.0;
+    daxa_f32 pdf = 1.0; // / point_light_count;
 
     for (daxa_u32 l = 0; l < num_of_point_samples; l++) {
       daxa_u32 light_index =
@@ -197,8 +211,8 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config, daxa_u32 obje
                        current_seed, F, w_i, 1.0f, seed);
     }
 
-    reservoir_finalize_resampling(reservoir, 1.0, mis_samples);
-    reservoir.M = 1;
+    // reservoir_finalize_resampling(reservoir, 1.0, mis_samples);
+    // reservoir.M = 1;
   }
 
   RESERVOIR env_reservoir;
@@ -213,7 +227,7 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config, daxa_u32 obje
 
       LIGHT light = get_env_light_from_light_index(light_index);
 
-      daxa_f32 current_pdf = 1.0;
+      daxa_f32 current_pdf = 1.0; // / env_light_count;
       daxa_u32 current_seed = seed;
       daxa_f32vec3 F =
           calculate_sampled_light(ray, hit, mat, env_light_count, light, pdf,
@@ -225,13 +239,51 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config, daxa_u32 obje
       update_reservoir(env_reservoir, light_index, GEOMETRY_LIGHT_ENV_MAP,
                        current_seed, F, w_i, 1.0f, seed);
     }
-    reservoir_finalize_resampling(env_reservoir, 1.0, mis_samples);
-    env_reservoir.M = 1;
+    // reservoir_finalize_resampling(env_reservoir, 1.0, mis_samples);
+    // env_reservoir.M = 1;
+    // reservoir_visibility_pass(env_reservoir, ray, hit, mat);
 
     update_reservoir(reservoir, get_reservoir_light_index(env_reservoir),
                     get_reservoir_type(env_reservoir),
                     get_reservoir_seed(env_reservoir), env_reservoir.F,
-                    env_reservoir.W_sum, 1.0f, seed);
+                    env_reservoir.W_sum, env_reservoir.M, seed);
+  }
+  // reservoir_finalize_resampling(reservoir, 1.0, mis_samples);
+  // reservoir.M = 1;
+
+  RESERVOIR cube_reservoir;
+  initialise_reservoir(cube_reservoir);
+  // Env light sampling
+  if(num_of_cube_samples > 0) {
+    daxa_f32 pdf = 1.0;
+
+    for (daxa_u32 l = 0; l < num_of_cube_samples; l++) {
+      daxa_u32 light_index =
+          min(urnd_interval(seed, 0, cube_light_count), cube_light_count - 1);
+
+      LIGHT light = get_cube_light_from_light_index(light_index);
+
+      daxa_f32 current_pdf = 1.0; // / cube_light_count;
+      daxa_u32 current_seed = seed;
+      daxa_f32vec3 F =
+          calculate_sampled_light(ray, hit, mat, cube_light_count, light, pdf,
+                                  current_pdf, seed, true, false, false);
+
+      daxa_f32 m_i = (1.0 / max(num_of_cube_samples * current_pdf, 1e-6));
+
+      daxa_f32 w_i = luminance(F) * m_i;
+      update_reservoir(cube_reservoir, light_index, GEOMETRY_LIGHT_CUBE,
+                       current_seed, F, w_i, 1.0f, seed);
+    }
+    // reservoir_finalize_resampling(cube_reservoir, 1.0, mis_samples);
+    // cube_reservoir.M = 1;
+
+    // reservoir_visibility_pass(cube_reservoir, ray, hit, mat);
+
+    update_reservoir(reservoir, get_reservoir_light_index(cube_reservoir),
+                    get_reservoir_type(cube_reservoir),
+                    get_reservoir_seed(cube_reservoir), cube_reservoir.F,
+                    cube_reservoir.W_sum, cube_reservoir.M, seed);
   }
 
   // TODO: MIS weights for emissive geometry

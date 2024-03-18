@@ -423,6 +423,7 @@ daxa_f32vec3 calculate_sampled_light(
     daxa_f32vec3 wi = normalize(l_pos - hit.world_hit);
     daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wo, wi);
     // daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
+    hit.scatter_dir = wi;
 
     if (use_pdf) {
       result = brdf * Le * G / pdf_out;
