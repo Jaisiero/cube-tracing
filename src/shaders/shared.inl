@@ -63,7 +63,9 @@
 #define MAX_RESERVOIRS SCREEN_SIZE_X * SCREEN_SIZE_Y
 
 #define PERFECT_PIXEL_BIT 1U << 0
-#define TAA_BIT 1U << 1
+#define TAA_BIT 1U << 0
+#define RIS_POINT_LIGHT_BIT 1U << 1
+#define RIS_ENV_LIGHT_BIT 1U << 2
 
 struct AABB
 {

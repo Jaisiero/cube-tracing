@@ -47,6 +47,8 @@ void main() {
   const daxa_i32vec2 index = daxa_i32vec2(gl_LaunchIDEXT.xy);
   const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
 
+  daxa_u32 active_features = deref(p.status_buffer).is_active;
+
   // Camera setup
   daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
   daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
@@ -167,7 +169,7 @@ void main() {
 #endif // INDIRECT_ILLUMINATION_ON
 
 #if RESTIR_ON == 1
-    if ((deref(p.status_buffer).is_active & TAA_BIT) != 0U) {
+    if ((active_features & TAA_BIT) == TAA_BIT) {
       // Store the DI info
       imageStore(daxa_image2D(p.taa_frame), index,
                  daxa_f32vec4(prd.hit_value, 1.0));
@@ -224,7 +226,7 @@ void main() {
     // the reservoir predicted should be 0.01 (1%) if M == 0 then 1.0 (100%).
     // Interpolated between those values daxa_f32 predicted =
     // clamp((reservoir_previous.M) / (MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD *
-    // daxa_f32(MAX_RIS_SAMPLE_COUNT)), 0.0, 1.0);
+    // daxa_f32(MAX_RIS_POINT_SAMPLE_COUNT)), 0.0, 1.0);
     daxa_f32 predicted =
         clamp((reservoir_previous.M) / (MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD),
               0.0, 1.0);
@@ -243,7 +245,7 @@ void main() {
       INTERSECT i;
 
       RESERVOIR reservoir =
-          FIRST_GATHER(light_config, object_count, screen_pos, confidence, ray,
+          FIRST_GATHER(active_features, light_config, object_count, screen_pos, confidence, ray,
                        hit, mat, p_hat, di_info.seed, i);
 
 #if (RESTIR_DI_TEMPORAL_ON == 1)
@@ -386,6 +388,9 @@ void main() {
 
   // screen_pos is the index of the pixel in the screen
   daxa_u32 screen_pos = index.y * rt_size.x + index.x;
+
+  // Get feature flags
+  daxa_u32 active_features = deref(p.status_buffer).is_active;
 
   // Get hit info
   DIRECT_ILLUMINATION_INFO di_info = get_di_from_current_frame(screen_pos);
@@ -533,7 +538,7 @@ void main() {
     imageStore(daxa_image2D(p.swapchain), index, final_pixel);
 
 #if RESTIR_ON == 1
-    if ((deref(p.status_buffer).is_active & TAA_BIT) != 0U) {
+    if ((active_features & TAA_BIT) != 0U) {
       // Store the DI info
       imageStore(daxa_image2D(p.taa_frame), index, final_pixel);
     } else {

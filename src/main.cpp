@@ -38,6 +38,8 @@ namespace tests
             daxa_u32 invocation_reorder_mode;
             daxa_b32 activate_filtering = false;
             daxa_b32 activate_day_night_cycle = false;
+            daxa_b32 activate_point_lights = true;
+            daxa_b32 activate_env_map = false;
             daxa_b32 activate_midday = false;
             daxa_b32 activate_sun_light = false;
 
@@ -495,11 +497,11 @@ namespace tests
                 
                 light_config->light_count = light_config->point_light_count + light_config->cube_light_count + light_config->sphere_light_count + light_config->analytic_light_count + light_config->env_map_count;
 
-                light_config->point_light_pdf =  light_config->point_light_count == 0 ? 0.f : 1.0f / (light_config->point_light_count / light_config->light_count);
-                light_config->cube_light_pdf = light_config->cube_light_count == 0 ? 0.f : 1.0f / (light_config->cube_light_count / light_config->light_count);
-                light_config->sphere_light_pdf = light_config->sphere_light_count == 0 ? 0.f : 1.0f / (light_config->sphere_light_count / light_config->light_count);
-                light_config->analytic_light_pdf = light_config->analytic_light_count == 0 ? 0.f : 1.0f / (light_config->analytic_light_count / light_config->light_count);
-                light_config->env_map_pdf = light_config->env_map_count == 0 ? 0.f : 1.0f / (light_config->env_map_count / light_config->light_count);
+                light_config->point_light_pdf =  light_config->point_light_count == 0 ? 0.f : (light_config->point_light_count / light_config->light_count);
+                light_config->cube_light_pdf = light_config->cube_light_count == 0 ? 0.f : (light_config->cube_light_count / light_config->light_count);
+                light_config->sphere_light_pdf = light_config->sphere_light_count == 0 ? 0.f : (light_config->sphere_light_count / light_config->light_count);
+                light_config->analytic_light_pdf = light_config->analytic_light_count == 0 ? 0.f : (light_config->analytic_light_count / light_config->light_count);
+                light_config->env_map_pdf = light_config->env_map_count == 0 ? 0.f : (light_config->env_map_count / light_config->light_count);
                 
                 std::cout << "Num of lights: " << light_config->light_count << std::endl;
                 std::cout << "  Num of point lights: " << light_config->point_light_count << std::endl;
@@ -1442,10 +1444,10 @@ namespace tests
                     abort();
                 }
 #endif
-                // if(!create_environment_light()) {
-                //     std::cout << "Failed to create environment light" << std::endl;
-                //     abort();
-                // }
+                if(!create_environment_light()) {
+                    std::cout << "Failed to create environment light" << std::endl;
+                    abort();
+                }
 
 
 
@@ -1848,6 +1850,14 @@ namespace tests
                 auto previous_taa_image_view = taa_image[(status.frame_number + 1) % 2].default_view();
 
                 daxa_b32 filter_activated = previous_swapchain_image_view != swapchain_image_view && activate_filtering;
+
+                if(activate_point_lights) {
+                    status.is_active += RIS_POINT_LIGHT_BIT;
+                }
+
+                if(activate_env_map) {
+                    status.is_active += RIS_ENV_LIGHT_BIT;
+                }
 
 
                 if(filter_activated) {
@@ -2466,6 +2476,26 @@ namespace tests
                     case GLFW_KEY_KP_ADD:
                         if(action == GLFW_PRESS || action == GLFW_REPEAT) {
                             add_time_and_sun_light(0.01f);
+                        }
+                        break;
+                    case GLFW_KEY_1:
+                    case GLFW_KEY_KP_1:
+                        if(action == GLFW_PRESS) {
+                            if(point_lights) {
+                                activate_point_lights = !activate_point_lights;
+                                std::string point_light_msg = activate_point_lights ? "Activated point lights" : "Deactivated point lights";
+                                std::cout << point_light_msg << std::endl;
+                            }
+                        }
+                        break;
+                    case GLFW_KEY_2:
+                    case GLFW_KEY_KP_2:
+                        if(action == GLFW_PRESS) {
+                            if(env_lights) {
+                                activate_env_map = !activate_env_map;
+                                std::string env_map_msg = activate_env_map ? "Activated env map" : "Deactivated env map";
+                                std::cout << env_map_msg << std::endl;
+                            }
                         }
                         break;
                     default:
