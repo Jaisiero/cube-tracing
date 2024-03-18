@@ -194,11 +194,8 @@ void main() {
     // Get light configuration
     LIGHT_CONFIG light_config = get_light_config_from_light_index();
 
-    daxa_u32 light_count = light_config.light_count;
     // OBJECTS
     daxa_u32 object_count = deref(p.status_buffer).obj_count;
-
-    daxa_f32 pdf = 1.0 / daxa_f32(light_count);
 
     // Get material
     MATERIAL mat = get_material_from_material_index(di_info.mat_index);
@@ -246,13 +243,13 @@ void main() {
       INTERSECT i;
 
       RESERVOIR reservoir =
-          FIRST_GATHER(light_count, object_count, screen_pos, confidence, ray,
+          FIRST_GATHER(light_config, object_count, screen_pos, confidence, ray,
                        hit, mat, p_hat, di_info.seed, i);
 
 #if (RESTIR_DI_TEMPORAL_ON == 1)
       if (reservoir_previous.W_y > 0.0) {
         TEMPORAL_REUSE(reservoir, reservoir_previous, predicted_coord, rt_size,
-                       ray, hit, mat, light_count, di_info.seed);
+                       ray, hit, mat, light_config.point_light_count, di_info.seed);
       }
 
 #endif // RESTIR_DI_TEMPORAL_ON
@@ -348,7 +345,7 @@ void main() {
   //         RESERVOIR reservoir =
   //         get_reservoir_from_intermediate_frame_by_index(screen_pos);
 
-  //         daxa_u32 light_count = deref(p.status_buffer).light_count;
+  //         daxa_u32 light_count = deref(p.status_buffer).point_light_count;
 
   //         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
 
@@ -414,7 +411,7 @@ void main() {
     LIGHT_CONFIG light_config = get_light_config_from_light_index();
 
     // Get light count
-    daxa_u32 light_count = light_config.light_count;
+    daxa_u32 light_count = light_config.point_light_count;
     // OBJECTS
     daxa_u32 object_count = deref(p.status_buffer).obj_count;
 
@@ -461,7 +458,7 @@ void main() {
     daxa_u32 light_index =
         min(urnd_interval(di_info.seed, 0, light_count), light_count - 1);
     // Get light
-    LIGHT light = get_light_from_light_index(light_index);
+    LIGHT light = get_point_light_from_light_index(light_index);
     // Calculate radiance
     radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf,
                                        pdf_out, di_info.seed, true, true, true);

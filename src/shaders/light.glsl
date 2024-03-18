@@ -9,11 +9,24 @@
 #include "defines.glsl"
 #include "mat.glsl"
 
-LIGHT get_light_from_light_index(daxa_u32 light_index) {
-  LIGHT_BUFFER light_buffer =
-      LIGHT_BUFFER(deref(p.world_buffer).light_address);
-  return light_buffer.lights[light_index];
+LIGHT get_point_light_from_light_index(daxa_u32 light_index) {
+  POINT_LIGHT_BUFFER light_buffer =
+      POINT_LIGHT_BUFFER(deref(p.world_buffer).point_light_address);
+  return light_buffer.point_lights[light_index];
 }
+
+LIGHT get_env_light_from_light_index(daxa_u32 light_index) {
+  ENV_LIGHT_BUFFER light_buffer =
+      ENV_LIGHT_BUFFER(deref(p.world_buffer).env_light_address);
+  return light_buffer.env_lights[light_index];
+}
+
+LIGHT get_cube_light_from_light_index(daxa_u32 light_index) {
+  CUBE_LIGHT_BUFFER light_buffer =
+      CUBE_LIGHT_BUFFER(deref(p.world_buffer).cube_light_address);
+  return light_buffer.cube_lights[light_index];
+}
+
 
 LIGHT_CONFIG get_light_config_from_light_index() {
   LIGHT_CONFIG_BUFFER light_config_buffer =

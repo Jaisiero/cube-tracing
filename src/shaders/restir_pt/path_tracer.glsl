@@ -229,7 +229,7 @@ daxa_b32 path_generate_light_sample(const SCENE_PARAMS params, INTERSECT i,
 
   daxa_u32 light_index =
       min(urnd_interval(seed, 0, params.light_count), params.light_count - 1);
-  LIGHT light = get_light_from_light_index(light_index);
+  LIGHT light = get_point_light_from_light_index(light_index);
 
   ls.type = light.type;
 

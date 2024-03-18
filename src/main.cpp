@@ -97,8 +97,10 @@ namespace tests
             daxa::BufferId material_buffer = {};
             size_t max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
 
-            daxa::BufferId light_buffer = {};
-            size_t max_light_buffer_size = sizeof(LIGHT) * MAX_LIGHTS;
+            daxa::BufferId point_light_buffer = {}, cube_light_buffer = {}, env_light_buffer = {};
+            size_t max_point_light_buffer_size = sizeof(LIGHT) * MAX_POINT_LIGHTS;
+            size_t max_cube_light_buffer_size = sizeof(LIGHT) * MAX_CUBE_LIGHTS;
+            size_t max_env_light_buffer_size = sizeof(LIGHT) * MAX_ENV_LIGHTS;
 
             // daxa::BufferId status_output_buffer = {};
             // size_t max_status_output_buffer_size = sizeof(STATUS_OUTPUT);
@@ -150,7 +152,9 @@ namespace tests
             std::unique_ptr<MATERIAL[]> materials = {};
 
             // lights data from mapped buffer
-            LIGHT* lights = nullptr;
+            LIGHT* point_lights = nullptr;
+            LIGHT* cube_lights = nullptr;
+            LIGHT* env_lights = nullptr;
 
             std::vector<daxa_f32mat4x4> transforms = {};
 
@@ -180,7 +184,9 @@ namespace tests
                     //     device.destroy_image(image);
                     // for(auto sampler : samplers)
                     //     device.destroy_sampler(sampler);
-                    device.destroy_buffer(light_buffer);
+                    device.destroy_buffer(point_light_buffer);
+                    device.destroy_buffer(cube_light_buffer);
+                    device.destroy_buffer(env_light_buffer);
                     device.destroy_buffer(status_buffer);
                     // device.destroy_buffer(status_output_buffer);
                     device.destroy_buffer(previous_reservoir_buffer);
@@ -422,12 +428,12 @@ namespace tests
             bool create_point_lights() {
                 // TODO: add more lights (random values?)
 
-                if(!lights) {
+                if(!point_lights) {
                     std::cout << "lights is nullptr" << std::endl;
                     return false;
                 }
 
-                if(!check_light_count(MAX_LIGHTS, light_config->light_count)) {
+                if(!check_light_count(MAX_POINT_LIGHTS, light_config->point_light_count)) {
                     std::cout << "light_config->light_count > MAX_LIGHTS" << std::endl;
                     return false;
                 }
@@ -450,29 +456,26 @@ namespace tests
 // #endif // DYNAMIC_SUN_LIGHT
                 light.type = GEOMETRY_LIGHT_POINT;
                 light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
-                lights[light_config->light_count++] = light;
-                ++light_config->point_light_count;
+                point_lights[light_config->point_light_count++] = light;
 
                 // LIGHT light2 = {};
                 // light2.position = daxa_f32vec3( -AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.5f, 1.0, 0.0001);
                 // light2.emissive = daxa_f32vec3(3.0, 3.0, 3.0);
                 // light2.type = GEOMETRY_LIGHT_POINT;
-                // lights.push_back(light2);
-                // ++light_config->point_light_count;
+                // point_lights[light_config->point_light_count++] = light2;
 
                 // LIGHT light3 = {};
                 // light3.position = daxa_f32vec3(AXIS_DISPLACEMENT * INSTANCE_X_AXIS_COUNT * 1.0f, 1.0, 0.0001);
                 // light3.emissive = daxa_f32vec3(4.0, 4.0, 4.0);
                 // light3.type = GEOMETRY_LIGHT_POINT;
-                // lights.push_back(light3);
-                // ++light_config->point_light_count;
+                // point_lights[light_config->point_light_count++] = light3;
 
                 return true;
             }
 
 
             bool create_environment_light() {
-                if(!check_light_count(MAX_LIGHTS, light_config->light_count)) {
+                if(!check_light_count(MAX_ENV_LIGHTS, light_config->env_map_count)) {
                     std::cout << "light_config->light_count > MAX_LIGHTS" << std::endl;
                     return false;
                 }
@@ -483,26 +486,20 @@ namespace tests
                 light.position = daxa_f32vec3(0.0, 0.0, 0.0);
                 light.emissive = daxa_f32vec3(5.0, 5.0, 5.0);
                 light.size = 0.f;
-                lights[light_config->light_count++] = light;
-                ++light_config->env_map_count;
+                env_lights[light_config->env_map_count++] = light;
 
                 return true;
             }
 
             void load_lights() {
                 
-                // light_config->light_count = light_config->point_light_count + light_config->cube_light_count + light_config->sphere_light_count + light_config->analytic_light_count + light_config->env_map_count;
+                light_config->light_count = light_config->point_light_count + light_config->cube_light_count + light_config->sphere_light_count + light_config->analytic_light_count + light_config->env_map_count;
 
                 light_config->point_light_pdf =  light_config->point_light_count == 0 ? 0.f : 1.0f / (light_config->point_light_count / light_config->light_count);
                 light_config->cube_light_pdf = light_config->cube_light_count == 0 ? 0.f : 1.0f / (light_config->cube_light_count / light_config->light_count);
                 light_config->sphere_light_pdf = light_config->sphere_light_count == 0 ? 0.f : 1.0f / (light_config->sphere_light_count / light_config->light_count);
                 light_config->analytic_light_pdf = light_config->analytic_light_count == 0 ? 0.f : 1.0f / (light_config->analytic_light_count / light_config->light_count);
                 light_config->env_map_pdf = light_config->env_map_count == 0 ? 0.f : 1.0f / (light_config->env_map_count / light_config->light_count);
-
-                if(light_config->light_count > MAX_LIGHTS) {
-                    std::cout << "light_config->light_count > MAX_LIGHTS" << std::endl;
-                    abort();
-                }
                 
                 std::cout << "Num of lights: " << light_config->light_count << std::endl;
                 std::cout << "  Num of point lights: " << light_config->point_light_count << std::endl;
@@ -524,7 +521,7 @@ namespace tests
             void update_time_and_sun_light() {
                 if(activate_day_night_cycle) {
                     update_time();
-                    if(activate_sun_light && lights) {
+                    if(activate_sun_light && point_lights) {
                         update_sun_light();
                     }
                 }
@@ -534,7 +531,7 @@ namespace tests
             void add_time_and_sun_light(daxa_f32 time) {
                 if(!activate_day_night_cycle) {
                     add_time(time);
-                    if(activate_sun_light && lights) {
+                    if(activate_sun_light && point_lights) {
                         update_sun_light();
                     }
                 }
@@ -548,7 +545,7 @@ namespace tests
                     return;
                 }
 
-                if (light_config->point_light_count > MAX_LIGHTS)
+                if (light_config->point_light_count > MAX_POINT_LIGHTS)
                 {
                     std::cout << "current_light_count > MAX_LIGHTS" << std::endl;
                     abort();
@@ -577,9 +574,9 @@ namespace tests
                     status.time = std::clamp(status.time, 0.0f, 1.0f);
                 }
 
-                lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
+                point_lights[0].position = interpolate_sun_light(status.time, status.is_afternoon);
                 daxa_f32 intensity = interpolate_sun_intensity(status.time, status.is_afternoon, SUN_MAX_INTENSITY /*max_intensity*/, 0.0f /*min_intensity*/);
-                lights[0].emissive = daxa_f32vec3(intensity, intensity, intensity);
+                point_lights[0].emissive = daxa_f32vec3(intensity, intensity, intensity);
 
              }
 
@@ -677,7 +674,7 @@ namespace tests
                             surface_light.type = GEOMETRY_LIGHT_CUBE;
                             // TODO: this will be based on voxel size
                             surface_light.size = VOXEL_EXTENT;
-                            lights[light_config->light_count++] = surface_light;
+                            cube_lights[light_config->cube_light_count++] = surface_light;
                             light_config->cube_light_count++;
                         }
 
@@ -1005,7 +1002,9 @@ namespace tests
                 world.primitive_address = device.get_device_address(primitive_buffer).value();
                 world.aabb_address = device.get_device_address(aabb_buffer).value();
                 world.material_address = device.get_device_address(material_buffer).value();
-                world.light_address = device.get_device_address(light_buffer).value();
+                world.point_light_address = device.get_device_address(point_light_buffer).value();
+                world.cube_light_address = device.get_device_address(cube_light_buffer).value();
+                world.env_light_address = device.get_device_address(env_light_buffer).value();
 
                 // copy world to buffer
                 std::memcpy(world_buffer_ptr,
@@ -1326,10 +1325,22 @@ namespace tests
                     .name = ("material_buffer"),
                 });
 
-                light_buffer = device.create_buffer(daxa::BufferInfo{
-                    .size = max_light_buffer_size,
+                point_light_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_point_light_buffer_size,
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = ("light_buffer"),
+                });
+
+                cube_light_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_cube_light_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("cube_light_buffer"),
+                });
+
+                env_light_buffer = device.create_buffer(daxa::BufferInfo{
+                    .size = max_env_light_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("env_light_buffer"),
                 });
 
                 // status_output_buffer = device.create_buffer(daxa::BufferInfo{
@@ -1418,7 +1429,9 @@ namespace tests
 
                 light_config->light_count = light_config->point_light_count = light_config->cube_light_count = light_config->env_map_count = 0;
 
-                lights = device.get_host_address_as<LIGHT>(light_buffer).value();
+                point_lights = device.get_host_address_as<LIGHT>(point_light_buffer).value();
+                cube_lights = device.get_host_address_as<LIGHT>(cube_light_buffer).value();
+                env_lights = device.get_host_address_as<LIGHT>(env_light_buffer).value();
                 
                 status.time = 1.0;
                 status.is_afternoon = true;
@@ -1452,8 +1465,8 @@ namespace tests
                     .aabbs = device.get_host_address_as<AABB>(aabb_host_buffer).value(),
                     .max_material_count = MAX_MATERIALS,
                     .materials = materials.get(),
-                    .max_light_count = MAX_LIGHTS - light_config->light_count,
-                    .lights = &lights[light_config->light_count],
+                    .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
+                    .lights = &cube_lights[light_config->cube_light_count],
                 };
 
                 // load map
@@ -1468,7 +1481,6 @@ namespace tests
                 current_aabb_host_count += gvox_map.primitive_count;
                 current_instance_count += gvox_map.instance_count;
                 light_config->cube_light_count += gvox_map.light_count;
-                light_config->light_count += gvox_map.light_count;
 
                 if(current_aabb_host_count > 0) {
                     size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
@@ -2418,8 +2430,8 @@ namespace tests
                         if(action == GLFW_PRESS) {
                             if(!activate_day_night_cycle) {
                                 activate_midday = !activate_midday;
-                                if(activate_sun_light && lights) {
-                                    set_midday(activate_midday, lights[0]);
+                                if(activate_sun_light && point_lights) {
+                                    set_midday(activate_midday, point_lights[0]);
                                 }
                             }
                             // change_random_material_primitives();

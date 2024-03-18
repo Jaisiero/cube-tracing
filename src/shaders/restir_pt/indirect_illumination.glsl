@@ -491,7 +491,7 @@ void indirect_illumination_path_tracing(
       daxa_u32 light_index =
           min(urnd_interval(seed, 0, light_count), light_count - 1);
 
-      LIGHT light = get_light_from_light_index(light_index);
+      LIGHT light = get_point_light_from_light_index(light_index);
 
       daxa_f32 pdf_out = 1.0;
 

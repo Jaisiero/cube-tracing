@@ -131,7 +131,9 @@ layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[MAX
 layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[MAX_PRIMITIVES]; }; // Primitive data
 layout(buffer_reference, scalar) buffer AABB_BUFFER {AABB aabbs[MAX_PRIMITIVES]; }; // Positions of a primitive
 layout(buffer_reference, scalar) buffer MATERIAL_BUFFER {MATERIAL materials[MAX_MATERIALS]; }; // Materials
-layout(buffer_reference, scalar) buffer LIGHT_BUFFER {LIGHT lights[MAX_LIGHTS]; }; // Lights
+layout(buffer_reference, scalar) buffer POINT_LIGHT_BUFFER {LIGHT point_lights[MAX_POINT_LIGHTS]; }; // Lights
+layout(buffer_reference, scalar) buffer ENV_LIGHT_BUFFER {LIGHT env_lights[MAX_ENV_LIGHTS]; }; // Environment lights
+layout(buffer_reference, scalar) buffer CUBE_LIGHT_BUFFER {LIGHT cube_lights[MAX_CUBE_LIGHTS]; }; // Cube lights
 layout(buffer_reference, scalar) buffer LIGHT_CONFIG_BUFFER {LIGHT_CONFIG light_config; }; // Lights
 
 layout(buffer_reference, scalar) buffer PREV_RESERVOIR_BUFFER {RESERVOIR reservoirs[MAX_RESERVOIRS]; }; // Reservoirs from the previous frame

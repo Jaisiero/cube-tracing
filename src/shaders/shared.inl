@@ -12,7 +12,9 @@
 #define MAX_INSTANCES 983040U
 #define MAX_PRIMITIVES 134217728U
 #define MAX_MATERIALS 10000U
-#define MAX_LIGHTS 10000U
+#define MAX_POINT_LIGHTS 1U
+#define MAX_ENV_LIGHTS 1U
+#define MAX_CUBE_LIGHTS 10000U
 #define MAX_TEXTURES 100ULL
 
 #define PERFECT_PIXEL_ON 0
@@ -221,7 +223,9 @@ struct WORLD
     daxa_u64 primitive_address;
     daxa_u64 aabb_address;
     daxa_u64 material_address;
-    daxa_u64 light_address;
+    daxa_u64 point_light_address;
+    daxa_u64 cube_light_address;
+    daxa_u64 env_light_address;
 };
 DAXA_DECL_BUFFER_PTR(WORLD)
 

@@ -119,14 +119,14 @@ void main()
     LIGHT_CONFIG light_config = get_light_config_from_light_index();
 
     // LIGHTS
-    daxa_u32 light_count = light_config.light_count;
+    daxa_u32 light_count = light_config.point_light_count;
 
     // // OBJECTS
     // daxa_u32 object_count = deref(p.status_buffer).obj_count;
 
     daxa_u32 light_index = min(urnd_interval(prd.seed, 0, light_count), light_count - 1);
 
-    LIGHT light = get_light_from_light_index(light_index);
+    LIGHT light = get_point_light_from_light_index(light_index);
 
     daxa_f32 pdf = 1.0 / light_count;
     daxa_f32 pdf_out = 1.0;
