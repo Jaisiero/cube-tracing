@@ -34,6 +34,40 @@ LIGHT_CONFIG get_light_config_from_light_index() {
   return light_config_buffer.light_config;
 }
 
+
+
+
+LIGHT light_get_empty() {
+  LIGHT light;
+  light.type = GEOMETRY_LIGHT_NONE;
+  return light;
+}
+
+
+LIGHT light_get_by_type(daxa_u32 light_type, daxa_u32 light_index) {
+  LIGHT light;
+  switch (light_type) {
+  case GEOMETRY_LIGHT_POINT:
+    light = get_point_light_from_light_index(light_index);
+    break;
+  case GEOMETRY_LIGHT_ENV_MAP:
+    light = get_env_light_from_light_index(light_index);
+    break;
+  case GEOMETRY_LIGHT_CUBE:
+    light = get_cube_light_from_light_index(light_index);
+    break;
+  default:
+    light = light_get_empty();
+    break;
+  }
+  return light;
+}
+
+daxa_b32 is_light_valid(LIGHT light) { return light.type != GEOMETRY_LIGHT_NONE; }
+
+
+
+
 daxa_f32 env_map_sampler_eval_pdf(daxa_f32vec3 dir) { return INV_DAXA_4PI; }
 
 daxa_f32vec3 env_map_sampler_eval(daxa_f32vec3 dir) {

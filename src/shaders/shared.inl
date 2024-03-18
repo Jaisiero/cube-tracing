@@ -281,11 +281,12 @@ struct INTERSECT {
 };
 
 
-#define GEOMETRY_LIGHT_POINT 0
-#define GEOMETRY_LIGHT_CUBE 1
-#define GEOMETRY_LIGHT_SPEHERE 2
-#define GEOMETRY_LIGHT_ANALITIC 3
-#define GEOMETRY_LIGHT_ENV_MAP 4
+#define GEOMETRY_LIGHT_NONE 0
+#define GEOMETRY_LIGHT_POINT 1
+#define GEOMETRY_LIGHT_CUBE 2
+#define GEOMETRY_LIGHT_SPEHERE 3
+#define GEOMETRY_LIGHT_ANALITIC 4
+#define GEOMETRY_LIGHT_ENV_MAP 5
 #define GEOMETRY_LIGHT_MAX_ENUM GEOMETRY_LIGHT_ENV_MAP + 1
 
 struct LIGHT
@@ -331,6 +332,7 @@ DAXA_DECL_BUFFER_PTR(RESTIR)
 struct RESERVOIR
 {
     daxa_u32 Y; // index of most important light
+    daxa_u32 l_type; // type of the light
     daxa_u32 seed; // random seed for resampling
     daxa_f32 W_y; // light weight
     daxa_f32 W_sum; // sum of all weights for all lights processed
