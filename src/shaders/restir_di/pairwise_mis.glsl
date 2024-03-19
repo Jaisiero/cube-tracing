@@ -24,7 +24,6 @@ daxa_f32 pairwise_compute_m_i(daxa_u32 number_of_strategies, RESERVOIR canonical
                               RESERVOIR input_reservoir, daxa_f32 target_lum,
                               daxa_f32 W_sum_i) {
 
-  // TODO: recheck this
   const daxa_f32 p_i_y_i =
       input_reservoir.W_y > 0.f
           ? (input_reservoir.M * W_sum_i) / input_reservoir.W_y
@@ -47,7 +46,6 @@ void pairwise_update_m_c(inout PAIRWISE_MIS mis, RESERVOIR canonical_reservoir,
   const daxa_f32 p_i_y_c = luminance(input_target);
   const daxa_f32 p_c_y_c = luminance(canonical_reservoir.F);
 
-  // TODO: check numerator as P_c_y_c and denominator as P_i_y_c + P_c_y_c
   const daxa_f32 numerator = input_reservoir.M * p_i_y_c; // Cc * p_i_y_c
   const daxa_b32 denominator = (p_c_y_c + numerator) > 0.f;
   mis.m_c += denominator ? 1 - numerator / (numerator + (canonical_reservoir.M / mis.k) * p_c_y_c) : 1.f;

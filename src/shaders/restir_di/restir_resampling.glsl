@@ -225,11 +225,11 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
 
   reservoir_previous.M = min(reservoir_previous.M, MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD * reservoir.M);
 
-  const daxa_f32 prevM = reservoir_previous.M;
-  const daxa_f32 newM = reservoir.M + prevM;
+  const daxa_f32 prev_M = reservoir_previous.M;
+  const daxa_f32 new_M = reservoir.M + prev_M;
 
   if (reservoir.W_sum > 0.f) {
-    float targetLumAtPrev = 0.0f;
+    float target_lum_at_prev = 0.0f;
 
     if (luminance(reservoir.F) > 1e-6) {
 
@@ -255,38 +255,38 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
       Ray prev_ray = Ray(di_info_previous.ray_origin, normalize(prev_hit.world_hit - di_info_previous.ray_origin));
 
       // // calculate target at previous pixel with current reservoir's sample
-      targetLumAtPrev = luminance(reservoir_get_radiance(reservoir, prev_ray, prev_hit, prev_mat));
+      target_lum_at_prev = luminance(reservoir_get_radiance(reservoir, prev_ray, prev_hit, prev_mat));
     }
 
     const float p_curr = reservoir.M * luminance(reservoir.F);
-    const float m_curr = p_curr / max(p_curr + prevM * targetLumAtPrev, 1e-6);
+    const float m_curr = p_curr / max(p_curr + prev_M * target_lum_at_prev, 1e-6);
     reservoir.W_sum *= m_curr;
   }
 
   if (get_reservoir_light_index(reservoir_previous) != -1) {
-    daxa_f32vec3 currTarget = reservoir_get_radiance(reservoir_previous, ray, hit, mat); 
+    daxa_f32vec3 current_target = reservoir_get_radiance(reservoir_previous, ray, hit, mat); 
                                 
-    const float targetLumAtCurr = luminance(currTarget);
+    const float target_lum_at_curr = luminance(current_target);
 
     // w_prev becomes zero; then only M needs to be updated, which is done at
     // the end anyway
-    if (targetLumAtCurr > 0.f) {
-      const float targetLumAtPrev = reservoir_previous.W_y > 0 ? reservoir_previous.W_sum / reservoir_previous.W_y : 0;
+    if (target_lum_at_curr > 0.f) {
+      const float target_lum_at_prev = reservoir_previous.W_y > 0 ? reservoir_previous.W_sum / reservoir_previous.W_y : 0;
       // balance heuristic
-      const float p_prev = reservoir_previous.M * targetLumAtPrev;
-      const float m_prev = p_prev / max(p_prev + reservoir.M * targetLumAtCurr, 1e-6);
-      const float w_prev = m_prev * targetLumAtCurr * reservoir_previous.W_y;
+      const float p_prev = reservoir_previous.M * target_lum_at_prev;
+      const float m_prev = p_prev / max(p_prev + reservoir.M * target_lum_at_curr, 1e-6);
+      const float w_prev = m_prev * target_lum_at_curr * reservoir_previous.W_y;
 
       update_reservoir(reservoir, get_reservoir_light_index(reservoir_previous),
                        get_reservoir_type(reservoir_previous),
-                       get_reservoir_seed(reservoir_previous), currTarget,
+                       get_reservoir_seed(reservoir_previous), current_target,
                        w_prev, 1.f, seed);
     }
   }
 
-  float targetLum = luminance(reservoir.F);
-  reservoir.W_y = targetLum > 0.0 ? reservoir.W_sum / targetLum : 0.0;
-  reservoir.M = newM;
+  float target_lum = luminance(reservoir.F);
+  reservoir.W_y = target_lum > 0.0 ? reservoir.W_sum / target_lum : 0.0;
+  reservoir.M = new_M;
 }
 
 void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
