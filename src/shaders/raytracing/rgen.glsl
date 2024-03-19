@@ -13,7 +13,7 @@ layout(location = 0) hitObjectAttributeNV vec3 hit_value;
 #include "defines.glsl"
 #include "prng.glsl"
 #include "indirect_illumination.glsl"
-#include "reservoir.glsl"
+#include "restir_resampling.glsl"
 
 Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size,
                                daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj,
