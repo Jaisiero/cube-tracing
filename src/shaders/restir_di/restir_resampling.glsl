@@ -271,7 +271,8 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
     // w_prev becomes zero; then only M needs to be updated, which is done at
     // the end anyway
     if (target_lum_at_curr > 0.f) {
-      const float target_lum_at_prev = reservoir_previous.W_y > 0 ? reservoir_previous.W_sum / reservoir_previous.W_y : 0;
+      const float target_lum_at_prev = luminance(reservoir_previous.F);
+
       // balance heuristic
       const float p_prev = reservoir_previous.M * target_lum_at_prev;
       const float m_prev = p_prev / max(p_prev + reservoir.M * target_lum_at_curr, 1e-6);

@@ -20,14 +20,14 @@ void pairwise_init(inout PAIRWISE_MIS mis, daxa_u32 num_strategies,
   mis.k = num_strategies;
 }
 
-daxa_f32 pairwise_compute_m_i(daxa_u32 number_of_strategies, RESERVOIR canonical_reservoir,
+daxa_f32 pairwise_compute_m_i(daxa_u32 k, RESERVOIR canonical_reservoir,
                               RESERVOIR input_reservoir, daxa_f32 target_lum) {
 
   const daxa_f32 p_i_y_i = luminance(input_reservoir.F); // p_i_y_i
   const daxa_f32 p_c_y_i = target_lum; // p_c_y_i
 
   daxa_f32 m_i = input_reservoir.M * p_i_y_i;                  // Ci * p_i_y_i
-  daxa_f32 denominator = m_i + (canonical_reservoir.M / number_of_strategies) *
+  daxa_f32 denominator = m_i + (canonical_reservoir.M / k) *
                                    p_c_y_i; // Ci * p_i_y_i + (Cc / k) * p_c_y_i
   m_i = denominator > 0.f
             ? m_i / denominator
@@ -44,7 +44,10 @@ void pairwise_update_m_c(inout PAIRWISE_MIS mis, RESERVOIR canonical_reservoir,
 
   const daxa_f32 numerator = input_reservoir.M * p_i_y_c; // Cc * p_i_y_c
   const daxa_b32 denominator = (p_c_y_c + numerator) > 0.f;
-  mis.m_c += denominator ? 1 - numerator / (numerator + (canonical_reservoir.M / mis.k) * p_c_y_c) : 1.f; // 1 - Cc * p_i_y_c / (Cc * p_i_y_c + (Cc / k) * p_c_y_c)
+
+  mis.m_c += 1;
+
+  mis.m_c -= denominator ? numerator / (numerator + (canonical_reservoir.M / mis.k) * p_c_y_c) : 0.f; // 1 - Cc * p_i_y_c / (Cc * p_i_y_c + (Cc / k) * p_c_y_c)
 }
 
 
