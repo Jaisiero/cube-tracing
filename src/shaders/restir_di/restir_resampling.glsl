@@ -33,25 +33,25 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config, daxa_u32 obje
   daxa_u32 point_light_count =
       point_light_active ? light_config.point_light_count : 0;
 
-  daxa_u32 num_of_point_samples =
+  daxa_u32 num_of_point_samples = point_light_count > 0 ? 
       max(daxa_u32(min(MAX_RIS_POINT_SAMPLE_COUNT * (1.0 - confidence),
                        point_light_count)),
-          MIN_RIS_POINT_SAMPLE_COUNT);
+          MIN_RIS_POINT_SAMPLE_COUNT) : 0;
 
   daxa_u32 env_light_count = env_light_active ? light_config.env_map_count : 0;
 
-  daxa_u32 num_of_env_samples =
+  daxa_u32 num_of_env_samples = env_light_count > 0 ?
       max(daxa_u32(min(MAX_RIS_ENV_SAMPLE_COUNT * (1.0 - confidence),
                        env_light_count)),
-          MIN_RIS_ENV_SAMPLE_COUNT);
+          MIN_RIS_ENV_SAMPLE_COUNT) : 0;
 
   daxa_u32 cube_light_count =
       cube_geometry_active ? light_config.cube_light_count : 0;
 
-  daxa_u32 num_of_cube_samples =
+  daxa_u32 num_of_cube_samples = cube_light_count > 0 ?
       max(daxa_u32(min(MAX_RIS_CUBE_SAMPLE_COUNT * (1.0 - confidence),
                        cube_light_count)),
-          MIN_RIS_CUBE_SAMPLE_COUNT);
+          MIN_RIS_CUBE_SAMPLE_COUNT) : 0;
 
   daxa_u32 mis_samples =
       num_of_point_samples + num_of_env_samples + num_of_cube_samples;
@@ -352,10 +352,10 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
 
     // daxa_f32 neighbor_hit_dist = neighbor_di_info.distance;
 
-    // daxa_u32 neighbor_mat_index = neighbor_di_info.mat_index;
+    // // daxa_u32 neighbor_mat_index = neighbor_di_info.mat_index;
 
-    // TODO: Adjust dist threshold dynamically
-    // if (neighbor_mat_index != current_mat_index ||
+    // // TODO: Adjust dist threshold dynamically
+    // if ( //neighbor_mat_index != current_mat_index ||
     //     (dot(hit.world_nrm, neighbor_di_info.normal.xyz) < 0.906) ||
     //     (abs(hit.distance - neighbor_hit_dist) > 0.1 * hit.distance)) {
     //   // skip this neighbour sample if not suitable
@@ -413,88 +413,3 @@ void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
   pairwise_end(reservoir_mis, reservoir, seed);
   reservoir = reservoir_mis.reservoir;
 }
-
-// void SPATIAL_REUSE(inout RESERVOIR reservoir, daxa_f32 confidence,
-//                    daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray,
-//                    inout HIT_INFO_INPUT hit, daxa_u32 current_mat_index,
-//                    MATERIAL mat, daxa_u32 light_count, daxa_f32 pdf,
-//                    inout daxa_u32 seed, const daxa_f32 min_radius,
-//                    const daxa_f32 max_radius) {
-//   RESERVOIR spatial_reservoir;
-//   initialise_reservoir(spatial_reservoir);
-
-//   confidence = clamp(confidence, 0.0, 1.0);
-
-//   // add previous samples
-//   calculate_reservoir_aggregation(spatial_reservoir, reservoir, seed);
-
-//   RESERVOIR neighbor_reservoir;
-
-//   if (spatial_reservoir.W_y == 0) {
-//     confidence = 0.0;
-//   }
-
-//   // daxa_f32 spatial_influence_threshold = max(1.0,
-//   // (INFLUENCE_FROM_THE_PAST_THRESHOLD) / NUM_OF_NEIGHBORS);
-
-//   // Heuristically determine the radius of the spatial reuse based on distance
-//   // to the camera
-//   daxa_f32 spatial_heuristic_radius =
-//       mix(max_radius, min_radius,
-//           clamp(hit.distance / MAX_DISTANCE_TO_HIT, 0.0, 1.0));
-
-//   // Heuristically determine the number of neighbors based on the confidence
-//   // index
-//   daxa_u32 spatial_heuristic_num_of_neighbors = daxa_u32(mix(
-//       MIN_NUM_OF_NEIGHBORS, MAX_NUM_OF_NEIGHBORS, clamp(confidence, 0.0, 1.0)));
-
-//   for (daxa_u32 i = 0; i < spatial_heuristic_num_of_neighbors; i++) {
-//     // Random offset
-//     daxa_f32vec2 offset = 2.0 * daxa_f32vec2(rnd(seed), rnd(seed)) - 1;
-
-//     // Scale offset
-//     offset.x =
-//         predicted_coord.x + daxa_i32(offset.x * spatial_heuristic_radius);
-//     offset.y =
-//         predicted_coord.y + daxa_i32(offset.y * spatial_heuristic_radius);
-
-//     // Clamp offset
-//     offset.x = min(rt_size.x - 1, max(0, min(rt_size.x - 1, offset.x)));
-//     offset.y = min(rt_size.y - 1, max(0, min(rt_size.y - 1, offset.y)));
-
-//     if (offset.x == predicted_coord.x && offset.y == predicted_coord.y) {
-//       continue;
-//     }
-
-//     // Convert offset to u32
-//     daxa_u32vec2 offset_u32 = daxa_u32vec2(offset);
-
-//     // Convert offset to linear
-//     daxa_u32 offset_u32_linear = offset_u32.y * rt_size.x + offset_u32.x;
-
-//     DIRECT_ILLUMINATION_INFO neighbor_di_info =
-//         get_di_from_current_frame(offset_u32_linear);
-
-//     daxa_f32 neighbor_hit_dist = neighbor_di_info.distance;
-
-//     daxa_u32 neighbor_mat_index = neighbor_di_info.mat_index;
-
-//     // TODO: Adjust dist threshold dynamically
-//     if (neighbor_mat_index != current_mat_index ||
-//         (dot(hit.world_nrm, neighbor_di_info.normal.xyz) < 0.906) ||
-//         (abs(hit.distance - neighbor_hit_dist) > 0.1 * hit.distance)) {
-//       // skip this neighbour sample if not suitable
-//       continue;
-//     }
-
-//     neighbor_reservoir =
-//         get_reservoir_from_intermediate_frame_by_index(offset_u32_linear);
-
-//     reservoir_visibility_pass(neighbor_reservoir, ray, hit, mat, light_count);
-
-//     calculate_reservoir_aggregation(spatial_reservoir, neighbor_reservoir,
-//                                     seed);
-//   }
-
-//   reservoir = spatial_reservoir;
-// }

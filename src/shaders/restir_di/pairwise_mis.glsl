@@ -21,15 +21,11 @@ void pairwise_init(inout PAIRWISE_MIS mis, daxa_u32 num_strategies,
 }
 
 daxa_f32 pairwise_compute_m_i(daxa_u32 number_of_strategies, RESERVOIR canonical_reservoir,
-                              RESERVOIR input_reservoir, daxa_f32 target_lum,
-                              daxa_f32 W_sum_i) {
+                              RESERVOIR input_reservoir, daxa_f32 target_lum) {
 
-  const daxa_f32 p_i_y_i =
-      input_reservoir.W_y > 0.f
-          ? (input_reservoir.M * W_sum_i) / input_reservoir.W_y
-          : 0.f;
+  const daxa_f32 p_i_y_i = luminance(input_reservoir.F); // p_i_y_i
+  const daxa_f32 p_c_y_i = target_lum; // p_c_y_i
 
-  const daxa_f32 p_c_y_i = target_lum * canonical_reservoir.M; // Cc * p_c_y_i
   daxa_f32 m_i = input_reservoir.M * p_i_y_i;                  // Ci * p_i_y_i
   daxa_f32 denominator = m_i + (canonical_reservoir.M / number_of_strategies) *
                                    p_c_y_i; // Ci * p_i_y_i + (Cc / k) * p_c_y_i
@@ -43,12 +39,12 @@ daxa_f32 pairwise_compute_m_i(daxa_u32 number_of_strategies, RESERVOIR canonical
 void pairwise_update_m_c(inout PAIRWISE_MIS mis, RESERVOIR canonical_reservoir,
                         RESERVOIR input_reservoir, daxa_f32vec3 input_target,
                         inout daxa_u32 seed) {
-  const daxa_f32 p_i_y_c = luminance(input_target);
-  const daxa_f32 p_c_y_c = luminance(canonical_reservoir.F);
+  const daxa_f32 p_i_y_c = luminance(input_target); // p_i_y_c
+  const daxa_f32 p_c_y_c = luminance(canonical_reservoir.F); // p_c_y_c
 
   const daxa_f32 numerator = input_reservoir.M * p_i_y_c; // Cc * p_i_y_c
   const daxa_b32 denominator = (p_c_y_c + numerator) > 0.f;
-  mis.m_c += denominator ? 1 - numerator / (numerator + (canonical_reservoir.M / mis.k) * p_c_y_c) : 1.f;
+  mis.m_c += denominator ? 1 - numerator / (numerator + (canonical_reservoir.M / mis.k) * p_c_y_c) : 1.f; // 1 - Cc * p_i_y_c / (Cc * p_i_y_c + (Cc / k) * p_c_y_c)
 }
 
 
@@ -60,7 +56,6 @@ void pairwise_stream(inout PAIRWISE_MIS mis, RESERVOIR canonical_reservoir,
                      MATERIAL input_material, inout daxa_u32 seed) {
   daxa_f32vec3 curr_target = daxa_f32vec3(0.0f);
   daxa_f32 m_i;
-  // LIGHT light;
 
   // m_i
   if (is_reservoir_valid(input_reservoir)) {
@@ -70,7 +65,7 @@ void pairwise_stream(inout PAIRWISE_MIS mis, RESERVOIR canonical_reservoir,
 
     const daxa_f32 target_lum = luminance(curr_target);
     m_i = pairwise_compute_m_i(mis.k, canonical_reservoir, input_reservoir,
-                               target_lum, input_reservoir.W_sum);
+                               target_lum);
   }
 
   daxa_f32vec3 input_target = daxa_f32vec3(0.0f);
