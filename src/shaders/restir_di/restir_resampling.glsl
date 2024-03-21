@@ -62,8 +62,10 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config,
 
   daxa_u32 num_of_brdf_samples = brdf_count;
 
-  daxa_u32 mis_samples =
-      num_of_point_samples + num_of_env_samples + num_of_cube_samples;
+  daxa_u32 nee_samples = num_of_point_samples + num_of_env_samples +
+                         num_of_cube_samples;
+
+  daxa_u32 mis_samples = nee_samples + num_of_brdf_samples;
 
   daxa_f32 mis_weight = 1.0 / mis_samples;
 
@@ -205,7 +207,7 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config,
 
           daxa_f32 light_pdf = sample_lights_pdf(hit, i, cube_light_count);
           daxa_f32 m_i = 1.f / max(num_of_brdf_samples * mat_pdf * G +
-                                       num_of_cube_samples * light_pdf,
+                                       num_of_cube_samples * light_pdf * G,
                                    1e-6);
           daxa_f32vec3 brdf = evaluate_material(mat, n, wo, m_wi);
           daxa_f32vec3 Le = evaluate_emissive(i, m_wi);
