@@ -182,11 +182,11 @@ daxa_f32 power_exp_heuristic(daxa_f32 pdf, daxa_f32 pdf_other, daxa_f32 exp) {
 daxa_f32 eval_mis(daxa_f32 nf, daxa_f32 f_pdf, daxa_f32 ng, daxa_f32 g_pdf,
                   daxa_f32 exp) {
 #if USE_POWER_HEURISTIC == 1
-  return power_heuristic(f_pdf, g_pdf);
+  return power_heuristic(nf * f_pdf, ng * g_pdf);
 #elif USE_POWER_EXP_HEURISTIC == 1
-  return power_exp_heuristic(f_pdf, g_pdf, exp);
+  return power_exp_heuristic(nf * f_pdf, ng * g_pdf, exp);
 #else
-  return balance_heuristic(f_pdf, g_pdf);
+  return balance_heuristic(nf * f_pdf, ng * g_pdf);
 #endif
 }
 
@@ -230,7 +230,7 @@ daxa_f32 sample_material_pdf(MATERIAL mat, daxa_f32vec3 n, daxa_f32vec3 wo,
 
 daxa_b32 sample_material(Ray ray, MATERIAL mat, inout HIT_INFO_INPUT hit,
                          daxa_f32vec3 wo, inout daxa_f32vec3 wi,
-                         out daxa_f32 pdf, daxa_u32 object_count, inout daxa_u32 seed) {
+                         out daxa_f32 pdf, inout daxa_u32 seed) {
 
   call_scatter.hit = hit.world_hit;
   call_scatter.nrm = hit.world_nrm;
@@ -279,14 +279,14 @@ daxa_f32 sample_lights_pdf(inout HIT_INFO_INPUT hit, INTERSECT i,
   //     daxa_f32 area_half_sphere = 2.0 * PI * r * r;
   //     p /= area_half_sphere;
   // }
-  // else if (object.type == GEOMETRY_LIGHT_CUBE)
-  // {
-  daxa_f32 voxel_extent = VOXEL_EXTENT;
-  // TODO: config
-  daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
+  // else
+  // if (i.type == GEOMETRY_LIGHT_CUBE) {
+    daxa_f32 voxel_extent = VOXEL_EXTENT;
+    // TODO: config
+    daxa_f32vec2 size = daxa_f32vec2(voxel_extent, voxel_extent);
 
-  daxa_f32 area_cube = size.x * size.y * 6.0;
-  p /= area_cube;
+    daxa_f32 area_cube = size.x * size.y * 6.0;
+    p /= area_cube;
   // }
 
   return p;
@@ -400,7 +400,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
 
 daxa_f32vec3 calculate_sampled_light(
     Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count,
-    LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, inout daxa_u32 seed, const in daxa_b32 calc_pdf,
+    LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, out daxa_f32 G, inout daxa_u32 seed, const in daxa_b32 calc_pdf,
     const in daxa_b32 use_pdf, const daxa_b32 use_visibility) {
   //2. Get light direction
   daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
@@ -411,9 +411,7 @@ daxa_f32vec3 calculate_sampled_light(
   pdf_out = pdf;
 
   daxa_f32vec3 result = vec3(0.0);
-
-  daxa_f32 G;
-
+  
   if(all(lessThanEqual(light.emissive, vec3(0.0)))) {
     return result;
   }
@@ -482,7 +480,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
 
   if (use_visibility) {
     // Material sampling
-    if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, object_count, seed)) {
+    if (sample_material(ray, mat, hit, wo, m_wi, m_pdf_2, seed)) {
       // Get pdf for the material
       path_pdf = m_pdf_2;
       i = intersect(Ray(P, m_wi));

@@ -145,7 +145,9 @@ void main()
     hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
     hit.world_hit = compute_ray_origin(hit.world_hit, hit.world_nrm);
 
-    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, prd.seed, true, true, true);
+    daxa_f32 G;
+
+    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, G, prd.seed, true, true, true);
 
     prd.distance = distance;
     prd.instance_hit = instance_hit;

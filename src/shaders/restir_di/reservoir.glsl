@@ -103,8 +103,9 @@ daxa_f32vec3 reservoir_get_radiance(RESERVOIR reservoir, Ray ray,
 
     daxa_f32 pdf = 1.0;
     daxa_f32 current_pdf = 1.0;
+    daxa_f32 G;
     return calculate_sampled_light(ray, hit, mat, 1, light, pdf,
-                                current_pdf, reservoir.seed, false, false,
+                                current_pdf, G, reservoir.seed, false, false,
                                 true);
   }
 

@@ -25,9 +25,9 @@ namespace tests
             const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
             const char *MODEL_PATH = "assets/models/";
             // const char *MAP_NAME = "monu5.vox";
-            const char *MAP_NAME = "monu6.vox";
+            // const char *MAP_NAME = "monu6.vox";
             // const char *MAP_NAME = "monu9.vox";
-            // const char *MAP_NAME = "room.vox";
+            const char *MAP_NAME = "room.vox";
             const float day_duration = 60.0f; // Duración de un día en segundos
 
             Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
@@ -41,6 +41,7 @@ namespace tests
             daxa_b32 activate_point_lights = false;
             daxa_b32 activate_env_map = false;
             daxa_b32 activate_cube_lights = true;
+            daxa_b32 activate_brdf = false;
             daxa_b32 activate_midday = false;
             daxa_b32 activate_sun_light = false;
 
@@ -503,11 +504,14 @@ namespace tests
                 light_config->sphere_light_pdf = light_config->sphere_light_count == 0 ? 0.f : (light_config->sphere_light_count / light_config->light_count);
                 light_config->analytic_light_pdf = light_config->analytic_light_count == 0 ? 0.f : (light_config->analytic_light_count / light_config->light_count);
                 light_config->env_map_pdf = light_config->env_map_count == 0 ? 0.f : (light_config->env_map_count / light_config->light_count);
+                light_config->brdf_pdf = light_config->brdf_count == 0 ? 0.f : (light_config->brdf_count / (light_config->cube_light_count + light_config->sphere_light_count));
                 
                 std::cout << "Num of lights: " << light_config->light_count << std::endl;
                 std::cout << "  Num of point lights: " << light_config->point_light_count << std::endl;
                 std::cout << "  Num of cube lights: " << light_config->cube_light_count << std::endl;
                 std::cout << "  Num of environment map lights: " << light_config->env_map_count << std::endl;
+                std::cout << "  Num of brdf lights: " << light_config->brdf_count << std::endl;
+                std::cout << "  Num of sphere lights: " << light_config->sphere_light_count << std::endl;
 
 
                 status.light_config_address = device.get_device_address(light_config_buffer).value();
@@ -1493,6 +1497,11 @@ namespace tests
                     current_aabb_host_count = 0;
                 }
 
+
+                if(light_config->cube_light_count > 0) {
+                    light_config->brdf_count = BRDF_SAMPLING_COUNT;
+                }
+
                 // if(!create_materials()) {
                 //     std::cout << "Failed to create materials" << std::endl;
                 //     abort();
@@ -1863,6 +1872,10 @@ namespace tests
 
                 if(activate_cube_lights) {
                     status.is_active += RIS_CUBE_LIGHT_BIT;
+                }
+
+                if(activate_brdf) {
+                    status.is_active += RIS_BRDF_BIT;
                 }
 
 
@@ -2489,7 +2502,7 @@ namespace tests
                         if(action == GLFW_PRESS) {
                             if(point_lights) {
                                 activate_point_lights = !activate_point_lights;
-                                std::string point_light_msg = activate_point_lights ? "Activated point lights" : "Deactivated point lights";
+                                std::string point_light_msg = activate_point_lights ? "Activated point light sampling" : "Deactivated point light sampling";
                                 std::cout << point_light_msg << std::endl;
                             }
                         }
@@ -2499,7 +2512,7 @@ namespace tests
                         if(action == GLFW_PRESS) {
                             if(env_lights) {
                                 activate_env_map = !activate_env_map;
-                                std::string env_map_msg = activate_env_map ? "Activated env map" : "Deactivated env map";
+                                std::string env_map_msg = activate_env_map ? "Activated env map sampling" : "Deactivated env map sampling";
                                 std::cout << env_map_msg << std::endl;
                             }
                         }
@@ -2509,8 +2522,18 @@ namespace tests
                         if(action == GLFW_PRESS) {
                             if(cube_lights) {
                                 activate_cube_lights = !activate_cube_lights;
-                                std::string env_map_msg = activate_cube_lights ? "Activated cube lights" : "Deactivated cube lights";
-                                std::cout << env_map_msg << std::endl;
+                                std::string cube_msg = activate_cube_lights ? "Activated cube light sampling" : "Deactivated cube light sampling";
+                                std::cout << cube_msg << std::endl;
+                            }
+                        }
+                        break; 
+                    case GLFW_KEY_4:
+                    case GLFW_KEY_KP_4:
+                        if(action == GLFW_PRESS) {
+                            if(cube_lights) {
+                                activate_brdf = !activate_brdf;
+                                std::string brdf_msg = activate_brdf ? "Activated brdf sampling" : "Deactivated brdf sampling";
+                                std::cout << brdf_msg << std::endl;
                             }
                         }
                         break;

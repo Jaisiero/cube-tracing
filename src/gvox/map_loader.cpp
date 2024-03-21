@@ -126,6 +126,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                     int32_t y_grid = sample_position.y;
                     int32_t z_grid = sample_position.z;
                     float flux = 1.0f;
+                    float emission_r = 0.f, emission_g = 0.f, emission_b = 0.0f;
 
                     if (region_sample.is_present != 0)
                     {
@@ -150,6 +151,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                     if (region_sample.is_present != 0)
                     {
                         flux = *(float *)(&region_sample.data);
+                        flux *= vox_emission;
                     }
 
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_ROUGHNESS);
@@ -191,6 +193,13 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             }
                         }
 
+                        if(light_found)
+                        {
+                            emission_r = (l_r / 255.0f) * flux;
+                            emission_g = (l_g / 255.0f) * flux;
+                            emission_b = (l_b / 255.0f) * flux;
+                        }
+
                         if (!found && user_state.params.max_material_count > user_state.scene_info.material_count)
                         {
                             mat_index = user_state.scene_info.material_count;
@@ -201,7 +210,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                 .diffuse = {r / 255.0f, g / 255.0f, b / 255.0f},
                                 .specular = {0.f, 0.f, 0.f},
                                 .transmittance = {0.0f, 0.0f, 0.0f},
-                                .emission = {0.0, 0.0, 0.0},
+                                .emission = {emission_r, emission_g, emission_b},
                                 .shininess = 1.f,
                                 .roughness = 1.f,
                                 .ior = 1.f,
@@ -213,7 +222,6 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                         if (user_state.params.max_primitive_count > user_state.scene_info.primitive_count)
                         {
                             uint32_t index = user_state.scene_info.primitive_count;
-                            user_state.params.primitives[index] = PRIMITIVE{mat_index};
 
                             if (user_state.params.axis_direction == AXIS_DIRECTION::Z_BOTTOM_TOP)
                             {
@@ -267,19 +275,23 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                 daxa_f32vec3 center_position = {x_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f,
                                                                 y_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f,
                                                                 z_grid * VOXEL_EXTENT + VOXEL_EXTENT * 0.5f};
-
-                                flux *= vox_emission;
                                 LIGHT light = {
                                     .position = center_position,
-                                    .emissive = {(l_r / 255.0f) * flux, (l_g / 255.0f) * flux, (l_b / 255.0f) * flux},
+                                    .emissive = {emission_r, emission_g, emission_b},
                                     .instance_info = OBJECT_INFO(instance_index, index),
                                     .size = VOXEL_EXTENT,
                                     .type = GEOMETRY_LIGHT_CUBE};
 
-                                if (user_state.params.max_light_count > user_state.scene_info.light_count)
+                                uint32_t light_index = user_state.scene_info.light_count;
+                                    
+                                user_state.params.primitives[index] = PRIMITIVE{mat_index, light_index};
+
+                                if (user_state.params.max_light_count > light_index)
                                 {
                                     user_state.params.lights[user_state.scene_info.light_count++] = light;
                                 }
+                            } else {
+                                user_state.params.primitives[index] = PRIMITIVE{mat_index, static_cast<uint32_t>(-1)};
                             }
                         }
                         else

@@ -46,6 +46,12 @@ daxa_u32 get_material_index_from_primitive_index(daxa_u32 primitive_index)
     return primitive_buffer.primitives[primitive_index].material_index;
 }
 
+daxa_u32 get_light_index_from_primitive_index(daxa_u32 primitive_index)
+{
+    PRIMITIVE_BUFFER primitive_buffer = PRIMITIVE_BUFFER(deref(p.world_buffer).primitive_address);
+    return primitive_buffer.primitives[primitive_index].light_index;
+}
+
 daxa_u32 get_material_index_from_instance_and_primitive_id(OBJECT_INFO instance_hit)
 {
     // Get material index from primitive

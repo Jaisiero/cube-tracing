@@ -464,9 +464,12 @@ void main() {
         min(urnd_interval(di_info.seed, 0, light_count), light_count - 1);
     // Get light
     LIGHT light = get_point_light_from_light_index(light_index);
+
+    daxa_f32 G;
+
     // Calculate radiance
     radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf,
-                                       pdf_out, di_info.seed, true, true, true);
+                                       pdf_out, G, di_info.seed, true, true, true);
 
 #if DIRECT_ILLUMINATION_ON == 1
     // Add the radiance to the hit value

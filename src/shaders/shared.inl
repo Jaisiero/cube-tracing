@@ -22,6 +22,7 @@
 
 // #define DYNAMIC_SUN_LIGHT 0
 #define POINT_LIGHT_ON 1
+#define BRDF_SAMPLING_COUNT 1
 // #define SUN_MIDDAY 1
 #define SUN_MAX_INTENSITY 2000.0f
 #define SUN_TOP_POSITION_X 0.0f
@@ -67,6 +68,7 @@
 #define RIS_POINT_LIGHT_BIT 1U << 1
 #define RIS_ENV_LIGHT_BIT 1U << 2
 #define RIS_CUBE_LIGHT_BIT 1U << 3
+#define RIS_BRDF_BIT 1U << 4
 
 struct AABB
 {
@@ -195,6 +197,8 @@ struct LIGHT_CONFIG {
     daxa_f32 analytic_light_pdf;
     daxa_u32 env_map_count;
     daxa_f32 env_map_pdf;
+    daxa_u32 brdf_count;
+    daxa_f32 brdf_pdf;
     daxa_u32 light_count;
 };
 
@@ -235,6 +239,7 @@ DAXA_DECL_BUFFER_PTR(WORLD)
 struct PRIMITIVE
 {
     daxa_u32 material_index;
+    daxa_u32 light_index;
 };
 
 
