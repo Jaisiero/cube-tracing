@@ -1107,21 +1107,21 @@ namespace tests
 
 
             void upload_world(daxa_u32 frame_index) {
-
-                if(frame_index >= DOUBLE_BUFFERING) {
-                    std::cout << "frame_index >= DOUBLE_BUFFERING" << std::endl;
-                    return;
-                }
-
+                
                 // get world buffer host mapped pointer
                 auto * world_buffer_ptr = device.get_host_address(world_buffer).value();
+                
+                auto index = status.frame_number % DOUBLE_BUFFERING;
+                auto index_next = (status.frame_number + 1) % DOUBLE_BUFFERING;
 
-                world.instance_address = device.get_device_address(instance_buffer[(frame_index) % DOUBLE_BUFFERING]).value();
-                world.instance_address_prev = device.get_device_address(instance_buffer[(frame_index + 1) % DOUBLE_BUFFERING]).value();
-                world.primitive_address = device.get_device_address(primitive_buffer[(frame_index) % DOUBLE_BUFFERING]).value();
-                world.primitive_address_prev = device.get_device_address(primitive_buffer[(frame_index + 1) % DOUBLE_BUFFERING]).value();
-                world.aabb_address = device.get_device_address(aabb_buffer[(frame_index) % DOUBLE_BUFFERING]).value();
-                world.aabb_address_prev = device.get_device_address(aabb_buffer[(frame_index + 1) % DOUBLE_BUFFERING]).value();
+                world.instance_address = device.get_device_address(instance_buffer[index]).value();
+                world.instance_address_prev = device.get_device_address(instance_buffer[index_next]).value();
+                world.primitive_address = device.get_device_address(primitive_buffer[index]).value();
+                world.primitive_address_prev = device.get_device_address(primitive_buffer[index_next]).value();
+                world.aabb_address = device.get_device_address(aabb_buffer[0]).value();
+                world.aabb_address_prev = device.get_device_address(aabb_buffer[0]).value();
+                // world.aabb_address = device.get_device_address(aabb_buffer[index]).value();
+                // world.aabb_address_prev = device.get_device_address(aabb_buffer[index_next]).value();
                 world.material_address = device.get_device_address(material_buffer).value();
                 world.point_light_address = device.get_device_address(point_light_buffer).value();
                 world.cube_light_address = device.get_device_address(cube_light_buffer).value();
@@ -1550,7 +1550,7 @@ namespace tests
                     .name = "proc blas buffer",
                 });
 
-                upload_world(status.frame_number % DOUBLE_BUFFERING);
+                upload_world(status.frame_number);
                 upload_restir();
 
                 // hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
@@ -1945,11 +1945,11 @@ namespace tests
                 if (!minimized)
                 {
 #if POINT_LIGHT_ON == 1
-                update_time_and_sun_light();
+                    update_time_and_sun_light();
 #endif // DYNAMIC_SUN_LIGHT == 1
                     draw();
                     download_gpu_info();
-                    upload_world(status.frame_number % DOUBLE_BUFFERING);
+                    upload_world(status.frame_number);
                     // call build tlas
                     // if(!build_tlas(INSTANCE_COUNT)) {
                     //     std::cout << "Failed to build tlas" << std::endl;
@@ -2088,11 +2088,14 @@ namespace tests
                     .image_id = swapchain_image,
                 });
 
+                auto index = status.frame_number % DOUBLE_BUFFERING;
+                auto index_next = (status.frame_number + 1) % DOUBLE_BUFFERING;
+
                 recorder.set_pipeline(*rt_pipeline);
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas[status.frame_number % DOUBLE_BUFFERING],
-                    .tlas_previous = tlas[(status.frame_number + 1) % DOUBLE_BUFFERING],
+                    .tlas = tlas[index],
+                    .tlas_previous = tlas[index_next],
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -2144,8 +2147,8 @@ namespace tests
 
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas[status.frame_number % DOUBLE_BUFFERING],
-                    .tlas_previous = tlas[(status.frame_number + 1) % DOUBLE_BUFFERING],
+                    .tlas = tlas[index],
+                    .tlas_previous = tlas[index_next],
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -2170,8 +2173,8 @@ namespace tests
 
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas[status.frame_number % DOUBLE_BUFFERING],
-                    .tlas_previous = tlas[(status.frame_number + 1) % DOUBLE_BUFFERING],
+                    .tlas = tlas[index],
+                    .tlas_previous = tlas[index_next],
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -2200,8 +2203,8 @@ namespace tests
 
                     recorder.push_constant(PushConstant{
                         .size = {width, height},
-                        .tlas = tlas[status.frame_number % DOUBLE_BUFFERING],
-                        .tlas_previous = tlas[(status.frame_number + 1) % DOUBLE_BUFFERING],
+                        .tlas = tlas[index],
+                        .tlas_previous = tlas[index_next],
                         .swapchain = swapchain_image_view,
                         .previous_swapchain = previous_swapchain_image_view,
                         .taa_frame = taa_image_view,
