@@ -89,14 +89,14 @@ namespace tests
             // daxa::BufferId instance_buffer[2] = {};
             // size_t max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
 
-            daxa::BufferId primitive_buffer[2] = {};
-            size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
+            // daxa::BufferId primitive_buffer[2] = {};
+            // size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
 
-            daxa::BufferId aabb_buffer[2] = {};
-            size_t max_aabb_buffer_size = sizeof(AABB) * MAX_PRIMITIVES;
-            daxa::BufferId aabb_host_buffer = {};
-            size_t max_aabb_host_buffer_size = sizeof(AABB) * MAX_PRIMITIVES * 0.1;
-            daxa_u32 current_aabb_host_count = 0;
+            // daxa::BufferId aabb_buffer[2] = {};
+            // size_t max_aabb_buffer_size = sizeof(AABB) * MAX_PRIMITIVES;
+            // daxa::BufferId aabb_host_buffer = {};
+            // size_t max_aabb_host_buffer_size = sizeof(AABB) * MAX_PRIMITIVES * 0.1;
+            // daxa_u32 current_aabb_host_count = 0;
 
             // u32 current_texture_count = 0;
             // std::vector<daxa::ImageId> images = {};
@@ -150,11 +150,11 @@ namespace tests
             // std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
 
             // u32 current_instance_count[2] = {};
-            std::unique_ptr<INSTANCE[]> instances = {};
+            // std::unique_ptr<INSTANCE[]> instances = {};
 
-            u32 current_primitive_count[2] = {};
-            u32 max_current_primitive_count = 0;
-            std::unique_ptr<PRIMITIVE[]> primitives = {};
+            // u32 current_primitive_count[2] = {};
+            // u32 max_current_primitive_count = 0;
+            // std::unique_ptr<PRIMITIVE[]> primitives = {};
 
             u32 current_material_count = 0;
             std::unique_ptr<MATERIAL[]> materials = {};
@@ -191,11 +191,11 @@ namespace tests
                     device.destroy_buffer(cam_buffer);
                     // for(auto buffer : instance_buffer)
                     //     device.destroy_buffer(buffer);
-                    for(auto buffer : primitive_buffer)
-                        device.destroy_buffer(buffer);
-                    for(auto buffer : aabb_buffer)
-                        device.destroy_buffer(buffer);
-                    device.destroy_buffer(aabb_host_buffer);
+                    // for(auto buffer : primitive_buffer)
+                    //     device.destroy_buffer(buffer);
+                    // for(auto buffer : aabb_buffer)
+                    //     device.destroy_buffer(buffer);
+                    // device.destroy_buffer(aabb_host_buffer);
                     device.destroy_buffer(material_buffer);
                     // for(auto image : images)
                     //     device.destroy_image(image);
@@ -227,70 +227,70 @@ namespace tests
                 }
             }
 
-            void change_random_material_primitives(uint32_t frame_index) {
+            // void change_random_material_primitives(uint32_t frame_index) {
 
-                if(frame_index >= DOUBLE_BUFFERING) {
-                    std::cout << "frame_index >= tlas.size()" << std::endl;
-                    return;
-                }
+            //     if(frame_index >= DOUBLE_BUFFERING) {
+            //         std::cout << "frame_index >= tlas.size()" << std::endl;
+            //         return;
+            //     }
 
-                if(current_primitive_count[frame_index] == 0) {
-                    return;
-                }
+            //     if(current_primitive_count[frame_index] == 0) {
+            //         return;
+            //     }
 
-                // Change every primitive material
-                for(u32 i = 0; i < current_primitive_count[frame_index]; i++) {
-                    primitives[i].material_index = random_uint(0, current_material_count);
-                    // primitives[i].material_index = random_uint(0, current_material_count - 1);
-                }
-
-
-                // Copy primitives to buffer
-                u32 current_primitive_buffer_size = static_cast<u32>(current_primitive_count[frame_index] * sizeof(PRIMITIVE));
-                if(current_primitive_buffer_size > max_primitive_buffer_size) {
-                    std::cout << "current_primitive_buffer_size > max_primitive_buffer_size" << std::endl;
-                    abort();
-                }
-
-                // push primitives to buffer
-                auto primitive_staging_buffer = device.create_buffer({
-                    .size = current_primitive_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = "primitive staging buffer",
-                });
-                defer { device.destroy_buffer(primitive_staging_buffer); };
-
-                auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
-                std::memcpy(primitive_buffer_ptr,
-                    primitives.get(),
-                    current_primitive_buffer_size);
-
-                auto exec_cmds = [&]()
-                {
-                    auto recorder = device.create_command_recorder({});
-
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::HOST_WRITE,
-                        .dst_access = daxa::AccessConsts::TRANSFER_READ,
-                    });
-
-                    recorder.copy_buffer_to_buffer({
-                        .src_buffer = primitive_staging_buffer,
-                        .dst_buffer = primitive_buffer[frame_index],
-                        .size = max_primitive_buffer_size,
-                    });
-
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                        .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
-                    });
-
-                    return recorder.complete_current_commands();
-                }();
-                device.submit_commands({.command_lists = std::array{exec_cmds}});
+            //     // Change every primitive material
+            //     for(u32 i = 0; i < current_primitive_count[frame_index]; i++) {
+            //         primitives[i].material_index = random_uint(0, current_material_count);
+            //         // primitives[i].material_index = random_uint(0, current_material_count - 1);
+            //     }
 
 
-            }
+            //     // Copy primitives to buffer
+            //     u32 current_primitive_buffer_size = static_cast<u32>(current_primitive_count[frame_index] * sizeof(PRIMITIVE));
+            //     if(current_primitive_buffer_size > max_primitive_buffer_size) {
+            //         std::cout << "current_primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+            //         abort();
+            //     }
+
+            //     // push primitives to buffer
+            //     auto primitive_staging_buffer = device.create_buffer({
+            //         .size = current_primitive_buffer_size,
+            //         .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            //         .name = "primitive staging buffer",
+            //     });
+            //     defer { device.destroy_buffer(primitive_staging_buffer); };
+
+            //     auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
+            //     std::memcpy(primitive_buffer_ptr,
+            //         primitives.get(),
+            //         current_primitive_buffer_size);
+
+            //     auto exec_cmds = [&]()
+            //     {
+            //         auto recorder = device.create_command_recorder({});
+
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::HOST_WRITE,
+            //             .dst_access = daxa::AccessConsts::TRANSFER_READ,
+            //         });
+
+            //         recorder.copy_buffer_to_buffer({
+            //             .src_buffer = primitive_staging_buffer,
+            //             .dst_buffer = primitive_buffer[frame_index],
+            //             .size = max_primitive_buffer_size,
+            //         });
+
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+            //             .dst_access = daxa::AccessConsts::COMPUTE_SHADER_READ,
+            //         });
+
+            //         return recorder.complete_current_commands();
+            //     }();
+            //     device.submit_commands({.command_lists = std::array{exec_cmds}});
+
+
+            // }
 
             daxa_f32vec3 interpolate_sun_light(float t, bool is_afternoon) {
                 // Definir las posiciones clave para el medio día y el atardecer
@@ -606,24 +606,24 @@ namespace tests
 
              }
 
-            void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size) {
-                 /// Record build commands:
-                auto exec_cmds = [&]()
-                {
-                    auto recorder = device.create_command_recorder({});
+            // void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size) {
+            //      /// Record build commands:
+            //     auto exec_cmds = [&]()
+            //     {
+            //         auto recorder = device.create_command_recorder({});
 
-                     recorder.copy_buffer_to_buffer({
-                        .src_buffer = aabb_staging_buffer,
-                        .dst_buffer = aabb_buffer,
-                        .dst_offset = aabb_buffer_offset,
-                        .size = aabb_copy_size,
-                    });
+            //          recorder.copy_buffer_to_buffer({
+            //             .src_buffer = aabb_staging_buffer,
+            //             .dst_buffer = aabb_buffer,
+            //             .dst_offset = aabb_buffer_offset,
+            //             .size = aabb_copy_size,
+            //         });
 
-                    return recorder.complete_current_commands();
-                }();
-                device.submit_commands({.command_lists = std::array{exec_cmds}});
-                device.wait_idle();
-            }
+            //         return recorder.complete_current_commands();
+            //     }();
+            //     device.submit_commands({.command_lists = std::array{exec_cmds}});
+            //     device.wait_idle();
+            // }
 
             // daxa_Bool8 load_blas_info(u32 instance_count) {
             //     daxa_Bool8 some_level_changed = false;
@@ -795,55 +795,55 @@ namespace tests
             }
 
 
-            daxa_Bool8 load_primitives(daxa_u32 frame_index, daxa_Bool8 synchronize) {
+            // daxa_Bool8 load_primitives(daxa_u32 frame_index, daxa_Bool8 synchronize) {
 
-                if(frame_index >= DOUBLE_BUFFERING) {
-                    std::cout << "frame_index >= tlas.size()" << std::endl;
-                    return false;
-                }
+            //     if(frame_index >= DOUBLE_BUFFERING) {
+            //         std::cout << "frame_index >= tlas.size()" << std::endl;
+            //         return false;
+            //     }
 
-                // Copy primitives to buffer
-                u32 primitive_buffer_size = static_cast<u32>(current_primitive_count[frame_index] * sizeof(PRIMITIVE));
-                if(primitive_buffer_size > max_primitive_buffer_size) {
-                    std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
-                    abort();
-                }
-
-
-                auto primitive_staging_buffer = device.create_buffer({
-                    .size = primitive_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("primitive_staging_buffer"),
-                });
-                defer { device.destroy_buffer(primitive_staging_buffer); };
-
-                auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
-                std::memcpy(primitive_buffer_ptr,
-                    primitives.get(),
-                    primitive_buffer_size);
-
-                    /// Record build commands:
-                auto exec_cmds = [&]()
-                {
-                    auto recorder = device.create_command_recorder({});
-
-                    recorder.copy_buffer_to_buffer({
-                        .src_buffer = primitive_staging_buffer,
-                        .dst_buffer = primitive_buffer[frame_index],
-                        .size = primitive_buffer_size,
-                    });
-
-                    return recorder.complete_current_commands();
-                }();
-                device.submit_commands({.command_lists = std::array{exec_cmds}});
-                if(synchronize) {
-                    device.wait_idle();
-                }
-
-                return true;
+            //     // Copy primitives to buffer
+            //     u32 primitive_buffer_size = static_cast<u32>(current_primitive_count[frame_index] * sizeof(PRIMITIVE));
+            //     if(primitive_buffer_size > max_primitive_buffer_size) {
+            //         std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+            //         abort();
+            //     }
 
 
-            }
+            //     auto primitive_staging_buffer = device.create_buffer({
+            //         .size = primitive_buffer_size,
+            //         .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            //         .name = ("primitive_staging_buffer"),
+            //     });
+            //     defer { device.destroy_buffer(primitive_staging_buffer); };
+
+            //     auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
+            //     std::memcpy(primitive_buffer_ptr,
+            //         primitives.get(),
+            //         primitive_buffer_size);
+
+            //         /// Record build commands:
+            //     auto exec_cmds = [&]()
+            //     {
+            //         auto recorder = device.create_command_recorder({});
+
+            //         recorder.copy_buffer_to_buffer({
+            //             .src_buffer = primitive_staging_buffer,
+            //             .dst_buffer = primitive_buffer[frame_index],
+            //             .size = primitive_buffer_size,
+            //         });
+
+            //         return recorder.complete_current_commands();
+            //     }();
+            //     device.submit_commands({.command_lists = std::array{exec_cmds}});
+            //     if(synchronize) {
+            //         device.wait_idle();
+            //     }
+
+            //     return true;
+
+
+            // }
 
 
             // daxa_Bool8 build_new_blas(daxa_u32 frame_index, daxa_Bool8 synchronize) {
@@ -1117,10 +1117,10 @@ namespace tests
 
                 world.instance_address = device.get_device_address(as_manager->get_instance_buffer(index)).value();
                 world.instance_address_prev = device.get_device_address(as_manager->get_instance_buffer(index_next)).value();
-                world.primitive_address = device.get_device_address(primitive_buffer[index]).value();
-                world.primitive_address_prev = device.get_device_address(primitive_buffer[index_next]).value();
-                world.aabb_address = device.get_device_address(aabb_buffer[index]).value();
-                world.aabb_address_prev = device.get_device_address(aabb_buffer[index_next]).value();
+                world.primitive_address = device.get_device_address(as_manager->get_primitive_buffer(index)).value();
+                world.primitive_address_prev = device.get_device_address(as_manager->get_primitive_buffer(index_next)).value();
+                world.aabb_address = device.get_device_address(as_manager->get_aabb_buffer(index)).value();
+                world.aabb_address_prev = device.get_device_address(as_manager->get_aabb_buffer(index_next)).value();
                 world.material_address = device.get_device_address(material_buffer).value();
                 world.point_light_address = device.get_device_address(point_light_buffer).value();
                 world.cube_light_address = device.get_device_address(cube_light_buffer).value();
@@ -1457,33 +1457,33 @@ namespace tests
                 //     .name = ("instance_buffer_1"),
                 // });
 
-                primitive_buffer[0] = device.create_buffer(daxa::BufferInfo{
-                    .size = max_primitive_buffer_size,
-                    .name = ("primitive_buffer_0"),
-                });
+                // primitive_buffer[0] = device.create_buffer(daxa::BufferInfo{
+                //     .size = max_primitive_buffer_size,
+                //     .name = ("primitive_buffer_0"),
+                // });
 
-                primitive_buffer[1] = device.create_buffer(daxa::BufferInfo{
-                    .size = max_primitive_buffer_size,
-                    .name = ("primitive_buffer_1"),
-                });
+                // primitive_buffer[1] = device.create_buffer(daxa::BufferInfo{
+                //     .size = max_primitive_buffer_size,
+                //     .name = ("primitive_buffer_1"),
+                // });
 
-                // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
-                // GeometryType of each element of pGeometries must be the same
-                aabb_buffer[0] = device.create_buffer({
-                    .size = max_aabb_buffer_size,
-                    .name = "aabb_buffer_0",
-                });
+                // // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
+                // // GeometryType of each element of pGeometries must be the same
+                // aabb_buffer[0] = device.create_buffer({
+                //     .size = max_aabb_buffer_size,
+                //     .name = "aabb_buffer_0",
+                // });
                 
-                aabb_buffer[1] = device.create_buffer({
-                    .size = max_aabb_buffer_size,
-                    .name = "aabb_buffer_1",
-                });
+                // aabb_buffer[1] = device.create_buffer({
+                //     .size = max_aabb_buffer_size,
+                //     .name = "aabb_buffer_1",
+                // });
 
-                aabb_host_buffer = device.create_buffer({
-                    .size = max_aabb_host_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = "aabb host buffer",
-                });
+                // aabb_host_buffer = device.create_buffer({
+                //     .size = max_aabb_host_buffer_size,
+                //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                //     .name = "aabb host buffer",
+                // });
 
                 material_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_material_buffer_size,
@@ -1614,8 +1614,8 @@ namespace tests
 
 
 
-                instances = std::make_unique<INSTANCE[]>(MAX_INSTANCES);
-                primitives = std::make_unique<PRIMITIVE[]>(MAX_PRIMITIVES);
+                // instances = std::make_unique<INSTANCE[]>(MAX_INSTANCES);
+                // primitives = std::make_unique<PRIMITIVE[]>(MAX_PRIMITIVES);
                 materials = std::make_unique<MATERIAL[]>(MAX_MATERIALS);
 
                 // Create a new context for the gvox library
@@ -1624,10 +1624,10 @@ namespace tests
                 GvoxModelDataSerialize gvox_map_serialize = {
                     .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
                     .max_instance_count = MAX_INSTANCES,
-                    .instances = instances.get(),
+                    .instances = as_manager->get_instances(),
                     .max_primitive_count = MAX_PRIMITIVES,
-                    .primitives = primitives.get(),
-                    .aabbs = device.get_host_address_as<AABB>(aabb_host_buffer).value(),
+                    .primitives = as_manager->get_primitives(),
+                    .aabbs = device.get_host_address_as<AABB>(as_manager->get_aabb_host_buffer()).value(),
                     .max_material_count = MAX_MATERIALS,
                     .materials = materials.get(),
                     .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
@@ -1643,22 +1643,24 @@ namespace tests
                 std::cout << "  materials: " << gvox_map.material_count << std::endl;
 
                 current_material_count += gvox_map.material_count;
-                current_aabb_host_count += gvox_map.primitive_count;
+                // current_aabb_host_count += gvox_map.primitive_count;
                 // current_instance_count[0] += current_instance_count[1] += gvox_map.instance_count;
                 as_manager->add_instance_count(0, gvox_map.instance_count);
                 as_manager->add_instance_count(1, gvox_map.instance_count);
                 light_config->cube_light_count += gvox_map.light_count;
 
-                if(current_aabb_host_count > 0) {
-                    size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
-                    size_t aabb_buffer_offset = current_primitive_count[0] * sizeof(AABB);
-                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer[0], aabb_buffer_offset, aabb_copy_size);
-                    current_primitive_count[0] += current_aabb_host_count;
-                    aabb_buffer_offset = current_primitive_count[1] * sizeof(AABB);
-                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer[1], aabb_buffer_offset, aabb_copy_size);
-                    current_primitive_count[1] += current_aabb_host_count;
-                    current_aabb_host_count = 0;
-                }
+                as_manager->upload_aabb_device_buffer(gvox_map.primitive_count);
+
+                // if(current_aabb_host_count > 0) {
+                //     size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
+                //     size_t aabb_buffer_offset = current_primitive_count[0] * sizeof(AABB);
+                //     upload_aabb_primitives(aabb_host_buffer, aabb_buffer[0], aabb_buffer_offset, aabb_copy_size);
+                //     current_primitive_count[0] += current_aabb_host_count;
+                //     aabb_buffer_offset = current_primitive_count[1] * sizeof(AABB);
+                //     upload_aabb_primitives(aabb_host_buffer, aabb_buffer[1], aabb_buffer_offset, aabb_copy_size);
+                //     current_primitive_count[1] += current_aabb_host_count;
+                //     current_aabb_host_count = 0;
+                // }
 
 
                 if(light_config->cube_light_count > 0) {
@@ -1683,27 +1685,27 @@ namespace tests
 
                 load_materials(false);
 
-                if(!load_primitives(0, false)) {
-                    std::cout << "Failed to load primitives" << std::endl;
-                    abort();
-                }
+                // if(!load_primitives(0, false)) {
+                //     std::cout << "Failed to load primitives" << std::endl;
+                //     abort();
+                // }
 
-                if(!load_primitives(1, false)) {
-                    std::cout << "Failed to load primitives" << std::endl;
-                    abort();
-                }
+                // if(!load_primitives(1, false)) {
+                //     std::cout << "Failed to load primitives" << std::endl;
+                //     abort();
+                // }
 
-                if(!as_manager->build_new_blas(0, aabb_buffer, instances.get(), false)) {
+                if(!as_manager->build_new_blas(0, false)) {
                     std::cout << "Failed to build blas" << std::endl;
                     abort();
                 }
 
-                if(!as_manager->build_tlas(0, instances.get(), false)) {
+                if(!as_manager->build_tlas(0, false)) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
 
-                if(!as_manager->build_tlas(1, instances.get(), true)) {
+                if(!as_manager->build_tlas(1, true)) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }

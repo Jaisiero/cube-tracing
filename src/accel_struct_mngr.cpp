@@ -2,6 +2,9 @@
 
 bool ACCEL_STRUCT_MNGR::create() {
     if(device.is_valid()) {
+        instances = std::make_unique<INSTANCE[]>(MAX_INSTANCES);
+        primitives = std::make_unique<PRIMITIVE[]>(MAX_PRIMITIVES);
+
         proc_blas_scratch_buffer = device.create_buffer({
             .size = proc_blas_scratch_buffer_size,
             .name = "proc blas build scratch buffer",
@@ -22,6 +25,39 @@ bool ACCEL_STRUCT_MNGR::create() {
                 .name = ("instance_buffer_" + std::to_string(i)),
             });
         }
+
+        for(uint32_t i = 0; i < DOUBLE_BUFFERING; i++) {
+            primitive_buffer[i] = device.create_buffer({
+                .size = max_primitive_buffer_size,
+                .name = ("primitive_buffer_" + std::to_string(i)),
+            });
+        }
+
+        // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
+        // GeometryType of each element of pGeometries must be the same
+        // aabb_buffer[0] = device.create_buffer({
+        //     .size = max_aabb_buffer_size,
+        //     .name = "aabb_buffer_0",
+        // });
+
+        // aabb_buffer[1] = device.create_buffer({
+        //     .size = max_aabb_buffer_size,
+        //     .name = "aabb_buffer_1",
+        // });
+
+        for(uint32_t i = 0; i < DOUBLE_BUFFERING; i++) {
+            aabb_buffer[i] = device.create_buffer({
+                .size = max_aabb_buffer_size,
+                .name = ("aabb_buffer_" + std::to_string(i)),
+            });
+        }
+
+        aabb_host_buffer = device.create_buffer({
+            .size = max_aabb_host_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = "aabb host buffer",
+        });
+        
 
         initialized = true;
 
@@ -51,13 +87,133 @@ bool ACCEL_STRUCT_MNGR::destroy() {
             if (buffer != daxa::BufferId{})
                 device.destroy_buffer(buffer);
 
+        for (auto buffer : aabb_buffer)
+            if(buffer != daxa::BufferId{})
+                device.destroy_buffer(buffer);
+        
+        if(aabb_host_buffer != daxa::BufferId{})
+            device.destroy_buffer(aabb_host_buffer);
+        
+        for(auto buffer : primitive_buffer)
+            if(buffer != daxa::BufferId{})
+                device.destroy_buffer(buffer);
+
         initialized = false;
     }
 
     return !initialized;
 }
 
-bool ACCEL_STRUCT_MNGR::build_new_blas(uint32_t frame_index, daxa::BufferId aabb_buffer[DOUBLE_BUFFERING], INSTANCE instances[], bool synchronize)
+bool ACCEL_STRUCT_MNGR::load_primitives(daxa_u32 frame_index, bool synchronize)
+{
+    if (!device.is_valid() || !initialized)
+    {
+        std::cout << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    if (frame_index >= DOUBLE_BUFFERING)
+    {
+        std::cout << "frame_index >= tlas.size()" << std::endl;
+        return false;
+    }
+
+    // Copy primitives to buffer
+    u32 primitive_buffer_size = static_cast<u32>(current_primitive_count[frame_index] * sizeof(PRIMITIVE));
+    if (primitive_buffer_size > max_primitive_buffer_size)
+    {
+        std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+        abort();
+    }
+
+    auto primitive_staging_buffer = device.create_buffer({
+        .size = primitive_buffer_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+        .name = ("primitive_staging_buffer"),
+    });
+    defer { device.destroy_buffer(primitive_staging_buffer); };
+
+    auto *primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
+    std::memcpy(primitive_buffer_ptr,
+                primitives.get(),
+                primitive_buffer_size);
+
+    /// Record build commands:
+    auto exec_cmds = [&]()
+    {
+        auto recorder = device.create_command_recorder({});
+
+        recorder.copy_buffer_to_buffer({
+            .src_buffer = primitive_staging_buffer,
+            .dst_buffer = primitive_buffer[frame_index],
+            .size = primitive_buffer_size,
+        });
+
+        return recorder.complete_current_commands();
+    }();
+    device.submit_commands({.command_lists = std::array{exec_cmds}});
+    if (synchronize)
+    {
+        device.wait_idle();
+    }
+
+    return true;
+}
+
+void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size) {
+    /// Record build commands:
+    auto exec_cmds = [&]()
+    {
+        auto recorder = device.create_command_recorder({});
+
+        recorder.copy_buffer_to_buffer({
+            .src_buffer = aabb_staging_buffer,
+            .dst_buffer = aabb_buffer,
+            .dst_offset = aabb_buffer_offset,
+            .size = aabb_copy_size,
+        });
+
+        return recorder.complete_current_commands();
+    }();
+    device.submit_commands({.command_lists = std::array{exec_cmds}});
+    device.wait_idle();
+}
+
+bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t current_aabb_host_count)
+{
+    if (!device.is_valid() || !initialized)
+    {
+        std::cout << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    if (current_aabb_host_count > 0)
+    {
+        size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
+        size_t aabb_buffer_offset = current_primitive_count[0] * sizeof(AABB);
+        upload_aabb_primitives(aabb_host_buffer, aabb_buffer[0], aabb_buffer_offset, aabb_copy_size);
+        current_primitive_count[0] += current_aabb_host_count;
+        aabb_buffer_offset = current_primitive_count[1] * sizeof(AABB);
+        upload_aabb_primitives(aabb_host_buffer, aabb_buffer[1], aabb_buffer_offset, aabb_copy_size);
+        current_primitive_count[1] += current_aabb_host_count;
+        current_aabb_host_count = 0;
+
+        if(!load_primitives(0, false)) {
+            std::cout << "Failed to load primitives" << std::endl;
+            abort();
+        }
+
+        if (!load_primitives(1, false))
+        {
+            std::cout << "Failed to load primitives" << std::endl;
+            abort();
+        }
+    }
+
+    return true;
+}
+
+bool ACCEL_STRUCT_MNGR::build_new_blas(uint32_t frame_index, bool synchronize)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -185,7 +341,7 @@ bool ACCEL_STRUCT_MNGR::build_new_blas(uint32_t frame_index, daxa::BufferId aabb
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, INSTANCE instances[], bool synchronize)
+bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -279,7 +435,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, INSTANCE instances[], b
 
     auto *instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
     std::memcpy(instance_buffer_ptr,
-                instances,
+                instances.get(),
                 instance_buffer_size);
 
     /// Record build commands:

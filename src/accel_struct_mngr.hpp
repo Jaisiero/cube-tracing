@@ -28,7 +28,23 @@ public:
         if(frame_index >= DOUBLE_BUFFERING) return daxa::BufferId();
         return instance_buffer[frame_index]; 
     }
-    
+
+    daxa::BufferId get_aabb_buffer(uint32_t frame_index) const { 
+        if(frame_index >= DOUBLE_BUFFERING) return daxa::BufferId();
+        return aabb_buffer[frame_index]; 
+    }
+
+    daxa::BufferId get_aabb_host_buffer() const { return aabb_host_buffer; }
+
+    INSTANCE* get_instances() const { return instances.get(); }
+
+    PRIMITIVE* get_primitives() const { return primitives.get(); }
+
+    daxa::BufferId get_primitive_buffer(uint32_t frame_index) const { 
+        if(frame_index >= DOUBLE_BUFFERING) return daxa::BufferId();
+        return primitive_buffer[frame_index]; 
+    }
+
     bool add_instance_count(uint32_t frame_index, uint32_t count) {
         if(frame_index >= DOUBLE_BUFFERING) return false;
         if(current_instance_count[frame_index] + count > MAX_INSTANCES) return false;
@@ -36,8 +52,11 @@ public:
         return true;
     }
 
-    bool build_new_blas(uint32_t frame_index, daxa::BufferId aabb_buffer[DOUBLE_BUFFERING],  INSTANCE instances[], bool synchronize);
-    bool build_tlas(uint32_t frame_index, INSTANCE instances[], bool synchronize);
+    bool load_primitives(uint32_t frame_index, bool synchronize);
+    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size);
+    bool upload_aabb_device_buffer(uint32_t current_aabb_host_count);
+    bool build_new_blas(uint32_t frame_index, bool synchronize);
+    bool build_tlas(uint32_t frame_index, bool synchronize);
 
 private:
     daxa::Device& device;
@@ -61,7 +80,20 @@ private:
     size_t max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
     
     uint32_t current_instance_count[DOUBLE_BUFFERING] = {};
-    // std::unique_ptr<INSTANCE[]> instances = {};
+    std::unique_ptr<INSTANCE[]> instances = {};
+    
+    daxa::BufferId aabb_buffer[DOUBLE_BUFFERING] = {};
+    size_t max_aabb_buffer_size = sizeof(AABB) * MAX_PRIMITIVES;
+    daxa::BufferId aabb_host_buffer = {};
+    size_t max_aabb_host_buffer_size = sizeof(AABB) * MAX_PRIMITIVES * 0.1;
+    uint32_t current_aabb_host_count = 0;
+
+    uint32_t current_primitive_count[DOUBLE_BUFFERING] = {};
+    uint32_t max_current_primitive_count = 0;
+    std::unique_ptr<PRIMITIVE[]> primitives = {};
+
+    daxa::BufferId primitive_buffer[DOUBLE_BUFFERING] = {};
+    size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
 
     bool initialized = false;
 };
