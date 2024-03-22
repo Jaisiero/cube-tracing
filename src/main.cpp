@@ -29,6 +29,7 @@ namespace tests
             const char *MAP_NAME = "monu9.vox";
             // const char *MAP_NAME = "room.vox";
             const float day_duration = 60.0f; // Duración de un día en segundos
+            const uint32_t DOUBLE_BUFFERING = 2;
 
             Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
             Status status = {};
@@ -45,15 +46,21 @@ namespace tests
             daxa_b32 activate_midday = false;
             daxa_b32 activate_sun_light = false;
 
+            // Vulkan objects
             daxa::Instance daxa_ctx = {};
             daxa::Device device = {};
+            // swapchain
             daxa::Swapchain swapchain = {};
             daxa::ImageId previous_frame = {};
+            // TAA images
             daxa::ImageId taa_image[2] = {};
+            // Pipelines
             daxa::PipelineManager pipeline_manager = {};
             std::shared_ptr<daxa::RayTracingPipeline> rt_pipeline = {};
             std::shared_ptr<daxa::ComputePipeline> compute_motion_vectors_pipeline = {};
-            daxa::TlasId tlas = {};
+            
+            // Acceleration structures
+            daxa::TlasId tlas[2] = {};
             std::vector<daxa::BlasId> proc_blas = {};
             daxa::BufferId proc_blas_scratch_buffer = {};
             daxa_u64 proc_blas_scratch_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
@@ -81,18 +88,17 @@ namespace tests
             size_t world_buffer_size = sizeof(WORLD);
             WORLD world = {};
 
-            daxa::BufferId instance_buffer = {};
+            daxa::BufferId instance_buffer[2] = {};
             size_t max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
 
-            daxa::BufferId primitive_buffer = {};
+            daxa::BufferId primitive_buffer[2] = {};
             size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
 
-            daxa::BufferId aabb_buffer = {};
+            daxa::BufferId aabb_buffer[2] = {};
             size_t max_aabb_buffer_size = sizeof(AABB) * MAX_PRIMITIVES;
             daxa::BufferId aabb_host_buffer = {};
             size_t max_aabb_host_buffer_size = sizeof(AABB) * MAX_PRIMITIVES * 0.1;
             daxa_u32 current_aabb_host_count = 0;
-            size_t aabb_buffer_offset = 0;
 
             // u32 current_texture_count = 0;
             // std::vector<daxa::ImageId> images = {};
@@ -145,10 +151,10 @@ namespace tests
             std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
             std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
 
-            u32 current_instance_count = 0;
+            u32 current_instance_count[2] = {};
             std::unique_ptr<INSTANCE[]> instances = {};
 
-            u32 current_primitive_count = 0;
+            u32 current_primitive_count[2] = {};
             u32 max_current_primitive_count = 0;
             std::unique_ptr<PRIMITIVE[]> primitives = {};
 
@@ -174,14 +180,19 @@ namespace tests
                 device.collect_garbage();
                 if (device.is_valid())
                 {
-                    device.destroy_tlas(tlas);
+                    for(auto _tlas : tlas)
+                        if(_tlas != daxa::TlasId{})
+                            device.destroy_tlas(_tlas);
                     for(auto blas : proc_blas)
                         device.destroy_blas(blas);
                     device.destroy_buffer(light_config_buffer);
                     device.destroy_buffer(cam_buffer);
-                    device.destroy_buffer(instance_buffer);
-                    device.destroy_buffer(primitive_buffer);
-                    device.destroy_buffer(aabb_buffer);
+                    for(auto buffer : instance_buffer)
+                        device.destroy_buffer(buffer);
+                    for(auto buffer : primitive_buffer)
+                        device.destroy_buffer(buffer);
+                    for(auto buffer : aabb_buffer)
+                        device.destroy_buffer(buffer);
                     device.destroy_buffer(aabb_host_buffer);
                     device.destroy_buffer(material_buffer);
                     // for(auto image : images)
@@ -214,20 +225,26 @@ namespace tests
                 }
             }
 
-            void change_random_material_primitives() {
-                if(current_primitive_count == 0) {
+            void change_random_material_primitives(uint32_t frame_index) {
+
+                if(frame_index >= DOUBLE_BUFFERING) {
+                    std::cout << "frame_index >= tlas.size()" << std::endl;
+                    return;
+                }
+
+                if(current_primitive_count[frame_index] == 0) {
                     return;
                 }
 
                 // Change every primitive material
-                for(u32 i = 0; i < current_primitive_count; i++) {
-                    primitives[i].material_index = random_uint(0, current_material_count - CONSTANT_MEDIUM_MATERIAL_COUNT - 1);
+                for(u32 i = 0; i < current_primitive_count[frame_index]; i++) {
+                    primitives[i].material_index = random_uint(0, current_material_count);
                     // primitives[i].material_index = random_uint(0, current_material_count - 1);
                 }
 
 
                 // Copy primitives to buffer
-                u32 current_primitive_buffer_size = static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE));
+                u32 current_primitive_buffer_size = static_cast<u32>(current_primitive_count[frame_index] * sizeof(PRIMITIVE));
                 if(current_primitive_buffer_size > max_primitive_buffer_size) {
                     std::cout << "current_primitive_buffer_size > max_primitive_buffer_size" << std::endl;
                     abort();
@@ -257,7 +274,7 @@ namespace tests
 
                     recorder.copy_buffer_to_buffer({
                         .src_buffer = primitive_staging_buffer,
-                        .dst_buffer = primitive_buffer,
+                        .dst_buffer = primitive_buffer[frame_index],
                         .size = max_primitive_buffer_size,
                     });
 
@@ -606,168 +623,264 @@ namespace tests
                 device.wait_idle();
             }
 
-            daxa_Bool8 load_blas_info(u32 instance_count) {
-                daxa_Bool8 some_level_changed = false;
+            // daxa_Bool8 load_blas_info(u32 instance_count) {
+            //     daxa_Bool8 some_level_changed = false;
 
-                if(instance_count == 0) {
-                    std::cout << "instance_count == 0" << std::endl;
-                    return false;
-                }
+            //     if(instance_count == 0) {
+            //         std::cout << "instance_count == 0" << std::endl;
+            //         return false;
+            //     }
 
-                this->max_current_primitive_count = instance_count * CHUNK_VOXEL_COUNT;
+            //     this->max_current_primitive_count = instance_count * CHUNK_VOXEL_COUNT;
 
-                if(this->max_current_primitive_count > MAX_PRIMITIVES) {
-                    std::cout << "max_current_primitive_count: " << max_current_primitive_count <<  " MAX_PRIMITIVES: " << MAX_PRIMITIVES << std::endl;
-                    return false;
-                }
+            //     if(this->max_current_primitive_count > MAX_PRIMITIVES) {
+            //         std::cout << "max_current_primitive_count: " << max_current_primitive_count <<  " MAX_PRIMITIVES: " << MAX_PRIMITIVES << std::endl;
+            //         return false;
+            //     }
 
-                this->current_instance_count = 0;
+            //     this->current_instance_count = 0;
 
-                current_primitive_count = 0;
+            //     current_primitive_count = 0;
 
-                std::vector<daxa_f32mat2x3> min_max;
-                min_max.reserve(CHUNK_VOXEL_COUNT);
+            //     std::vector<daxa_f32mat2x3> min_max;
+            //     min_max.reserve(CHUNK_VOXEL_COUNT);
 
-                uint32_t temporal_primitive_count = 0;
+            //     uint32_t temporal_primitive_count = 0;
 
-                for(u32 i = 0; i < instance_count; i++) {
-                    min_max.clear();
+            //     for(u32 i = 0; i < instance_count; i++) {
+            //         min_max.clear();
 
-                    for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
-                        for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
-                            for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
-                                if(random_float(0.0, 1.0) > 0.75) {
-                                    min_max.push_back(generate_min_max_by_coord(x, y, z, VOXEL_EXTENT));
-                                }
-                            }
-                        }
-                    }
-                    // min_max.push_back(generate_min_max_by_coord(VOXEL_COUNT_BY_AXIS*0.5, VOXEL_COUNT_BY_AXIS*0.5, VOXEL_COUNT_BY_AXIS*0.5));
-                    // min_max.push_back(generate_min_max_at_origin(VOXEL_EXTENT));
+            //         for(u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++) {
+            //             for(u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++) {
+            //                 for(u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++) {
+            //                     if(random_float(0.0, 1.0) > 0.75) {
+            //                         min_max.push_back(generate_min_max_by_coord(x, y, z, VOXEL_EXTENT));
+            //                     }
+            //                 }
+            //             }
+            //         }
+            //         // min_max.push_back(generate_min_max_by_coord(VOXEL_COUNT_BY_AXIS*0.5, VOXEL_COUNT_BY_AXIS*0.5, VOXEL_COUNT_BY_AXIS*0.5));
+            //         // min_max.push_back(generate_min_max_at_origin(VOXEL_EXTENT));
 
-                    u32 primitive_count_current_instance = min_max.size();
+            //         u32 primitive_count_current_instance = min_max.size();
 
-                    daxa_f32mat4x4 transpose_mat = get_daxa_f32mat4x4_transpose(transforms[i]);
+            //         daxa_f32mat4x4 transpose_mat = get_daxa_f32mat4x4_transpose(transforms[i]);
 
-                    INSTANCE instance = {};
+            //         INSTANCE instance = {};
 
-                    instance.transform = {
-                        transpose_mat,
-                    },
-                    // TODO: get previous transform from previous build
-                    instance.prev_transform = {
-                        transpose_mat,
-                    },
-                    instance.primitive_count = primitive_count_current_instance;
-                    instance.first_primitive_index = current_primitive_count;
+            //         instance.transform = {
+            //             transpose_mat,
+            //         },
+            //         // TODO: get previous transform from previous build
+            //         instance.prev_transform = {
+            //             transpose_mat,
+            //         },
+            //         instance.primitive_count = primitive_count_current_instance;
+            //         instance.first_primitive_index = current_primitive_count;
 
-                    if(instance.primitive_count == 0) {
-                        std::cout << "primitive count is 0 for instance " << i << std::endl;
-                        return false;
-                    }
+            //         if(instance.primitive_count == 0) {
+            //             std::cout << "primitive count is 0 for instance " << i << std::endl;
+            //             return false;
+            //         }
 
-                    // push primitives
-                    for(u32 j = 0; j < instance.primitive_count; j++) {
+            //         // push primitives
+            //         for(u32 j = 0; j < instance.primitive_count; j++) {
 
-                        daxa_u32 material_index = random_uint(0, current_material_count - 1);
-                        if(material_index >= MATERIAL_COUNT_UP_TO_DIALECTRIC && material_index < MATERIAL_COUNT_UP_TO_EMISSIVE) {
-                            daxa_f32mat2x3 aabb = min_max.at(j);
-                            LIGHT surface_light = {};
-                            daxa_f32vec3 center = daxa_f32vec3_multiply_by_scalar(daxa_f32vec3_add_daxa_f32vec3(aabb.x, aabb.y), 0.5);
-                            surface_light.position = daxa_f32mat4x4_multiply_by_daxa_f32vec4(instance.transform, 
-                                daxa_f32vec4(center.x, center.y, center.z, 1.0));
-                            surface_light.emissive = materials[material_index].emission;
-                            surface_light.instance_info = OBJECT_INFO(i, j);
-                            surface_light.type = GEOMETRY_LIGHT_CUBE;
-                            // TODO: this will be based on voxel size
-                            surface_light.size = VOXEL_EXTENT;
-                            cube_lights[light_config->cube_light_count++] = surface_light;
-                            light_config->cube_light_count++;
-                        }
+            //             daxa_u32 material_index = random_uint(0, current_material_count - 1);
+            //             if(material_index >= MATERIAL_COUNT_UP_TO_DIALECTRIC && material_index < MATERIAL_COUNT_UP_TO_EMISSIVE) {
+            //                 daxa_f32mat2x3 aabb = min_max.at(j);
+            //                 LIGHT surface_light = {};
+            //                 daxa_f32vec3 center = daxa_f32vec3_multiply_by_scalar(daxa_f32vec3_add_daxa_f32vec3(aabb.x, aabb.y), 0.5);
+            //                 surface_light.position = daxa_f32mat4x4_multiply_by_daxa_f32vec4(instance.transform, 
+            //                     daxa_f32vec4(center.x, center.y, center.z, 1.0));
+            //                 surface_light.emissive = materials[material_index].emission;
+            //                 surface_light.instance_info = OBJECT_INFO(i, j);
+            //                 surface_light.type = GEOMETRY_LIGHT_CUBE;
+            //                 // TODO: this will be based on voxel size
+            //                 surface_light.size = VOXEL_EXTENT;
+            //                 cube_lights[light_config->cube_light_count++] = surface_light;
+            //                 light_config->cube_light_count++;
+            //             }
 
-                        primitives[temporal_primitive_count++] = PRIMITIVE{
-                            .material_index = material_index,
-                        };
-                    }
+            //             primitives[temporal_primitive_count++] = PRIMITIVE{
+            //                 .material_index = material_index,
+            //             };
+            //         }
 
                     
-                    // push AABB primitives
-                    u64 current_primitive_size = (current_aabb_host_count + instance.primitive_count) * sizeof(AABB);
+            //         // push AABB primitives
+            //         u64 current_primitive_size = (current_aabb_host_count + instance.primitive_count) * sizeof(AABB);
 
-                    if(current_primitive_size > max_aabb_host_buffer_size) {
-                        size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
-                        upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
-                        aabb_buffer_offset += aabb_copy_size;
-                        current_aabb_host_count = 0;
-                    }
+            //         if(current_primitive_size > max_aabb_host_buffer_size) {
+            //             size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
+            //             upload_aabb_primitives(aabb_host_buffer, aabb_buffer[frame_index], aabb_buffer_offset, aabb_copy_size);
+            //             aabb_buffer_offset += aabb_copy_size;
+            //             current_aabb_host_count = 0;
+            //         }
 
-                    std::memcpy((device.get_host_address_as<AABB>(aabb_host_buffer).value() + current_aabb_host_count),
-                        min_max.data(),
-                        instance.primitive_count * sizeof(AABB));
-                    current_primitive_count += instance.primitive_count;
-                    current_aabb_host_count += instance.primitive_count;
+            //         std::memcpy((device.get_host_address_as<AABB>(aabb_host_buffer).value() + current_aabb_host_count),
+            //             min_max.data(),
+            //             instance.primitive_count * sizeof(AABB));
+            //         current_primitive_count += instance.primitive_count;
+            //         current_aabb_host_count += instance.primitive_count;
 
-                    instances[i] = instance;
-                }
+            //         instances[i] = instance;
+            //     }
 
-                if(current_aabb_host_count > 0) {
-                    size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
-                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
-                    aabb_buffer_offset += aabb_copy_size;
-                    current_aabb_host_count = 0;
-                }
+            //     if(current_aabb_host_count > 0) {
+            //         size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
+            //         upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
+            //         aabb_buffer_offset += aabb_copy_size;
+            //         current_aabb_host_count = 0;
+            //     }
 
-                // Update status for shaders
-                status.obj_count = current_primitive_count;
+            //     // Update status for shaders
+            //     status.obj_count = current_primitive_count;
                 
-                // Update instance count
-                this->current_instance_count = instance_count;
+            //     // Update instance count
+            //     this->current_instance_count = instance_count;
 
-                std::cout << "Num of instances: " << current_instance_count << std::endl;
-                std::cout << "Num of cubes: " << current_primitive_count << std::endl;
-                std::cout << "Num of materials: " << current_material_count << std::endl;
+            //     std::cout << "Num of instances: " << current_instance_count << std::endl;
+            //     std::cout << "Num of cubes: " << current_primitive_count << std::endl;
+            //     std::cout << "Num of materials: " << current_material_count << std::endl;
 
+
+            //     return true;
+            // }
+
+
+
+            daxa_Bool8 load_materials(daxa_Bool8 synchronize) {
+                // TODO: Refactor materials copies
+                daxa_u32 material_buffer_size = static_cast<u32>(current_material_count * sizeof(MATERIAL));
+                if(material_buffer_size > max_material_buffer_size) {
+                    std::cout << "material_buffer_size > max_material_buffer_size" << std::endl;
+                    abort();
+                }
+
+                auto material_staging_buffer = device.create_buffer({
+                    .size = material_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("material_staging_buffer"),
+                });
+                defer { device.destroy_buffer(material_staging_buffer); };
+
+                auto * material_buffer_ptr = device.get_host_address_as<MATERIAL>(material_staging_buffer).value();
+                std::memcpy(material_buffer_ptr,
+                    materials.get(),
+                    material_buffer_size);
+
+
+                /// Record build commands:
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = material_staging_buffer,
+                        .dst_buffer = material_buffer,
+                        .size = material_buffer_size,
+                    });
+
+                    return recorder.complete_current_commands();
+                }();
+                device.submit_commands({.command_lists = std::array{exec_cmds}});
+                if(synchronize) {
+                    device.wait_idle();
+                }
 
                 return true;
             }
 
 
-            daxa_Bool8 build_tlas() {
+            daxa_Bool8 load_primitives(daxa_u32 frame_index, daxa_Bool8 synchronize) {
+
+                if(frame_index >= DOUBLE_BUFFERING) {
+                    std::cout << "frame_index >= tlas.size()" << std::endl;
+                    return false;
+                }
+
+                // Copy primitives to buffer
+                u32 primitive_buffer_size = static_cast<u32>(current_primitive_count[frame_index] * sizeof(PRIMITIVE));
+                if(primitive_buffer_size > max_primitive_buffer_size) {
+                    std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+                    abort();
+                }
+
+
+                auto primitive_staging_buffer = device.create_buffer({
+                    .size = primitive_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("primitive_staging_buffer"),
+                });
+                defer { device.destroy_buffer(primitive_staging_buffer); };
+
+                auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
+                std::memcpy(primitive_buffer_ptr,
+                    primitives.get(),
+                    primitive_buffer_size);
+
+                    /// Record build commands:
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
+
+                    recorder.copy_buffer_to_buffer({
+                        .src_buffer = primitive_staging_buffer,
+                        .dst_buffer = primitive_buffer[frame_index],
+                        .size = primitive_buffer_size,
+                    });
+
+                    return recorder.complete_current_commands();
+                }();
+                device.submit_commands({.command_lists = std::array{exec_cmds}});
+                if(synchronize) {
+                    device.wait_idle();
+                }
+
+                return true;
+
+
+            }
+
+
+            daxa_Bool8 build_blas(daxa_u32 frame_index, daxa_Bool8 synchronize) {
                 
                 // Blas buffer offset to zero
                 proc_blas_buffer_offset = 0;
 
-                // Clear previous blas build infos
-                if(this->tlas != daxa::TlasId{})
-                    device.destroy_tlas(tlas);
+                if(frame_index >= DOUBLE_BUFFERING) {
+                    std::cout << "frame_index >= tlas.size()" << std::endl;
+                    return false;
+                }
+
                 for(auto blas : this->proc_blas)
                     device.destroy_blas(blas);
 
 
                 // Clear previous procedural blas
                 this->proc_blas.clear();
-                this->proc_blas.reserve(current_instance_count);
+                this->proc_blas.reserve(current_instance_count[frame_index]);
 
                 // reserve blas build infos
-                blas_build_infos.reserve(current_instance_count);
-
-                std::vector<daxa_BlasInstanceData> blas_instance_array = {};
-                blas_instance_array.reserve(current_instance_count);
+                blas_build_infos.clear();
+                blas_build_infos.reserve(current_instance_count[frame_index]);
 
                 // TODO: As much geometry as instances for now
-                aabb_geometries.resize(current_instance_count);
+                aabb_geometries.clear();
+                aabb_geometries.resize(current_instance_count[frame_index]);
 
 
                 u32 current_instance_index = 0;
 
                 // build procedural blas
-                for(u32 i = 0; i < current_instance_count; i++) {
+                for(u32 i = 0; i < current_instance_count[frame_index]; i++) {
                     aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
-                        .data = device.get_device_address(aabb_buffer).value() + (instances[i].first_primitive_index * sizeof(AABB)),
+                        .data = device.get_device_address(aabb_buffer[frame_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)),
                         .stride = sizeof(AABB),
                         .count = instances[i].primitive_count,
                         // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                        .flags = i < current_instance_count - CLOUD_INSTANCE_COUNT_X ? (u32)0x1 : (u32)0x2, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+                        .flags = 0x1, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
                     });
 
                     // Crear un daxa::Span a partir del vector
@@ -775,7 +888,7 @@ namespace tests
 
                     /// Create Procedural Blas:
                     blas_build_infos.push_back(daxa::BlasBuildInfo{
-                        .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_TRACE,       // Is also default
+                        .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD,       // Is also default
                         .dst_blas = {}, // Ignored in get_acceleration_structure_build_sizes.       // Is also default
                         .geometries = geometry_span,
                         .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
@@ -809,7 +922,7 @@ namespace tests
                     }
                     this->proc_blas.push_back(device.create_blas_from_buffer({
                         .blas_info = {.size = proc_build_size_info.acceleration_structure_size,
-                            .name = "test procedural blas",
+                            .name = "procedural blas",
                         },
                         .buffer_id = proc_blas_buffer,
                         .offset = proc_blas_buffer_offset,
@@ -819,6 +932,59 @@ namespace tests
 
                     blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = this->proc_blas.at(this->proc_blas.size() - 1);
 
+                    ++current_instance_index;
+                }
+
+                proc_blas_scratch_buffer_offset = 0;
+
+                // Check if all instances were processed
+                if(current_instance_index != current_instance_count[frame_index]) {
+                    std::cout << "current_instance_index != current_instance_count" << std::endl;
+                    return false;
+                }
+
+
+                /// Record build commands:
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
+                    recorder.pipeline_barrier({
+                        .src_access = daxa::AccessConsts::HOST_WRITE,
+                        .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
+                    });
+                    recorder.build_acceleration_structures({
+                        .blas_build_infos = blas_build_infos,
+                    });
+
+                    return recorder.complete_current_commands();
+                }();
+                device.submit_commands({.command_lists = std::array{exec_cmds}});
+                if(synchronize) {
+                    device.wait_idle();
+                }
+                /// NOTE:
+                /// No need to wait idle here.
+                /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
+
+                return true;
+            }
+
+
+            daxa_Bool8 build_tlas(daxa_u32 frame_index, daxa_Bool8 synchronize) {
+
+                if(frame_index >= DOUBLE_BUFFERING) {
+                    std::cout << "frame_index >= tlas.size()" << std::endl;
+                    return false;
+                }
+
+                if(tlas[frame_index] != daxa::TlasId{})
+                    device.destroy_tlas(tlas[frame_index]);
+
+                std::vector<daxa_BlasInstanceData> blas_instance_array = {};
+                blas_instance_array.reserve(current_instance_count[frame_index]);
+
+                // build procedural blas
+                for(u32 i = 0; i < current_instance_count[frame_index]; i++) {
                     blas_instance_array.push_back(daxa_BlasInstanceData{
                         .transform =
                             daxa_f32mat4x4_to_daxa_f32mat3x4(instances[i].transform),
@@ -826,23 +992,13 @@ namespace tests
                         .mask = 0xFF,
                         .instance_shader_binding_table_record_offset = {}, // Is also default
                         .flags = {},                                       // Is also default
-                        .blas_device_address = device.get_device_address(this->proc_blas.at(this->proc_blas.size() - 1)).value(),
+                        .blas_device_address = device.get_device_address(this->proc_blas.at(i)).value(),
                     });
-
-                    ++current_instance_index;
-                }
-
-                proc_blas_scratch_buffer_offset = 0;
-
-                // Check if all instances were processed
-                if(current_instance_index != current_instance_count) {
-                    std::cout << "current_instance_index != current_instance_count" << std::endl;
-                    return false;
                 }
 
                 /// create blas instances for tlas:
                 auto blas_instances_buffer = device.create_buffer({
-                    .size = sizeof(daxa_BlasInstanceData) * current_instance_count,
+                    .size = sizeof(daxa_BlasInstanceData) * current_instance_count[frame_index],
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
                     .name = "blas instances array buffer",
                 });
@@ -855,21 +1011,22 @@ namespace tests
                 auto blas_instances = std::array{
                     daxa::TlasInstanceInfo{
                         .data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
-                        .count = current_instance_count,
+                        .count = current_instance_count[frame_index],
                         .is_data_array_of_pointers = false, // Buffer contains flat array of instances, not an array of pointers to instances.
                         // .flags = daxa::GeometryFlagBits::OPAQUE,
                         .flags = 0x1,
                     }
                 };
                 auto tlas_build_info = daxa::TlasBuildInfo{
-                    .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_TRACE,
+                    .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD,
                     .dst_tlas = {}, // Ignored in get_acceleration_structure_build_sizes.
                     .instances = blas_instances,
                     .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.
                 };
                 daxa::AccelerationStructureBuildSizesInfo tlas_build_sizes = device.get_tlas_build_sizes(tlas_build_info);
+                // TODO: Try to resize buffer if necessary and not build everytime
                 /// Create Tlas:
-                this->tlas = device.create_tlas({
+                this->tlas[frame_index] = device.create_tlas({
                     .size = tlas_build_sizes.acceleration_structure_size,
                     .name = "tlas",
                 });
@@ -880,14 +1037,14 @@ namespace tests
                 });
                 defer { device.destroy_buffer(tlas_scratch_buffer); };
                 /// Update build info:
-                tlas_build_info.dst_tlas = tlas;
+                tlas_build_info.dst_tlas = this->tlas[frame_index];
                 tlas_build_info.scratch_data = device.get_device_address(tlas_scratch_buffer).value();
                 blas_instances[0].data = device.get_device_address(blas_instances_buffer).value();
 
 
 
                 // Copy instances to buffer
-                u32 instance_buffer_size = static_cast<u32>(current_instance_count * sizeof(INSTANCE));
+                u32 instance_buffer_size = static_cast<u32>(current_instance_count[frame_index] * sizeof(INSTANCE));
                 if(instance_buffer_size > max_instance_buffer_size) {
                     std::cout << "instance_buffer_size > max_instance_buffer_size" << std::endl;
                     abort();
@@ -906,45 +1063,7 @@ namespace tests
                     instances.get(),
                     instance_buffer_size);
 
-                // Copy primitives to buffer
-                u32 primitive_buffer_size = static_cast<u32>(current_primitive_count * sizeof(PRIMITIVE));
-                if(primitive_buffer_size > max_primitive_buffer_size) {
-                    std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
-                    abort();
-                }
-
-
-                auto primitive_staging_buffer = device.create_buffer({
-                    .size = primitive_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("primitive_staging_buffer"),
-                });
-                defer { device.destroy_buffer(primitive_staging_buffer); };
-
-                auto * primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
-                std::memcpy(primitive_buffer_ptr,
-                    primitives.get(),
-                    primitive_buffer_size);
-
-
-                // TODO: Refactor materials copies
-                daxa_u32 material_buffer_size = static_cast<u32>(current_material_count * sizeof(MATERIAL));
-                if(material_buffer_size > max_material_buffer_size) {
-                    std::cout << "material_buffer_size > max_material_buffer_size" << std::endl;
-                    abort();
-                }
-
-                auto material_staging_buffer = device.create_buffer({
-                    .size = material_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("material_staging_buffer"),
-                });
-                defer { device.destroy_buffer(material_staging_buffer); };
-
-                auto * material_buffer_ptr = device.get_host_address_as<MATERIAL>(material_staging_buffer).value();
-                std::memcpy(material_buffer_ptr,
-                    materials.get(),
-                    material_buffer_size);
+                
 
 
                 /// Record build commands:
@@ -954,9 +1073,6 @@ namespace tests
                     recorder.pipeline_barrier({
                         .src_access = daxa::AccessConsts::HOST_WRITE,
                         .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
-                    });
-                    recorder.build_acceleration_structures({
-                        .blas_build_infos = blas_build_infos,
                     });
                     recorder.pipeline_barrier({
                         .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
@@ -972,26 +1088,16 @@ namespace tests
 
                      recorder.copy_buffer_to_buffer({
                         .src_buffer = instance_staging_buffer,
-                        .dst_buffer = instance_buffer,
+                        .dst_buffer = instance_buffer[frame_index],
                         .size = instance_buffer_size,
-                    });
-
-                    recorder.copy_buffer_to_buffer({
-                        .src_buffer = primitive_staging_buffer,
-                        .dst_buffer = primitive_buffer,
-                        .size = primitive_buffer_size,
-                    });
-
-                    recorder.copy_buffer_to_buffer({
-                        .src_buffer = material_staging_buffer,
-                        .dst_buffer = material_buffer,
-                        .size = material_buffer_size,
                     });
 
                     return recorder.complete_current_commands();
                 }();
                 device.submit_commands({.command_lists = std::array{exec_cmds}});
-                device.wait_idle();
+                if(synchronize){
+                    device.wait_idle();
+                }
                 /// NOTE:
                 /// No need to wait idle here.
                 /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
@@ -1000,14 +1106,22 @@ namespace tests
             }
 
 
-            void upload_world() {
+            void upload_world(daxa_u32 frame_index) {
+
+                if(frame_index >= DOUBLE_BUFFERING) {
+                    std::cout << "frame_index >= DOUBLE_BUFFERING" << std::endl;
+                    return;
+                }
 
                 // get world buffer host mapped pointer
                 auto * world_buffer_ptr = device.get_host_address(world_buffer).value();
 
-                world.instance_address = device.get_device_address(instance_buffer).value();
-                world.primitive_address = device.get_device_address(primitive_buffer).value();
-                world.aabb_address = device.get_device_address(aabb_buffer).value();
+                world.instance_address = device.get_device_address(instance_buffer[(frame_index) % DOUBLE_BUFFERING]).value();
+                world.instance_address_prev = device.get_device_address(instance_buffer[(frame_index + 1) % DOUBLE_BUFFERING]).value();
+                world.primitive_address = device.get_device_address(primitive_buffer[(frame_index) % DOUBLE_BUFFERING]).value();
+                world.primitive_address_prev = device.get_device_address(primitive_buffer[(frame_index + 1) % DOUBLE_BUFFERING]).value();
+                world.aabb_address = device.get_device_address(aabb_buffer[(frame_index) % DOUBLE_BUFFERING]).value();
+                world.aabb_address_prev = device.get_device_address(aabb_buffer[(frame_index + 1) % DOUBLE_BUFFERING]).value();
                 world.material_address = device.get_device_address(material_buffer).value();
                 world.point_light_address = device.get_device_address(point_light_buffer).value();
                 world.cube_light_address = device.get_device_address(cube_light_buffer).value();
@@ -1044,186 +1158,186 @@ namespace tests
             }
 
 
-            // TODO: This could be load from a file
-            daxa_Bool8 create_procedural_blas() {
+            // // TODO: This could be load from a file
+            // daxa_Bool8 create_procedural_blas() {
 
-                u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
-                u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
+            //     u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
+            //     u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
 
-                daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
+            //     daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
 
-                if (estimated_instance_count > MAX_INSTANCES)
-                {
-                    std::cout << "estimated_instance_count (" << estimated_instance_count << ") > MAX_INSTANCES (" << MAX_INSTANCES << ")." << std::endl;
-                    abort();
-                }
+            //     if (estimated_instance_count > MAX_INSTANCES)
+            //     {
+            //         std::cout << "estimated_instance_count (" << estimated_instance_count << ") > MAX_INSTANCES (" << MAX_INSTANCES << ")." << std::endl;
+            //         abort();
+            //     }
 
-                if (estimated_instance_count == 0)
-                {
-                    std::cout << "estimated_instance_count == 0" << std::endl;
-                    abort();
-                }
+            //     if (estimated_instance_count == 0)
+            //     {
+            //         std::cout << "estimated_instance_count == 0" << std::endl;
+            //         abort();
+            //     }
 
-                transforms.reserve(estimated_instance_count);
+            //     transforms.reserve(estimated_instance_count);
 
-                // Centered around 0, 0, 0 positioning instances like a mirror
-                f32 x_axis_initial_position = ((INSTANCE_X_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
-                f32 z_axis_initial_position = ((INSTANCE_Z_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
+            //     // Centered around 0, 0, 0 positioning instances like a mirror
+            //     f32 x_axis_initial_position = ((INSTANCE_X_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
+            //     f32 z_axis_initial_position = ((INSTANCE_Z_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
 
-                for (i32 x_instance = -INSTANCE_X_AXIS_COUNT; x_instance < (i32)INSTANCE_X_AXIS_COUNT; x_instance++)
-                {
-                    auto x_instance_displacement = (x_instance * (AXIS_DISPLACEMENT));
-                    for (i32 z_instance = -INSTANCE_Z_AXIS_COUNT; z_instance < (i32)INSTANCE_Z_AXIS_COUNT; z_instance++)
-                    {
-                        auto z_instance_displacement = (z_instance * (AXIS_DISPLACEMENT));
-                        for (u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++)
-                        {
-                            for (u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++)
-                            {
-                                for (u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++)
-                                {
-                                    // if(random_float(0.0, 1.0) > 0.95) {
-                                    if (random_float(0.0, 1.0) > 0.75)
-                                    {
-                                        auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
-                                        transforms.push_back(daxa_f32mat4x4{
-                                            {1, 0, 0, x_instance_displacement + position_instance.x},
-                                            {0, 1, 0, position_instance.y},
-                                            {0, 0, 1, z_instance_displacement + position_instance.z},
-                                            {0, 0, 0, 1},
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                // transforms.push_back(daxa_f32mat4x4{
-                //     {1, 0, 0, -AXIS_DISPLACEMENT},
-                //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
-                //     {0, 0, 1, 0},
-                //     {0, 0, 0, 1},
-                // });
+            //     for (i32 x_instance = -INSTANCE_X_AXIS_COUNT; x_instance < (i32)INSTANCE_X_AXIS_COUNT; x_instance++)
+            //     {
+            //         auto x_instance_displacement = (x_instance * (AXIS_DISPLACEMENT));
+            //         for (i32 z_instance = -INSTANCE_Z_AXIS_COUNT; z_instance < (i32)INSTANCE_Z_AXIS_COUNT; z_instance++)
+            //         {
+            //             auto z_instance_displacement = (z_instance * (AXIS_DISPLACEMENT));
+            //             for (u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++)
+            //             {
+            //                 for (u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++)
+            //                 {
+            //                     for (u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++)
+            //                     {
+            //                         // if(random_float(0.0, 1.0) > 0.95) {
+            //                         if (random_float(0.0, 1.0) > 0.75)
+            //                         {
+            //                             auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
+            //                             transforms.push_back(daxa_f32mat4x4{
+            //                                 {1, 0, 0, x_instance_displacement + position_instance.x},
+            //                                 {0, 1, 0, position_instance.y},
+            //                                 {0, 0, 1, z_instance_displacement + position_instance.z},
+            //                                 {0, 0, 0, 1},
+            //                             });
+            //                         }
+            //                     }
+            //                 }
+            //             }
+            //         }
+            //     }
+            //     // transforms.push_back(daxa_f32mat4x4{
+            //     //     {1, 0, 0, -AXIS_DISPLACEMENT},
+            //     //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
+            //     //     {0, 0, 1, 0},
+            //     //     {0, 0, 0, 1},
+            //     // });
 
-                // transforms.push_back(daxa_f32mat4x4{
-                //     {1, 0, 0, 0},
-                //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
-                //     {0, 0, 1, 0},
-                //     {0, 0, 0, 1},
-                // });
+            //     // transforms.push_back(daxa_f32mat4x4{
+            //     //     {1, 0, 0, 0},
+            //     //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
+            //     //     {0, 0, 1, 0},
+            //     //     {0, 0, 0, 1},
+            //     // });
 
-                current_instance_count = transforms.size();
+            //     current_instance_count[0] = transforms.size();
 
-                // upload_textures();
+            //     // upload_textures();
 
 
-                return true;
-            }
+            //     return true;
+            // }
 
-            bool create_materials() {
+            // bool create_materials() {
 
-                current_material_count = 0;
+            //     current_material_count = 0;
 
-                for (u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++)
-                {
+            //     for (u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++)
+            //     {
 
-                    daxa_u32 texture_id = MAX_TEXTURES;
-                    // daxa_f32 random_float_value = random_float(0.0, 1.0);
-                    // if (random_float_value > 0.80)
-                    // {
-                    //     texture_id = random_uint(0, current_texture_count - 1);
-                    // }
+            //         daxa_u32 texture_id = MAX_TEXTURES;
+            //         // daxa_f32 random_float_value = random_float(0.0, 1.0);
+            //         // if (random_float_value > 0.80)
+            //         // {
+            //         //     texture_id = random_uint(0, current_texture_count - 1);
+            //         // }
 
-                    materials[current_material_count++] = MATERIAL{
-                        .type = MATERIAL_TYPE_LAMBERTIAN,
-                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .transmittance = {0.0f, 0.0f, 0.0f},
-                        .emission = {0.0, 0.0, 0.0},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        // .dissolve = (-1/random_float(0.1, 1.0)),
-                        // .dissolve = (random_float(0.1, 1.0)),
-                        .dissolve = 1.0,
-                        .illum = 3
-                    };
-                }
+            //         materials[current_material_count++] = MATERIAL{
+            //             .type = MATERIAL_TYPE_LAMBERTIAN,
+            //             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .transmittance = {0.0f, 0.0f, 0.0f},
+            //             .emission = {0.0, 0.0, 0.0},
+            //             .shininess = random_float(0.0, 4.0),
+            //             .roughness = random_float(0.0, 1.0),
+            //             .ior = random_float(1.0, 2.65),
+            //             // .dissolve = (-1/random_float(0.1, 1.0)),
+            //             // .dissolve = (random_float(0.1, 1.0)),
+            //             .dissolve = 1.0,
+            //             .illum = 3
+            //         };
+            //     }
 
-                for (u32 i = 0; i < METAL_MATERIAL_COUNT; i++)
-                {
-                    materials[current_material_count++] = MATERIAL{
-                        .type = MATERIAL_TYPE_METAL,
-                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .transmittance = {0.0f, 0.0f, 0.0f},
-                        .emission = {0.0, 0.0, 0.0},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        // .dissolve = (-1/random_float(0.1, 1.0)),
-                        // .dissolve = (random_float(0.1, 1.0)),
-                        .dissolve = 1.0,
-                        .illum = 3
-                    };
-                }
+            //     for (u32 i = 0; i < METAL_MATERIAL_COUNT; i++)
+            //     {
+            //         materials[current_material_count++] = MATERIAL{
+            //             .type = MATERIAL_TYPE_METAL,
+            //             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .transmittance = {0.0f, 0.0f, 0.0f},
+            //             .emission = {0.0, 0.0, 0.0},
+            //             .shininess = random_float(0.0, 4.0),
+            //             .roughness = random_float(0.0, 1.0),
+            //             .ior = random_float(1.0, 2.65),
+            //             // .dissolve = (-1/random_float(0.1, 1.0)),
+            //             // .dissolve = (random_float(0.1, 1.0)),
+            //             .dissolve = 1.0,
+            //             .illum = 3
+            //         };
+            //     }
 
-                for (u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++)
-                {
-                    materials[current_material_count++] = MATERIAL{
-                        .type = MATERIAL_TYPE_DIELECTRIC,
-                        .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .transmittance = {0.0f, 0.0f, 0.0f},
-                        .emission = {0.0, 0.0, 0.0},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        .dissolve = 1.0,
-                        .illum = 3
-                    };
-                }
+            //     for (u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++)
+            //     {
+            //         materials[current_material_count++] = MATERIAL{
+            //             .type = MATERIAL_TYPE_DIELECTRIC,
+            //             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .transmittance = {0.0f, 0.0f, 0.0f},
+            //             .emission = {0.0, 0.0, 0.0},
+            //             .shininess = random_float(0.0, 4.0),
+            //             .roughness = random_float(0.0, 1.0),
+            //             .ior = random_float(1.0, 2.65),
+            //             .dissolve = 1.0,
+            //             .illum = 3
+            //         };
+            //     }
 
-                for (u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++)
-                {
-                    materials[current_material_count++] = MATERIAL{
-                        .type = MATERIAL_TYPE_LAMBERTIAN,
-                        .ambient = {1.0, 1.0, 1.0},
-                        .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-                        .specular = {1.0, 1.0, 1.0},
-                        .transmittance = {0.0, 0.0, 0.0},
-                        .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        .dissolve = 1.0,
-                        .illum = 3
-                    };
-                }
+            //     for (u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++)
+            //     {
+            //         materials[current_material_count++] = MATERIAL{
+            //             .type = MATERIAL_TYPE_LAMBERTIAN,
+            //             .ambient = {1.0, 1.0, 1.0},
+            //             .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
+            //             .specular = {1.0, 1.0, 1.0},
+            //             .transmittance = {0.0, 0.0, 0.0},
+            //             .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
+            //             .shininess = random_float(0.0, 4.0),
+            //             .roughness = random_float(0.0, 1.0),
+            //             .ior = random_float(1.0, 2.65),
+            //             .dissolve = 1.0,
+            //             .illum = 3
+            //         };
+            //     }
 
-                for (u32 i = 0; i < CONSTANT_MEDIUM_MATERIAL_COUNT; i++)
-                {
-                    materials[current_material_count++] = MATERIAL{
-                        .type = MATERIAL_TYPE_CONSTANT_MEDIUM,
-                        .ambient = {0.999, 0.999, 0.999},
-                        .diffuse = {0.999, 0.999, 0.999},
-                        .specular = {0.999, 0.999, 0.999},
-                        .transmittance = {random_float(0.9, 0.999), random_float(0.9, 0.999), random_float(0.9, 0.999)},
-                        .emission = {0.0, 0.0, 0.0},
-                        .shininess = random_float(0.0, 4.0),
-                        .roughness = random_float(0.0, 1.0),
-                        .ior = random_float(1.0, 2.65),
-                        // .dissolve = (-1.0f/random_float(0.1, 0.5)),
-                        .dissolve = random_float(0.1, 0.3),
-                        .illum = 4
-                    };
-                }
+            //     for (u32 i = 0; i < CONSTANT_MEDIUM_MATERIAL_COUNT; i++)
+            //     {
+            //         materials[current_material_count++] = MATERIAL{
+            //             .type = MATERIAL_TYPE_CONSTANT_MEDIUM,
+            //             .ambient = {0.999, 0.999, 0.999},
+            //             .diffuse = {0.999, 0.999, 0.999},
+            //             .specular = {0.999, 0.999, 0.999},
+            //             .transmittance = {random_float(0.9, 0.999), random_float(0.9, 0.999), random_float(0.9, 0.999)},
+            //             .emission = {0.0, 0.0, 0.0},
+            //             .shininess = random_float(0.0, 4.0),
+            //             .roughness = random_float(0.0, 1.0),
+            //             .ior = random_float(1.0, 2.65),
+            //             // .dissolve = (-1.0f/random_float(0.1, 0.5)),
+            //             .dissolve = random_float(0.1, 0.3),
+            //             .illum = 4
+            //         };
+            //     }
 
-                return true;
-            }
+            //     return true;
+            // }
 
             void initialize()
             {
@@ -1304,21 +1418,36 @@ namespace tests
                     .name = ("world_buffer"),
                 });
 
-                instance_buffer = device.create_buffer(daxa::BufferInfo{
+                instance_buffer[0] = device.create_buffer(daxa::BufferInfo{
                     .size = max_instance_buffer_size,
-                    .name = ("instance_buffer"),
+                    .name = ("instance_buffer_0"),
                 });
 
-                primitive_buffer = device.create_buffer(daxa::BufferInfo{
+                instance_buffer[1] = device.create_buffer(daxa::BufferInfo{
+                    .size = max_instance_buffer_size,
+                    .name = ("instance_buffer_1"),
+                });
+
+                primitive_buffer[0] = device.create_buffer(daxa::BufferInfo{
                     .size = max_primitive_buffer_size,
-                    .name = ("primitive_buffer"),
+                    .name = ("primitive_buffer_0"),
+                });
+
+                primitive_buffer[1] = device.create_buffer(daxa::BufferInfo{
+                    .size = max_primitive_buffer_size,
+                    .name = ("primitive_buffer_1"),
                 });
 
                 // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
                 // GeometryType of each element of pGeometries must be the same
-                aabb_buffer = device.create_buffer({
+                aabb_buffer[0] = device.create_buffer({
                     .size = max_aabb_buffer_size,
-                    .name = "aabb buffer",
+                    .name = "aabb_buffer_0",
+                });
+                
+                aabb_buffer[1] = device.create_buffer({
+                    .size = max_aabb_buffer_size,
+                    .name = "aabb_buffer_1",
                 });
 
                 aabb_host_buffer = device.create_buffer({
@@ -1421,7 +1550,7 @@ namespace tests
                     .name = "proc blas buffer",
                 });
 
-                upload_world();
+                upload_world(status.frame_number % DOUBLE_BUFFERING);
                 upload_restir();
 
                 // hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
@@ -1486,14 +1615,17 @@ namespace tests
 
                 current_material_count += gvox_map.material_count;
                 current_aabb_host_count += gvox_map.primitive_count;
-                current_instance_count += gvox_map.instance_count;
+                current_instance_count[0] += current_instance_count[1] += gvox_map.instance_count;
                 light_config->cube_light_count += gvox_map.light_count;
 
                 if(current_aabb_host_count > 0) {
                     size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
-                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer, aabb_buffer_offset, aabb_copy_size);
-                    aabb_buffer_offset += aabb_copy_size;
-                    current_primitive_count += current_aabb_host_count;
+                    size_t aabb_buffer_offset = current_primitive_count[0] * sizeof(AABB);
+                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer[0], aabb_buffer_offset, aabb_copy_size);
+                    current_primitive_count[0] += current_aabb_host_count;
+                    aabb_buffer_offset = current_primitive_count[1] * sizeof(AABB);
+                    upload_aabb_primitives(aabb_host_buffer, aabb_buffer[1], aabb_buffer_offset, aabb_copy_size);
+                    current_primitive_count[1] += current_aabb_host_count;
                     current_aabb_host_count = 0;
                 }
 
@@ -1518,7 +1650,29 @@ namespace tests
                 //     abort();
                 // }
 
-                if(!build_tlas()) {
+                load_materials(false);
+
+                if(!load_primitives(status.frame_number % DOUBLE_BUFFERING, false)) {
+                    std::cout << "Failed to load primitives" << std::endl;
+                    abort();
+                }
+
+                if(!load_primitives((status.frame_number + 1) % DOUBLE_BUFFERING, false)) {
+                    std::cout << "Failed to load primitives" << std::endl;
+                    abort();
+                }
+
+                if(!build_blas(status.frame_number % DOUBLE_BUFFERING, true)) {
+                    std::cout << "Failed to build blas" << std::endl;
+                    abort();
+                }
+
+                if(!build_tlas(status.frame_number % DOUBLE_BUFFERING, true)) {
+                    std::cout << "Failed to build tlas" << std::endl;
+                    abort();
+                }
+
+                if(!build_tlas((status.frame_number + 1) % DOUBLE_BUFFERING, true)) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
@@ -1795,6 +1949,7 @@ namespace tests
 #endif // DYNAMIC_SUN_LIGHT == 1
                     draw();
                     download_gpu_info();
+                    upload_world(status.frame_number % DOUBLE_BUFFERING);
                     // call build tlas
                     // if(!build_tlas(INSTANCE_COUNT)) {
                     //     std::cout << "Failed to build tlas" << std::endl;
@@ -1936,7 +2091,8 @@ namespace tests
                 recorder.set_pipeline(*rt_pipeline);
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas,
+                    .tlas = tlas[status.frame_number % DOUBLE_BUFFERING],
+                    .tlas_previous = tlas[(status.frame_number + 1) % DOUBLE_BUFFERING],
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -1988,7 +2144,8 @@ namespace tests
 
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas,
+                    .tlas = tlas[status.frame_number % DOUBLE_BUFFERING],
+                    .tlas_previous = tlas[(status.frame_number + 1) % DOUBLE_BUFFERING],
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -2013,7 +2170,8 @@ namespace tests
 
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas,
+                    .tlas = tlas[status.frame_number % DOUBLE_BUFFERING],
+                    .tlas_previous = tlas[(status.frame_number + 1) % DOUBLE_BUFFERING],
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -2042,7 +2200,8 @@ namespace tests
 
                     recorder.push_constant(PushConstant{
                         .size = {width, height},
-                        .tlas = tlas,
+                        .tlas = tlas[status.frame_number % DOUBLE_BUFFERING],
+                        .tlas_previous = tlas[(status.frame_number + 1) % DOUBLE_BUFFERING],
                         .swapchain = swapchain_image_view,
                         .previous_swapchain = previous_swapchain_image_view,
                         .taa_frame = taa_image_view,

@@ -227,8 +227,11 @@ struct INSTANCE
 struct WORLD
 {
     daxa_u64 instance_address;
+    daxa_u64 instance_address_prev;
     daxa_u64 primitive_address;
+    daxa_u64 primitive_address_prev;
     daxa_u64 aabb_address;
+    daxa_u64 aabb_address_prev;
     daxa_u64 material_address;
     daxa_u64 point_light_address;
     daxa_u64 cube_light_address;
@@ -468,6 +471,7 @@ struct PushConstant
 {
     daxa_u32vec2 size;
     daxa_TlasId tlas;
+    daxa_TlasId tlas_previous;
     daxa_ImageViewId swapchain;
     daxa_ImageViewId previous_swapchain;
     daxa_ImageViewId taa_frame;
