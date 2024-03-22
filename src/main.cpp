@@ -1109,28 +1109,51 @@ namespace tests
             void upload_world(daxa_u32 frame_index) {
                 
                 // get world buffer host mapped pointer
-                auto * world_buffer_ptr = device.get_host_address(world_buffer).value();
                 
-                auto index = status.frame_number % DOUBLE_BUFFERING;
-                auto index_next = (status.frame_number + 1) % DOUBLE_BUFFERING;
+                auto index = frame_index % DOUBLE_BUFFERING;
+                auto index_next = (frame_index + 1) % DOUBLE_BUFFERING;
 
                 world.instance_address = device.get_device_address(instance_buffer[index]).value();
                 world.instance_address_prev = device.get_device_address(instance_buffer[index_next]).value();
                 world.primitive_address = device.get_device_address(primitive_buffer[index]).value();
                 world.primitive_address_prev = device.get_device_address(primitive_buffer[index_next]).value();
-                world.aabb_address = device.get_device_address(aabb_buffer[0]).value();
-                world.aabb_address_prev = device.get_device_address(aabb_buffer[0]).value();
-                // world.aabb_address = device.get_device_address(aabb_buffer[index]).value();
-                // world.aabb_address_prev = device.get_device_address(aabb_buffer[index_next]).value();
+                world.aabb_address = device.get_device_address(aabb_buffer[index]).value();
+                world.aabb_address_prev = device.get_device_address(aabb_buffer[index_next]).value();
                 world.material_address = device.get_device_address(material_buffer).value();
                 world.point_light_address = device.get_device_address(point_light_buffer).value();
                 world.cube_light_address = device.get_device_address(cube_light_buffer).value();
                 world.env_light_address = device.get_device_address(env_light_buffer).value();
 
                 // copy world to buffer
+
+                daxa_u32 world_buffer_size = sizeof(WORLD);
+
+                auto world_staging_buffer = device.create_buffer({
+                    .size = world_buffer_size,
+                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+                    .name = ("world_staging_buffer"),
+                });
+                defer { device.destroy_buffer(world_staging_buffer); };
+
+                auto * world_buffer_ptr = device.get_host_address_as<WORLD>(world_staging_buffer).value();
                 std::memcpy(world_buffer_ptr,
                     &world,
                     world_buffer_size);
+
+                /// Record build commands:
+                auto exec_cmds = [&]()
+                {
+                    auto recorder = device.create_command_recorder({});
+                     recorder.copy_buffer_to_buffer({
+                        .src_buffer = world_staging_buffer,
+                        .dst_buffer = world_buffer,
+                        .size = world_buffer_size,
+                    });
+
+                    return recorder.complete_current_commands();
+                }();
+                device.submit_commands({.command_lists = std::array{exec_cmds}});
+                // device.wait_idle();
             }
 
 
@@ -1652,27 +1675,27 @@ namespace tests
 
                 load_materials(false);
 
-                if(!load_primitives(status.frame_number % DOUBLE_BUFFERING, false)) {
+                if(!load_primitives(0, false)) {
                     std::cout << "Failed to load primitives" << std::endl;
                     abort();
                 }
 
-                if(!load_primitives((status.frame_number + 1) % DOUBLE_BUFFERING, false)) {
+                if(!load_primitives(1, false)) {
                     std::cout << "Failed to load primitives" << std::endl;
                     abort();
                 }
 
-                if(!build_blas(status.frame_number % DOUBLE_BUFFERING, true)) {
+                if(!build_blas(0, false)) {
                     std::cout << "Failed to build blas" << std::endl;
                     abort();
                 }
 
-                if(!build_tlas(status.frame_number % DOUBLE_BUFFERING, true)) {
+                if(!build_tlas(0, false)) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
 
-                if(!build_tlas((status.frame_number + 1) % DOUBLE_BUFFERING, true)) {
+                if(!build_tlas(1, true)) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
