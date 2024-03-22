@@ -56,18 +56,6 @@ namespace tests
             daxa::PipelineManager pipeline_manager = {};
             std::shared_ptr<daxa::RayTracingPipeline> rt_pipeline = {};
             std::shared_ptr<daxa::ComputePipeline> compute_motion_vectors_pipeline = {};
-            
-            // // Acceleration structures
-            // daxa::TlasId tlas[2] = {};
-            // std::vector<daxa::BlasId> proc_blas = {};
-            // daxa::BufferId proc_blas_scratch_buffer = {};
-            // daxa_u64 proc_blas_scratch_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
-            // daxa_u64 proc_blas_scratch_buffer_offset = 0;
-            // daxa_u32 acceleration_structure_scratch_offset_alignment = 0;
-            // daxa::BufferId proc_blas_buffer = {};
-            // daxa_u64 proc_blas_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
-            // daxa_u64 proc_blas_buffer_offset = 0;
-            // const daxa_u32 ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
 
             // BUFFERS
             daxa::BufferId light_config_buffer = {};
@@ -85,22 +73,6 @@ namespace tests
             daxa::BufferId world_buffer = {};
             size_t world_buffer_size = sizeof(WORLD);
             WORLD world = {};
-
-            // daxa::BufferId instance_buffer[2] = {};
-            // size_t max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
-
-            // daxa::BufferId primitive_buffer[2] = {};
-            // size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
-
-            // daxa::BufferId aabb_buffer[2] = {};
-            // size_t max_aabb_buffer_size = sizeof(AABB) * MAX_PRIMITIVES;
-            // daxa::BufferId aabb_host_buffer = {};
-            // size_t max_aabb_host_buffer_size = sizeof(AABB) * MAX_PRIMITIVES * 0.1;
-            // daxa_u32 current_aabb_host_count = 0;
-
-            // u32 current_texture_count = 0;
-            // std::vector<daxa::ImageId> images = {};
-            // std::vector<daxa::SamplerId> samplers = {};
 
             daxa::BufferId material_buffer = {};
             size_t max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
@@ -144,17 +116,6 @@ namespace tests
             // size_t max_hit_distance_buffer_size = sizeof(HIT_DISTANCE) * WIDTH_RES * HEIGHT_RES;
             // std::vector<HIT_DISTANCE> hit_distances = {};
             // DEBUGGING
-
-            // // CPU DATA
-            // std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
-            // std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
-
-            // u32 current_instance_count[2] = {};
-            // std::unique_ptr<INSTANCE[]> instances = {};
-
-            // u32 current_primitive_count[2] = {};
-            // u32 max_current_primitive_count = 0;
-            // std::unique_ptr<PRIMITIVE[]> primitives = {};
 
             u32 current_material_count = 0;
             std::unique_ptr<MATERIAL[]> materials = {};
@@ -1409,7 +1370,7 @@ namespace tests
 
 
                 as_manager = std::make_unique<ACCEL_STRUCT_MNGR>(device);
-                as_manager->create();
+                as_manager->create(MAX_INSTANCES, MAX_PRIMITIVES);
 
                 taa_image[0] = device.create_image({
                     .format = swapchain.get_format(),
@@ -1446,44 +1407,6 @@ namespace tests
                     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
                     .name = ("world_buffer"),
                 });
-
-                // instance_buffer[0] = device.create_buffer(daxa::BufferInfo{
-                //     .size = max_instance_buffer_size,
-                //     .name = ("instance_buffer_0"),
-                // });
-
-                // instance_buffer[1] = device.create_buffer(daxa::BufferInfo{
-                //     .size = max_instance_buffer_size,
-                //     .name = ("instance_buffer_1"),
-                // });
-
-                // primitive_buffer[0] = device.create_buffer(daxa::BufferInfo{
-                //     .size = max_primitive_buffer_size,
-                //     .name = ("primitive_buffer_0"),
-                // });
-
-                // primitive_buffer[1] = device.create_buffer(daxa::BufferInfo{
-                //     .size = max_primitive_buffer_size,
-                //     .name = ("primitive_buffer_1"),
-                // });
-
-                // // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
-                // // GeometryType of each element of pGeometries must be the same
-                // aabb_buffer[0] = device.create_buffer({
-                //     .size = max_aabb_buffer_size,
-                //     .name = "aabb_buffer_0",
-                // });
-                
-                // aabb_buffer[1] = device.create_buffer({
-                //     .size = max_aabb_buffer_size,
-                //     .name = "aabb_buffer_1",
-                // });
-
-                // aabb_host_buffer = device.create_buffer({
-                //     .size = max_aabb_host_buffer_size,
-                //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                //     .name = "aabb host buffer",
-                // });
 
                 material_buffer = device.create_buffer(daxa::BufferInfo{
                     .size = max_material_buffer_size,
@@ -1612,10 +1535,6 @@ namespace tests
                     abort();
                 }
 
-
-
-                // instances = std::make_unique<INSTANCE[]>(MAX_INSTANCES);
-                // primitives = std::make_unique<PRIMITIVE[]>(MAX_PRIMITIVES);
                 materials = std::make_unique<MATERIAL[]>(MAX_MATERIALS);
 
                 // Create a new context for the gvox library
@@ -1643,57 +1562,17 @@ namespace tests
                 std::cout << "  materials: " << gvox_map.material_count << std::endl;
 
                 current_material_count += gvox_map.material_count;
-                // current_aabb_host_count += gvox_map.primitive_count;
-                // current_instance_count[0] += current_instance_count[1] += gvox_map.instance_count;
                 as_manager->add_instance_count(0, gvox_map.instance_count);
                 as_manager->add_instance_count(1, gvox_map.instance_count);
                 light_config->cube_light_count += gvox_map.light_count;
 
                 as_manager->upload_aabb_device_buffer(gvox_map.primitive_count);
 
-                // if(current_aabb_host_count > 0) {
-                //     size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
-                //     size_t aabb_buffer_offset = current_primitive_count[0] * sizeof(AABB);
-                //     upload_aabb_primitives(aabb_host_buffer, aabb_buffer[0], aabb_buffer_offset, aabb_copy_size);
-                //     current_primitive_count[0] += current_aabb_host_count;
-                //     aabb_buffer_offset = current_primitive_count[1] * sizeof(AABB);
-                //     upload_aabb_primitives(aabb_host_buffer, aabb_buffer[1], aabb_buffer_offset, aabb_copy_size);
-                //     current_primitive_count[1] += current_aabb_host_count;
-                //     current_aabb_host_count = 0;
-                // }
-
-
                 if(light_config->cube_light_count > 0) {
                     light_config->brdf_count = BRDF_SAMPLING_COUNT;
                 }
 
-                // if(!create_materials()) {
-                //     std::cout << "Failed to create materials" << std::endl;
-                //     abort();
-                // }
-
-                // TODO: Replace this by a function that loads the map inside the gvox library
-                // if(!create_procedural_blas()) {
-                //     std::cout << "Failed to create procedural blas" << std::endl;
-                //     abort();
-                // }
-
-                // if(!load_blas_info(current_instance_count)) {
-                //     std::cout << "Failed to load blas info" << std::endl;
-                //     abort();
-                // }
-
                 load_materials(false);
-
-                // if(!load_primitives(0, false)) {
-                //     std::cout << "Failed to load primitives" << std::endl;
-                //     abort();
-                // }
-
-                // if(!load_primitives(1, false)) {
-                //     std::cout << "Failed to load primitives" << std::endl;
-                //     abort();
-                // }
 
                 if(!as_manager->build_new_blas(0, false)) {
                     std::cout << "Failed to build blas" << std::endl;

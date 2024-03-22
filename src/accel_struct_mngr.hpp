@@ -16,7 +16,7 @@ public:
         }
     }
     
-    bool create();
+    bool create(uint32_t max_instance_count, uint32_t max_primitive_count);
     bool destroy();
 
     daxa::TlasId get_tlas(uint32_t frame_index) const { 
@@ -61,31 +61,33 @@ public:
 private:
     daxa::Device& device;
 
+    size_t proc_blas_scratch_buffer_size = 0; // TODO: is this a good estimation?
+    size_t proc_blas_buffer_size = 0; // TODO: is this a good estimation?
+    size_t max_instance_buffer_size = 0;
+    size_t max_aabb_buffer_size = 0;
+    size_t max_aabb_host_buffer_size = 0;
+    size_t max_primitive_buffer_size = 0;
+
     // Acceleration structures
     daxa::TlasId tlas[DOUBLE_BUFFERING] = {};
     std::vector<daxa::BlasId> proc_blas = {};
     daxa::BufferId proc_blas_scratch_buffer = {};
-    daxa_u64 proc_blas_scratch_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
-    daxa_u64 proc_blas_scratch_buffer_offset = 0;
+    uint64_t proc_blas_scratch_buffer_offset = 0;
     uint32_t acceleration_structure_scratch_offset_alignment = 0;
     daxa::BufferId proc_blas_buffer = {};
-    daxa_u64 proc_blas_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
-    daxa_u64 proc_blas_buffer_offset = 0;
+    uint64_t proc_blas_buffer_offset = 0;
     const uint32_t ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
 
     std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
     std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
     
     daxa::BufferId instance_buffer[DOUBLE_BUFFERING] = {};
-    size_t max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
     
     uint32_t current_instance_count[DOUBLE_BUFFERING] = {};
     std::unique_ptr<INSTANCE[]> instances = {};
     
     daxa::BufferId aabb_buffer[DOUBLE_BUFFERING] = {};
-    size_t max_aabb_buffer_size = sizeof(AABB) * MAX_PRIMITIVES;
     daxa::BufferId aabb_host_buffer = {};
-    size_t max_aabb_host_buffer_size = sizeof(AABB) * MAX_PRIMITIVES * 0.1;
     uint32_t current_aabb_host_count = 0;
 
     uint32_t current_primitive_count[DOUBLE_BUFFERING] = {};
@@ -93,7 +95,6 @@ private:
     std::unique_ptr<PRIMITIVE[]> primitives = {};
 
     daxa::BufferId primitive_buffer[DOUBLE_BUFFERING] = {};
-    size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
 
     bool initialized = false;
 };

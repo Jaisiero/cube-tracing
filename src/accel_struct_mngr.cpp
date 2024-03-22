@@ -1,9 +1,16 @@
 #include "ACCEL_STRUCT_MNGR.hpp"
 
-bool ACCEL_STRUCT_MNGR::create() {
+bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primitive_count) {
     if(device.is_valid()) {
-        instances = std::make_unique<INSTANCE[]>(MAX_INSTANCES);
-        primitives = std::make_unique<PRIMITIVE[]>(MAX_PRIMITIVES);
+        proc_blas_scratch_buffer_size = max_instance_count * 1024ULL * 2ULL; // TODO: is this a good estimation?
+        proc_blas_buffer_size = max_instance_count * 1024ULL * 2ULL;         // TODO: is this a good estimation?
+        max_instance_buffer_size = sizeof(INSTANCE) * max_instance_count;
+        max_aabb_buffer_size = sizeof(AABB) * max_primitive_count;
+        max_aabb_host_buffer_size = sizeof(AABB) * max_primitive_count * 0.1;
+        max_primitive_buffer_size = sizeof(PRIMITIVE) * max_primitive_count;
+
+        instances = std::make_unique<INSTANCE[]>(max_instance_count);
+        primitives = std::make_unique<PRIMITIVE[]>(max_primitive_count);
 
         proc_blas_scratch_buffer = device.create_buffer({
             .size = proc_blas_scratch_buffer_size,
