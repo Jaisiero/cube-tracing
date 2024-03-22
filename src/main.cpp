@@ -4,12 +4,11 @@
 #include <daxa/utils/pipeline_manager.hpp>
 #include <daxa/utils/task_graph.hpp>
 
-#include <window.hpp>
-#include <shared.hpp>
+#include "defines.h"
 
 #include <map_loader.hpp>
+#include <accel_struct_mngr.hpp>
 
-#include "defines.h"
 #include "rng.h"
 #include "camera.h"
 #include "texture.hpp"
@@ -29,7 +28,6 @@ namespace tests
             const char *MAP_NAME = "monu9.vox";
             // const char *MAP_NAME = "room.vox";
             const float day_duration = 60.0f; // Duración de un día en segundos
-            const uint32_t DOUBLE_BUFFERING = 2;
 
             Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
             Status status = {};
@@ -59,17 +57,17 @@ namespace tests
             std::shared_ptr<daxa::RayTracingPipeline> rt_pipeline = {};
             std::shared_ptr<daxa::ComputePipeline> compute_motion_vectors_pipeline = {};
             
-            // Acceleration structures
-            daxa::TlasId tlas[2] = {};
-            std::vector<daxa::BlasId> proc_blas = {};
-            daxa::BufferId proc_blas_scratch_buffer = {};
-            daxa_u64 proc_blas_scratch_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
-            daxa_u64 proc_blas_scratch_buffer_offset = 0;
-            daxa_u32 acceleration_structure_scratch_offset_alignment = 0;
-            daxa::BufferId proc_blas_buffer = {};
-            daxa_u64 proc_blas_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
-            daxa_u64 proc_blas_buffer_offset = 0;
-            const daxa_u32 ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
+            // // Acceleration structures
+            // daxa::TlasId tlas[2] = {};
+            // std::vector<daxa::BlasId> proc_blas = {};
+            // daxa::BufferId proc_blas_scratch_buffer = {};
+            // daxa_u64 proc_blas_scratch_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
+            // daxa_u64 proc_blas_scratch_buffer_offset = 0;
+            // daxa_u32 acceleration_structure_scratch_offset_alignment = 0;
+            // daxa::BufferId proc_blas_buffer = {};
+            // daxa_u64 proc_blas_buffer_size = MAX_INSTANCES * 1024ULL * 2ULL; // TODO: is this a good estimation?
+            // daxa_u64 proc_blas_buffer_offset = 0;
+            // const daxa_u32 ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
 
             // BUFFERS
             daxa::BufferId light_config_buffer = {};
@@ -88,8 +86,8 @@ namespace tests
             size_t world_buffer_size = sizeof(WORLD);
             WORLD world = {};
 
-            daxa::BufferId instance_buffer[2] = {};
-            size_t max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
+            // daxa::BufferId instance_buffer[2] = {};
+            // size_t max_instance_buffer_size = sizeof(INSTANCE) * MAX_INSTANCES;
 
             daxa::BufferId primitive_buffer[2] = {};
             size_t max_primitive_buffer_size = sizeof(PRIMITIVE) * MAX_PRIMITIVES;
@@ -147,11 +145,11 @@ namespace tests
             // std::vector<HIT_DISTANCE> hit_distances = {};
             // DEBUGGING
 
-            // CPU DATA
-            std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
-            std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
+            // // CPU DATA
+            // std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
+            // std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
 
-            u32 current_instance_count[2] = {};
+            // u32 current_instance_count[2] = {};
             std::unique_ptr<INSTANCE[]> instances = {};
 
             u32 current_primitive_count[2] = {};
@@ -166,9 +164,10 @@ namespace tests
             LIGHT* cube_lights = nullptr;
             LIGHT* env_lights = nullptr;
 
-            std::vector<daxa_f32mat4x4> transforms = {};
+            // std::vector<daxa_f32mat4x4> transforms = {};
 
             MapLoader map_loader = {};
+            std::unique_ptr<ACCEL_STRUCT_MNGR> as_manager = {};
 
 
             App() : AppWindow<App>("Cubeland") {}
@@ -180,15 +179,18 @@ namespace tests
                 device.collect_garbage();
                 if (device.is_valid())
                 {
-                    for(auto _tlas : tlas)
-                        if(_tlas != daxa::TlasId{})
-                            device.destroy_tlas(_tlas);
-                    for(auto blas : proc_blas)
-                        device.destroy_blas(blas);
+                    as_manager->destroy();
+                    
+
+                    // for(auto _tlas : tlas)
+                    //     if(_tlas != daxa::TlasId{})
+                    //         device.destroy_tlas(_tlas);
+                    // for(auto blas : proc_blas)
+                    //     device.destroy_blas(blas);
                     device.destroy_buffer(light_config_buffer);
                     device.destroy_buffer(cam_buffer);
-                    for(auto buffer : instance_buffer)
-                        device.destroy_buffer(buffer);
+                    // for(auto buffer : instance_buffer)
+                    //     device.destroy_buffer(buffer);
                     for(auto buffer : primitive_buffer)
                         device.destroy_buffer(buffer);
                     for(auto buffer : aabb_buffer)
@@ -216,8 +218,8 @@ namespace tests
                     device.destroy_buffer(indirect_color_buffer);
                     device.destroy_buffer(restir_buffer);
                     device.destroy_buffer(world_buffer);
-                    device.destroy_buffer(proc_blas_scratch_buffer);
-                    device.destroy_buffer(proc_blas_buffer);
+                    // device.destroy_buffer(proc_blas_scratch_buffer);
+                    // device.destroy_buffer(proc_blas_buffer);
                     // DEBUGGING
                     // device.destroy_buffer(hit_distance_buffer);
                     for(auto image : taa_image)
@@ -844,266 +846,266 @@ namespace tests
             }
 
 
-            daxa_Bool8 build_blas(daxa_u32 frame_index, daxa_Bool8 synchronize) {
+            // daxa_Bool8 build_new_blas(daxa_u32 frame_index, daxa_Bool8 synchronize) {
                 
-                // Blas buffer offset to zero
-                proc_blas_buffer_offset = 0;
+            //     // Blas buffer offset to zero
+            //     proc_blas_buffer_offset = 0;
 
-                if(frame_index >= DOUBLE_BUFFERING) {
-                    std::cout << "frame_index >= tlas.size()" << std::endl;
-                    return false;
-                }
+            //     if(frame_index >= DOUBLE_BUFFERING) {
+            //         std::cout << "frame_index >= tlas.size()" << std::endl;
+            //         return false;
+            //     }
 
-                for(auto blas : this->proc_blas)
-                    device.destroy_blas(blas);
-
-
-                // Clear previous procedural blas
-                this->proc_blas.clear();
-                this->proc_blas.reserve(current_instance_count[frame_index]);
-
-                // reserve blas build infos
-                blas_build_infos.clear();
-                blas_build_infos.reserve(current_instance_count[frame_index]);
-
-                // TODO: As much geometry as instances for now
-                aabb_geometries.clear();
-                aabb_geometries.resize(current_instance_count[frame_index]);
+            //     for(auto blas : this->proc_blas)
+            //         device.destroy_blas(blas);
 
 
-                u32 current_instance_index = 0;
+            //     // Clear previous procedural blas
+            //     this->proc_blas.clear();
+            //     this->proc_blas.reserve(current_instance_count[frame_index]);
 
-                // build procedural blas
-                for(u32 i = 0; i < current_instance_count[frame_index]; i++) {
-                    aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
-                        .data = device.get_device_address(aabb_buffer[frame_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)),
-                        .stride = sizeof(AABB),
-                        .count = instances[i].primitive_count,
-                        // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-                        .flags = 0x1, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
-                    });
+            //     // reserve blas build infos
+            //     blas_build_infos.clear();
+            //     blas_build_infos.reserve(current_instance_count[frame_index]);
 
-                    // Crear un daxa::Span a partir del vector
-                    daxa::Span<const daxa::BlasAabbGeometryInfo> geometry_span(aabb_geometries.at(i).data(), aabb_geometries.at(i).size());
-
-                    /// Create Procedural Blas:
-                    blas_build_infos.push_back(daxa::BlasBuildInfo{
-                        .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD,       // Is also default
-                        .dst_blas = {}, // Ignored in get_acceleration_structure_build_sizes.       // Is also default
-                        .geometries = geometry_span,
-                        .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
-                    });
-
-                    daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
-
-                    auto get_aligned = [&](u64 operand, u64 granularity) -> u64
-                    {
-                        return ((operand + (granularity - 1)) & ~(granularity - 1));
-                    };
-
-                    daxa_u32 scratch_alignment_size = get_aligned(proc_build_size_info.build_scratch_size, acceleration_structure_scratch_offset_alignment);
+            //     // TODO: As much geometry as instances for now
+            //     aabb_geometries.clear();
+            //     aabb_geometries.resize(current_instance_count[frame_index]);
 
 
-                    if((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size) {
-                        // TODO: Try to resize buffer
-                        std::cout << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
-                        abort();
-                    }
-                    blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
-                    proc_blas_scratch_buffer_offset += scratch_alignment_size;
+            //     u32 current_instance_index = 0;
+
+            //     // build procedural blas
+            //     for(u32 i = 0; i < current_instance_count[frame_index]; i++) {
+            //         aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
+            //             .data = device.get_device_address(aabb_buffer[frame_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)),
+            //             .stride = sizeof(AABB),
+            //             .count = instances[i].primitive_count,
+            //             // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+            //             .flags = 0x1, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+            //         });
+
+            //         // Crear un daxa::Span a partir del vector
+            //         daxa::Span<const daxa::BlasAabbGeometryInfo> geometry_span(aabb_geometries.at(i).data(), aabb_geometries.at(i).size());
+
+            //         /// Create Procedural Blas:
+            //         blas_build_infos.push_back(daxa::BlasBuildInfo{
+            //             .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD,       // Is also default
+            //             .dst_blas = {}, // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+            //             .geometries = geometry_span,
+            //             .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
+            //         });
+
+            //         daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
+
+            //         auto get_aligned = [&](u64 operand, u64 granularity) -> u64
+            //         {
+            //             return ((operand + (granularity - 1)) & ~(granularity - 1));
+            //         };
+
+            //         daxa_u32 scratch_alignment_size = get_aligned(proc_build_size_info.build_scratch_size, acceleration_structure_scratch_offset_alignment);
 
 
-                    daxa_u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
-
-                    if((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size) {
-                        // TODO: Try to resize buffer
-                        std::cout << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
-                        abort();
-                    }
-                    this->proc_blas.push_back(device.create_blas_from_buffer({
-                        .blas_info = {.size = proc_build_size_info.acceleration_structure_size,
-                            .name = "procedural blas",
-                        },
-                        .buffer_id = proc_blas_buffer,
-                        .offset = proc_blas_buffer_offset,
-                    }));
-
-                    proc_blas_buffer_offset +=  build_aligment_size;
-
-                    blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = this->proc_blas.at(this->proc_blas.size() - 1);
-
-                    ++current_instance_index;
-                }
-
-                proc_blas_scratch_buffer_offset = 0;
-
-                // Check if all instances were processed
-                if(current_instance_index != current_instance_count[frame_index]) {
-                    std::cout << "current_instance_index != current_instance_count" << std::endl;
-                    return false;
-                }
+            //         if((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size) {
+            //             // TODO: Try to resize buffer
+            //             std::cout << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
+            //             abort();
+            //         }
+            //         blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
+            //         proc_blas_scratch_buffer_offset += scratch_alignment_size;
 
 
-                /// Record build commands:
-                auto exec_cmds = [&]()
-                {
-                    auto recorder = device.create_command_recorder({});
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::HOST_WRITE,
-                        .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
-                    });
-                    recorder.build_acceleration_structures({
-                        .blas_build_infos = blas_build_infos,
-                    });
+            //         daxa_u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
-                    return recorder.complete_current_commands();
-                }();
-                device.submit_commands({.command_lists = std::array{exec_cmds}});
-                if(synchronize) {
-                    device.wait_idle();
-                }
-                /// NOTE:
-                /// No need to wait idle here.
-                /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
+            //         if((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size) {
+            //             // TODO: Try to resize buffer
+            //             std::cout << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
+            //             abort();
+            //         }
+            //         this->proc_blas.push_back(device.create_blas_from_buffer({
+            //             .blas_info = {.size = proc_build_size_info.acceleration_structure_size,
+            //                 .name = "procedural blas",
+            //             },
+            //             .buffer_id = proc_blas_buffer,
+            //             .offset = proc_blas_buffer_offset,
+            //         }));
 
-                return true;
-            }
+            //         proc_blas_buffer_offset +=  build_aligment_size;
 
+            //         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = this->proc_blas.at(this->proc_blas.size() - 1);
 
-            daxa_Bool8 build_tlas(daxa_u32 frame_index, daxa_Bool8 synchronize) {
+            //         ++current_instance_index;
+            //     }
 
-                if(frame_index >= DOUBLE_BUFFERING) {
-                    std::cout << "frame_index >= tlas.size()" << std::endl;
-                    return false;
-                }
+            //     proc_blas_scratch_buffer_offset = 0;
 
-                if(tlas[frame_index] != daxa::TlasId{})
-                    device.destroy_tlas(tlas[frame_index]);
-
-                std::vector<daxa_BlasInstanceData> blas_instance_array = {};
-                blas_instance_array.reserve(current_instance_count[frame_index]);
-
-                // build procedural blas
-                for(u32 i = 0; i < current_instance_count[frame_index]; i++) {
-                    blas_instance_array.push_back(daxa_BlasInstanceData{
-                        .transform =
-                            daxa_f32mat4x4_to_daxa_f32mat3x4(instances[i].transform),
-                        .instance_custom_index = i, // Is also default
-                        .mask = 0xFF,
-                        .instance_shader_binding_table_record_offset = {}, // Is also default
-                        .flags = {},                                       // Is also default
-                        .blas_device_address = device.get_device_address(this->proc_blas.at(i)).value(),
-                    });
-                }
-
-                /// create blas instances for tlas:
-                auto blas_instances_buffer = device.create_buffer({
-                    .size = sizeof(daxa_BlasInstanceData) * current_instance_count[frame_index],
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = "blas instances array buffer",
-                });
-                defer { device.destroy_buffer(blas_instances_buffer); };
-                std::memcpy(device.get_host_address_as<daxa_BlasInstanceData>(blas_instances_buffer).value(),
-                    blas_instance_array.data(),
-                    blas_instance_array.size() * sizeof(daxa_BlasInstanceData));
+            //     // Check if all instances were processed
+            //     if(current_instance_index != current_instance_count[frame_index]) {
+            //         std::cout << "current_instance_index != current_instance_count" << std::endl;
+            //         return false;
+            //     }
 
 
-                auto blas_instances = std::array{
-                    daxa::TlasInstanceInfo{
-                        .data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
-                        .count = current_instance_count[frame_index],
-                        .is_data_array_of_pointers = false, // Buffer contains flat array of instances, not an array of pointers to instances.
-                        // .flags = daxa::GeometryFlagBits::OPAQUE,
-                        .flags = 0x1,
-                    }
-                };
-                auto tlas_build_info = daxa::TlasBuildInfo{
-                    .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD,
-                    .dst_tlas = {}, // Ignored in get_acceleration_structure_build_sizes.
-                    .instances = blas_instances,
-                    .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.
-                };
-                daxa::AccelerationStructureBuildSizesInfo tlas_build_sizes = device.get_tlas_build_sizes(tlas_build_info);
-                // TODO: Try to resize buffer if necessary and not build everytime
-                /// Create Tlas:
-                this->tlas[frame_index] = device.create_tlas({
-                    .size = tlas_build_sizes.acceleration_structure_size,
-                    .name = "tlas",
-                });
-                /// Create Build Scratch buffer
-                auto tlas_scratch_buffer = device.create_buffer({
-                    .size = tlas_build_sizes.build_scratch_size,
-                    .name = "tlas build scratch buffer",
-                });
-                defer { device.destroy_buffer(tlas_scratch_buffer); };
-                /// Update build info:
-                tlas_build_info.dst_tlas = this->tlas[frame_index];
-                tlas_build_info.scratch_data = device.get_device_address(tlas_scratch_buffer).value();
-                blas_instances[0].data = device.get_device_address(blas_instances_buffer).value();
+            //     /// Record build commands:
+            //     auto exec_cmds = [&]()
+            //     {
+            //         auto recorder = device.create_command_recorder({});
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::HOST_WRITE,
+            //             .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
+            //         });
+            //         recorder.build_acceleration_structures({
+            //             .blas_build_infos = blas_build_infos,
+            //         });
+
+            //         return recorder.complete_current_commands();
+            //     }();
+            //     device.submit_commands({.command_lists = std::array{exec_cmds}});
+            //     if(synchronize) {
+            //         device.wait_idle();
+            //     }
+            //     /// NOTE:
+            //     /// No need to wait idle here.
+            //     /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
+
+            //     return true;
+            // }
+
+
+            // daxa_Bool8 build_tlas(daxa_u32 frame_index, daxa_Bool8 synchronize) {
+
+            //     if(frame_index >= DOUBLE_BUFFERING) {
+            //         std::cout << "frame_index >= tlas.size()" << std::endl;
+            //         return false;
+            //     }
+
+            //     if(tlas[frame_index] != daxa::TlasId{})
+            //         device.destroy_tlas(tlas[frame_index]);
+
+            //     std::vector<daxa_BlasInstanceData> blas_instance_array = {};
+            //     blas_instance_array.reserve(current_instance_count[frame_index]);
+
+            //     // build procedural blas
+            //     for(u32 i = 0; i < current_instance_count[frame_index]; i++) {
+            //         blas_instance_array.push_back(daxa_BlasInstanceData{
+            //             .transform =
+            //                 daxa_f32mat4x4_to_daxa_f32mat3x4(instances[i].transform),
+            //             .instance_custom_index = i, // Is also default
+            //             .mask = 0xFF,
+            //             .instance_shader_binding_table_record_offset = {}, // Is also default
+            //             .flags = {},                                       // Is also default
+            //             .blas_device_address = device.get_device_address(this->proc_blas.at(i)).value(),
+            //         });
+            //     }
+
+            //     /// create blas instances for tlas:
+            //     auto blas_instances_buffer = device.create_buffer({
+            //         .size = sizeof(daxa_BlasInstanceData) * current_instance_count[frame_index],
+            //         .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            //         .name = "blas instances array buffer",
+            //     });
+            //     defer { device.destroy_buffer(blas_instances_buffer); };
+            //     std::memcpy(device.get_host_address_as<daxa_BlasInstanceData>(blas_instances_buffer).value(),
+            //         blas_instance_array.data(),
+            //         blas_instance_array.size() * sizeof(daxa_BlasInstanceData));
+
+
+            //     auto blas_instances = std::array{
+            //         daxa::TlasInstanceInfo{
+            //             .data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
+            //             .count = current_instance_count[frame_index],
+            //             .is_data_array_of_pointers = false, // Buffer contains flat array of instances, not an array of pointers to instances.
+            //             // .flags = daxa::GeometryFlagBits::OPAQUE,
+            //             .flags = 0x1,
+            //         }
+            //     };
+            //     auto tlas_build_info = daxa::TlasBuildInfo{
+            //         .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD,
+            //         .dst_tlas = {}, // Ignored in get_acceleration_structure_build_sizes.
+            //         .instances = blas_instances,
+            //         .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.
+            //     };
+            //     daxa::AccelerationStructureBuildSizesInfo tlas_build_sizes = device.get_tlas_build_sizes(tlas_build_info);
+            //     // TODO: Try to resize buffer if necessary and not build everytime
+            //     /// Create Tlas:
+            //     this->tlas[frame_index] = device.create_tlas({
+            //         .size = tlas_build_sizes.acceleration_structure_size,
+            //         .name = "tlas",
+            //     });
+            //     /// Create Build Scratch buffer
+            //     auto tlas_scratch_buffer = device.create_buffer({
+            //         .size = tlas_build_sizes.build_scratch_size,
+            //         .name = "tlas build scratch buffer",
+            //     });
+            //     defer { device.destroy_buffer(tlas_scratch_buffer); };
+            //     /// Update build info:
+            //     tlas_build_info.dst_tlas = this->tlas[frame_index];
+            //     tlas_build_info.scratch_data = device.get_device_address(tlas_scratch_buffer).value();
+            //     blas_instances[0].data = device.get_device_address(blas_instances_buffer).value();
 
 
 
-                // Copy instances to buffer
-                u32 instance_buffer_size = static_cast<u32>(current_instance_count[frame_index] * sizeof(INSTANCE));
-                if(instance_buffer_size > max_instance_buffer_size) {
-                    std::cout << "instance_buffer_size > max_instance_buffer_size" << std::endl;
-                    abort();
-                }
+            //     // Copy instances to buffer
+            //     u32 instance_buffer_size = static_cast<u32>(current_instance_count[frame_index] * sizeof(INSTANCE));
+            //     if(instance_buffer_size > max_instance_buffer_size) {
+            //         std::cout << "instance_buffer_size > max_instance_buffer_size" << std::endl;
+            //         abort();
+            //     }
 
 
-                auto instance_staging_buffer = device.create_buffer({
-                    .size = instance_buffer_size,
-                    .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                    .name = ("instance_staging_buffer"),
-                });
-                defer { device.destroy_buffer(instance_staging_buffer); };
+            //     auto instance_staging_buffer = device.create_buffer({
+            //         .size = instance_buffer_size,
+            //         .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            //         .name = ("instance_staging_buffer"),
+            //     });
+            //     defer { device.destroy_buffer(instance_staging_buffer); };
 
-                auto * instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
-                std::memcpy(instance_buffer_ptr,
-                    instances.get(),
-                    instance_buffer_size);
+            //     auto * instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
+            //     std::memcpy(instance_buffer_ptr,
+            //         instances.get(),
+            //         instance_buffer_size);
 
                 
 
 
-                /// Record build commands:
-                auto exec_cmds = [&]()
-                {
-                    auto recorder = device.create_command_recorder({});
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::HOST_WRITE,
-                        .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
-                    });
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
-                        .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
-                    });
-                    recorder.build_acceleration_structures({
-                        .tlas_build_infos = std::array{tlas_build_info},
-                    });
-                    recorder.pipeline_barrier({
-                        .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
-                        .dst_access = daxa::AccessConsts::READ_WRITE,
-                    });
+            //     /// Record build commands:
+            //     auto exec_cmds = [&]()
+            //     {
+            //         auto recorder = device.create_command_recorder({});
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::HOST_WRITE,
+            //             .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
+            //         });
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
+            //             .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
+            //         });
+            //         recorder.build_acceleration_structures({
+            //             .tlas_build_infos = std::array{tlas_build_info},
+            //         });
+            //         recorder.pipeline_barrier({
+            //             .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
+            //             .dst_access = daxa::AccessConsts::READ_WRITE,
+            //         });
 
-                     recorder.copy_buffer_to_buffer({
-                        .src_buffer = instance_staging_buffer,
-                        .dst_buffer = instance_buffer[frame_index],
-                        .size = instance_buffer_size,
-                    });
+            //          recorder.copy_buffer_to_buffer({
+            //             .src_buffer = instance_staging_buffer,
+            //             .dst_buffer = instance_buffer[frame_index],
+            //             .size = instance_buffer_size,
+            //         });
 
-                    return recorder.complete_current_commands();
-                }();
-                device.submit_commands({.command_lists = std::array{exec_cmds}});
-                if(synchronize){
-                    device.wait_idle();
-                }
-                /// NOTE:
-                /// No need to wait idle here.
-                /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
+            //         return recorder.complete_current_commands();
+            //     }();
+            //     device.submit_commands({.command_lists = std::array{exec_cmds}});
+            //     if(synchronize){
+            //         device.wait_idle();
+            //     }
+            //     /// NOTE:
+            //     /// No need to wait idle here.
+            //     /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
 
-                return true;
-            }
+            //     return true;
+            // }
 
 
             void upload_world(daxa_u32 frame_index) {
@@ -1113,8 +1115,8 @@ namespace tests
                 auto index = frame_index % DOUBLE_BUFFERING;
                 auto index_next = (frame_index + 1) % DOUBLE_BUFFERING;
 
-                world.instance_address = device.get_device_address(instance_buffer[index]).value();
-                world.instance_address_prev = device.get_device_address(instance_buffer[index_next]).value();
+                world.instance_address = device.get_device_address(as_manager->get_instance_buffer(index)).value();
+                world.instance_address_prev = device.get_device_address(as_manager->get_instance_buffer(index_next)).value();
                 world.primitive_address = device.get_device_address(primitive_buffer[index]).value();
                 world.primitive_address_prev = device.get_device_address(primitive_buffer[index_next]).value();
                 world.aabb_address = device.get_device_address(aabb_buffer[index]).value();
@@ -1388,7 +1390,7 @@ namespace tests
                 }
 
 
-                acceleration_structure_scratch_offset_alignment = device.properties().acceleration_structure_properties.value().min_acceleration_structure_scratch_offset_alignment;
+                // acceleration_structure_scratch_offset_alignment = device.properties().acceleration_structure_properties.value().min_acceleration_structure_scratch_offset_alignment;
 
 
                 swapchain = device.create_swapchain({
@@ -1404,6 +1406,10 @@ namespace tests
                     },
                     .image_usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
                 });
+
+
+                as_manager = std::make_unique<ACCEL_STRUCT_MNGR>(device);
+                as_manager->create();
 
                 taa_image[0] = device.create_image({
                     .format = swapchain.get_format(),
@@ -1441,15 +1447,15 @@ namespace tests
                     .name = ("world_buffer"),
                 });
 
-                instance_buffer[0] = device.create_buffer(daxa::BufferInfo{
-                    .size = max_instance_buffer_size,
-                    .name = ("instance_buffer_0"),
-                });
+                // instance_buffer[0] = device.create_buffer(daxa::BufferInfo{
+                //     .size = max_instance_buffer_size,
+                //     .name = ("instance_buffer_0"),
+                // });
 
-                instance_buffer[1] = device.create_buffer(daxa::BufferInfo{
-                    .size = max_instance_buffer_size,
-                    .name = ("instance_buffer_1"),
-                });
+                // instance_buffer[1] = device.create_buffer(daxa::BufferInfo{
+                //     .size = max_instance_buffer_size,
+                //     .name = ("instance_buffer_1"),
+                // });
 
                 primitive_buffer[0] = device.create_buffer(daxa::BufferInfo{
                     .size = max_primitive_buffer_size,
@@ -1563,15 +1569,15 @@ namespace tests
                     .name = ("indirect_color_buffer"),
                 });
 
-                proc_blas_scratch_buffer = device.create_buffer({
-                    .size = proc_blas_scratch_buffer_size,
-                    .name = "proc blas build scratch buffer",
-                });
+                // proc_blas_scratch_buffer = device.create_buffer({
+                //     .size = proc_blas_scratch_buffer_size,
+                //     .name = "proc blas build scratch buffer",
+                // });
 
-                proc_blas_buffer = device.create_buffer({
-                    .size = proc_blas_buffer_size,
-                    .name = "proc blas buffer",
-                });
+                // proc_blas_buffer = device.create_buffer({
+                //     .size = proc_blas_buffer_size,
+                //     .name = "proc blas buffer",
+                // });
 
                 upload_world(status.frame_number);
                 upload_restir();
@@ -1638,7 +1644,9 @@ namespace tests
 
                 current_material_count += gvox_map.material_count;
                 current_aabb_host_count += gvox_map.primitive_count;
-                current_instance_count[0] += current_instance_count[1] += gvox_map.instance_count;
+                // current_instance_count[0] += current_instance_count[1] += gvox_map.instance_count;
+                as_manager->add_instance_count(0, gvox_map.instance_count);
+                as_manager->add_instance_count(1, gvox_map.instance_count);
                 light_config->cube_light_count += gvox_map.light_count;
 
                 if(current_aabb_host_count > 0) {
@@ -1685,17 +1693,17 @@ namespace tests
                     abort();
                 }
 
-                if(!build_blas(0, false)) {
+                if(!as_manager->build_new_blas(0, aabb_buffer, instances.get(), false)) {
                     std::cout << "Failed to build blas" << std::endl;
                     abort();
                 }
 
-                if(!build_tlas(0, false)) {
+                if(!as_manager->build_tlas(0, instances.get(), false)) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
 
-                if(!build_tlas(1, true)) {
+                if(!as_manager->build_tlas(1, instances.get(), true)) {
                     std::cout << "Failed to build tlas" << std::endl;
                     abort();
                 }
@@ -2117,8 +2125,8 @@ namespace tests
                 recorder.set_pipeline(*rt_pipeline);
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas[index],
-                    .tlas_previous = tlas[index_next],
+                    .tlas = as_manager->get_tlas(index),
+                    .tlas_previous = as_manager->get_tlas(index_next),
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -2170,8 +2178,8 @@ namespace tests
 
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas[index],
-                    .tlas_previous = tlas[index_next],
+                    .tlas = as_manager->get_tlas(index),
+                    .tlas_previous = as_manager->get_tlas(index_next),
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -2196,8 +2204,8 @@ namespace tests
 
                 recorder.push_constant(PushConstant{
                     .size = {width, height},
-                    .tlas = tlas[index],
-                    .tlas_previous = tlas[index_next],
+                    .tlas = as_manager->get_tlas(index),
+                    .tlas_previous = as_manager->get_tlas(index_next),
                     .swapchain = swapchain_image_view,
                     .previous_swapchain = previous_swapchain_image_view,
                     .taa_frame = taa_image_view,
@@ -2226,8 +2234,8 @@ namespace tests
 
                     recorder.push_constant(PushConstant{
                         .size = {width, height},
-                        .tlas = tlas[index],
-                        .tlas_previous = tlas[index_next],
+                        .tlas = as_manager->get_tlas(index),
+                        .tlas_previous = as_manager->get_tlas(index_next),
                         .swapchain = swapchain_image_view,
                         .previous_swapchain = previous_swapchain_image_view,
                         .taa_frame = taa_image_view,
