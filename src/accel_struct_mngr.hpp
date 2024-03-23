@@ -142,7 +142,7 @@ public:
                 }
             
                 std::cout << "Updating scene" << std::endl;
-                
+
                 // set the updating flag to true
                 updating = true;
                 // wake up the worker thread
@@ -192,10 +192,15 @@ public:
     std::condition_variable synchronize_cv = {};
 private:
 
-    bool load_primitives(uint32_t buffer_index);
-    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size);
-    bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t current_aabb_host_count);
+    
+    void upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size);
+    bool upload_primitive_device_buffer(uint32_t buffer_index, daxa_u32 primitive_count);
+    bool copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count);
+
+    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size);
+    bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
     bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
+
     bool build_blas(uint32_t buffer_index, uint32_t instance_count);
     bool rebuild_blas(uint32_t buffer_index, uint32_t instance_index);
     bool update_blas(uint32_t buffer_index, uint32_t instance_index);
@@ -231,7 +236,7 @@ private:
     
     daxa::BufferId aabb_buffer[DOUBLE_BUFFERING] = {};
     daxa::BufferId aabb_host_buffer = {};
-    uint32_t current_aabb_host_count = 0;
+    // uint32_t current_aabb_host_count = 0;
 
     uint32_t current_primitive_count[DOUBLE_BUFFERING] = {};
     uint32_t max_current_primitive_count = 0;

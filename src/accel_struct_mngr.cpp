@@ -152,21 +152,45 @@ bool ACCEL_STRUCT_MNGR::destroy() {
     return !initialized;
 }
 
-// TODO: improve this in order to support multiple BLASes
-bool ACCEL_STRUCT_MNGR::load_primitives(daxa_u32 buffer_index)
+void ACCEL_STRUCT_MNGR::upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size)
+{
+
+    /// Record build commands:
+    auto exec_cmds = [&]()
+    {
+        auto recorder = device.create_command_recorder({});
+
+        recorder.copy_buffer_to_buffer({
+            .src_buffer = src_primitive_buffer,
+            .dst_buffer = dst_primitive_buffer,
+            .src_offset = src_primitive_buffer_offset,
+            .dst_offset = dst_primitive_buffer_offset,
+            .size = primitive_copy_size,
+        });
+
+        return recorder.complete_current_commands();
+    }();
+    device.submit_commands({.command_lists = std::array{exec_cmds}});
+}
+
+bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count)
 {
     if (!device.is_valid() || !initialized)
     {
-        std::cout << "device.is_valid()" << std::endl;
+        std::cerr << "device.is_valid()" << std::endl;
         return false;
     }
 
-    // Copy primitives to buffer
-    u32 primitive_buffer_size = static_cast<u32>(current_primitive_count[buffer_index] * sizeof(PRIMITIVE));
-    if (primitive_buffer_size > max_primitive_buffer_size)
+    uint32_t previous_primitive_count = current_primitive_count[buffer_index];
+    uint32_t primitive_count_offset = previous_primitive_count * sizeof(PRIMITIVE);
+    uint32_t primitive_buffer_size = primitive_count * sizeof(PRIMITIVE);
+    uint32_t current_primitive_count = previous_primitive_count + primitive_count;
+    uint32_t current_primitive_count_offset = current_primitive_count * sizeof(PRIMITIVE);
+
+    if (current_primitive_count_offset > max_primitive_buffer_size)
     {
-        std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
-        abort();
+        std::cerr << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+        return false;
     }
 
     auto primitive_staging_buffer = device.create_buffer({
@@ -181,25 +205,39 @@ bool ACCEL_STRUCT_MNGR::load_primitives(daxa_u32 buffer_index)
                 primitives.get(),
                 primitive_buffer_size);
 
-    /// Record build commands:
-    auto exec_cmds = [&]()
-    {
-        auto recorder = device.create_command_recorder({});
-
-        recorder.copy_buffer_to_buffer({
-            .src_buffer = primitive_staging_buffer,
-            .dst_buffer = primitive_buffer[buffer_index],
-            .size = primitive_buffer_size,
-        });
-
-        return recorder.complete_current_commands();
-    }();
-    device.submit_commands({.command_lists = std::array{exec_cmds}});
+    upload_primitives(primitive_staging_buffer, primitive_buffer[buffer_index], primitive_count_offset, primitive_count_offset, primitive_buffer_size);
 
     return true;
 }
 
-void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId src_abb_buffer, daxa::BufferId dst_aabb_buffer, size_t dst_aabb_buffer_offset, size_t aabb_copy_size) {
+bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count)
+{
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    uint32_t previous_primitive_count = current_primitive_count[buffer_index];
+    uint32_t primitive_count_offset = previous_primitive_count * sizeof(PRIMITIVE);
+    uint32_t primitive_buffer_size = primitive_count * sizeof(PRIMITIVE);
+    uint32_t current_primitive_count = previous_primitive_count + primitive_count;
+    uint32_t current_primitive_count_offset = current_primitive_count * sizeof(PRIMITIVE);
+
+    if (current_primitive_count_offset > max_primitive_buffer_size)
+    {
+        std::cerr << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+        return false;
+    }
+
+    uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
+    upload_primitives(primitive_buffer[previous_buffer_index], primitive_buffer[buffer_index], primitive_count_offset, primitive_count_offset, primitive_buffer_size);
+
+    return true;
+}
+
+
+void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId src_abb_buffer, daxa::BufferId dst_aabb_buffer, size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size) {
     /// Record build commands:
     auto exec_cmds = [&]()
     {
@@ -208,6 +246,7 @@ void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId src_abb_buffer, da
         recorder.copy_buffer_to_buffer({
             .src_buffer = src_abb_buffer,
             .dst_buffer = dst_aabb_buffer,
+            .src_offset = src_aabb_buffer_offset,
             .dst_offset = dst_aabb_buffer_offset,
             .size = aabb_copy_size,
         });
@@ -222,7 +261,7 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_
 {
     if (!device.is_valid() || !initialized)
     {
-        std::cout << "device.is_valid()" << std::endl;
+        std::cerr << "device.is_valid()" << std::endl;
         return false;
     }
 
@@ -230,14 +269,13 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_
     {
         size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
         size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
-        upload_aabb_primitives(aabb_host_buffer, aabb_buffer[buffer_index], aabb_buffer_offset, aabb_copy_size);
-        current_primitive_count[buffer_index] += aabb_host_count;
-        aabb_host_count = 0;
+        upload_aabb_primitives(aabb_host_buffer, aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size);
 
-        if(!load_primitives(buffer_index)) {
-            std::cout << "Failed to load primitives" << std::endl;
-            abort();
+        if(!upload_primitive_device_buffer(buffer_index, aabb_host_count)) {
+            std::cerr << "Failed to load primitives" << std::endl;
+            return false;
         }
+        // current_aabb_host_count = 0;
     }
 
     return true;
@@ -247,7 +285,7 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(uint32_t buffer_index, uint32_t 
 {
     if (!device.is_valid() || !initialized)
     {
-        std::cout << "device.is_valid()" << std::endl;
+        std::cerr << "device.is_valid()" << std::endl;
         return false;
     }
 
@@ -256,12 +294,11 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(uint32_t buffer_index, uint32_t 
         size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
         size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
         uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
-        upload_aabb_primitives(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], aabb_buffer_offset, aabb_copy_size);
-        current_primitive_count[buffer_index] += aabb_host_count;
+        upload_aabb_primitives(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size);
 
-        if(!load_primitives(buffer_index)) {
-            std::cout << "Failed to load primitives" << std::endl;
-            abort();
+        if(!copy_primitive_device_buffer(buffer_index, aabb_host_count)) {
+            std::cerr << "Failed to load primitives" << std::endl;
+            return false;
         }
     }
 
@@ -272,7 +309,7 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
 {
     if (!device.is_valid() || !initialized)
     {
-        std::cout << "device.is_valid()" << std::endl;
+        std::cerr << "device.is_valid()" << std::endl;
         return false;
     }
 
@@ -329,8 +366,8 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
         if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
         {
             // TODO: Try to resize buffer
-            std::cout << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
-            abort();
+            std::cerr << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
+            return false;
         }
         blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
         proc_blas_scratch_buffer_offset += scratch_alignment_size;
@@ -340,8 +377,8 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
         if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
         {
             // TODO: Try to resize buffer
-            std::cout << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
-            abort();
+            std::cerr << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
+            return false;
         }
         proc_blas.push_back(device.create_blas_from_buffer({
             .blas_info = {
@@ -364,11 +401,9 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
     // Check if all instances were processed
     if (current_instance_index != instance_count)
     {
-        std::cout << "current_instance_index != current_instance_count" << std::endl;
+        std::cerr << "current_instance_index != current_instance_count" << std::endl;
         return false;
     }
-
-    current_instance_count[buffer_index] += instance_count;
 
     /// Record build commands:
     auto exec_cmds = [&]()
@@ -410,13 +445,13 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
 {
     if (!device.is_valid() || !initialized)
     {
-        std::cout << "device.is_valid()" << std::endl;
+        std::cerr << "device.is_valid()" << std::endl;
         return false;
     }
 
     if (buffer_index >= DOUBLE_BUFFERING)
     {
-        std::cout << "buffer_index >= tlas.size()" << std::endl;
+        std::cerr << "buffer_index >= tlas.size()" << std::endl;
         return false;
     }
 
@@ -487,8 +522,8 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
     uint32_t instance_buffer_size = static_cast<uint32_t>(current_instance_count[buffer_index] * sizeof(INSTANCE));
     if (instance_buffer_size > max_instance_buffer_size)
     {
-        std::cout << "instance_buffer_size > max_instance_buffer_size" << std::endl;
-        abort();
+        std::cerr << "instance_buffer_size > max_instance_buffer_size" << std::endl;
+        return false;
     }
 
     auto instance_staging_buffer = device.create_buffer({
@@ -575,7 +610,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
             upload_aabb_device_buffer(next_index, build_task.primitive_count);
+            current_primitive_count[next_index] += build_task.primitive_count;
             build_blas(next_index, build_task.instance_count);
+            current_instance_count[next_index] += build_task.instance_count;
             break;
         case TASK::TYPE::REBUILD_BLAS:
             TASK::BLAS_REBUILD rebuild_task = task.blas_rebuild;
@@ -637,9 +674,10 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
         {
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
-            upload_aabb_device_buffer(next_index, build_task.primitive_count);
-            current_instance_count[next_index] += build_task.instance_count;
+            copy_aabb_device_buffer(next_index, build_task.primitive_count);
+            current_primitive_count[next_index] += build_task.primitive_count;
             // NOTE: build_blas is already called for the previous index
+            current_instance_count[next_index] += build_task.instance_count;
             break;
         case TASK::TYPE::REBUILD_BLAS:
             TASK::BLAS_REBUILD rebuild_task = task.blas_rebuild;
