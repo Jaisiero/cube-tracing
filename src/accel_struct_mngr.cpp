@@ -5,22 +5,41 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
 {
     while(!stoken.stop_requested())
     {
+        // Wait for task queue to wake up
         {
             std::unique_lock lock(as_manager->task_queue_mutex);
             as_manager->task_queue_cv.wait(lock, [&] { return as_manager->is_updating() || stoken.stop_requested(); });
         }
         std::cout << "Worker thread woke up" << std::endl;
 
+        // Check if stop is requested
         if(stoken.stop_requested()) {
             break;
         }
 
+        // Process task queue
         if(!as_manager->is_switching()) {
             as_manager->process_task_queue();
             std::cout << "Processing task queue" << std::endl;
         } else {
             as_manager->process_switching_task_queue();
             std::cout << "Processing switching task queue" << std::endl;
+        }
+
+        // set update done
+        {
+            std::unique_lock lock(as_manager->task_queue_mutex);
+            as_manager->set_updating(false);
+        }
+
+        // Notify that the task is done
+        if(as_manager->is_synchronizing()) {
+            std::unique_lock lock(as_manager->synchronize_mutex);
+
+            // Set synchronizing to false
+            as_manager->set_synchronizing(false);
+
+            as_manager->synchronize_cv.notify_one();
         }
 
     };
@@ -540,6 +559,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
         return;
     }
 
+    uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
+
     // Iterate over all tasks to process
     for(uint32_t i = 0; i < items_to_process; i++)
     {
@@ -553,8 +574,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
         {
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
-            upload_aabb_device_buffer(current_index, build_task.primitive_count);
-            build_blas(current_index, build_task.instance_count);
+            upload_aabb_device_buffer(next_index, build_task.primitive_count);
+            build_blas(next_index, build_task.instance_count);
             break;
         case TASK::TYPE::REBUILD_BLAS:
             TASK::BLAS_REBUILD rebuild_task = task.blas_rebuild;
@@ -562,11 +583,11 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             // TODO: delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
             // TODO: update instance buffer substraction of primitive count
             // TODO: update remapping primitive index
-            rebuild_blas(current_index, rebuild_task.instance_index);
+            rebuild_blas(next_index, rebuild_task.instance_index);
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
-            update_blas(current_index, update_task.instance_index);
+            update_blas(next_index, update_task.instance_index);
             break;
         default:
             break;
@@ -580,17 +601,17 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
     items_to_process = 0;
 
     // Build TLAS
-    build_tlas(current_index, true);
+    build_tlas(next_index, true);
 
     // Set current index as updated
-    index_updated[current_index] = true;
+    index_updated[next_index] = true;
 
     // This should 
 
     {
         // TODO: mutex here
         // Switch to next index
-        current_index = (current_index + 1) % DOUBLE_BUFFERING;
+        current_index = next_index;
 
         // Set switching to true
         switching = true;
@@ -605,6 +626,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
         std::cout << "device.is_valid()" << std::endl;
         return;
     }
+    
+    uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
     while(!temporal_task_queue.empty()) {
         auto task = temporal_task_queue.front();
@@ -614,8 +637,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
         {
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
-            upload_aabb_device_buffer(current_index, build_task.primitive_count);
-            current_instance_count[current_index] += build_task.instance_count;
+            upload_aabb_device_buffer(next_index, build_task.primitive_count);
+            current_instance_count[next_index] += build_task.instance_count;
             // NOTE: build_blas is already called for the previous index
             break;
         case TASK::TYPE::REBUILD_BLAS:
@@ -624,11 +647,11 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             // TODO: delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
             // TODO: update instance buffer substraction of primitive count
             // TODO: update remapping primitive index
-            // rebuild_blas(current_index, rebuild_task.instance_index);
+            // rebuild_blas(next_index, rebuild_task.instance_index);
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
-            // update_blas(current_index, update_task.instance_index);
+            // update_blas(next_index, update_task.instance_index);
             break;
         default:
             break;
@@ -639,15 +662,15 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
     }
 
     // Build TLAS
-    build_tlas(current_index, true);
+    build_tlas(next_index, true);
 
     // Set current index as updated
-    index_updated[current_index] = true;
+    index_updated[next_index] = true;
 
     {
         // TODO: mutex here
         // Switch to next index
-        current_index = (current_index + 1) % DOUBLE_BUFFERING;
+        current_index = next_index;
 
         // Set updating to false
         updating = false;

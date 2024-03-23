@@ -62,6 +62,11 @@ public:
 
     bool is_updating() const { return updating; }
     bool is_switching() const { return switching; }
+    bool is_initialized() const { return initialized; }
+    bool is_synchronizing() const { return synchronizing; }
+    void set_synchronizing(bool value) { synchronizing = value; }
+    void set_updating(bool value) { updating = value; }
+
 
     daxa::TlasId get_current_tlas() const { 
         return tlas[current_index]; 
@@ -131,33 +136,46 @@ public:
                 items_to_process = task_queue.size();
                 // if there are no items to process, return false
                 if(items_to_process == 0) return false;
+                // set notify flag to false if we are synchronizing
+                if(synchronize) {
+                    synchronizing = true;
+                }
+            
+                std::cout << "Updating scene" << std::endl;
+                
                 // set the updating flag to true
                 updating = true;
                 // wake up the worker thread
                 task_queue_cv.notify_one();
             }
-            
-            std::cout << "Updating scene" << std::endl;
 
             if(synchronize) {
-                // TODO: wait until the worker thread finishes
+                std::unique_lock lock(synchronize_mutex);
+                synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
             }
 
             return true;
         }
         else if (switching)
         {
+            std::cout << "Switching scene" << std::endl;
+
             {
                 // Get the mutex
                 std::unique_lock lock(task_queue_mutex);
+                // set the updating flag to false if we are synchronizing
+                if(synchronize) {
+                    synchronizing = true;
+                }
+                // set the updating flag to true
+                updating = true;
                 // wake up the worker thread
                 task_queue_cv.notify_one();
             }
             
-            std::cout << "Switching scene" << std::endl;
-            
             if(synchronize) {
-                // TODO: wait until the worker thread finishes
+                std::unique_lock lock(synchronize_mutex);
+                synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
             }
             return true;
         }
@@ -167,10 +185,11 @@ public:
 
     void process_task_queue();
     void process_switching_task_queue();
-    
+
     std::mutex task_queue_mutex = {};
     std::condition_variable task_queue_cv = {};
-
+    std::mutex synchronize_mutex = {};
+    std::condition_variable synchronize_cv = {};
 private:
 
     bool load_primitives(uint32_t buffer_index);
@@ -185,8 +204,8 @@ private:
 
     daxa::Device& device;
 
-    size_t proc_blas_scratch_buffer_size = 0; // TODO: is this a good estimation?
-    size_t proc_blas_buffer_size = 0; // TODO: is this a good estimation?
+    size_t proc_blas_scratch_buffer_size = 0; 
+    size_t proc_blas_buffer_size = 0;
     size_t max_instance_buffer_size = 0;
     size_t max_aabb_buffer_size = 0;
     size_t max_aabb_host_buffer_size = 0;
@@ -224,6 +243,9 @@ private:
     bool initialized = false;
     std::atomic<bool> switching = false;
     std::atomic<bool> updating = false;
+    
+    std::atomic<bool> synchronizing = true;
+
     std::jthread worker_thread;
     bool index_updated[DOUBLE_BUFFERING] = {true, true};
     uint32_t current_index = 0;

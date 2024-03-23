@@ -38,8 +38,8 @@ namespace tests
       daxa_u32 invocation_reorder_mode;
       daxa_b32 activate_filtering = false;
       daxa_b32 activate_day_night_cycle = false;
-      daxa_b32 activate_point_lights = false;
-      daxa_b32 activate_env_map = false;
+      daxa_b32 activate_point_lights = true;
+      daxa_b32 activate_env_map = true;
       daxa_b32 activate_cube_lights = true;
       daxa_b32 activate_brdf = false;
       daxa_b32 activate_midday = false;
