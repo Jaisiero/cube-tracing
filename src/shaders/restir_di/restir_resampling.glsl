@@ -322,6 +322,17 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
       // compute target at current pixel with previous reservoir's sample
       DIRECT_ILLUMINATION_INFO di_info_previous =
           get_di_from_previous_frame(prev_predicted_index);
+          
+      OBJECT_INFO prev_instance_hit = di_info_previous.instance_hit;
+      
+      daxa_u32 primitive_index = get_remapped_primitive_index_by_object_hit(prev_instance_hit);
+
+      if(primitive_index == -1) {
+        return;
+      } else if(primitive_index != 0) {
+        di_info_previous.instance_hit.primitive_id = primitive_index;
+        // TODO: Update buffer?
+      }
 
       HIT_INFO_INPUT prev_hit = HIT_INFO_INPUT(
           di_info_previous.position, di_info_previous.normal,

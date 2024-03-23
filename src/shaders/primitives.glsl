@@ -6,11 +6,7 @@
 #include "Box.glsl"
 #include "prng.glsl"
 
-daxa_u32 get_remapped_primitive_index(daxa_u32 primitive_index) {
-    REMAPPED_PRIMITIVE_BUFFER remapped_primitive_buffer = REMAPPED_PRIMITIVE_BUFFER(deref(p.world_buffer).remapped_primitive_address);
-    return remapped_primitive_buffer.primitives[primitive_index];
-}
-
+// INSTANCE BUFFER
 daxa_f32mat4x4 get_geometry_previous_transform_from_instance_id(daxa_u32 instance_id) {
     INSTANCES_BUFFER instance_buffer = INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
     return instance_buffer.instances[instance_id].prev_transform;
@@ -26,7 +22,6 @@ daxa_u32 get_geometry_first_primitive_index_from_instance_id(daxa_u32 instance_i
     return instance_buffer.instances[instance_id].first_primitive_index;
 }
 
-
 daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(OBJECT_INFO instance_hit) {
     // Get first primitive index from instance id
     daxa_u32 primitive_index = get_geometry_first_primitive_index_from_instance_id(instance_hit.instance_id);
@@ -39,11 +34,24 @@ INSTANCE get_instance_from_instance_id(daxa_u32 instance_id) {
     return instance_buffer.instances[instance_id];
 }
 
+// REMAPPED PRIMITIVE BUFFER
+daxa_u32 get_remapped_primitive_index(daxa_u32 primitive_index) {
+    REMAPPED_PRIMITIVE_BUFFER remapped_primitive_buffer = REMAPPED_PRIMITIVE_BUFFER(deref(p.world_buffer).remapped_primitive_address);
+    return remapped_primitive_buffer.primitives[primitive_index];
+}
+
+daxa_u32 get_remapped_primitive_index_by_object_hit(OBJECT_INFO instance_hit) {
+    daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
+    return get_remapped_primitive_index(primitive_index);
+}
+
+// AABB BUFFER
 AABB get_aabb_from_primitive_index(daxa_u32 primitive_index) {
     AABB_BUFFER aabb_buffer = AABB_BUFFER(deref(p.world_buffer).aabb_address);
     return aabb_buffer.aabbs[primitive_index];
 }
 
+// PRIMITIVE BUFFER
 daxa_u32 get_material_index_from_primitive_index(daxa_u32 primitive_index)
 {
     PRIMITIVE_BUFFER primitive_buffer = PRIMITIVE_BUFFER(deref(p.world_buffer).primitive_address);
@@ -56,6 +64,7 @@ daxa_u32 get_light_index_from_primitive_index(daxa_u32 primitive_index)
     return primitive_buffer.primitives[primitive_index].light_index;
 }
 
+// MATERIAL BUFFER
 daxa_u32 get_material_index_from_instance_and_primitive_id(OBJECT_INFO instance_hit)
 {
     // Get material index from primitive
