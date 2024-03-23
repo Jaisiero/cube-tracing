@@ -2,9 +2,10 @@
 #pragma once
 #include "defines.h"
 #include <queue>
-// #include <mutex>
-// #include <condition_variable>
-// #include <atomic>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <thread>
 
 struct ACCEL_STRUCT_MNGR
 {
@@ -119,19 +120,24 @@ public:
         if (!initialized)
             return false;
 
-        if (!updating)
+        if (!updating && !switching)
         {
-            // TODO: Get mutex here
-            // set the updating flag to true then
-            // the worker thread will process the task queue items so far
-            // get the number of items to process so far
-            items_to_process = task_queue.size();
-            // if there are no items to process, return false
-            if(items_to_process == 0) return false;
-            // set the updating flag to true
-            updating = true;
-            // TODO: Wake up the worker thread
-            process_task_queue();
+            {
+                // Get the mutex
+                std::unique_lock lock(task_queue_mutex);
+                // set the updating flag to true then
+                // the worker thread will process the task queue items so far
+                // get the number of items to process so far
+                items_to_process = task_queue.size();
+                // if there are no items to process, return false
+                if(items_to_process == 0) return false;
+                // set the updating flag to true
+                updating = true;
+                // wake up the worker thread
+                task_queue_cv.notify_one();
+            }
+            
+            std::cout << "Updating scene" << std::endl;
 
             if(synchronize) {
                 // TODO: wait until the worker thread finishes
@@ -141,9 +147,14 @@ public:
         }
         else if (switching)
         {
-            // TODO: Get mutex here
-            // TODO: wake up the worker thread again
-            process_switching_task_queue();
+            {
+                // Get the mutex
+                std::unique_lock lock(task_queue_mutex);
+                // wake up the worker thread
+                task_queue_cv.notify_one();
+            }
+            
+            std::cout << "Switching scene" << std::endl;
             
             if(synchronize) {
                 // TODO: wait until the worker thread finishes
@@ -154,11 +165,13 @@ public:
         return false; // No action to perform
     }
 
-private:
-
     void process_task_queue();
     void process_switching_task_queue();
     
+    std::mutex task_queue_mutex = {};
+    std::condition_variable task_queue_cv = {};
+
+private:
 
     bool load_primitives(uint32_t buffer_index);
     void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size);
@@ -211,13 +224,11 @@ private:
     bool initialized = false;
     std::atomic<bool> switching = false;
     std::atomic<bool> updating = false;
+    std::jthread worker_thread;
     bool index_updated[DOUBLE_BUFFERING] = {true, true};
     uint32_t current_index = 0;
     uint32_t items_to_process = 0;
     std::queue<TASK> task_queue = {};
-    // std::mutex task_queue_mutex = {};
-    // std::condition_variable task_queue_cv = {};
-    // std::atomic<bool> task_queue_ready = false;
 
     // this queue is used to store the tasks that have been processed
     // TODO: undo tasks in the future?

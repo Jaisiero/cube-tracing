@@ -1,7 +1,33 @@
 #include "ACCEL_STRUCT_MNGR.hpp"
 
+
+void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
+{
+    while(!stoken.stop_requested())
+    {
+        {
+            std::unique_lock lock(as_manager->task_queue_mutex);
+            as_manager->task_queue_cv.wait(lock, [&] { return as_manager->is_updating() || stoken.stop_requested(); });
+        }
+        std::cout << "Worker thread woke up" << std::endl;
+
+        if(stoken.stop_requested()) {
+            break;
+        }
+
+        if(!as_manager->is_switching()) {
+            as_manager->process_task_queue();
+            std::cout << "Processing task queue" << std::endl;
+        } else {
+            as_manager->process_switching_task_queue();
+            std::cout << "Processing switching task queue" << std::endl;
+        }
+
+    };
+}
+
 bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primitive_count) {
-    if(device.is_valid()) {
+    if(device.is_valid() && !initialized) {
         proc_blas_scratch_buffer_size = max_instance_count * 1024ULL * 2ULL; // TODO: is this a good estimation?
         proc_blas_buffer_size = max_instance_count * 1024ULL * 2ULL;         // TODO: is this a good estimation?
         max_instance_buffer_size = sizeof(INSTANCE) * max_instance_count;
@@ -40,18 +66,6 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
             });
         }
 
-        // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-VkAccelerationStructureBuildGeometryInfoKHR-type-03792
-        // GeometryType of each element of pGeometries must be the same
-        // aabb_buffer[0] = device.create_buffer({
-        //     .size = max_aabb_buffer_size,
-        //     .name = "aabb_buffer_0",
-        // });
-
-        // aabb_buffer[1] = device.create_buffer({
-        //     .size = max_aabb_buffer_size,
-        //     .name = "aabb_buffer_1",
-        // });
-
         for(uint32_t i = 0; i < DOUBLE_BUFFERING; i++) {
             aabb_buffer[i] = device.create_buffer({
                 .size = max_aabb_buffer_size,
@@ -65,13 +79,12 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
             .name = "aabb host buffer",
         });
         
-
         initialized = true;
-
-        return true;
+        
+        worker_thread = std::jthread(worker_thread_fn, this);
     }
 
-    return false;
+    return initialized;
 }
 
 bool ACCEL_STRUCT_MNGR::destroy() {
@@ -106,6 +119,15 @@ bool ACCEL_STRUCT_MNGR::destroy() {
                 device.destroy_buffer(buffer);
 
         initialized = false;
+
+        worker_thread.request_stop();
+
+        {
+            std::unique_lock lock(task_queue_mutex);
+            task_queue_cv.notify_one();
+        }
+
+        worker_thread.join();
     }
 
     return !initialized;
@@ -626,6 +648,9 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
         // TODO: mutex here
         // Switch to next index
         current_index = (current_index + 1) % DOUBLE_BUFFERING;
+
+        // Set updating to false
+        updating = false;
 
         // Set switching to false
         switching = false;
