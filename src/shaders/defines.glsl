@@ -132,6 +132,7 @@ struct SCENE_PARAMS{
 
 
 layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[MAX_INSTANCES]; }; // Positions of an object
+layout(buffer_reference, scalar) buffer REMAPPED_PRIMITIVE_BUFFER {daxa_u32 primitives[MAX_PRIMITIVES]; }; // Primitive data
 layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[MAX_PRIMITIVES]; }; // Primitive data
 layout(buffer_reference, scalar) buffer AABB_BUFFER {AABB aabbs[MAX_PRIMITIVES]; }; // Positions of a primitive
 layout(buffer_reference, scalar) buffer MATERIAL_BUFFER {MATERIAL materials[MAX_MATERIALS]; }; // Materials

@@ -232,6 +232,7 @@ struct WORLD
     daxa_u64 primitive_address_prev;
     daxa_u64 aabb_address;
     daxa_u64 aabb_address_prev;
+    daxa_u64 remapped_primitive_address;
     daxa_u64 material_address;
     daxa_u64 point_light_address;
     daxa_u64 cube_light_address;

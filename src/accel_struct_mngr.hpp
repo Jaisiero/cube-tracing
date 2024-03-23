@@ -100,6 +100,10 @@ public:
         return switching ? primitive_buffer[current_index - 1 % DOUBLE_BUFFERING] : primitive_buffer[current_index];
     }
 
+    daxa::BufferId get_remapping_primitive_buffer() const { 
+        return remapping_primitive_buffer;
+    }
+
     // TODO: Change this for AABB* device.get_host_address_as<AABB>(as_manager->get_aabb_host_buffer()).value();
     daxa::BufferId get_aabb_host_buffer() const { return aabb_host_buffer; }
 
@@ -215,6 +219,7 @@ private:
     size_t max_aabb_buffer_size = 0;
     size_t max_aabb_host_buffer_size = 0;
     size_t max_primitive_buffer_size = 0;
+    size_t max_remapping_primitive_buffer_size = 0;
 
     // Acceleration structures
     daxa::TlasId tlas[DOUBLE_BUFFERING] = {};
@@ -243,6 +248,9 @@ private:
     std::unique_ptr<PRIMITIVE[]> primitives = {};
 
     daxa::BufferId primitive_buffer[DOUBLE_BUFFERING] = {};
+
+    // Remapping buffer for primitives when rebuilding BLAS
+    daxa::BufferId remapping_primitive_buffer = {};
 
     // STATUS
     bool initialized = false;

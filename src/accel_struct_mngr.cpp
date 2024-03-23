@@ -53,6 +53,7 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
         max_aabb_buffer_size = sizeof(AABB) * max_primitive_count;
         max_aabb_host_buffer_size = sizeof(AABB) * max_primitive_count * 0.1;
         max_primitive_buffer_size = sizeof(PRIMITIVE) * max_primitive_count;
+        max_remapping_primitive_buffer_size = sizeof(uint32_t) * max_primitive_count;
 
         instances = std::make_unique<INSTANCE[]>(max_instance_count);
         primitives = std::make_unique<PRIMITIVE[]>(max_primitive_count);
@@ -97,6 +98,11 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
             .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
             .name = "aabb host buffer",
         });
+
+        remapping_primitive_buffer = device.create_buffer({
+            .size = max_remapping_primitive_buffer_size,
+            .name = "remapping primitive buffer",
+        });
         
         initialized = true;
         
@@ -136,6 +142,9 @@ bool ACCEL_STRUCT_MNGR::destroy() {
         for(auto buffer : primitive_buffer)
             if(buffer != daxa::BufferId{})
                 device.destroy_buffer(buffer);
+
+        if(remapping_primitive_buffer != daxa::BufferId{})
+            device.destroy_buffer(remapping_primitive_buffer);
 
         initialized = false;
 

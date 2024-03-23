@@ -6,6 +6,10 @@
 #include "Box.glsl"
 #include "prng.glsl"
 
+daxa_u32 get_remapped_primitive_index(daxa_u32 primitive_index) {
+    REMAPPED_PRIMITIVE_BUFFER remapped_primitive_buffer = REMAPPED_PRIMITIVE_BUFFER(deref(p.world_buffer).remapped_primitive_address);
+    return remapped_primitive_buffer.primitives[primitive_index];
+}
 
 daxa_f32mat4x4 get_geometry_previous_transform_from_instance_id(daxa_u32 instance_id) {
     INSTANCES_BUFFER instance_buffer = INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
