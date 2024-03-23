@@ -1,10 +1,49 @@
 
 #pragma once
 #include "defines.h"
+#include <queue>
+// #include <mutex>
+// #include <condition_variable>
+// #include <atomic>
 
 struct ACCEL_STRUCT_MNGR
 {
 public:
+    struct TASK
+    {
+        enum class TYPE
+        {
+            BUILD_BLAS_FROM_CPU,
+            REBUILD_BLAS,
+            UPDATE_BLAS,
+        };
+
+        struct BLAS_UPDATE
+        {
+            uint32_t instance_index;
+        };
+
+        struct BLAS_REBUILD
+        {
+            uint32_t instance_index;
+            uint32_t del_primitive_index;
+        };
+
+        struct BLAS_BUILD_FROM_CPU
+        {
+            uint32_t instance_count;
+            uint32_t primitive_count;
+        };
+
+        TYPE type;
+        union
+        {
+            BLAS_BUILD_FROM_CPU blas_build_from_cpu;
+            BLAS_REBUILD blas_rebuild;
+            BLAS_UPDATE blas_update;
+        };
+    };
+
     ACCEL_STRUCT_MNGR(daxa::Device& device) : device(device) {
         if(device.is_valid()) {
             acceleration_structure_scratch_offset_alignment = device.properties().acceleration_structure_properties.value().min_acceleration_structure_scratch_offset_alignment;
@@ -19,46 +58,118 @@ public:
     bool create(uint32_t max_instance_count, uint32_t max_primitive_count);
     bool destroy();
 
-    daxa::TlasId get_tlas(uint32_t frame_index) const { 
-        if(frame_index >= DOUBLE_BUFFERING) return daxa::TlasId();
-        return tlas[frame_index]; 
+
+    bool is_updating() const { return updating; }
+    bool is_switching() const { return switching; }
+
+    daxa::TlasId get_current_tlas() const { 
+        return tlas[current_index]; 
     }
 
-    daxa::BufferId get_instance_buffer(uint32_t frame_index) const { 
-        if(frame_index >= DOUBLE_BUFFERING) return daxa::BufferId();
-        return instance_buffer[frame_index]; 
+    daxa::TlasId get_previous_tlas() const { 
+        return switching ? tlas[current_index-1 % DOUBLE_BUFFERING] : tlas[current_index];
     }
 
-    daxa::BufferId get_aabb_buffer(uint32_t frame_index) const { 
-        if(frame_index >= DOUBLE_BUFFERING) return daxa::BufferId();
-        return aabb_buffer[frame_index]; 
+    daxa::BufferId get_current_instance_buffer() const { 
+        return instance_buffer[current_index]; 
     }
 
+    daxa::BufferId get_previous_instance_buffer() const { 
+        return switching ? instance_buffer[current_index - 1 % DOUBLE_BUFFERING] : instance_buffer[current_index];
+    }
+
+    daxa::BufferId get_current_aabb_buffer() const { 
+        return aabb_buffer[current_index];
+    }
+    
+    daxa::BufferId get_previous_aabb_buffer() const { 
+        return switching ? aabb_buffer[current_index - 1 % DOUBLE_BUFFERING] : aabb_buffer[current_index];
+    }
+
+    daxa::BufferId get_current_primitive_buffer() const { 
+        return primitive_buffer[current_index];
+    }
+    
+    daxa::BufferId get_previous_primitive_buffer() const { 
+        return switching ? primitive_buffer[current_index - 1 % DOUBLE_BUFFERING] : primitive_buffer[current_index];
+    }
+
+    // TODO: Change this for AABB* device.get_host_address_as<AABB>(as_manager->get_aabb_host_buffer()).value();
     daxa::BufferId get_aabb_host_buffer() const { return aabb_host_buffer; }
 
     INSTANCE* get_instances() const { return instances.get(); }
 
     PRIMITIVE* get_primitives() const { return primitives.get(); }
 
-    daxa::BufferId get_primitive_buffer(uint32_t frame_index) const { 
-        if(frame_index >= DOUBLE_BUFFERING) return daxa::BufferId();
-        return primitive_buffer[frame_index]; 
-    }
-
-    bool add_instance_count(uint32_t frame_index, uint32_t count) {
-        if(frame_index >= DOUBLE_BUFFERING) return false;
-        if(current_instance_count[frame_index] + count > MAX_INSTANCES) return false;
-        current_instance_count[frame_index] += count;
+    bool task_queue_add(TASK task) {
+        // TODO: Get mutex here
+        task_queue.push(task);
         return true;
     }
 
-    bool load_primitives(uint32_t frame_index, bool synchronize);
-    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size);
-    bool upload_aabb_device_buffer(uint32_t current_aabb_host_count);
-    bool build_new_blas(uint32_t frame_index, bool synchronize);
-    bool build_tlas(uint32_t frame_index, bool synchronize);
+    // bool add_instance_count(uint32_t buffer_index, uint32_t count) {
+    //     if(buffer_index >= DOUBLE_BUFFERING) return false;
+    //     if(current_instance_count[buffer_index] + count > MAX_INSTANCES) return false;
+    //     current_instance_count[buffer_index] += count;
+    //     return true;
+    // }
+
+    bool update_scene(bool synchronize = false)
+    {
+        if (!initialized)
+            return false;
+
+        if (!updating)
+        {
+            // TODO: Get mutex here
+            // set the updating flag to true then
+            // the worker thread will process the task queue items so far
+            // get the number of items to process so far
+            items_to_process = task_queue.size();
+            // if there are no items to process, return false
+            if(items_to_process == 0) return false;
+            // set the updating flag to true
+            updating = true;
+            // TODO: Wake up the worker thread
+            process_task_queue();
+
+            if(synchronize) {
+                // TODO: wait until the worker thread finishes
+            }
+
+            return true;
+        }
+        else if (switching)
+        {
+            // TODO: Get mutex here
+            // TODO: wake up the worker thread again
+            process_switching_task_queue();
+            
+            if(synchronize) {
+                // TODO: wait until the worker thread finishes
+            }
+            return true;
+        }
+            
+        return false; // No action to perform
+    }
 
 private:
+
+    void process_task_queue();
+    void process_switching_task_queue();
+    
+
+    bool load_primitives(uint32_t buffer_index);
+    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size);
+    bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t current_aabb_host_count);
+    bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
+    bool build_blas(uint32_t buffer_index, uint32_t instance_count);
+    bool rebuild_blas(uint32_t buffer_index, uint32_t instance_index);
+    bool update_blas(uint32_t buffer_index, uint32_t instance_index);
+    bool build_tlas(uint32_t buffer_index, bool synchronize);
+
+
     daxa::Device& device;
 
     size_t proc_blas_scratch_buffer_size = 0; // TODO: is this a good estimation?
@@ -96,5 +207,22 @@ private:
 
     daxa::BufferId primitive_buffer[DOUBLE_BUFFERING] = {};
 
+    // STATUS
     bool initialized = false;
+    std::atomic<bool> switching = false;
+    std::atomic<bool> updating = false;
+    bool index_updated[DOUBLE_BUFFERING] = {true, true};
+    uint32_t current_index = 0;
+    uint32_t items_to_process = 0;
+    std::queue<TASK> task_queue = {};
+    // std::mutex task_queue_mutex = {};
+    // std::condition_variable task_queue_cv = {};
+    // std::atomic<bool> task_queue_ready = false;
+
+    // this queue is used to store the tasks that have been processed
+    // TODO: undo tasks in the future?
+    std::queue<TASK> done_task_queue = {};
+
+    // used for the worker thread
+    std::queue<TASK> temporal_task_queue;
 };

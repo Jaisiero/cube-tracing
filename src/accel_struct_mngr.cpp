@@ -111,7 +111,8 @@ bool ACCEL_STRUCT_MNGR::destroy() {
     return !initialized;
 }
 
-bool ACCEL_STRUCT_MNGR::load_primitives(daxa_u32 frame_index, bool synchronize)
+// TODO: improve this in order to support multiple BLASes
+bool ACCEL_STRUCT_MNGR::load_primitives(daxa_u32 buffer_index)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -119,14 +120,8 @@ bool ACCEL_STRUCT_MNGR::load_primitives(daxa_u32 frame_index, bool synchronize)
         return false;
     }
 
-    if (frame_index >= DOUBLE_BUFFERING)
-    {
-        std::cout << "frame_index >= tlas.size()" << std::endl;
-        return false;
-    }
-
     // Copy primitives to buffer
-    u32 primitive_buffer_size = static_cast<u32>(current_primitive_count[frame_index] * sizeof(PRIMITIVE));
+    u32 primitive_buffer_size = static_cast<u32>(current_primitive_count[buffer_index] * sizeof(PRIMITIVE));
     if (primitive_buffer_size > max_primitive_buffer_size)
     {
         std::cout << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
@@ -152,31 +147,27 @@ bool ACCEL_STRUCT_MNGR::load_primitives(daxa_u32 frame_index, bool synchronize)
 
         recorder.copy_buffer_to_buffer({
             .src_buffer = primitive_staging_buffer,
-            .dst_buffer = primitive_buffer[frame_index],
+            .dst_buffer = primitive_buffer[buffer_index],
             .size = primitive_buffer_size,
         });
 
         return recorder.complete_current_commands();
     }();
     device.submit_commands({.command_lists = std::array{exec_cmds}});
-    if (synchronize)
-    {
-        device.wait_idle();
-    }
 
     return true;
 }
 
-void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t aabb_buffer_offset, size_t aabb_copy_size) {
+void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId src_abb_buffer, daxa::BufferId dst_aabb_buffer, size_t dst_aabb_buffer_offset, size_t aabb_copy_size) {
     /// Record build commands:
     auto exec_cmds = [&]()
     {
         auto recorder = device.create_command_recorder({});
 
         recorder.copy_buffer_to_buffer({
-            .src_buffer = aabb_staging_buffer,
-            .dst_buffer = aabb_buffer,
-            .dst_offset = aabb_buffer_offset,
+            .src_buffer = src_abb_buffer,
+            .dst_buffer = dst_aabb_buffer,
+            .dst_offset = dst_aabb_buffer_offset,
             .size = aabb_copy_size,
         });
 
@@ -186,7 +177,7 @@ void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId aabb_staging_buffe
     device.wait_idle();
 }
 
-bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t current_aabb_host_count)
+bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -194,24 +185,15 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t current_aabb_host_cou
         return false;
     }
 
-    if (current_aabb_host_count > 0)
+    if (aabb_host_count > 0)
     {
-        size_t aabb_copy_size = current_aabb_host_count * sizeof(AABB);
-        size_t aabb_buffer_offset = current_primitive_count[0] * sizeof(AABB);
-        upload_aabb_primitives(aabb_host_buffer, aabb_buffer[0], aabb_buffer_offset, aabb_copy_size);
-        current_primitive_count[0] += current_aabb_host_count;
-        aabb_buffer_offset = current_primitive_count[1] * sizeof(AABB);
-        upload_aabb_primitives(aabb_host_buffer, aabb_buffer[1], aabb_buffer_offset, aabb_copy_size);
-        current_primitive_count[1] += current_aabb_host_count;
-        current_aabb_host_count = 0;
+        size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
+        size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
+        upload_aabb_primitives(aabb_host_buffer, aabb_buffer[buffer_index], aabb_buffer_offset, aabb_copy_size);
+        current_primitive_count[buffer_index] += aabb_host_count;
+        aabb_host_count = 0;
 
-        if(!load_primitives(0, false)) {
-            std::cout << "Failed to load primitives" << std::endl;
-            abort();
-        }
-
-        if (!load_primitives(1, false))
-        {
+        if(!load_primitives(buffer_index)) {
             std::cout << "Failed to load primitives" << std::endl;
             abort();
         }
@@ -220,7 +202,7 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t current_aabb_host_cou
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::build_new_blas(uint32_t frame_index, bool synchronize)
+bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -228,32 +210,55 @@ bool ACCEL_STRUCT_MNGR::build_new_blas(uint32_t frame_index, bool synchronize)
         return false;
     }
 
-    // Blas buffer offset to zero
-    proc_blas_buffer_offset = 0;
-
-    if (frame_index >= DOUBLE_BUFFERING)
+    if (aabb_host_count > 0)
     {
-        std::cout << "frame_index >= tlas.size()" << std::endl;
+        size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
+        size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
+        uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
+        upload_aabb_primitives(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], aabb_buffer_offset, aabb_copy_size);
+        current_primitive_count[buffer_index] += aabb_host_count;
+
+        if(!load_primitives(buffer_index)) {
+            std::cout << "Failed to load primitives" << std::endl;
+            abort();
+        }
+    }
+
+    return true;
+}
+
+bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_count)
+{
+    if (!device.is_valid() || !initialized)
+    {
+        std::cout << "device.is_valid()" << std::endl;
         return false;
     }
 
-    // this->proc_blas.reserve(current_instance_count[frame_index]);
+    // Get previous instance count
+    uint32_t previous_instance_count = current_instance_count[buffer_index];
+    // Get all instance count
+    uint32_t all_instance_count = previous_instance_count + instance_count;
+
+    // Blas buffer offset to zero
+    proc_blas_buffer_offset = 0;
 
     // reserve blas build infos
     blas_build_infos.clear();
-    blas_build_infos.reserve(current_instance_count[frame_index]);
+    blas_build_infos.reserve(instance_count);
 
     // TODO: As much geometry as instances for now
     aabb_geometries.clear();
-    aabb_geometries.resize(current_instance_count[frame_index]);
+    aabb_geometries.resize(instance_count);
+
 
     uint32_t current_instance_index = 0;
 
     // build procedural blas
-    for (uint32_t i = 0; i < current_instance_count[frame_index]; i++)
+    for (uint32_t i = previous_instance_count; i < all_instance_count; i++)
     {
-        aabb_geometries.at(i).push_back(daxa::BlasAabbGeometryInfo{
-            .data = device.get_device_address(aabb_buffer[frame_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)),
+        aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
+            .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)),
             .stride = sizeof(AABB),
             .count = instances[i].primitive_count,
             // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
@@ -261,7 +266,7 @@ bool ACCEL_STRUCT_MNGR::build_new_blas(uint32_t frame_index, bool synchronize)
         });
 
         // Crear un daxa::Span a partir del vector
-        daxa::Span<const daxa::BlasAabbGeometryInfo> geometry_span(aabb_geometries.at(i).data(), aabb_geometries.at(i).size());
+        daxa::Span<const daxa::BlasAabbGeometryInfo> geometry_span(aabb_geometries.at(current_instance_index).data(), aabb_geometries.at(current_instance_index).size());
 
         /// Create Procedural Blas:
         blas_build_infos.push_back(daxa::BlasBuildInfo{
@@ -316,11 +321,13 @@ bool ACCEL_STRUCT_MNGR::build_new_blas(uint32_t frame_index, bool synchronize)
     proc_blas_scratch_buffer_offset = 0;
 
     // Check if all instances were processed
-    if (current_instance_index != current_instance_count[frame_index])
+    if (current_instance_index != instance_count)
     {
         std::cout << "current_instance_index != current_instance_count" << std::endl;
         return false;
     }
+
+    current_instance_count[buffer_index] += instance_count;
 
     /// Record build commands:
     auto exec_cmds = [&]()
@@ -337,18 +344,28 @@ bool ACCEL_STRUCT_MNGR::build_new_blas(uint32_t frame_index, bool synchronize)
         return recorder.complete_current_commands();
     }();
     device.submit_commands({.command_lists = std::array{exec_cmds}});
-    if (synchronize)
-    {
-        device.wait_idle();
-    }
-    /// NOTE:
-    /// No need to wait idle here.
-    /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
 
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
+
+
+bool ACCEL_STRUCT_MNGR::rebuild_blas(uint32_t buffer_index, uint32_t instance_index)
+{
+    // TODO: rebuild blas here
+    return true;
+}
+
+
+
+
+bool ACCEL_STRUCT_MNGR::update_blas(uint32_t buffer_index, uint32_t instance_index)
+{
+    // TODO: update blas here
+    return true;
+}
+
+bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -356,20 +373,20 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
         return false;
     }
 
-    if (frame_index >= DOUBLE_BUFFERING)
+    if (buffer_index >= DOUBLE_BUFFERING)
     {
-        std::cout << "frame_index >= tlas.size()" << std::endl;
+        std::cout << "buffer_index >= tlas.size()" << std::endl;
         return false;
     }
 
-    if (tlas[frame_index] != daxa::TlasId{})
-        device.destroy_tlas(tlas[frame_index]);
+    if (tlas[buffer_index] != daxa::TlasId{})
+        device.destroy_tlas(tlas[buffer_index]);
 
     std::vector<daxa_BlasInstanceData> blas_instance_array = {};
-    blas_instance_array.reserve(current_instance_count[frame_index]);
+    blas_instance_array.reserve(current_instance_count[buffer_index]);
 
     // build procedural blas
-    for (uint32_t i = 0; i < current_instance_count[frame_index]; i++)
+    for (uint32_t i = 0; i < current_instance_count[buffer_index]; i++)
     {
         blas_instance_array.push_back(daxa_BlasInstanceData{
             .transform =
@@ -384,7 +401,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
 
     /// create blas instances for tlas:
     auto blas_instances_buffer = device.create_buffer({
-        .size = sizeof(daxa_BlasInstanceData) * current_instance_count[frame_index],
+        .size = sizeof(daxa_BlasInstanceData) * current_instance_count[buffer_index],
         .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
         .name = "blas instances array buffer",
     });
@@ -396,7 +413,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
     auto blas_instances = std::array{
         daxa::TlasInstanceInfo{
             .data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
-            .count = current_instance_count[frame_index],
+            .count = current_instance_count[buffer_index],
             .is_data_array_of_pointers = false, // Buffer contains flat array of instances, not an array of pointers to instances.
             // .flags = daxa::GeometryFlagBits::OPAQUE,
             .flags = 0x1,
@@ -410,7 +427,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
     daxa::AccelerationStructureBuildSizesInfo tlas_build_sizes = device.get_tlas_build_sizes(tlas_build_info);
     // TODO: Try to resize buffer if necessary and not build everytime
     /// Create Tlas:
-    this->tlas[frame_index] = device.create_tlas({
+    this->tlas[buffer_index] = device.create_tlas({
         .size = tlas_build_sizes.acceleration_structure_size,
         .name = "tlas",
     });
@@ -421,12 +438,12 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
     });
     defer { device.destroy_buffer(tlas_scratch_buffer); };
     /// Update build info:
-    tlas_build_info.dst_tlas = this->tlas[frame_index];
+    tlas_build_info.dst_tlas = this->tlas[buffer_index];
     tlas_build_info.scratch_data = device.get_device_address(tlas_scratch_buffer).value();
     blas_instances[0].data = device.get_device_address(blas_instances_buffer).value();
 
     // Copy instances to buffer
-    uint32_t instance_buffer_size = static_cast<uint32_t>(current_instance_count[frame_index] * sizeof(INSTANCE));
+    uint32_t instance_buffer_size = static_cast<uint32_t>(current_instance_count[buffer_index] * sizeof(INSTANCE));
     if (instance_buffer_size > max_instance_buffer_size)
     {
         std::cout << "instance_buffer_size > max_instance_buffer_size" << std::endl;
@@ -467,7 +484,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
 
         recorder.copy_buffer_to_buffer({
             .src_buffer = instance_staging_buffer,
-            .dst_buffer = instance_buffer[frame_index],
+            .dst_buffer = instance_buffer[buffer_index],
             .size = instance_buffer_size,
         });
 
@@ -483,4 +500,134 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t frame_index, bool synchronize)
     /// Daxa will defer all the destructions of the buffers until the submitted as build commands are complete.
 
     return true;
+}
+
+using TASK = ACCEL_STRUCT_MNGR::TASK;
+
+void ACCEL_STRUCT_MNGR::process_task_queue() {
+
+    if (!device.is_valid() || !initialized)
+    {
+        std::cout << "device.is_valid()" << std::endl;
+        return;
+    }
+
+    if(items_to_process == 0) {
+        // Set switching to false
+        updating = false;
+        return;
+    }
+
+    // Iterate over all tasks to process
+    for(uint32_t i = 0; i < items_to_process; i++)
+    {
+        auto task = task_queue.front();
+        {
+            // TODO: mutex here
+            task_queue.pop();
+        }
+        // Process task
+        switch (task.type)
+        {
+        case TASK::TYPE::BUILD_BLAS_FROM_CPU:
+            TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
+            upload_aabb_device_buffer(current_index, build_task.primitive_count);
+            build_blas(current_index, build_task.instance_count);
+            break;
+        case TASK::TYPE::REBUILD_BLAS:
+            TASK::BLAS_REBUILD rebuild_task = task.blas_rebuild;
+            // uint32_t primitive_index = rebuild_task.del_primitive_index;
+            // TODO: delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
+            // TODO: update instance buffer substraction of primitive count
+            // TODO: update remapping primitive index
+            rebuild_blas(current_index, rebuild_task.instance_index);
+            break;
+        case TASK::TYPE::UPDATE_BLAS:
+            TASK::BLAS_UPDATE update_task = task.blas_update;
+            update_blas(current_index, update_task.instance_index);
+            break;
+        default:
+            break;
+        }
+
+        // archieve task
+        temporal_task_queue.push(task);
+    }
+
+    // Set items to process to zero
+    items_to_process = 0;
+
+    // Build TLAS
+    build_tlas(current_index, true);
+
+    // Set current index as updated
+    index_updated[current_index] = true;
+
+    // This should 
+
+    {
+        // TODO: mutex here
+        // Switch to next index
+        current_index = (current_index + 1) % DOUBLE_BUFFERING;
+
+        // Set switching to true
+        switching = true;
+    }
+    
+}
+
+
+void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
+    if (!device.is_valid() || !initialized)
+    {
+        std::cout << "device.is_valid()" << std::endl;
+        return;
+    }
+
+    while(!temporal_task_queue.empty()) {
+        auto task = temporal_task_queue.front();
+        temporal_task_queue.pop();
+        // Process task
+        switch (task.type)
+        {
+        case TASK::TYPE::BUILD_BLAS_FROM_CPU:
+            TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
+            upload_aabb_device_buffer(current_index, build_task.primitive_count);
+            current_instance_count[current_index] += build_task.instance_count;
+            // NOTE: build_blas is already called for the previous index
+            break;
+        case TASK::TYPE::REBUILD_BLAS:
+            TASK::BLAS_REBUILD rebuild_task = task.blas_rebuild;
+            // uint32_t primitive_index = rebuild_task.del_primitive_index;
+            // TODO: delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
+            // TODO: update instance buffer substraction of primitive count
+            // TODO: update remapping primitive index
+            // rebuild_blas(current_index, rebuild_task.instance_index);
+            break;
+        case TASK::TYPE::UPDATE_BLAS:
+            TASK::BLAS_UPDATE update_task = task.blas_update;
+            // update_blas(current_index, update_task.instance_index);
+            break;
+        default:
+            break;
+        }
+
+        // archieve task
+        done_task_queue.push(task);
+    }
+
+    // Build TLAS
+    build_tlas(current_index, true);
+
+    // Set current index as updated
+    index_updated[current_index] = true;
+
+    {
+        // TODO: mutex here
+        // Switch to next index
+        current_index = (current_index + 1) % DOUBLE_BUFFERING;
+
+        // Set switching to false
+        switching = false;
+    }
 }
