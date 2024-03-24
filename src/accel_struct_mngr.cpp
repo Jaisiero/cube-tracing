@@ -8,7 +8,7 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
         // Wait for task queue to wake up
         {
             std::unique_lock lock(as_manager->task_queue_mutex);
-            as_manager->task_queue_cv.wait(lock, [&] { return as_manager->is_updating() || stoken.stop_requested(); });
+            as_manager->task_queue_cv.wait(lock, [&] { return as_manager->is_wake_up() || stoken.stop_requested(); });
         }
         std::cout << "Worker thread woke up" << std::endl;
 
@@ -29,7 +29,7 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
         // set update done
         {
             std::unique_lock lock(as_manager->task_queue_mutex);
-            as_manager->set_updating(false);
+            as_manager->set_wake_up(false);
         }
 
         // Notify that the task is done
@@ -586,9 +586,11 @@ bool ACCEL_STRUCT_MNGR::rebuild_blas(uint32_t buffer_index, uint32_t instance_in
     aabb_geometries.clear();
     aabb_geometries.resize(1);
 
+    // if(proc_blas.at(instance_index) != daxa::BlasId{})
+    //     device.destroy_blas(proc_blas.at(instance_index));
+    
     if(proc_blas.at(instance_index) != daxa::BlasId{})
-        device.destroy_blas(proc_blas.at(instance_index));
-
+        temp_proc_blas.push_back(proc_blas.at(instance_index));
 
     uint32_t current_instance_index = 0;
 
@@ -978,4 +980,10 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
         // Set switching to false
         switching = false;
     }
+
+
+    // delete temp proc blas
+    for(auto blas : temp_proc_blas)
+        if(blas != daxa::BlasId{})
+            device.destroy_blas(blas);
 }

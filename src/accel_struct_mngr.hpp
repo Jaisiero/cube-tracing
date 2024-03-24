@@ -61,12 +61,15 @@ public:
     bool destroy();
 
 
+    bool is_wake_up() const { return wake_up; }
     bool is_updating() const { return updating; }
     bool is_switching() const { return switching; }
     bool is_initialized() const { return initialized; }
     bool is_synchronizing() const { return synchronizing; }
     void set_synchronizing(bool value) { synchronizing = value; }
     void set_updating(bool value) { updating = value; }
+    void set_wake_up(bool value) { wake_up = value; }
+    void set_switching(bool value) { switching = value; }
 
 
     daxa::TlasId get_current_tlas() const { 
@@ -149,7 +152,9 @@ public:
                 std::cout << "Updating scene" << std::endl;
 
                 // set the updating flag to true
-                updating = true;
+                wake_up = true;
+                // set the wake up flag to true
+                wake_up = true;
                 // wake up the worker thread
                 task_queue_cv.notify_one();
             }
@@ -172,8 +177,8 @@ public:
                 if(synchronize) {
                     synchronizing = true;
                 }
-                // set the updating flag to true
-                updating = true;
+                // set the wake up flag to true
+                wake_up = true;
                 // wake up the worker thread
                 task_queue_cv.notify_one();
             }
@@ -231,7 +236,7 @@ private:
 
     // Acceleration structures
     daxa::TlasId tlas[DOUBLE_BUFFERING] = {};
-    std::vector<daxa::BlasId> proc_blas = {};
+    std::vector<daxa::BlasId> proc_blas = {}, temp_proc_blas = {};
     daxa::BufferId proc_blas_scratch_buffer = {};
     uint64_t proc_blas_scratch_buffer_offset = 0;
     uint32_t acceleration_structure_scratch_offset_alignment = 0;
@@ -264,6 +269,7 @@ private:
     bool initialized = false;
     std::atomic<bool> switching = false;
     std::atomic<bool> updating = false;
+    std::atomic<bool> wake_up = false;
     
     std::atomic<bool> synchronizing = true;
 
