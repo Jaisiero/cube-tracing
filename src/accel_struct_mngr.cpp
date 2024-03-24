@@ -314,6 +314,143 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(uint32_t buffer_index, uint32_t 
     return true;
 }
 
+
+bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange)
+{
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+
+
+    // Copy last primitive to deleted primitive
+    if(primitive_to_exchange != primitive_index) {
+
+        uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
+        uint32_t primitive_to_delete = first_primitive_index + primitive_index;
+
+        // Copy AABB
+        upload_aabb_primitives(aabb_buffer[buffer_index], aabb_buffer[buffer_index], last_primitive_index * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB));
+        // Copy primitive
+        upload_primitives(primitive_buffer[buffer_index], primitive_buffer[buffer_index], last_primitive_index * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE));
+    }
+
+    return true;
+}
+
+bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange)
+{
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+
+    // Copy last primitive to deleted primitive
+    if(primitive_to_exchange != primitive_index) {
+
+        uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
+        uint32_t primitive_to_delete = first_primitive_index + primitive_index;
+
+        uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
+
+        // Copy AABB from previous buffer to current buffer
+        upload_aabb_primitives(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], primitive_to_delete * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB));
+        // Copy primitive from previous buffer to current buffer
+        upload_primitives(primitive_buffer[previous_buffer_index], primitive_buffer[buffer_index], primitive_to_delete * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE));
+    }
+
+    return true;
+}
+
+
+
+bool ACCEL_STRUCT_MNGR::update_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange) {
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+
+    // Copy last primitive to deleted primitive
+    if(primitive_to_exchange != primitive_index) {
+
+        uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
+        uint32_t primitive_to_delete = first_primitive_index + primitive_index;
+
+        size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
+
+        auto remapped_primitive_staging_buffer = device.create_buffer({
+            .size = remapped_primitive_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = ("remapped_primitive_staging_buffer"),
+        });
+        defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
+
+        uint32_t remapped_primitive_indexes[2] = {static_cast<uint32_t>(-1), primitive_to_delete};
+
+        auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
+        std::memcpy(remapped_primitive_buffer_ptr,
+                    remapped_primitive_indexes,
+                    remapped_primitive_buffer_size);
+
+    
+        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
+    }
+
+    return true;
+}
+
+
+bool ACCEL_STRUCT_MNGR::restore_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange) {
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+
+    // Copy last primitive to deleted primitive
+    if(primitive_to_exchange != primitive_index) {
+
+        uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
+        uint32_t primitive_to_delete = first_primitive_index + primitive_index;
+
+        size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
+
+        auto remapped_primitive_staging_buffer = device.create_buffer({
+            .size = remapped_primitive_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = ("remapped_primitive_staging_buffer"),
+        });
+        defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
+
+        uint32_t remapped_primitive_indexes[2] = {0, 0};
+
+        auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
+        std::memcpy(remapped_primitive_buffer_ptr,
+                    remapped_primitive_indexes,
+                    remapped_primitive_buffer_size);
+
+    
+        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
+    }
+
+    return true;
+}
+
+
+
 bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_count)
 {
     if (!device.is_valid() || !initialized)
@@ -326,9 +463,6 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
     uint32_t previous_instance_count = current_instance_count[buffer_index];
     // Get all instance count
     uint32_t all_instance_count = previous_instance_count + instance_count;
-
-    // Blas buffer offset to zero
-    proc_blas_buffer_offset = 0;
 
     // reserve blas build infos
     blas_build_infos.clear();
@@ -437,7 +571,119 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
 
 bool ACCEL_STRUCT_MNGR::rebuild_blas(uint32_t buffer_index, uint32_t instance_index)
 {
-    // TODO: rebuild blas here
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    // TODO: adapt this to rebuild many BLAS at once
+    // reserve blas build infos
+    blas_build_infos.clear();
+    blas_build_infos.reserve(1);
+
+    // TODO: As much geometry as instances for now
+    aabb_geometries.clear();
+    aabb_geometries.resize(1);
+
+    if(proc_blas.at(instance_index) != daxa::BlasId{})
+        device.destroy_blas(proc_blas.at(instance_index));
+
+
+    uint32_t current_instance_index = 0;
+
+    // build procedural blas
+    // for (uint32_t i = previous_instance_count; i < all_instance_count; i++)
+    // {
+        aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
+            .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)),
+            .stride = sizeof(AABB),
+            .count = instances[instance_index].primitive_count,
+            // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+            .flags = 0x1, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+        });
+
+        // Crear un daxa::Span a partir del vector
+        daxa::Span<const daxa::BlasAabbGeometryInfo> geometry_span(aabb_geometries.at(current_instance_index).data(), aabb_geometries.at(current_instance_index).size());
+
+        /// Create Procedural Blas:
+        blas_build_infos.push_back(daxa::BlasBuildInfo{
+            .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD, // Is also default
+            .dst_blas = {},                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+            .geometries = geometry_span,
+            .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
+        });
+
+        daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
+
+        auto get_aligned = [&](uint64_t operand, uint64_t granularity) -> uint64_t
+        {
+            return ((operand + (granularity - 1)) & ~(granularity - 1));
+        };
+
+        uint32_t scratch_alignment_size = get_aligned(proc_build_size_info.build_scratch_size, acceleration_structure_scratch_offset_alignment);
+
+        if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
+        {
+            // TODO: Try to resize buffer
+            std::cerr << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
+            return false;
+        }
+        blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
+        proc_blas_scratch_buffer_offset += scratch_alignment_size;
+
+        uint32_t build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
+
+        if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
+        {
+            // TODO: Try to resize buffer
+            std::cerr << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
+            return false;
+        }
+
+
+        // Replace old BLAS
+        proc_blas.at(instance_index) = device.create_blas_from_buffer({
+            .blas_info = {
+                .size = proc_build_size_info.acceleration_structure_size,
+                .name = "procedural blas",
+            },
+            .buffer_id = proc_blas_buffer,
+            .offset = proc_blas_buffer_offset,
+        });
+
+        proc_blas_buffer_offset += build_aligment_size;
+
+        blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(proc_blas.size() - 1);
+
+        ++current_instance_index;
+    // }
+
+    proc_blas_scratch_buffer_offset = 0;
+
+    // // Check if all instances were processed
+    // if (current_instance_index != instance_count)
+    // {
+    //     std::cerr << "current_instance_index != current_instance_count" << std::endl;
+    //     return false;
+    // }
+
+    /// Record build commands:
+    auto exec_cmds = [&]()
+    {
+        auto recorder = device.create_command_recorder({});
+        recorder.pipeline_barrier({
+            .src_access = daxa::AccessConsts::HOST_WRITE,
+            .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
+        });
+        recorder.build_acceleration_structures({
+            .blas_build_infos = blas_build_infos,
+        });
+
+        return recorder.complete_current_commands();
+    }();
+    device.submit_commands({.command_lists = std::array{exec_cmds}});
+
     return true;
 }
 
@@ -605,6 +851,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
 
     uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
+    uint32_t primitive_to_exchange = 0;
+
     // Iterate over all tasks to process
     for(uint32_t i = 0; i < items_to_process; i++)
     {
@@ -623,13 +871,18 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             build_blas(next_index, build_task.instance_count);
             current_instance_count[next_index] += build_task.instance_count;
             break;
-        case TASK::TYPE::REBUILD_BLAS:
-            TASK::BLAS_REBUILD rebuild_task = task.blas_rebuild;
-            // uint32_t primitive_index = rebuild_task.del_primitive_index;
-            // TODO: delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
-            // TODO: update instance buffer substraction of primitive count
+        case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
+            TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
+            // TODO: this will need a mutex if manager is parallelized
+            primitive_to_exchange = --instances[rebuild_task.instance_index].primitive_count;
+            // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
+            delete_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, primitive_to_exchange);
+            // Update remapping buffer
+            update_remapping_buffer(next_index, rebuild_task.del_primitive_index, primitive_to_exchange);
             // TODO: update remapping primitive index
             rebuild_blas(next_index, rebuild_task.instance_index);
+            // save primitive to exchange for next frame
+            task.blas_rebuild_from_cpu.remap_primitive_index = primitive_to_exchange;
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -688,13 +941,13 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             // NOTE: build_blas is already called for the previous index
             current_instance_count[next_index] += build_task.instance_count;
             break;
-        case TASK::TYPE::REBUILD_BLAS:
-            TASK::BLAS_REBUILD rebuild_task = task.blas_rebuild;
-            // uint32_t primitive_index = rebuild_task.del_primitive_index;
-            // TODO: delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
-            // TODO: update instance buffer substraction of primitive count
-            // TODO: update remapping primitive index
-            // rebuild_blas(next_index, rebuild_task.instance_index);
+        case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
+            TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
+            // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
+            copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, task.blas_rebuild_from_cpu.remap_primitive_index);
+            // Restore remapping buffer
+            restore_remapping_buffer(next_index, rebuild_task.del_primitive_index, task.blas_rebuild_from_cpu.remap_primitive_index);
+            // NOTE: build_blas is already called for the previous index
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;

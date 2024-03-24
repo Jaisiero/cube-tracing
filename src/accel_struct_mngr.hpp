@@ -15,7 +15,7 @@ public:
         enum class TYPE
         {
             BUILD_BLAS_FROM_CPU,
-            REBUILD_BLAS,
+            REBUILD_BLAS_FROM_CPU,
             UPDATE_BLAS,
         };
 
@@ -24,10 +24,11 @@ public:
             uint32_t instance_index;
         };
 
-        struct BLAS_REBUILD
+        struct BLAS_REBUILD_FROM_CPU
         {
             uint32_t instance_index;
             uint32_t del_primitive_index;
+            uint32_t remap_primitive_index;
         };
 
         struct BLAS_BUILD_FROM_CPU
@@ -40,7 +41,7 @@ public:
         union
         {
             BLAS_BUILD_FROM_CPU blas_build_from_cpu;
-            BLAS_REBUILD blas_rebuild;
+            BLAS_REBUILD_FROM_CPU blas_rebuild_from_cpu;
             BLAS_UPDATE blas_update;
         };
     };
@@ -204,6 +205,13 @@ private:
     void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size);
     bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
     bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
+
+    
+    bool delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
+    bool update_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
+
+    bool copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
+    bool restore_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
 
     bool build_blas(uint32_t buffer_index, uint32_t instance_count);
     bool rebuild_blas(uint32_t buffer_index, uint32_t instance_index);

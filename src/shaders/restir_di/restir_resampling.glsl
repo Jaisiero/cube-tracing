@@ -331,7 +331,6 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
         return;
       } else if(primitive_index != 0) {
         di_info_previous.instance_hit.primitive_id = primitive_index;
-        // TODO: Update buffer?
       }
 
       HIT_INFO_INPUT prev_hit = HIT_INFO_INPUT(

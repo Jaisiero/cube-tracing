@@ -1017,11 +1017,7 @@ namespace tests
         std::cout << "  materials: " << gvox_map.material_count << std::endl;
 
         current_material_count += gvox_map.material_count;
-        // as_manager->add_instance_count(0, gvox_map.instance_count);
-        // as_manager->add_instance_count(1, gvox_map.instance_count);
         light_config->cube_light_count += gvox_map.light_count;
-
-        // as_manager->upload_aabb_device_buffer(gvox_map.primitive_count);
 
         if (light_config->cube_light_count > 0)
         {
@@ -2130,6 +2126,17 @@ namespace tests
               std::string brdf_msg = activate_brdf ? "Activated brdf sampling" : "Deactivated brdf sampling";
               std::cout << brdf_msg << std::endl;
             }
+          }
+          break;
+        case GLFW_KEY_9:
+        case GLFW_KEY_KP_9:
+          if (action == GLFW_PRESS)
+          {
+            as_manager->task_queue_add(TASK{
+              .type = TASK::TYPE::REBUILD_BLAS_FROM_CPU,
+              .blas_rebuild_from_cpu = {.instance_index = 0,
+                                        .del_primitive_index = 5},
+            });
           }
           break;
         default:
