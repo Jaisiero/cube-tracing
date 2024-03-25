@@ -553,6 +553,7 @@ namespace tests
         world.aabb_address = device.get_device_address(as_manager->get_current_aabb_buffer()).value();
         world.aabb_address_prev = device.get_device_address(as_manager->get_previous_aabb_buffer()).value();
         world.remapped_primitive_address = device.get_device_address(as_manager->get_remapping_primitive_buffer()).value();
+        world.remapped_cube_light_address = device.get_device_address(as_manager->get_remapping_light_buffer()).value();
         world.material_address = device.get_device_address(material_buffer).value();
         world.point_light_address = device.get_device_address(point_light_buffer).value();
         world.cube_light_address = device.get_device_address(as_manager->get_cube_light_buffer()).value();

@@ -61,7 +61,7 @@ const daxa_f32 MAX_INFLUENCE_FROM_THE_PAST_THRESHOLD = 20.0f;
 const daxa_u32 MIN_NUM_OF_NEIGHBORS = 3;
 const daxa_u32 MAX_NUM_OF_NEIGHBORS = 4;
 const daxa_f32 MIN_NEIGHBORS_RADIUS = 2.0f;
-const daxa_f32 MAX_NEIGHBORS_RADIUS = 25.0f;
+const daxa_f32 MAX_NEIGHBORS_RADIUS = 50.0f;
 const daxa_f32 MIN_CLOSE_NEIGHBORS_RADIUS = 2.0f;
 const daxa_f32 MAX_CLOSE_NEIGHBORS_RADIUS = 5.0f;
 const daxa_f32 MAX_DISTANCE_TO_HIT = 1e3f;
@@ -139,6 +139,7 @@ layout(buffer_reference, scalar) buffer MATERIAL_BUFFER {MATERIAL materials[MAX_
 layout(buffer_reference, scalar) buffer POINT_LIGHT_BUFFER {LIGHT point_lights[MAX_POINT_LIGHTS]; }; // Lights
 layout(buffer_reference, scalar) buffer ENV_LIGHT_BUFFER {LIGHT env_lights[MAX_ENV_LIGHTS]; }; // Environment lights
 layout(buffer_reference, scalar) buffer CUBE_LIGHT_BUFFER {LIGHT cube_lights[MAX_CUBE_LIGHTS]; }; // Cube lights
+layout(buffer_reference, scalar) buffer REMAPPED_CUBE_LIGHT_BUFFER {daxa_u32 lights[MAX_CUBE_LIGHTS]; }; // Primitive data
 layout(buffer_reference, scalar) buffer LIGHT_CONFIG_BUFFER {LIGHT_CONFIG light_config; }; // Lights
 
 layout(buffer_reference, scalar) buffer PREV_RESERVOIR_BUFFER {RESERVOIR reservoirs[MAX_RESERVOIRS]; }; // Reservoirs from the previous frame

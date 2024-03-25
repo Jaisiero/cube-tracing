@@ -88,6 +88,12 @@ daxa_u32 get_remapped_primitive_index_by_object_hit(OBJECT_INFO instance_hit) {
     return get_remapped_primitive_index(primitive_index);
 }
 
+// REMAPPED LIGHT BUFFER
+daxa_u32 get_remapped_light_index(daxa_u32 light_index) {
+    REMAPPED_CUBE_LIGHT_BUFFER remapped_cube_light_buffer = REMAPPED_CUBE_LIGHT_BUFFER(deref(p.world_buffer).remapped_cube_light_address);
+    return remapped_cube_light_buffer.lights[light_index];
+}
+
 // AABB BUFFER
 AABB get_aabb_from_primitive_index(daxa_u32 primitive_index) {
     AABB_BUFFER aabb_buffer = AABB_BUFFER(deref(p.world_buffer).aabb_address);

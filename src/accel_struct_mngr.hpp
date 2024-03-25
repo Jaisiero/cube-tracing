@@ -142,6 +142,10 @@ public:
         return remapping_primitive_buffer;
     }
 
+    daxa::BufferId get_remapping_light_buffer() { 
+        return remapping_light_buffer;
+    }
+
     // TODO: Change this for AABB* device.get_host_address_as<AABB>(as_manager->get_aabb_host_buffer()).value();
     daxa::BufferId get_aabb_host_buffer() const { return aabb_host_buffer; }
 

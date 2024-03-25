@@ -326,9 +326,9 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
       OBJECT_INFO prev_instance_hit = di_info_previous.instance_hit;
       
 
-      daxa_u32 primitive_index = get_remapped_primitive_index_by_object_hit(prev_instance_hit);
 
       if(is_remapping_active) {
+        daxa_u32 primitive_index = get_remapped_primitive_index_by_object_hit(prev_instance_hit);
         if(primitive_index == -1) {
           return;
         } else if(primitive_index != 0) {
@@ -364,7 +364,19 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
     reservoir.W_sum *= m_curr;
   }
 
-  if (get_reservoir_light_index(reservoir_previous) != -1) {
+  daxa_u32 prev_light_index = get_reservoir_light_index(reservoir_previous);
+  
+  
+  if(is_remapping_active) {
+    if(get_reservoir_type(reservoir_previous) == GEOMETRY_LIGHT_CUBE) {
+      daxa_u32 temp_light_index = get_remapped_light_index(prev_light_index);
+      if(temp_light_index != 0) {
+        prev_light_index = temp_light_index;
+      }
+    }
+  }
+
+  if (prev_light_index != -1) {
     daxa_f32vec3 current_target =
         reservoir_get_radiance(reservoir_previous, ray, hit, mat);
 
@@ -381,7 +393,7 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
           p_prev / max(p_prev + reservoir.M * target_lum_at_curr, 1e-6);
       const float w_prev = m_prev * target_lum_at_curr * reservoir_previous.W_y;
 
-      update_reservoir(reservoir, get_reservoir_light_index(reservoir_previous),
+      update_reservoir(reservoir, prev_light_index,
                        get_reservoir_type(reservoir_previous),
                        get_reservoir_seed(reservoir_previous), current_target,
                        w_prev, 1.f, seed);
