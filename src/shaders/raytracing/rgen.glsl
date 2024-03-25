@@ -250,8 +250,9 @@ void main() {
 
 #if (RESTIR_DI_TEMPORAL_ON == 1)
       if (reservoir_previous.W_y > 0.0) {
+        daxa_b32 is_remapping_active = ((active_features & REMAP_BIT) == REMAP_BIT);
         TEMPORAL_REUSE(reservoir, reservoir_previous, predicted_coord, rt_size,
-                       ray, hit, mat, light_config.point_light_count, di_info.seed);
+                       ray, hit, mat, light_config.point_light_count, di_info.seed, is_remapping_active);
       }
 
 #endif // RESTIR_DI_TEMPORAL_ON

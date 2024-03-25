@@ -10,6 +10,17 @@
 struct ACCEL_STRUCT_MNGR
 {
 public:
+
+    enum class AS_MANAGER_STATUS
+    {
+        IDLE = 0,
+        UPDATING = 1,
+        SWITCHING = 2,
+        SWITCH = 3,
+        SETTLING = 4,
+        SETTLE = 5,
+        BUILDING = 6,
+    };
     struct TASK
     {
         enum class TYPE
@@ -62,49 +73,61 @@ public:
 
 
     bool is_wake_up() const { return wake_up; }
-    bool is_updating() const { return updating; }
-    bool is_switching() const { return switching; }
     bool is_initialized() const { return initialized; }
     bool is_synchronizing() const { return synchronizing; }
+    bool is_idle() { return (status == AS_MANAGER_STATUS::IDLE); }
+    bool is_updating() { return (status == AS_MANAGER_STATUS::UPDATING); }
+    bool is_switching() { return (status == AS_MANAGER_STATUS::SWITCHING); }
+    bool is_settling() { return (status == AS_MANAGER_STATUS::SETTLING); }
+    AS_MANAGER_STATUS get_status() { return status; }
+    bool is_synchronizing() { return synchronizing; }
     void set_synchronizing(bool value) { synchronizing = value; }
-    void set_updating(bool value) { updating = value; }
     void set_wake_up(bool value) { wake_up = value; }
-    void set_switching(bool value) { switching = value; }
 
 
-    daxa::TlasId get_current_tlas() const { 
+    daxa::TlasId get_current_tlas() { 
         return tlas[current_index]; 
     }
 
-    daxa::TlasId get_previous_tlas() const { 
-        return switching ? tlas[current_index-1 % DOUBLE_BUFFERING] : tlas[current_index];
+    daxa::TlasId get_previous_tlas() { 
+        uint32_t prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        return is_switching() ? tlas[prev_index] : tlas[current_index];
     }
 
-    daxa::BufferId get_current_instance_buffer() const { 
+    daxa::BufferId get_current_instance_buffer() { 
         return instance_buffer[current_index]; 
     }
 
-    daxa::BufferId get_previous_instance_buffer() const { 
-        return switching ? instance_buffer[current_index - 1 % DOUBLE_BUFFERING] : instance_buffer[current_index];
+    daxa::BufferId get_previous_instance_buffer() { 
+        uint32_t prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        return is_switching() ? instance_buffer[prev_index] : instance_buffer[current_index];
     }
 
-    daxa::BufferId get_current_aabb_buffer() const { 
+    daxa::BufferId get_current_aabb_buffer() { 
         return aabb_buffer[current_index];
     }
     
-    daxa::BufferId get_previous_aabb_buffer() const { 
-        return switching ? aabb_buffer[current_index - 1 % DOUBLE_BUFFERING] : aabb_buffer[current_index];
+    daxa::BufferId get_previous_aabb_buffer() { 
+        // uint32_t prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        // return switching ? aabb_buffer[prev_index] : aabb_buffer[current_index];
+        return aabb_buffer[current_index];
     }
 
-    daxa::BufferId get_current_primitive_buffer() const { 
+    daxa::BufferId get_current_primitive_buffer() { 
         return primitive_buffer[current_index];
     }
     
-    daxa::BufferId get_previous_primitive_buffer() const { 
-        return switching ? primitive_buffer[current_index - 1 % DOUBLE_BUFFERING] : primitive_buffer[current_index];
+    daxa::BufferId get_previous_primitive_buffer() { 
+        // uint32_t prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        // return switching ? primitive_buffer[prev_index] : primitive_buffer[current_index];
+        return primitive_buffer[current_index];
     }
 
-    daxa::BufferId get_remapping_primitive_buffer() const { 
+    bool is_remapping_primitive_active() { 
+        return is_switching();
+    }
+
+    daxa::BufferId get_remapping_primitive_buffer() { 
         return remapping_primitive_buffer;
     }
 
@@ -133,68 +156,90 @@ public:
         if (!initialized)
             return false;
 
-        if (!updating && !switching)
+        switch (status)
         {
+            case AS_MANAGER_STATUS::IDLE:
             {
-                // Get the mutex
-                std::unique_lock lock(task_queue_mutex);
-                // set the updating flag to true then
-                // the worker thread will process the task queue items so far
-                // get the number of items to process so far
-                items_to_process = task_queue.size();
-                // if there are no items to process, return false
-                if(items_to_process == 0) return false;
-                // set notify flag to false if we are synchronizing
-                if(synchronize) {
-                    synchronizing = true;
+                {
+                    // Get the mutex
+                    std::unique_lock lock(task_queue_mutex);
+                    // set the updating flag to true then
+                    // the worker thread will process the task queue items so far
+                    // get the number of items to process so far
+                    items_to_process = task_queue.size();
+                    // if there are no items to process, return false
+                    if(items_to_process == 0) return false;
+                    std::cout << "Updating scene" << std::endl;
+
+                    // set the updating flag to true
+                    wake_up = true;
+                    //
+                    status = AS_MANAGER_STATUS::UPDATING;
+                    // wake up the worker thread
+                    task_queue_cv.notify_one();
                 }
-            
-                std::cout << "Updating scene" << std::endl;
 
-                // set the updating flag to true
-                wake_up = true;
-                // set the wake up flag to true
-                wake_up = true;
-                // wake up the worker thread
-                task_queue_cv.notify_one();
+                if(synchronize) {
+                    std::unique_lock lock(synchronize_mutex);
+                    synchronizing = true;
+                    synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
+                }
             }
-
-            if(synchronize) {
-                std::unique_lock lock(synchronize_mutex);
-                synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
-            }
-
-            return true;
-        }
-        else if (switching)
-        {
-            std::cout << "Switching scene" << std::endl;
-
+            break;
+            case AS_MANAGER_STATUS::SWITCHING:
             {
-                // Get the mutex
-                std::unique_lock lock(task_queue_mutex);
-                // set the updating flag to false if we are synchronizing
-                if(synchronize) {
-                    synchronizing = true;
+                std::cout << "Switching scene" << std::endl;
+
+                {
+                    // Get the mutex
+                    std::unique_lock lock(task_queue_mutex);
+                    // set the wake up flag to true
+                    wake_up = true;
+                    // status = AS_MANAGER_STATUS::SWITCH;
+                    status = AS_MANAGER_STATUS::SWITCH;
+                    // wake up the worker thread
+                    task_queue_cv.notify_one();
                 }
-                // set the wake up flag to true
-                wake_up = true;
-                // wake up the worker thread
-                task_queue_cv.notify_one();
+                
+                // Wait for the worker thread to finish
+                {
+                    std::unique_lock lock(synchronize_mutex);
+                    synchronizing = true;
+                    synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
+                }
+            } 
+            break;
+            case AS_MANAGER_STATUS::SETTLING: {
+                std::cout << "Settling scene" << std::endl;
+                {
+                    // Get the mutex
+                    std::unique_lock lock(task_queue_mutex);
+                    // set the wake up flag to true
+                    wake_up = true;
+                    // status = AS_MANAGER_STATUS::SETTLE;
+                    status = AS_MANAGER_STATUS::SETTLE;
+                    // wake up the worker thread
+                    task_queue_cv.notify_one();
+                }
+                
+                if(synchronize){
+                    std::unique_lock lock(synchronize_mutex);
+                    synchronizing = true;
+                    synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
+                }
             }
-            
-            if(synchronize) {
-                std::unique_lock lock(synchronize_mutex);
-                synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
-            }
-            return true;
+                break;
+            default:
+                break;
         }
             
-        return false; // No action to perform
+
+        return true;
     }
 
     void process_task_queue();
     void process_switching_task_queue();
+    void process_settling_task_queue();
 
     std::mutex task_queue_mutex = {};
     std::condition_variable task_queue_cv = {};
@@ -235,7 +280,7 @@ private:
     size_t max_remapping_primitive_buffer_size = 0;
 
     // Acceleration structures
-    daxa::TlasId tlas[DOUBLE_BUFFERING] = {};
+    daxa::TlasId tlas[DOUBLE_BUFFERING] = {}, temp_tlas = {};
     std::vector<daxa::BlasId> proc_blas = {}, temp_proc_blas = {};
     daxa::BufferId proc_blas_scratch_buffer = {};
     uint64_t proc_blas_scratch_buffer_offset = 0;
@@ -267,11 +312,9 @@ private:
 
     // STATUS
     bool initialized = false;
-    std::atomic<bool> switching = false;
-    std::atomic<bool> updating = false;
+    std::atomic<AS_MANAGER_STATUS> status = AS_MANAGER_STATUS::IDLE;
     std::atomic<bool> wake_up = false;
-    
-    std::atomic<bool> synchronizing = true;
+    std::atomic<bool> synchronizing = false;
 
     std::jthread worker_thread;
     bool index_updated[DOUBLE_BUFFERING] = {true, true};
@@ -285,4 +328,7 @@ private:
 
     // used for the worker thread
     std::queue<TASK> temporal_task_queue;
+
+    // used for the switching task queue
+    std::queue<TASK> switching_task_queue;
 };

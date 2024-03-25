@@ -1,10 +1,12 @@
 #include "ACCEL_STRUCT_MNGR.hpp"
 
+using AS_MANAGER_STATUS = ACCEL_STRUCT_MNGR::AS_MANAGER_STATUS;
 
 void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
 {
     while(!stoken.stop_requested())
     {
+        std::cout << "Worker thread is sleeping" << std::endl;
         // Wait for task queue to wake up
         {
             std::unique_lock lock(as_manager->task_queue_mutex);
@@ -18,12 +20,26 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
         }
 
         // Process task queue
-        if(!as_manager->is_switching()) {
-            as_manager->process_task_queue();
+        switch (as_manager->get_status())
+        {
+        case AS_MANAGER_STATUS::IDLE:
+            std::cout << "Idle" << std::endl;
+            break;
+        case AS_MANAGER_STATUS::UPDATING:
             std::cout << "Processing task queue" << std::endl;
-        } else {
-            as_manager->process_switching_task_queue();
+            as_manager->process_task_queue();
+            break;
+        case AS_MANAGER_STATUS::SWITCH:
             std::cout << "Processing switching task queue" << std::endl;
+            as_manager->process_switching_task_queue();
+            break;
+        case AS_MANAGER_STATUS::SETTLE:
+            std::cout << "Processing settling task queue" << std::endl;
+            as_manager->process_settling_task_queue();
+            break;
+        default:
+            std::cerr << "Unknown status" << std::endl;
+            break;
         }
 
         // set update done
@@ -847,7 +863,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
 
     if(items_to_process == 0) {
         // Set switching to false
-        updating = false;
+        status = AS_MANAGER_STATUS::IDLE;
         return;
     }
 
@@ -915,7 +931,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
         current_index = next_index;
 
         // Set switching to true
-        switching = true;
+        status = AS_MANAGER_STATUS::SWITCHING;
     }
     
 }
@@ -947,6 +963,48 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
             // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
             copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, task.blas_rebuild_from_cpu.remap_primitive_index);
+            break;
+        case TASK::TYPE::UPDATE_BLAS:
+            TASK::BLAS_UPDATE update_task = task.blas_update;
+            // update_blas(next_index, update_task.instance_index);
+            break;
+        default:
+            break;
+        }
+
+        // archieve task
+        switching_task_queue.push(task);
+    }
+
+
+    {
+        // TODO: mutex here
+        // Set updating to false
+        status = AS_MANAGER_STATUS::SETTLING;
+    }
+}
+
+
+void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
+    if (!device.is_valid() || !initialized)
+    {
+        std::cout << "device.is_valid()" << std::endl;
+        return;
+    }
+    
+    uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
+
+    while(!switching_task_queue.empty()) {
+        auto task = switching_task_queue.front();
+        switching_task_queue.pop();
+        // Process task
+        switch (task.type)
+        {
+        case TASK::TYPE::BUILD_BLAS_FROM_CPU:
+            TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
+            break;
+        case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
+            TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
             // Restore remapping buffer
             restore_remapping_buffer(next_index, rebuild_task.del_primitive_index, task.blas_rebuild_from_cpu.remap_primitive_index);
             // NOTE: build_blas is already called for the previous index
@@ -975,10 +1033,7 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
         current_index = next_index;
 
         // Set updating to false
-        updating = false;
-
-        // Set switching to false
-        switching = false;
+        status = AS_MANAGER_STATUS::IDLE;
     }
 
 

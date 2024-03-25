@@ -302,7 +302,7 @@ RESERVOIR GATHER_TEMPORAL_RESERVOIR(daxa_u32vec2 predicted_coord,
 void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
                     daxa_u32vec2 predicted_coord, daxa_u32vec2 rt_size, Ray ray,
                     inout HIT_INFO_INPUT hit, MATERIAL mat,
-                    daxa_u32 light_count, inout daxa_u32 seed) {
+                    daxa_u32 light_count, inout daxa_u32 seed, daxa_b32 is_remapping_active) {
 
   reservoir_previous.M =
       min(reservoir_previous.M,
@@ -325,12 +325,15 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
           
       OBJECT_INFO prev_instance_hit = di_info_previous.instance_hit;
       
+
       daxa_u32 primitive_index = get_remapped_primitive_index_by_object_hit(prev_instance_hit);
 
-      if(primitive_index == -1) {
-        return;
-      } else if(primitive_index != 0) {
-        di_info_previous.instance_hit.primitive_id = primitive_index;
+      if(is_remapping_active) {
+        if(primitive_index == -1) {
+          return;
+        } else if(primitive_index != 0) {
+          di_info_previous.instance_hit.primitive_id = primitive_index;
+        }
       }
 
       HIT_INFO_INPUT prev_hit = HIT_INFO_INPUT(

@@ -1331,11 +1331,11 @@ namespace tests
 #if POINT_LIGHT_ON == 1
           update_time_and_sun_light();
 #endif // DYNAMIC_SUN_LIGHT == 1
+          // Update the scene if needed
+          as_manager->update_scene();
           draw();
           download_gpu_info();
           upload_world();
-          // Update the scene if needed
-          as_manager->update_scene();
         }
         else
         {
@@ -1417,6 +1417,11 @@ namespace tests
         if (activate_brdf)
         {
           status.is_active += RIS_BRDF_BIT;
+        }
+
+        if(as_manager->is_switching())
+        {
+          status.is_active += REMAP_BIT;
         }
 
         if (filter_activated)
