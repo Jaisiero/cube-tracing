@@ -1773,6 +1773,7 @@ namespace tests
         // if (glfwGetMouseButton(glfw_window_ptr, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS)
         // {
         camera_set_mouse_delta(camera, glm::vec2{x, y});
+        std::cout << "mouse x: " << x << " mouse y: " << y << std::endl;
         // }
       }
       void on_mouse_button(i32 button, i32 action)
@@ -1780,12 +1781,12 @@ namespace tests
 
         if (button == GLFW_MOUSE_BUTTON_1)
         {
+          double mouse_x, mouse_y;
+          glfwGetCursorPos(glfw_window_ptr, &mouse_x, &mouse_y);
+          camera_set_last_mouse_pos(camera, glm::vec2(mouse_x, mouse_y));
           // Click right button store the current mouse position
           if (action == GLFW_PRESS)
           {
-            double mouse_x, mouse_y;
-            glfwGetCursorPos(glfw_window_ptr, &mouse_x, &mouse_y);
-
             if(building_mode) {
               status.pixel = {static_cast<daxa_u32>(mouse_x), static_cast<daxa_u32>(mouse_y)};
               status.is_active += PERFECT_PIXEL_BIT;
