@@ -78,9 +78,8 @@ namespace tests
       daxa::BufferId material_buffer = {};
       size_t max_material_buffer_size = sizeof(MATERIAL) * MAX_MATERIALS;
 
-      daxa::BufferId point_light_buffer = {}, cube_light_buffer = {}, env_light_buffer = {};
+      daxa::BufferId point_light_buffer = {}, env_light_buffer = {};
       size_t max_point_light_buffer_size = sizeof(LIGHT) * MAX_POINT_LIGHTS;
-      size_t max_cube_light_buffer_size = sizeof(LIGHT) * MAX_CUBE_LIGHTS;
       size_t max_env_light_buffer_size = sizeof(LIGHT) * MAX_ENV_LIGHTS;
 
       // daxa::BufferId status_output_buffer = {};
@@ -123,7 +122,6 @@ namespace tests
 
       // lights data from mapped buffer
       LIGHT *point_lights = nullptr;
-      LIGHT *cube_lights = nullptr;
       LIGHT *env_lights = nullptr;
 
       // std::vector<daxa_f32mat4x4> transforms = {};
@@ -145,7 +143,6 @@ namespace tests
           device.destroy_buffer(cam_buffer);
           device.destroy_buffer(material_buffer);
           device.destroy_buffer(point_light_buffer);
-          device.destroy_buffer(cube_light_buffer);
           device.destroy_buffer(env_light_buffer);
           device.destroy_buffer(status_buffer);
           // device.destroy_buffer(status_output_buffer);
@@ -558,7 +555,7 @@ namespace tests
         world.remapped_primitive_address = device.get_device_address(as_manager->get_remapping_primitive_buffer()).value();
         world.material_address = device.get_device_address(material_buffer).value();
         world.point_light_address = device.get_device_address(point_light_buffer).value();
-        world.cube_light_address = device.get_device_address(cube_light_buffer).value();
+        world.cube_light_address = device.get_device_address(as_manager->get_cube_light_buffer()).value();
         world.env_light_address = device.get_device_address(env_light_buffer).value();
 
         // copy world to buffer
@@ -837,7 +834,7 @@ namespace tests
         });
 
         as_manager = std::make_unique<ACCEL_STRUCT_MNGR>(device);
-        as_manager->create(MAX_INSTANCES, MAX_PRIMITIVES);
+        as_manager->create(MAX_INSTANCES, MAX_PRIMITIVES, MAX_CUBE_LIGHTS);
 
         taa_image[0] = device.create_image({
             .format = swapchain.get_format(),
@@ -884,12 +881,6 @@ namespace tests
             .size = max_point_light_buffer_size,
             .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
             .name = ("light_buffer"),
-        });
-
-        cube_light_buffer = device.create_buffer(daxa::BufferInfo{
-            .size = max_cube_light_buffer_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-            .name = ("cube_light_buffer"),
         });
 
         env_light_buffer = device.create_buffer(daxa::BufferInfo{
@@ -972,7 +963,6 @@ namespace tests
         light_config->light_count = light_config->point_light_count = light_config->cube_light_count = light_config->env_map_count = 0;
 
         point_lights = device.get_host_address_as<LIGHT>(point_light_buffer).value();
-        cube_lights = device.get_host_address_as<LIGHT>(cube_light_buffer).value();
         env_lights = device.get_host_address_as<LIGHT>(env_light_buffer).value();
 
         status.time = 1.0;
@@ -1011,7 +1001,7 @@ namespace tests
             .max_material_count = MAX_MATERIALS,
             .materials = materials.get(),
             .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
-            .lights = &cube_lights[light_config->cube_light_count],
+            .lights = &as_manager->get_cube_lights()[light_config->cube_light_count],
         };
 
         // load map
@@ -2016,7 +2006,7 @@ namespace tests
         case GLFW_KEY_KP_3:
           if (action == GLFW_PRESS)
           {
-            if (cube_lights)
+            if (as_manager->get_cube_lights())
             {
               activate_cube_lights = !activate_cube_lights;
               std::string cube_msg = activate_cube_lights ? "Activated cube light sampling" : "Deactivated cube light sampling";
@@ -2028,7 +2018,7 @@ namespace tests
         case GLFW_KEY_KP_4:
           if (action == GLFW_PRESS)
           {
-            if (cube_lights)
+            if (as_manager->get_cube_lights())
             {
               activate_brdf = !activate_brdf;
               std::string brdf_msg = activate_brdf ? "Activated brdf sampling" : "Deactivated brdf sampling";

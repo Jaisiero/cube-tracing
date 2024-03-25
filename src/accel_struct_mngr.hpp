@@ -77,7 +77,7 @@ public:
         }
     }
     
-    bool create(uint32_t max_instance_count, uint32_t max_primitive_count);
+    bool create(uint32_t max_instance_count, uint32_t max_primitive_count, uint32_t max_cube_light_count);
     bool destroy();
 
 
@@ -146,6 +146,10 @@ public:
     INSTANCE* get_instances() const { return instances.get(); }
 
     PRIMITIVE* get_primitives() const { return primitives.get(); }
+
+    daxa::BufferId get_cube_light_buffer() const { return cube_light_buffer; }
+
+    LIGHT* get_cube_lights() const { return cube_lights; }
 
     daxa::BufferId get_brush_counter_buffer() const { return brush_counter_buffer; }
 
@@ -296,6 +300,7 @@ private:
     size_t max_aabb_buffer_size = 0;
     size_t max_aabb_host_buffer_size = 0;
     size_t max_primitive_buffer_size = 0;
+    size_t max_cube_light_buffer_size = 0;
     size_t max_remapping_primitive_buffer_size = 0;
 
     // Acceleration structures
@@ -347,13 +352,15 @@ private:
 
     // used for the worker thread
     std::queue<TASK> temporal_task_queue;
-
     // used for the switching task queue
     std::queue<TASK> switching_task_queue;
 
 
     size_t max_instance_bitmask_size = 0;
     size_t max_primitive_bitmask_size = 0;
+
+    daxa::BufferId cube_light_buffer = {};
+    LIGHT *cube_lights = nullptr;
 
     // Modification buffer
     daxa::BufferId brush_counter_buffer = {};

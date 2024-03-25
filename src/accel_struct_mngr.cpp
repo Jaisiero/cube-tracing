@@ -73,7 +73,7 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
     };
 }
 
-bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primitive_count) {
+bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primitive_count, uint32_t max_cube_light_count) {
     if(device.is_valid() && !initialized) {
         proc_blas_scratch_buffer_size = max_instance_count * 1024ULL * 2ULL; // TODO: is this a good estimation?
         proc_blas_buffer_size = max_instance_count * 1024ULL * 2ULL;         // TODO: is this a good estimation?
@@ -81,6 +81,7 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
         max_aabb_buffer_size = sizeof(AABB) * max_primitive_count;
         max_aabb_host_buffer_size = sizeof(AABB) * max_primitive_count * 0.1;
         max_primitive_buffer_size = sizeof(PRIMITIVE) * max_primitive_count;
+        max_cube_light_buffer_size = sizeof(LIGHT) * max_cube_light_count;
         max_remapping_primitive_buffer_size = sizeof(uint32_t) * max_primitive_count;
         max_instance_bitmask_size = max_instance_count / sizeof(uint32_t) + 1;
         max_primitive_bitmask_size = max_primitive_count / sizeof(uint32_t) + 1;
@@ -133,6 +134,14 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
             .size = max_remapping_primitive_buffer_size,
             .name = "remapping primitive buffer",
         });
+        
+        cube_light_buffer = device.create_buffer(daxa::BufferInfo{
+            .size = max_cube_light_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = ("cube_light_buffer"),
+        });
+        
+        cube_lights = device.get_host_address_as<LIGHT>(cube_light_buffer).value();
 
         brush_counter_buffer = device.create_buffer({
             .size = sizeof(BRUSH_COUNTER),
@@ -195,6 +204,9 @@ bool ACCEL_STRUCT_MNGR::destroy() {
 
         if(remapping_primitive_buffer != daxa::BufferId{})
             device.destroy_buffer(remapping_primitive_buffer);
+
+        if(cube_light_buffer != daxa::BufferId{})
+            device.destroy_buffer(cube_light_buffer);
 
         if(brush_counter_buffer != daxa::BufferId{})
             device.destroy_buffer(brush_counter_buffer);
