@@ -1031,9 +1031,6 @@ namespace tests
 
         load_materials(false);
 
-
-        
-
         as_manager->task_queue_add(TASK{
             .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
             .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
@@ -1674,47 +1671,7 @@ namespace tests
 
       void download_gpu_info()
       {
-
-        if (!status.is_active)
-        {
-          return;
-        }
-
-        // if(current_instance_count == 0) {
-        //     return;
-        // }
-
-        // if(current_instance_count != instance_levels.size()) {
-        //     instance_levels.resize(current_instance_count);
-        // }
-
-        // if(aabb.size() < current_primitive_count) {
-        //     aabb.resize(current_primitive_count);
-        // }
-
-        // u32 instance_level_buffer_size = std::min(max_instance_level_buffer_size, static_cast<u32>(current_instance_count * sizeof(INSTANCE_LEVEL)));
-        // // Some Device to Host copy here
-        // auto instance_level_staging_buffer = device.create_buffer({
-        //     .size = instance_level_buffer_size,
-        //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-        //     .name = ("instance_level_staging_buffer"),
-        // });
-        // defer { device.destroy_buffer(instance_level_staging_buffer); };
-
-        // daxa_u32 width = device.info_image(swapchain.current_image()).value().size.x;
-        // daxa_u32 height = device.info_image(swapchain.current_image()).value().size.y;
-
-        // daxa_u32 width = swapchain.get_surface_extent().x;
-        // daxa_u32 height = swapchain.get_surface_extent().y;
-
-        // u32 hit_distance_buffer_size = std::min(max_hit_distance_buffer_size, static_cast<u32>(width * height * sizeof(HIT_DISTANCE)));
-        // // Some Device to Host copy here
-        // auto hit_distance_staging_buffer = device.create_buffer({
-        //     .size = hit_distance_buffer_size,
-        //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-        //     .name = ("hit_distance_staging_buffer"),
-        // });
-        // defer { device.destroy_buffer(hit_distance_staging_buffer); };
+        as_manager->check_voxel_modifications();
 
 #if (PERFECT_PIXEL_ON == 1)
         // // Some Device to Host copy here
@@ -1815,68 +1772,6 @@ namespace tests
 
         status.is_active = 0;
         status.pixel = {0, 0};
-
-        // /// NOTE: this must wait for the commands to finish
-        // auto * hit_distance_buffer_ptr = device.get_host_address_as<HIT_DISTANCE>(hit_distance_staging_buffer).value();
-        // std::memcpy(hit_distances.data(),
-        //     hit_distance_buffer_ptr,
-        //     hit_distance_buffer_size);
-        // for(u32 i = 0; i < hit_distances.size(); i++) {
-        //     if(hit_distances[i].distance > 0.0f) {
-        //         // translate i to x, y, print distance, instance index, primitive index
-        //         std::cout << " coord ["<< i % width << ", " << i / width << "]" << " hit distance " << hit_distances[i].distance
-        //             << " position [" << hit_distances[i].position.x << ", " << hit_distances[i].position.y << ", " << hit_distances[i].position.z << "]"
-        //             << " normal [" << hit_distances[i].normal.x << ", " << hit_distances[i].normal.y << ", " << hit_distances[i].normal.z << "]"
-        //             << " instance index " << hit_distances[i].instance_index << " primitive index " << hit_distances[i].primitive_index << std::endl;
-        //         if(hit_distances[i].instance_index < current_instance_count) {
-        //             daxa_u32 first_primitive_index = instances[hit_distances[i].instance_index].first_primitive_index;
-        //             daxa_f32mat4x4 transform = instances[hit_distances[i].instance_index].transform;
-        //             daxa_f32vec3 translation = daxa_f32vec3{transform.x.w, transform.y.w, transform.z.w};
-        //             std::cout << " instance translation [" << translation.x << ", " << translation.y << ", " << translation.z << "]" << std::endl;
-        //             if(first_primitive_index + hit_distances[i].primitive_index < current_primitive_count) {
-        //                 daxa_f32vec3 center = primitives[first_primitive_index + hit_distances[i].primitive_index].center;
-        //                 std::cout << "  primitive center [" << translation.x + center.x << ", " <<  translation.y + center.y << ", " << translation.z + center.z << "]" << std::endl;
-        //                 AABB min_max = AABB({center.x - VOXEL_EXTENT, center.y - VOXEL_EXTENT, center.z - VOXEL_EXTENT}, {center.x + VOXEL_EXTENT, center.y + VOXEL_EXTENT, center.z + VOXEL_EXTENT});
-        //                 // std::cout << "primitive min [" << min_max.x.x << ", " << min_max.x.y << ", " << min_max.x.z << "]" << std::endl;
-        //                 // std::cout << "primitive max [" << min_max.y.x << ", " << min_max.y.y << ", " << min_max.y.z << "]" << std::endl;
-        //                 // print instance translation + primitive min + max
-        //                 std::cout << "  primitive min [" << translation.x + min_max.x.x << ", " << translation.y + min_max.x.y << ", " << translation.z + min_max.x.z << "]" << std::endl;
-        //                 std::cout << "  primitive max [" << translation.x + min_max.y.x << ", " << translation.y + min_max.y.y << ", " << translation.z + min_max.y.z << "]" << std::endl;
-        //             }
-        //         }
-        //     }
-        // }
-
-        // /// NOTE: this must wait for the commands to finish
-        // auto * instance_level_buffer_ptr = device.get_host_address_as<INSTANCE_LEVEL>(instance_level_staging_buffer).value();
-        // std::memcpy(instance_levels.data(),
-        //     instance_level_buffer_ptr,
-        //     instance_level_buffer_size);
-
-        // auto * instance_distance_buffer_ptr = device.get_host_address_as<INSTANCE_DISTANCE>(instance_distance_staging_buffer).value();
-        // std::memcpy(instance_distances.data(),
-        //     instance_distance_buffer_ptr,
-        //     instance_distance_buffer_size);
-
-        // auto * aabb_buffer_ptr = device.get_host_address_as<INSTANCE_DISTANCE>(aabb_staging_buffer).value();
-        // std::memcpy(aabb.data(),
-        //     aabb_buffer_ptr,
-        //     aabb_buffer_size);
-
-        // print out the levels & distances
-        // for(u32 i = 0; i < current_instance_count; i++) {
-        //     if(instance_levels[i].level_index != instances.at(i).level_index) {
-        //         std::cout << "instance " << i << " level changed from " << instances.at(i).level_index << " to " << instance_levels[i].level_index << std::endl;
-        //     }
-        //     if(instance_distances[i].distance >= 0.0f) {
-        //         std::cout << "instance " << i << " distance " << instance_distances[i].distance << std::endl;
-        //     }
-        // }
-
-        // for(u32 i = 0; i < current_primitive_count; i++) {
-        //     std::cout << "primitive " << i << " minimum " << aabb[i].aabb.minimum.x << " " << aabb[i].aabb.minimum.y << " " << aabb[i].aabb.minimum.z
-        //         << " maximum " << aabb[i].aabb.maximum.x << " " << aabb[i].aabb.maximum.y << " " << aabb[i].aabb.maximum.z << std::endl;
-        // }
       }
 
       void on_mouse_move(f32 x, f32 y)
@@ -2136,17 +2031,6 @@ namespace tests
               std::string brdf_msg = activate_brdf ? "Activated brdf sampling" : "Deactivated brdf sampling";
               std::cout << brdf_msg << std::endl;
             }
-          }
-          break;
-        case GLFW_KEY_9:
-        case GLFW_KEY_KP_9:
-          if (action == GLFW_PRESS)
-          {
-            as_manager->task_queue_add(TASK{
-              .type = TASK::TYPE::REBUILD_BLAS_FROM_CPU,
-              .blas_rebuild_from_cpu = {.instance_index = 0,
-                                        .del_primitive_index = 5},
-            });
           }
           break;
         default:

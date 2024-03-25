@@ -6,13 +6,17 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
 {
     while(!stoken.stop_requested())
     {
+#if DEBUG == 1                    
         std::cout << "Worker thread is sleeping" << std::endl;
+#endif // DEBUG                             
         // Wait for task queue to wake up
         {
             std::unique_lock lock(as_manager->task_queue_mutex);
             as_manager->task_queue_cv.wait(lock, [&] { return as_manager->is_wake_up() || stoken.stop_requested(); });
         }
+#if DEBUG == 1                    
         std::cout << "Worker thread woke up" << std::endl;
+#endif // DEBUG                             
 
         // Check if stop is requested
         if(stoken.stop_requested()) {
@@ -23,18 +27,26 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
         switch (as_manager->get_status())
         {
         case AS_MANAGER_STATUS::IDLE:
+#if DEBUG == 1                    
             std::cout << "Idle" << std::endl;
+#endif // DEBUG                             
             break;
         case AS_MANAGER_STATUS::UPDATING:
+#if DEBUG == 1                    
             std::cout << "Processing task queue" << std::endl;
+#endif // DEBUG                             
             as_manager->process_task_queue();
             break;
         case AS_MANAGER_STATUS::SWITCH:
+#if DEBUG == 1                    
             std::cout << "Processing switching task queue" << std::endl;
+#endif // DEBUG                             
             as_manager->process_switching_task_queue();
             break;
         case AS_MANAGER_STATUS::SETTLE:
+#if DEBUG == 1                    
             std::cout << "Processing settling task queue" << std::endl;
+#endif // DEBUG                             
             as_manager->process_settling_task_queue();
             break;
         default:
@@ -70,6 +82,8 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
         max_aabb_host_buffer_size = sizeof(AABB) * max_primitive_count * 0.1;
         max_primitive_buffer_size = sizeof(PRIMITIVE) * max_primitive_count;
         max_remapping_primitive_buffer_size = sizeof(uint32_t) * max_primitive_count;
+        max_instance_bitmask_size = max_instance_count / sizeof(uint32_t) + 1;
+        max_primitive_bitmask_size = max_primitive_count / sizeof(uint32_t) + 1;
 
         instances = std::make_unique<INSTANCE[]>(max_instance_count);
         primitives = std::make_unique<PRIMITIVE[]>(max_primitive_count);
@@ -122,21 +136,23 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
 
         brush_counter_buffer = device.create_buffer({
             .size = sizeof(BRUSH_COUNTER),
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
             .name = "brush counter buffer",
         });
 
         brush_instance_bitmask_buffer = device.create_buffer({
-            .size = max_instance_count / sizeof(uint32_t) + 1,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .size = max_instance_bitmask_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
             .name = "brush instance bitmask buffer",
         });
 
         brush_primitive_bitmask_buffer = device.create_buffer({
-            .size = max_primitive_count / sizeof(uint32_t) + 1,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .size = max_primitive_bitmask_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
             .name = "brush primitive bitmask buffer",
         });
+
+        brush_counters = device.get_host_address_as<BRUSH_COUNTER>(brush_counter_buffer).value();
         
         initialized = true;
         
@@ -288,8 +304,8 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(uint32_t buffer_index, uint
     return true;
 }
 
-
-void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId src_abb_buffer, daxa::BufferId dst_aabb_buffer, size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size) {
+void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId src_abb_buffer, daxa::BufferId dst_aabb_buffer, size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size, bool synchronize)
+{
     /// Record build commands:
     auto exec_cmds = [&]()
     {
@@ -306,7 +322,9 @@ void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId src_abb_buffer, da
         return recorder.complete_current_commands();
     }();
     device.submit_commands({.command_lists = std::array{exec_cmds}});
-    device.wait_idle();
+    if(synchronize) {
+        device.wait_idle();
+    }
 }
 
 bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count)
@@ -884,7 +902,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
 
     if (!device.is_valid() || !initialized)
     {
-        std::cout << "device.is_valid()" << std::endl;
+        std::cerr << "device.is_valid()" << std::endl;
         return;
     }
 
@@ -967,7 +985,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
 void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
     if (!device.is_valid() || !initialized)
     {
-        std::cout << "device.is_valid()" << std::endl;
+        std::cerr << "device.is_valid()" << std::endl;
         return;
     }
     
@@ -1015,7 +1033,7 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
 void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
     if (!device.is_valid() || !initialized)
     {
-        std::cout << "device.is_valid()" << std::endl;
+        std::cerr << "device.is_valid()" << std::endl;
         return;
     }
     
@@ -1068,4 +1086,109 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
     for(auto blas : temp_proc_blas)
         if(blas != daxa::BlasId{})
             device.destroy_blas(blas);
+
+    temp_proc_blas.clear();
+}
+
+
+void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return;
+    }
+
+    // Bring bitmask to host
+    auto instance_bitmask_staging_buffer = device.create_buffer({
+        .size = max_instance_bitmask_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+        .name = ("instance_bitmask_staging_buffer"),
+    });
+    defer { device.destroy_buffer(instance_bitmask_staging_buffer); };
+    
+    upload_aabb_primitives(brush_instance_bitmask_buffer, instance_bitmask_staging_buffer, 0, 0, max_instance_bitmask_size, false);
+
+    // Bring voxel modifications to host
+    auto primitive_bitmask_staging_buffer = device.create_buffer({
+        .size = max_primitive_bitmask_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+        .name = ("voxel_modifications_staging_buffer"),
+    });
+    defer { device.destroy_buffer(primitive_bitmask_staging_buffer); };
+
+    upload_aabb_primitives(brush_primitive_bitmask_buffer, primitive_bitmask_staging_buffer, 0, 0, max_primitive_bitmask_size);
+    
+
+    auto *instance_bitmask_buffer_ptr = device.get_host_address_as<uint32_t>(instance_bitmask_staging_buffer).value();
+
+    auto *voxel_modifications_buffer_ptr = device.get_host_address_as<uint32_t>(primitive_bitmask_staging_buffer).value();
+
+    // Check instances first
+
+    for(uint32_t i = 0; i < current_instance_count[current_index] << 5; i++) {
+        if(instance_bitmask_buffer_ptr[i] != 0U) {
+            for(uint32_t j = 0; j < 32; j++) {
+                if(instance_bitmask_buffer_ptr[i] & (1 << j)) {
+                    uint32_t instance_index = i * 32 + j;
+                    // Process instance
+                    INSTANCE instance = instances[instance_index];
+                    for(uint32_t k = 0; k < instance.primitive_count; k++) {
+                        if(voxel_modifications_buffer_ptr[instance.first_primitive_index + k] != 0U) {
+                            for(uint32_t l = 0; l < 32; l++) {
+                                if(voxel_modifications_buffer_ptr[instance.first_primitive_index + k] & (1 << l)) {
+                                    uint32_t instance_primitive = k * 32 + l;
+                                    // Process primitive
+#if DEBUG == 1                    
+                                    std::cout << "Instance: " << instance_index << " Primitive: " << instance_primitive << std::endl;
+#endif // DEBUG                                    
+                                    {
+                                        
+                                        auto task_queue = TASK{
+                                            .type = TASK::TYPE::REBUILD_BLAS_FROM_CPU,
+                                            .blas_rebuild_from_cpu = {.instance_index = i, .del_primitive_index = instance_primitive},
+                                        };
+                                        task_queue_add(task_queue);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Reset bitmasks
+    std::memset(instance_bitmask_buffer_ptr, 0, max_instance_bitmask_size);
+
+    std::memset(voxel_modifications_buffer_ptr, 0, max_primitive_bitmask_size);
+
+    upload_aabb_primitives(instance_bitmask_staging_buffer, brush_instance_bitmask_buffer, 0, 0, max_instance_bitmask_size, false);
+
+    upload_aabb_primitives(primitive_bitmask_staging_buffer, brush_primitive_bitmask_buffer, 0, 0, max_primitive_bitmask_size);
+}
+
+
+
+void ACCEL_STRUCT_MNGR::check_voxel_modifications() {
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return;
+    }
+
+
+    if(brush_counters->instance_count > 0) {
+#if DEBUG == 1                    
+        std::cout << "  Modifications instances: " << brush_counters->instance_count << " primitives: " << brush_counters->primitive_count << std::endl;
+#endif // DEBUG                             
+
+        // Bring bitmask to host
+        process_voxel_modifications();
+
+
+        // zero out brush counters
+        brush_counters->instance_count = 0;
+        brush_counters->primitive_count = 0;
+    }
 }

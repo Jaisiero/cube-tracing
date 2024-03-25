@@ -57,6 +57,7 @@ public:
         };
     };
 
+
     ACCEL_STRUCT_MNGR(daxa::Device& device) : device(device) {
         if(device.is_valid()) {
             acceleration_structure_scratch_offset_alignment = device.properties().acceleration_structure_properties.value().min_acceleration_structure_scratch_offset_alignment;
@@ -147,7 +148,7 @@ public:
 
 
     bool task_queue_add(TASK task) {
-        // TODO: Get mutex here
+        std::unique_lock lock(task_queue_mutex);
         task_queue.push(task);
         return true;
     }
@@ -170,7 +171,9 @@ public:
                     items_to_process = task_queue.size();
                     // if there are no items to process, return false
                     if(items_to_process == 0) return false;
+#if DEBUG == 1                    
                     std::cout << "Updating scene" << std::endl;
+#endif // DEBUG                    
 
                     // set the updating flag to true
                     wake_up = true;
@@ -180,16 +183,19 @@ public:
                     task_queue_cv.notify_one();
                 }
 
-                if(synchronize) {
+                // if(synchronize) {
                     std::unique_lock lock(synchronize_mutex);
                     synchronizing = true;
                     synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
-                }
+                // }
             }
             break;
             case AS_MANAGER_STATUS::SWITCHING:
             {
+                
+#if DEBUG == 1                    
                 std::cout << "Switching scene" << std::endl;
+#endif //DEBUG                
 
                 {
                     // Get the mutex
@@ -211,7 +217,9 @@ public:
             } 
             break;
             case AS_MANAGER_STATUS::SETTLING: {
+#if DEBUG == 1                    
                 std::cout << "Settling scene" << std::endl;
+#endif //DEBUG                
                 {
                     // Get the mutex
                     std::unique_lock lock(task_queue_mutex);
@@ -223,11 +231,11 @@ public:
                     task_queue_cv.notify_one();
                 }
                 
-                if(synchronize){
+                // if(synchronize){
                     std::unique_lock lock(synchronize_mutex);
                     synchronizing = true;
                     synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
-                }
+                // }
             }
                 break;
             default:
@@ -242,18 +250,20 @@ public:
     void process_switching_task_queue();
     void process_settling_task_queue();
 
+    void check_voxel_modifications();
+
     std::mutex task_queue_mutex = {};
     std::condition_variable task_queue_cv = {};
     std::mutex synchronize_mutex = {};
     std::condition_variable synchronize_cv = {};
 private:
-
+    void process_voxel_modifications();
     
     void upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size);
     bool upload_primitive_device_buffer(uint32_t buffer_index, daxa_u32 primitive_count);
     bool copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count);
 
-    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size);
+    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size, bool synchronize = true);
     bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
     bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
 
@@ -334,8 +344,13 @@ private:
     std::queue<TASK> switching_task_queue;
 
 
+    size_t max_instance_bitmask_size = 0;
+    size_t max_primitive_bitmask_size = 0;
+
     // Modification buffer
     daxa::BufferId brush_counter_buffer = {};
     daxa::BufferId brush_instance_bitmask_buffer = {};
     daxa::BufferId brush_primitive_bitmask_buffer = {};
+
+    BRUSH_COUNTER* brush_counters = nullptr;
 };
