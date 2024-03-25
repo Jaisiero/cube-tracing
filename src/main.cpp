@@ -990,6 +990,11 @@ namespace tests
           abort();
         }
 
+        status.brush_counter_address = device.get_device_address(as_manager->get_brush_counter_buffer()).value();
+        status.instance_bitmask_address = device.get_device_address(as_manager->get_brush_instance_bitmask_buffer()).value();
+        status.primitive_bitmask_address = device.get_device_address(as_manager->get_brush_primitive_bitmask_buffer()).value();
+
+
         materials = std::make_unique<MATERIAL[]>(MAX_MATERIALS);
 
         // Create a new context for the gvox library
@@ -1894,7 +1899,7 @@ namespace tests
             glfwGetCursorPos(glfw_window_ptr, &mouse_x, &mouse_y);
 
             status.pixel = {static_cast<daxa_u32>(mouse_x), static_cast<daxa_u32>(mouse_y)};
-            status.is_active += 1 << PERFECT_PIXEL_BIT;
+            status.is_active += PERFECT_PIXEL_BIT;
 
             camera_set_mouse_left_press(camera, true);
           }

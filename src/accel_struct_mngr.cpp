@@ -119,6 +119,24 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
             .size = max_remapping_primitive_buffer_size,
             .name = "remapping primitive buffer",
         });
+
+        brush_counter_buffer = device.create_buffer({
+            .size = sizeof(BRUSH_COUNTER),
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = "brush counter buffer",
+        });
+
+        brush_instance_bitmask_buffer = device.create_buffer({
+            .size = max_instance_count / sizeof(uint32_t) + 1,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = "brush instance bitmask buffer",
+        });
+
+        brush_primitive_bitmask_buffer = device.create_buffer({
+            .size = max_primitive_count / sizeof(uint32_t) + 1,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = "brush primitive bitmask buffer",
+        });
         
         initialized = true;
         
@@ -161,6 +179,15 @@ bool ACCEL_STRUCT_MNGR::destroy() {
 
         if(remapping_primitive_buffer != daxa::BufferId{})
             device.destroy_buffer(remapping_primitive_buffer);
+
+        if(brush_counter_buffer != daxa::BufferId{})
+            device.destroy_buffer(brush_counter_buffer);
+
+        if(brush_instance_bitmask_buffer != daxa::BufferId{})
+            device.destroy_buffer(brush_instance_bitmask_buffer);
+
+        if(brush_primitive_bitmask_buffer != daxa::BufferId{})
+            device.destroy_buffer(brush_primitive_bitmask_buffer);
 
         initialized = false;
 

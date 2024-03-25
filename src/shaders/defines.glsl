@@ -155,3 +155,8 @@ layout(buffer_reference, scalar) buffer INDIRECT_COLOR_BUFFER {daxa_f32vec3 colo
 layout(buffer_reference, scalar) buffer PIXEL_RECONNECTION_DATA_BUFFER {PIXEL_RECONNECTION_DATA reconnections[MAX_RESERVOIRS]; }; // Pixel reconnection data
 layout(buffer_reference, scalar) buffer OUTPUT_PATH_RESERVOIR_BUFFER {PATH_RESERVOIR path_reservoirs[MAX_RESERVOIRS]; }; // Path reservoirs
 layout(buffer_reference, scalar) buffer TEMPORAL_PATH_RESERVOIR_BUFFER {PATH_RESERVOIR path_reservoirs[MAX_RESERVOIRS]; }; // Path reservoirs
+
+
+layout(buffer_reference, scalar) buffer BRUSH_COUNTER_BUFFER {BRUSH_COUNTER brush_counter; }; // Brush counter
+layout(buffer_reference, scalar) buffer INSTANCE_BITMASK_BUFFER {daxa_u32 instance_bitmask[]; }; // Instance bitmask
+layout(buffer_reference, scalar) buffer PRIMITIVE_BITMASK_BUFFER {daxa_u32 primitive_bitmask[]; }; // Primitive bitmask

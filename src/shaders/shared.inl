@@ -203,6 +203,11 @@ struct LIGHT_CONFIG {
     daxa_u32 light_count;
 };
 
+struct BRUSH_COUNTER {
+    daxa_u32 instance_count;
+    daxa_u32 primitive_count;
+};
+
 struct Status
 {
     daxa_u32 frame_number;
@@ -214,8 +219,12 @@ struct Status
     daxa_f32 time;
     daxa_b32 is_afternoon;
     daxa_u32 max_depth;
+    daxa_u64 brush_counter_address;
+    daxa_u64 instance_bitmask_address;
+    daxa_u64 primitive_bitmask_address;
 };
 DAXA_DECL_BUFFER_PTR(Status)
+
 
 struct INSTANCE
 {

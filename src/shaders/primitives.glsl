@@ -22,11 +22,54 @@ daxa_u32 get_geometry_first_primitive_index_from_instance_id(daxa_u32 instance_i
     return instance_buffer.instances[instance_id].first_primitive_index;
 }
 
+
 daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(OBJECT_INFO instance_hit) {
     // Get first primitive index from instance id
     daxa_u32 primitive_index = get_geometry_first_primitive_index_from_instance_id(instance_hit.instance_id);
     // Get actual primitive index from offset and primitive id
     return primitive_index + instance_hit.primitive_id;
+}
+
+daxa_u32 get_brush_counter_instance_count(){
+    BRUSH_COUNTER_BUFFER p = BRUSH_COUNTER_BUFFER(deref(p.status_buffer).brush_counter_address);
+    return atomicAdd(p.brush_counter.instance_count, 0);
+}
+
+daxa_u32 get_brush_counter_primitive_count(){
+    BRUSH_COUNTER_BUFFER p = BRUSH_COUNTER_BUFFER(deref(p.status_buffer).brush_counter_address);
+    return atomicAdd(p.brush_counter.primitive_count, 0);
+}
+
+daxa_u32 increment_brush_counter_instance_count(){
+    BRUSH_COUNTER_BUFFER p = BRUSH_COUNTER_BUFFER(deref(p.status_buffer).brush_counter_address);
+    return atomicAdd(p.brush_counter.instance_count, 1);
+}
+
+daxa_u32 increment_brush_counter_primitive_count(){
+    BRUSH_COUNTER_BUFFER p = BRUSH_COUNTER_BUFFER(deref(p.status_buffer).brush_counter_address);
+    return atomicAdd(p.brush_counter.primitive_count, 1);
+}
+
+void delete_primtivite_from_instance(OBJECT_INFO instance_hit){
+    PRIMITIVE_BITMASK_BUFFER primitive_bitmask_buffer = PRIMITIVE_BITMASK_BUFFER(deref(p.status_buffer).primitive_bitmask_address);
+    INSTANCE_BITMASK_BUFFER instance_bitmask_buffer = INSTANCE_BITMASK_BUFFER(deref(p.status_buffer).instance_bitmask_address);
+    daxa_u32 primitive_index = get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
+
+    daxa_u32 instance_index = instance_hit.instance_id;
+
+    // atomic or operation to set the bit to 1
+    daxa_u32 result_primitive = atomicOr(primitive_bitmask_buffer.primitive_bitmask[primitive_index / 32], 1 << (primitive_index % 32));
+    // atomic or operation to set the bit to 1
+    daxa_u32 result_instance = atomicOr(instance_bitmask_buffer.instance_bitmask[instance_index / 32], 1 << (instance_index % 32));
+
+
+    if((result_primitive &  (1U << (primitive_index % 32))) == 0U){
+        increment_brush_counter_primitive_count();
+    }
+
+    if((result_instance &  (1U << (instance_index % 32))) == 0U){
+        increment_brush_counter_instance_count();
+    }
 }
 
 INSTANCE get_instance_from_instance_id(daxa_u32 instance_id) {

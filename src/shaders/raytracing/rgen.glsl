@@ -314,68 +314,7 @@ void main() {
 
 #elif SPATIAL_REUSE_PASS == 1
 void main() {
-  // #if RESTIR_ON == 1 && RESTIR_DI_ON == 1
-  // #if (RESTIR_DI_SPATIAL_ON == 1)
-  //     const daxa_i32vec2 index = ivec2(gl_LaunchIDEXT.xy);
-  //     const daxa_u32vec2 rt_size = gl_LaunchSizeEXT.xy;
-
-  //     // Camera setup
-  //     daxa_f32mat4x4 inv_view = deref(p.camera_buffer).inv_view;
-  //     daxa_f32mat4x4 inv_proj = deref(p.camera_buffer).inv_proj;
-
-  //     daxa_u32 max_depth = deref(p.status_buffer).max_depth;
-
-  //     // Ray setup
-  //     Ray ray = get_ray_from_current_pixel(index, vec2(rt_size), inv_view,
-  //     inv_proj);
-
-  //     // screen_pos is the index of the pixel in the screen
-  //     daxa_u32 screen_pos = index.y * rt_size.x + index.x;
-
-  //      // Get hit info
-  //     DIRECT_ILLUMINATION_INFO di_info =
-  //     get_di_from_current_frame(screen_pos);
-
-  //     daxa_b32 is_hit = di_info.distance > 0.0;
-  // // #if SER == 1
-  // //     reorderThreadNV(daxa_u32(hit_value), 1);
-  // // #endif // SER
-  //     if(is_hit) {
-  //         daxa_f32mat4x4 instance_model =
-  //         get_geometry_transform_from_instance_id(di_info.instance_hit.instance_id);
-
-  //         // Get sample info from reservoir
-  //         RESERVOIR reservoir =
-  //         get_reservoir_from_intermediate_frame_by_index(screen_pos);
-
-  //         daxa_u32 light_count = deref(p.status_buffer).point_light_count;
-
-  //         daxa_f32 pdf = 1.0 / daxa_f32(light_count);
-
-  //         // Get material
-  //         MATERIAL mat = get_material_from_material_index(di_info.mat_index);
-
-  //         HIT_INFO_INPUT hit = HIT_INFO_INPUT(di_info.position.xyz,
-  //                                             di_info.normal.xyz,
-  //                                             di_info.distance,
-  //                                             di_info.scatter_dir,
-  //                                             di_info.instance_hit,
-  //                                             di_info.mat_index,
-  //                                             di_info.seed,
-  //                                             max_depth);
-
-  //         daxa_f32 confidence = di_info.confidence;
-
-  //         SPATIAL_REUSE(reservoir, confidence, index, rt_size, ray, hit,
-  //         di_info.mat_index, mat, light_count, pdf);
-
-  //         di_info.seed = hit.seed;
-  //         set_di_seed_from_current_frame(screen_pos, di_info.seed);
-
-  //         set_reservoir_from_current_frame_by_index(screen_pos, reservoir);
-  //     }
-  // #endif // RESTIR_DI_SPATIAL_ON
-  // #endif // RESTIR_DI_ON
+  
 }
 
 #elif THIRD_VISIBILITY_TEST_AND_SHADING_PASS == 1
@@ -558,6 +497,13 @@ void main() {
 #endif // RESTIR_DI_ON
 
     set_di_from_previous_frame(screen_pos, di_info);
+
+    if ((active_features & PERFECT_PIXEL_BIT) != 0U) {
+      daxa_u32vec2 pixel = deref(p.status_buffer).pixel;
+      if (index.x == pixel.x && index.y == pixel.y) {
+        delete_primtivite_from_instance(di_info.instance_hit);
+      }
+    }
   }
 }
 

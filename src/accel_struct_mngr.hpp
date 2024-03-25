@@ -138,18 +138,19 @@ public:
 
     PRIMITIVE* get_primitives() const { return primitives.get(); }
 
+    daxa::BufferId get_brush_counter_buffer() const { return brush_counter_buffer; }
+
+    daxa::BufferId get_brush_instance_bitmask_buffer() const { return brush_instance_bitmask_buffer; }
+
+    daxa::BufferId get_brush_primitive_bitmask_buffer() const { return brush_primitive_bitmask_buffer; }
+
+
+
     bool task_queue_add(TASK task) {
         // TODO: Get mutex here
         task_queue.push(task);
         return true;
     }
-
-    // bool add_instance_count(uint32_t buffer_index, uint32_t count) {
-    //     if(buffer_index >= DOUBLE_BUFFERING) return false;
-    //     if(current_instance_count[buffer_index] + count > MAX_INSTANCES) return false;
-    //     current_instance_count[buffer_index] += count;
-    //     return true;
-    // }
 
     bool update_scene(bool synchronize = false)
     {
@@ -331,4 +332,10 @@ private:
 
     // used for the switching task queue
     std::queue<TASK> switching_task_queue;
+
+
+    // Modification buffer
+    daxa::BufferId brush_counter_buffer = {};
+    daxa::BufferId brush_instance_bitmask_buffer = {};
+    daxa::BufferId brush_primitive_bitmask_buffer = {};
 };
