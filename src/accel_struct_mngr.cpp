@@ -951,6 +951,13 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             TASK::BLAS_UPDATE update_task = task.blas_update;
             update_blas(next_index, update_task.instance_index);
             break;
+        case TASK::TYPE::UNDO_OP_CPU:
+            // TODO: handle undo task
+            if(!done_task_stack.empty()) {
+                task.undo_op_cpu.undo_task = &done_task_stack.top();
+                std::cerr << "UNDO_OP_CPU not implemented yet" << std::endl;
+            }
+            break;
         default:
             break;
         }
@@ -1013,6 +1020,12 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             TASK::BLAS_UPDATE update_task = task.blas_update;
             // update_blas(next_index, update_task.instance_index);
             break;
+        case TASK::TYPE::UNDO_OP_CPU:
+            // TODO: undo task
+            if(task.undo_op_cpu.undo_task) {
+                std::cerr << "  UNDO_OP_CPU not implemented yet" << std::endl;
+            }
+            break;
         default:
             break;
         }
@@ -1058,12 +1071,22 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
             TASK::BLAS_UPDATE update_task = task.blas_update;
             // update_blas(next_index, update_task.instance_index);
             break;
+        case TASK::TYPE::UNDO_OP_CPU:
+            // TODO: undo task
+            if(task.undo_op_cpu.undo_task) {
+                std::cerr << "      UNDO_OP_CPU not implemented yet" << std::endl;
+            }
         default:
             break;
         }
 
-        // archieve task
-        done_task_queue.push(task);
+        if(task.type != TASK::TYPE::UNDO_OP_CPU) {
+            // archieve task
+            done_task_stack.push(task);
+        } else if(!done_task_stack.empty()) {
+            // pop undo task
+            done_task_stack.pop();
+        }
     }
 
     // Build TLAS
@@ -1123,9 +1146,10 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
 
     auto *voxel_modifications_buffer_ptr = device.get_host_address_as<uint32_t>(primitive_bitmask_staging_buffer).value();
 
-    // Check instances first
+    uint32_t changes_so_far = 0;
 
-    for(uint32_t i = 0; i < current_instance_count[current_index] << 5; i++) {
+    // Check instances first
+    for(uint32_t i = 0; i < (current_instance_count[current_index] << 5); i++) {
         if(instance_bitmask_buffer_ptr[i] != 0U) {
             for(uint32_t j = 0; j < 32; j++) {
                 if(instance_bitmask_buffer_ptr[i] & (1 << j)) {
@@ -1136,6 +1160,7 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
                         if(voxel_modifications_buffer_ptr[instance.first_primitive_index + k] != 0U) {
                             for(uint32_t l = 0; l < 32; l++) {
                                 if(voxel_modifications_buffer_ptr[instance.first_primitive_index + k] & (1 << l)) {
+                                    changes_so_far++;
                                     uint32_t instance_primitive = k * 32 + l;
                                     // Process primitive
 #if DEBUG == 1                    
@@ -1149,6 +1174,11 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
                                         };
                                         task_queue_add(task_queue);
                                     }
+
+                                    // Check if all changes were processed
+                                    if(changes_so_far >= brush_counters->primitive_count) {
+                                        goto restore_buffers;
+                                    }
                                 }
                             }
                         }
@@ -1157,6 +1187,8 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
             }
         }
     }
+
+restore_buffers:
 
     // Reset bitmasks
     std::memset(instance_bitmask_buffer_ptr, 0, max_instance_bitmask_size);

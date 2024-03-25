@@ -2,6 +2,7 @@
 #pragma once
 #include "defines.h"
 #include <queue>
+#include <stack>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
@@ -28,6 +29,7 @@ public:
             BUILD_BLAS_FROM_CPU,
             REBUILD_BLAS_FROM_CPU,
             UPDATE_BLAS,
+            UNDO_OP_CPU,
         };
 
         struct BLAS_UPDATE
@@ -48,12 +50,18 @@ public:
             uint32_t primitive_count;
         };
 
+        struct UNDO_OP_CPU
+        {
+            TASK* undo_task;
+        };
+
         TYPE type;
         union
         {
             BLAS_BUILD_FROM_CPU blas_build_from_cpu;
             BLAS_REBUILD_FROM_CPU blas_rebuild_from_cpu;
             BLAS_UPDATE blas_update;
+            UNDO_OP_CPU undo_op_cpu;
         };
     };
 
@@ -335,7 +343,7 @@ private:
 
     // this queue is used to store the tasks that have been processed
     // TODO: undo tasks in the future?
-    std::queue<TASK> done_task_queue = {};
+    std::stack<TASK> done_task_stack = {};
 
     // used for the worker thread
     std::queue<TASK> temporal_task_queue;
