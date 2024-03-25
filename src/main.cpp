@@ -25,9 +25,9 @@ namespace tests
       const char *RED_BRICK_WALL_IMAGE = "red_brick_wall.jpg";
       const char *MODEL_PATH = "assets/models/";
       // const char *MAP_NAME = "monu5.vox";
-      const char *MAP_NAME = "monu6.vox";
+      // const char *MAP_NAME = "monu6.vox";
       // const char *MAP_NAME = "monu9.vox";
-      // const char *MAP_NAME = "room.vox";
+      const char *MAP_NAME = "room.vox";
       const float day_duration = 60.0f; // Duración de un día en segundos
 
       Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
@@ -833,9 +833,6 @@ namespace tests
             .image_usage = daxa::ImageUsageFlagBits::SHADER_STORAGE,
         });
 
-        as_manager = std::make_unique<ACCEL_STRUCT_MNGR>(device);
-        as_manager->create(MAX_INSTANCES, MAX_PRIMITIVES, MAX_CUBE_LIGHTS);
-
         taa_image[0] = device.create_image({
             .format = swapchain.get_format(),
             .size = {swapchain.get_surface_extent().x, swapchain.get_surface_extent().y, 1},
@@ -964,6 +961,10 @@ namespace tests
 
         point_lights = device.get_host_address_as<LIGHT>(point_light_buffer).value();
         env_lights = device.get_host_address_as<LIGHT>(env_light_buffer).value();
+        
+
+        as_manager = std::make_unique<ACCEL_STRUCT_MNGR>(device);
+        as_manager->create(MAX_INSTANCES, MAX_PRIMITIVES, MAX_CUBE_LIGHTS, &light_config->cube_light_count);
 
         status.time = 1.0;
         status.is_afternoon = true;

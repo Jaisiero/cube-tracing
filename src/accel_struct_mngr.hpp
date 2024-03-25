@@ -42,6 +42,8 @@ public:
             uint32_t instance_index;
             uint32_t del_primitive_index;
             uint32_t remap_primitive_index;
+            uint32_t del_light_index;
+            uint32_t remap_light_index;
         };
 
         struct BLAS_BUILD_FROM_CPU
@@ -77,7 +79,7 @@ public:
         }
     }
     
-    bool create(uint32_t max_instance_count, uint32_t max_primitive_count, uint32_t max_cube_light_count);
+    bool create(uint32_t max_instance_count, uint32_t max_primitive_count, uint32_t max_cube_light_count, uint32_t* cube_light_count);
     bool destroy();
 
 
@@ -279,8 +281,11 @@ private:
     bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
     bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
 
+    bool delete_light_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index);
+    bool update_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
+    bool restore_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
     
-    bool delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
+    bool delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange, uint32_t& light_to_delete, uint32_t& light_to_exchange);
     bool update_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
 
     bool copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
@@ -302,6 +307,7 @@ private:
     size_t max_primitive_buffer_size = 0;
     size_t max_cube_light_buffer_size = 0;
     size_t max_remapping_primitive_buffer_size = 0;
+    size_t max_remapping_light_buffer_size = 0;
 
     // Acceleration structures
     daxa::TlasId tlas[DOUBLE_BUFFERING] = {}, temp_tlas = {};
@@ -333,6 +339,8 @@ private:
 
     // Remapping buffer for primitives when rebuilding BLAS
     daxa::BufferId remapping_primitive_buffer = {};
+    // Remapping buffer for lights when rebuilding BLAS
+    daxa::BufferId remapping_light_buffer = {};
 
     // STATUS
     bool initialized = false;
@@ -358,6 +366,9 @@ private:
 
     size_t max_instance_bitmask_size = 0;
     size_t max_primitive_bitmask_size = 0;
+
+    uint32_t *current_cube_light_count = nullptr;
+    uint32_t temp_cube_light_count = 0;
 
     daxa::BufferId cube_light_buffer = {};
     LIGHT *cube_lights = nullptr;
