@@ -1773,7 +1773,6 @@ namespace tests
         // if (glfwGetMouseButton(glfw_window_ptr, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS)
         // {
         camera_set_mouse_delta(camera, glm::vec2{x, y});
-        std::cout << "mouse x: " << x << " mouse y: " << y << std::endl;
         // }
       }
       void on_mouse_button(i32 button, i32 action)

@@ -264,6 +264,10 @@ public:
         return true;
     }
 
+
+    void process_undo_task_queue(uint32_t next_index, TASK& task);
+
+
     void process_task_queue();
     void process_switching_task_queue();
     void process_settling_task_queue();
@@ -277,7 +281,7 @@ public:
 private:
     void process_voxel_modifications();
     
-    void upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size);
+    void upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
     bool upload_primitive_device_buffer(uint32_t buffer_index, daxa_u32 primitive_count);
     bool copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count);
 
@@ -322,12 +326,10 @@ private:
     daxa::BufferId proc_blas_buffer = {};
     uint64_t proc_blas_buffer_offset = 0;
     const uint32_t ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
-
     std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
     std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
     
     daxa::BufferId instance_buffer[DOUBLE_BUFFERING] = {};
-    
     uint32_t current_instance_count[DOUBLE_BUFFERING] = {};
     std::unique_ptr<INSTANCE[]> instances = {};
     
@@ -383,4 +385,12 @@ private:
     daxa::BufferId brush_primitive_bitmask_buffer = {};
 
     BRUSH_COUNTER* brush_counters = nullptr;
+    
+    uint32_t backup_primitive_count = 0;
+    std::vector<PRIMITIVE> backup_primitives = {};
+    std::vector<AABB> backup_aabbs = {};
+    uint32_t backup_light_count = 0;
+    std::vector<LIGHT> backup_cube_lights = {};
+    uint32_t backup_instance_count = 0;
+    std::vector<INSTANCE> backup_instances = {};
 };
