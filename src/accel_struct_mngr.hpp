@@ -193,6 +193,8 @@ public:
 #if DEBUG == 1                    
                     std::cout << "Updating scene" << std::endl;
 #endif // DEBUG                    
+                    // Switch to next index
+                    current_index = (current_index + 1) % DOUBLE_BUFFERING;
 
                     // set the updating flag to true
                     wake_up = true;
@@ -219,6 +221,8 @@ public:
                 {
                     // Get the mutex
                     std::unique_lock lock(task_queue_mutex);
+                    // Switch to next index
+                    current_index = (current_index + 1) % DOUBLE_BUFFERING;
                     // set the wake up flag to true
                     wake_up = true;
                     // status = AS_MANAGER_STATUS::SWITCH;

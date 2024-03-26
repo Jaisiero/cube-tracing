@@ -1468,10 +1468,6 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
     // Set current index as updated
     index_updated[next_index] = true;
 
-    // This should 
-    // Switch to next index
-    current_index = next_index;
-
     {
         // TODO: mutex here
         // Set switching to true
@@ -1595,9 +1591,6 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
 
     {
         // TODO: mutex here
-        // Switch to next index
-        current_index = next_index;
-
         // Set updating to false
         status = AS_MANAGER_STATUS::IDLE;
     }

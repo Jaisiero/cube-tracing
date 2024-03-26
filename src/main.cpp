@@ -26,8 +26,8 @@ namespace tests
       const char *MODEL_PATH = "assets/models/";
       // const char *MAP_NAME = "monu5.vox";
       // const char *MAP_NAME = "monu6.vox";
-      // const char *MAP_NAME = "monu9.vox";
-      const char *MAP_NAME = "room.vox";
+      const char *MAP_NAME = "monu9.vox";
+      // const char *MAP_NAME = "room.vox";
       const float day_duration = 60.0f; // Duración de un día en segundos
 
       Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
@@ -1916,7 +1916,7 @@ namespace tests
             // camera.center.x += SPEED;
           }
           break;
-        case GLFW_KEY_R:
+        case GLFW_KEY_C:
           if (action == GLFW_PRESS)
           {
             reset_camera(camera);
@@ -2028,19 +2028,15 @@ namespace tests
             }
           }
           break;
-        case GLFW_KEY_9:
-        case GLFW_KEY_KP_9:
+        case GLFW_KEY_R:
           if (action == GLFW_PRESS)
           {
-            if(building_mode) {
-              as_manager->task_queue_add(TASK{
-                  .type = TASK::TYPE::UNDO_OP_CPU
-              });
-            }
+            as_manager->task_queue_add(TASK{
+                .type = TASK::TYPE::UNDO_OP_CPU
+            });
           }
           break;
-        case GLFW_KEY_0:
-        case GLFW_KEY_KP_0:
+        case GLFW_KEY_LEFT_CONTROL:
           if (action == GLFW_PRESS)
           {
             building_mode = !building_mode;
