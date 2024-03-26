@@ -176,6 +176,7 @@ public:
         if (!initialized)
             return false;
 
+        // TODO: this is not safe with the current implementation
         switch (status)
         {
             case AS_MANAGER_STATUS::IDLE:
@@ -263,41 +264,61 @@ public:
 
         return true;
     }
-
-
-    void process_undo_task_queue(uint32_t next_index, TASK& task);
-
+    
+    void check_voxel_modifications();
 
     void process_task_queue();
     void process_switching_task_queue();
     void process_settling_task_queue();
-
-    void check_voxel_modifications();
 
     std::mutex task_queue_mutex = {};
     std::condition_variable task_queue_cv = {};
     std::mutex synchronize_mutex = {};
     std::condition_variable synchronize_cv = {};
 private:
+    // Undo operations
+    void process_undo_task_queue(uint32_t next_index, TASK& task);
+    void process_undo_switching_task_queue(uint32_t next_index, TASK& task);
+    void process_undo_settling_task_queue(uint32_t next_index, TASK& task);
+
+    // Undo updating rebuilding BLAS
+    bool restore_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index,
+                                    uint32_t primitive_to_recover, uint32_t primitive_exchanged);
+    bool restore_remapping_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_primitive_to_recover, uint32_t instance_primitive_exchanged);
+    bool restore_cube_light_remapping_buffer(uint32_t buffer_index, uint32_t light_to_recover, uint32_t light_exchanged);
+
+
+    // undo switching rebuilding BLAS
+    bool restore_light_device_buffer(uint32_t buffer_index, uint32_t light_to_recover_index, uint32_t light_exchanged_index);
+
+
+    // Checking modification operations
     void process_voxel_modifications();
     
-    void upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
+
+    // Updating operations
+    void upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
+        size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
     bool upload_primitive_device_buffer(uint32_t buffer_index, daxa_u32 primitive_count);
     bool copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count);
 
-    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size, bool synchronize = true);
+    // Switching operations
+    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t src_aabb_buffer_offset, 
+        size_t dst_aabb_buffer_offset, size_t aabb_copy_size, bool synchronize = true);
     bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
     bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
 
+    // Settling operations
     bool delete_light_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index);
     bool update_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
-    bool restore_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
+    bool clear_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
     
-    bool delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange, uint32_t& light_to_delete, uint32_t& light_to_exchange);
+    bool delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, 
+        uint32_t primitive_to_exchange, uint32_t& light_to_delete, uint32_t& light_to_exchange);
     bool update_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
 
-    bool copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
-    bool restore_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
+    bool copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_delete_primitive);
+    bool clear_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
 
     bool build_blas(uint32_t buffer_index, uint32_t instance_count);
     bool rebuild_blas(uint32_t buffer_index, uint32_t instance_index);
@@ -389,7 +410,7 @@ private:
     uint32_t backup_primitive_count = 0;
     std::vector<PRIMITIVE> backup_primitives = {};
     std::vector<AABB> backup_aabbs = {};
-    uint32_t backup_light_count = 0;
+    uint32_t backup_cube_light_count = 0;
     std::vector<LIGHT> backup_cube_lights = {};
     uint32_t backup_instance_count = 0;
     std::vector<INSTANCE> backup_instances = {};
