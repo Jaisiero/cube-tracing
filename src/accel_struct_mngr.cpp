@@ -269,6 +269,34 @@ void ACCEL_STRUCT_MNGR::upload_primitives(daxa::BufferId src_primitive_buffer,
     }
 }
 
+bool ACCEL_STRUCT_MNGR::upload_all_instances(uint32_t buffer_index, bool synchronize)
+{
+
+    //TODO: optimize by range copy?
+    // Copy instances to buffer
+    uint32_t instance_buffer_size = static_cast<uint32_t>(current_instance_count[buffer_index] * sizeof(INSTANCE));
+    if (instance_buffer_size > max_instance_buffer_size)
+    {
+        std::cerr << "instance_buffer_size > max_instance_buffer_size" << std::endl;
+        return false;
+    }
+
+    auto instance_staging_buffer = device.create_buffer({
+        .size = instance_buffer_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+        .name = ("instance_staging_buffer"),
+    });
+    defer { device.destroy_buffer(instance_staging_buffer); };
+
+    auto *instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
+    std::memcpy(instance_buffer_ptr,
+                instances.get(),
+                instance_buffer_size);
+
+    upload_primitives(instance_staging_buffer, instance_buffer[buffer_index], 0, 0, instance_buffer_size, synchronize);
+
+    return true;
+}
 
 //////////////////////////////// UPDATING //////////////////////////////////////
 
@@ -1240,26 +1268,6 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
     tlas_build_info.scratch_data = device.get_device_address(tlas_scratch_buffer).value();
     blas_instances[0].data = device.get_device_address(blas_instances_buffer).value();
 
-    // Copy instances to buffer
-    uint32_t instance_buffer_size = static_cast<uint32_t>(current_instance_count[buffer_index] * sizeof(INSTANCE));
-    if (instance_buffer_size > max_instance_buffer_size)
-    {
-        std::cerr << "instance_buffer_size > max_instance_buffer_size" << std::endl;
-        return false;
-    }
-
-    auto instance_staging_buffer = device.create_buffer({
-        .size = instance_buffer_size,
-        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-        .name = ("instance_staging_buffer"),
-    });
-    defer { device.destroy_buffer(instance_staging_buffer); };
-
-    auto *instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
-    std::memcpy(instance_buffer_ptr,
-                instances.get(),
-                instance_buffer_size);
-
     /// Record build commands:
     auto exec_cmds = [&]()
     {
@@ -1278,12 +1286,6 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
         recorder.pipeline_barrier({
             .src_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_WRITE,
             .dst_access = daxa::AccessConsts::READ_WRITE,
-        });
-
-        recorder.copy_buffer_to_buffer({
-            .src_buffer = instance_staging_buffer,
-            .dst_buffer = instance_buffer[buffer_index],
-            .size = instance_buffer_size,
         });
 
         return recorder.complete_current_commands();
@@ -1488,6 +1490,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
         std::cerr << "device.is_valid()" << std::endl;
         return;
     }
+
+    bool sync_instances = false;
     
     uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
@@ -1503,6 +1507,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             current_primitive_count[next_index] += build_task.primitive_count;
             // NOTE: build_blas is already called for the previous index
             current_instance_count[next_index] += build_task.instance_count;
+            // instances need to be uploaded
+            sync_instances = true;
             break;
         case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
             TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
@@ -1512,6 +1518,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             }
             // delete light from buffer
             delete_light_device_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
+            // instances need to be uploaded
+            sync_instances = true;
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -1534,6 +1542,11 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
     // update light count
     *current_cube_light_count = temp_cube_light_count;
 
+    // update instances
+    if(sync_instances) {
+        upload_all_instances(current_index, true);
+    }
+
 
     {
         // TODO: mutex here
@@ -1549,6 +1562,8 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
         std::cerr << "device.is_valid()" << std::endl;
         return;
     }
+
+    bool sync_instances = false;
     
     uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
@@ -1560,6 +1575,8 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
         {
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
+            // instances need to be uploaded
+            sync_instances = true;
             break;
         case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
             TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
@@ -1568,6 +1585,8 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
             // Restore light remapping buffer
             clear_light_remapping_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
             // NOTE: build_blas is already called for the previous index
+            // instances need to be uploaded
+            sync_instances = true;
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -1588,6 +1607,11 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
             // pop undo task
             done_task_stack.pop();
         }
+    }
+
+    // update instances 
+    if(sync_instances) {
+        upload_all_instances(next_index, false);
     }
 
     // Build TLAS

@@ -303,6 +303,7 @@ private:
     // Updating operations
     void upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
         size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
+    bool upload_all_instances(uint32_t buffer_index, bool synchronize = false);
     bool upload_primitive_device_buffer(uint32_t buffer_index, daxa_u32 primitive_count);
     bool copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count);
 
