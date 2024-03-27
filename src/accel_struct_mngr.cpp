@@ -396,61 +396,60 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index, uint32_
 
 
     // Copy last primitive to deleted primitive
-    if(primitive_to_exchange != primitive_index) {
+    uint32_t primitive_to_delete = first_primitive_index + primitive_index;
 
+    // Keep track of primitive light to delete
+    if (primitives[primitive_to_delete].light_index != -1)
+    {
+        light_to_delete = primitives[primitive_to_delete].light_index;
+        // Decrement temp light count
+        light_to_exchange = --temp_cube_light_count;
+    }
+
+    // Backup of the deleted primitive and light
+    {
+
+        size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE);
+
+        auto multipurpose_staging_buffer = device.create_buffer({
+            .size = multipurpose_staging_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = ("primitive_staging_buffer"),
+        });
+        defer { device.destroy_buffer(multipurpose_staging_buffer); };
+
+        // Copy backup of AABB to delete
+        upload_aabb_primitives(aabb_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(AABB), 0, sizeof(AABB));
+        // Copy backup of primitive to delete
+        upload_primitives(primitive_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(PRIMITIVE), sizeof(AABB), sizeof(PRIMITIVE), true);
+
+        auto *primitive_buffer_ptr = device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
+
+        // Store backup of AABB
+        backup_aabbs.push_back(*(reinterpret_cast<AABB *>(primitive_buffer_ptr)));
+        // Sotre backup of PRIMITIVE
+        backup_primitives.push_back(*(reinterpret_cast<PRIMITIVE *>(primitive_buffer_ptr + sizeof(AABB))));
+
+        // increase backup primitive counter
+        ++backup_primitive_count;
+
+        if (light_to_delete != -1)
+        {
+            // keep backup of light to delete
+            backup_cube_lights.push_back(cube_lights[light_to_delete]);
+            // increase backup light counter
+            ++backup_cube_light_count;
+        }
+    }
+
+    // Copying last primitive to deleted primitive
+    if (primitive_to_exchange != primitive_index)
+    {
         uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
-        uint32_t primitive_to_delete = first_primitive_index + primitive_index;
-
-        // Keep track of primitive light to delete
-        if (primitives[primitive_to_delete].light_index != -1)
-        {
-            light_to_delete = primitives[primitive_to_delete].light_index;
-            // Decrement temp light count
-            light_to_exchange = --temp_cube_light_count;
-        }
-
-        // Backup of the deleted primitive and light
-        {
-
-            size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE);
-
-            auto multipurpose_staging_buffer = device.create_buffer({
-                .size = multipurpose_staging_buffer_size,
-                .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                .name = ("primitive_staging_buffer"),
-            });
-            defer { device.destroy_buffer(multipurpose_staging_buffer); };
-
-            // Copy backup of AABB to delete
-            upload_aabb_primitives(aabb_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(AABB), 0, sizeof(AABB));
-            // Copy backup of primitive to delete
-            upload_primitives(primitive_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(PRIMITIVE), sizeof(AABB), sizeof(PRIMITIVE), true);
-            
-            auto *primitive_buffer_ptr = device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
-
-            // Store backup of AABB
-            backup_aabbs.push_back(*(reinterpret_cast<AABB*>(primitive_buffer_ptr)));
-            // Sotre backup of PRIMITIVE
-            backup_primitives.push_back(*(reinterpret_cast<PRIMITIVE*>(primitive_buffer_ptr + sizeof(AABB))));
-
-            // increase backup primitive counter
-            ++backup_primitive_count;
-            
-            if(light_to_delete != -1) {
-                // keep backup of light to delete
-                backup_cube_lights.push_back(cube_lights[light_to_delete]);
-                // increase backup light counter
-                ++backup_cube_light_count;
-            }
-        }
-
-        // Copying last primitive to deleted primitive
-        {
-            // Copy AABB
-            upload_aabb_primitives(aabb_buffer[buffer_index], aabb_buffer[buffer_index], last_primitive_index * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB));
-            // Copy primitive
-            upload_primitives(primitive_buffer[buffer_index], primitive_buffer[buffer_index], last_primitive_index * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE));
-        }
+        // Copy AABB
+        upload_aabb_primitives(aabb_buffer[buffer_index], aabb_buffer[buffer_index], last_primitive_index * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB));
+        // Copy primitive
+        upload_primitives(primitive_buffer[buffer_index], primitive_buffer[buffer_index], last_primitive_index * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE));
     }
 
     return true;
@@ -468,29 +467,28 @@ bool ACCEL_STRUCT_MNGR::update_remapping_buffer(uint32_t instance_index, uint32_
     uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
 
     // Copy last primitive to deleted primitive
-    if(primitive_to_exchange != primitive_index) {
+    uint32_t primitive_to_delete = first_primitive_index + primitive_index;
 
+    size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
+
+    auto remapped_primitive_staging_buffer = device.create_buffer({
+        .size = remapped_primitive_buffer_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+        .name = ("remapped_primitive_staging_buffer"),
+    });
+    defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
+
+    uint32_t remapped_primitive_indexes[2] = {static_cast<uint32_t>(-1), primitive_to_delete};
+
+    auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
+    std::memcpy(remapped_primitive_buffer_ptr,
+                remapped_primitive_indexes,
+                remapped_primitive_buffer_size);
+
+    upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+    if (primitive_to_exchange != primitive_index)
+    {
         uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
-        uint32_t primitive_to_delete = first_primitive_index + primitive_index;
-
-        size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
-
-        auto remapped_primitive_staging_buffer = device.create_buffer({
-            .size = remapped_primitive_buffer_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-            .name = ("remapped_primitive_staging_buffer"),
-        });
-        defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
-
-        uint32_t remapped_primitive_indexes[2] = {static_cast<uint32_t>(-1), primitive_to_delete};
-
-        auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
-        std::memcpy(remapped_primitive_buffer_ptr,
-                    remapped_primitive_indexes,
-                    remapped_primitive_buffer_size);
-
-    
-        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
         upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
     }
 
@@ -556,6 +554,11 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK& task)
         restore_remapping_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
         // update light remapping buffer
         restore_cube_light_remapping_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
+        // increment instance primitive count
+        {
+            instances[rebuild_task.instance_index].primitive_count++;
+            std::cout << "Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
+        }
         // rebuild blas
         rebuild_blas(next_index, rebuild_task.instance_index);
         break;
@@ -588,55 +591,56 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
         return false;
     }
 
-    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
-
-
     // Copy last primitive to deleted primitive
-    if(primitive_exchanged != primitive_to_recover) {
+
+    // Backup of the deleted primitive and light
+    {
+        size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE);
+
+        auto multipurpose_staging_buffer = device.create_buffer({
+            .size = multipurpose_staging_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = ("primitive_staging_buffer"),
+        });
+        defer { device.destroy_buffer(multipurpose_staging_buffer); };
+
+        --backup_primitive_count;
+
+        uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
 
         uint32_t exchanged_primitive_index = first_primitive_index + primitive_exchanged;
         uint32_t deleted_primitive_index = first_primitive_index + primitive_to_recover;
+        auto *primitive_buffer_ptr =
+            device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
+        memcpy(primitive_buffer_ptr,
+               &backup_aabbs[backup_primitive_count], sizeof(AABB));
 
-        // Backup of the deleted primitive and light
+        memcpy(primitive_buffer_ptr + sizeof(AABB),
+               &backup_primitives[backup_primitive_count], sizeof(PRIMITIVE));
+
+        if (primitive_exchanged != primitive_to_recover)
         {
-            
-
-            size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE);
-
-            auto multipurpose_staging_buffer = device.create_buffer({
-                .size = multipurpose_staging_buffer_size,
-                .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-                .name = ("primitive_staging_buffer"),
-            });
-            defer { device.destroy_buffer(multipurpose_staging_buffer); };
-
-            auto *primitive_buffer_ptr = device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
-
-            --backup_primitive_count;
-
-            memcpy(primitive_buffer_ptr, &backup_aabbs[backup_primitive_count], sizeof(AABB));
-
-            memcpy(primitive_buffer_ptr + sizeof(AABB), &backup_primitives[backup_primitive_count], sizeof(PRIMITIVE));
-
-            // Delete backup of AABB
-            backup_aabbs.pop_back();
-            // Delete backup of PRIMITIVE
-            backup_primitives.pop_back();
-
             // Copy back of AABB exchanged to original place
-            upload_aabb_primitives(aabb_buffer[buffer_index], aabb_buffer[buffer_index], deleted_primitive_index * sizeof(AABB), 
-                exchanged_primitive_index * sizeof(AABB), sizeof(AABB));
+            upload_aabb_primitives(aabb_buffer[buffer_index],
+                                   aabb_buffer[buffer_index], deleted_primitive_index * sizeof(AABB),
+                                   exchanged_primitive_index * sizeof(AABB), sizeof(AABB));
             // Copy back of primitive exchanged to original place
-            upload_primitives(primitive_buffer[buffer_index], primitive_buffer[buffer_index], deleted_primitive_index * sizeof(PRIMITIVE), 
-                exchanged_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
-
-            // Upload backup of AABB to deleted primitive place
-            upload_aabb_primitives(multipurpose_staging_buffer, aabb_buffer[buffer_index], 0, 
-                deleted_primitive_index * sizeof(AABB), sizeof(AABB));
-            // Upload backup of AABB to deleted primitive place
-            upload_primitives(multipurpose_staging_buffer, primitive_buffer[buffer_index], 
-                sizeof(AABB), deleted_primitive_index * sizeof(PRIMITIVE),  sizeof(PRIMITIVE));
+            upload_primitives(primitive_buffer[buffer_index],
+                              primitive_buffer[buffer_index], deleted_primitive_index * sizeof(PRIMITIVE),
+                              exchanged_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
         }
+
+        // Upload backup of AABB to deleted primitive place
+        upload_aabb_primitives(multipurpose_staging_buffer, aabb_buffer[buffer_index], 0,
+                               deleted_primitive_index * sizeof(AABB), sizeof(AABB));
+        // Upload backup of AABB to deleted primitive place
+        upload_primitives(multipurpose_staging_buffer, primitive_buffer[buffer_index],
+                          sizeof(AABB), deleted_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE));
+
+        // Delete backup of AABB
+        backup_aabbs.pop_back();
+        // Delete backup of PRIMITIVE
+        backup_primitives.pop_back();
     }
 
     return true;
@@ -809,14 +813,15 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, T
         break;
     case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
         TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
-        // copy deleted primtive from device buffer to double buffer
-        copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index);
-        // copy exchanged primitive from device buffer to double buffer
-        copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.remap_primitive_index);
+        if(rebuild_task.del_primitive_index != rebuild_task.remap_primitive_index) {
+            // copy deleted primtive from device buffer to double buffer
+            copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index);
+            // copy exchanged primitive from device buffer to double buffer
+            copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.remap_primitive_index);
+        }
         // delete light from buffer
         restore_light_device_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
-        // increment instance primitive count
-        instances[rebuild_task.instance_index].primitive_count++;
+        // TODO: upload instance buffer here
         break;
     case TASK::TYPE::UPDATE_BLAS:
         TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -881,29 +886,28 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(uint32_t instance_index, uint32_t
     uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
 
     // Copy last primitive to deleted primitive
-    if(primitive_to_exchange != primitive_index) {
+    uint32_t primitive_to_delete = first_primitive_index + primitive_index;
 
+    size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
+
+    auto remapped_primitive_staging_buffer = device.create_buffer({
+        .size = remapped_primitive_buffer_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+        .name = ("remapped_primitive_staging_buffer"),
+    });
+    defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
+
+    uint32_t remapped_primitive_indexes[2] = {0, 0};
+
+    auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
+    std::memcpy(remapped_primitive_buffer_ptr,
+                remapped_primitive_indexes,
+                remapped_primitive_buffer_size);
+
+    upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+    if (primitive_to_exchange != primitive_index)
+    {
         uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
-        uint32_t primitive_to_delete = first_primitive_index + primitive_index;
-
-        size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
-
-        auto remapped_primitive_staging_buffer = device.create_buffer({
-            .size = remapped_primitive_buffer_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-            .name = ("remapped_primitive_staging_buffer"),
-        });
-        defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
-
-        uint32_t remapped_primitive_indexes[2] = {0, 0};
-
-        auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
-        std::memcpy(remapped_primitive_buffer_ptr,
-                    remapped_primitive_indexes,
-                    remapped_primitive_buffer_size);
-
-    
-        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
         upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
     }
 
@@ -1425,6 +1429,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             {
                 // Update instance primitive count
                 primitive_to_exchange = --instances[rebuild_task.instance_index].primitive_count;
+                std::cout << "Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
             }
             // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
             delete_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, primitive_to_exchange, light_to_delete, light_to_exchange);
@@ -1501,8 +1506,10 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             break;
         case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
             TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
-            // Copy deleted primitive to the double buffer
-            copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index);
+            if(rebuild_task.del_primitive_index != rebuild_task.remap_primitive_index) {
+                // Copy deleted primitive to the double buffer
+                copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index);
+            }
             // delete light from buffer
             delete_light_device_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
             break;
