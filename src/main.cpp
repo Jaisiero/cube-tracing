@@ -588,7 +588,7 @@ namespace tests
           return recorder.complete_current_commands();
         }();
         device.submit_commands({.command_lists = std::array{exec_cmds}});
-        // device.wait_idle();
+        device.wait_idle();
       }
 
       void upload_restir()
@@ -1328,9 +1328,9 @@ namespace tests
 #endif // DYNAMIC_SUN_LIGHT == 1
           // Update the scene if needed
           as_manager->update_scene();
+          upload_world();
           draw();
           download_gpu_info();
-          upload_world();
         }
         else
         {

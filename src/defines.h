@@ -13,6 +13,8 @@
 
 #include "shaders/shared.inl"
 
+#define DEBUG 0
+
 const uint32_t DOUBLE_BUFFERING = 2;
 
 // const daxa_f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)

@@ -585,7 +585,9 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK& task)
         // increment instance primitive count
         {
             instances[rebuild_task.instance_index].primitive_count++;
+#if DEBUG == 1
             std::cout << "Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
+#endif // DEBUG
         }
         // rebuild blas
         rebuild_blas(next_index, rebuild_task.instance_index);
@@ -1431,7 +1433,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             {
                 // Update instance primitive count
                 primitive_to_exchange = --instances[rebuild_task.instance_index].primitive_count;
+#if DEBUG == 1
                 std::cout << "Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
+#endif // DEBUG
             }
             // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
             delete_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, primitive_to_exchange, light_to_delete, light_to_exchange);
@@ -1469,6 +1473,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
     // Set items to process to zero
     items_to_process = 0;
 
+    // update instances
+    upload_all_instances(next_index, false);
+
     // Build TLAS
     build_tlas(next_index, true);
 
@@ -1490,8 +1497,6 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
         std::cerr << "device.is_valid()" << std::endl;
         return;
     }
-
-    bool sync_instances = false;
     
     uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
@@ -1507,8 +1512,6 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             current_primitive_count[next_index] += build_task.primitive_count;
             // NOTE: build_blas is already called for the previous index
             current_instance_count[next_index] += build_task.instance_count;
-            // instances need to be uploaded
-            sync_instances = true;
             break;
         case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
             TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
@@ -1518,8 +1521,6 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             }
             // delete light from buffer
             delete_light_device_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
-            // instances need to be uploaded
-            sync_instances = true;
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -1542,11 +1543,6 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
     // update light count
     *current_cube_light_count = temp_cube_light_count;
 
-    // update instances
-    if(sync_instances) {
-        upload_all_instances(current_index, true);
-    }
-
 
     {
         // TODO: mutex here
@@ -1562,8 +1558,6 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
         std::cerr << "device.is_valid()" << std::endl;
         return;
     }
-
-    bool sync_instances = false;
     
     uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
@@ -1575,8 +1569,6 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
         {
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
-            // instances need to be uploaded
-            sync_instances = true;
             break;
         case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
             TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
@@ -1585,8 +1577,6 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
             // Restore light remapping buffer
             clear_light_remapping_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
             // NOTE: build_blas is already called for the previous index
-            // instances need to be uploaded
-            sync_instances = true;
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -1610,9 +1600,7 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
     }
 
     // update instances 
-    if(sync_instances) {
-        upload_all_instances(next_index, false);
-    }
+    upload_all_instances(next_index, false);
 
     // Build TLAS
     build_tlas(next_index, true);
