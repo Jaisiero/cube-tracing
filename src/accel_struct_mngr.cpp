@@ -678,7 +678,7 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
 
     // Backup of the deleted primitive and light
     {
-        size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE);
+        size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE) + sizeof(uint32_t);
 
         auto multipurpose_staging_buffer = device.create_buffer({
             .size = multipurpose_staging_buffer_size,
@@ -693,13 +693,9 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
 
         uint32_t exchanged_primitive_index = first_primitive_index + primitive_exchanged;
         uint32_t deleted_primitive_index = first_primitive_index + primitive_to_recover;
-        auto *primitive_buffer_ptr =
+        
+        auto *multipurpose_staging_buffer_ptr =
             device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
-        memcpy(primitive_buffer_ptr,
-               &backup_aabbs[backup_primitive_count], sizeof(AABB));
-
-        memcpy(primitive_buffer_ptr + sizeof(AABB),
-               &backup_primitives[backup_primitive_count], sizeof(PRIMITIVE));
 
         if (primitive_exchanged != primitive_to_recover)
         {
@@ -721,15 +717,13 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
                 uint32_t primitive_index_from_light_exchanged =
                     instances[cube_lights[light_deleted].instance_info.instance_id].first_primitive_index +
                     cube_lights[light_deleted].instance_info.primitive_id;
-                auto *multipurpose_staging_buffer_ptr =
-                    device.get_host_address_as<uint32_t>(multipurpose_staging_buffer).value();
-                std::memcpy(multipurpose_staging_buffer_ptr,
+                std::memcpy(multipurpose_staging_buffer_ptr + sizeof(AABB) + sizeof(PRIMITIVE),
                             &light_exchanged,
                             sizeof(uint32_t));
                 upload_primitives(multipurpose_staging_buffer,
-                                primitive_buffer[buffer_index], 0,
+                                primitive_buffer[buffer_index], sizeof(AABB) + sizeof(PRIMITIVE),
                                 primitive_index_from_light_exchanged * sizeof(PRIMITIVE) + sizeof(uint32_t),
-                                sizeof(uint32_t));
+                                sizeof(uint32_t), true);
 #if DEBUG == 1
                 std::cout << "  restore_aabb_device_buffer primitive[" 
                     << primitive_index_from_light_exchanged << "]: light_exchanged: "
@@ -737,6 +731,12 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
 #endif // DEBUG
             }
         }
+
+        memcpy(multipurpose_staging_buffer_ptr,
+               &backup_aabbs[backup_primitive_count], sizeof(AABB));
+
+        memcpy(multipurpose_staging_buffer_ptr + sizeof(AABB),
+               &backup_primitives[backup_primitive_count], sizeof(PRIMITIVE));
 
         // Upload backup of AABB to deleted primitive place
         upload_aabb_primitives(multipurpose_staging_buffer, aabb_buffer[buffer_index], 0,
