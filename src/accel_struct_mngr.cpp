@@ -438,17 +438,17 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index, uint32_
         }
     }
 
+    size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE);
+
+    auto multipurpose_staging_buffer = device.create_buffer({
+        .size = multipurpose_staging_buffer_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+        .name = ("primitive_staging_buffer"),
+    });
+    defer { device.destroy_buffer(multipurpose_staging_buffer); };
+
     // Backup of the deleted primitive and light
     {
-
-        size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE);
-
-        auto multipurpose_staging_buffer = device.create_buffer({
-            .size = multipurpose_staging_buffer_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-            .name = ("primitive_staging_buffer"),
-        });
-        defer { device.destroy_buffer(multipurpose_staging_buffer); };
 
         // Copy backup of AABB to delete
         upload_aabb_primitives(aabb_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(AABB), 0, sizeof(AABB));
@@ -481,7 +481,22 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index, uint32_
         // Copy AABB
         upload_aabb_primitives(aabb_buffer[buffer_index], aabb_buffer[buffer_index], last_primitive_index * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB));
         // Copy primitive
-        upload_primitives(primitive_buffer[buffer_index], primitive_buffer[buffer_index], last_primitive_index * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE));
+        upload_primitives(primitive_buffer[buffer_index], primitive_buffer[buffer_index], last_primitive_index * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
+
+        std::cout << "  delete_aabb_device_buffer: primitive_to_exchange: " << primitive_to_exchange << ", primitive_index: " << primitive_index << std::endl;
+
+        // if (light_to_exchange != -1)
+        // {
+        //     auto *multipurpose_staging_buffer_ptr =
+        //         device.get_host_address_as<uint32_t>(multipurpose_staging_buffer).value();
+        //     std::memcpy(multipurpose_staging_buffer_ptr,
+        //                 &light_to_delete,
+        //                 sizeof(uint32_t));
+        //     upload_primitives(multipurpose_staging_buffer,
+        //                       primitive_buffer[buffer_index], 0,
+        //                       primitive_to_delete * sizeof(PRIMITIVE) + sizeof(uint32_t),
+        //                       sizeof(uint32_t));
+        // }
     }
 
     return true;
@@ -589,7 +604,7 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK& task)
         std::cout << "  *light_to_delete: " << rebuild_task.del_light_index << ", light_to_exchange: " << rebuild_task.remap_light_index << std::endl;
 #endif // DEBUG
         // restore primitive buffer
-        restore_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
+        restore_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index, rebuild_task.remap_light_index);
         // Update remapping buffer
         restore_remapping_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
         // update light remapping buffer
@@ -625,7 +640,7 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK& task)
 
 
 bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, 
-    uint32_t primitive_to_recover, uint32_t primitive_exchanged)
+    uint32_t primitive_to_recover, uint32_t primitive_exchanged, uint32_t light_exchanged)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -670,6 +685,21 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
             upload_primitives(primitive_buffer[buffer_index],
                               primitive_buffer[buffer_index], deleted_primitive_index * sizeof(PRIMITIVE),
                               exchanged_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
+
+            std::cout << "  restore_aabb_device_buffer: primitive_exchanged: " << primitive_exchanged << ", primitive_to_recover: " << primitive_to_recover << std::endl;
+
+            // if (light_exchanged != -1)
+            // {
+            //     auto *multipurpose_staging_buffer_ptr =
+            //         device.get_host_address_as<uint32_t>(multipurpose_staging_buffer).value();
+            //     std::memcpy(multipurpose_staging_buffer_ptr,
+            //                 &light_exchanged,
+            //                 sizeof(uint32_t));
+            //     upload_primitives(multipurpose_staging_buffer,
+            //                       primitive_buffer[buffer_index], 0,
+            //                       exchanged_primitive_index * sizeof(PRIMITIVE) + sizeof(uint32_t),
+            //                       sizeof(uint32_t));
+            // }
         }
 
         // Upload backup of AABB to deleted primitive place
@@ -816,7 +846,7 @@ bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(uint32_t buffer_index, u
 }
 
 
-bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(uint32_t buffer_index, uint32_t light_to_delete, uint32_t light_to_exchange)
+bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(uint32_t buffer_index, uint32_t light_to_delete, uint32_t light_to_exchange, uint32_t primitive_to_delete)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -827,6 +857,8 @@ bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(uint32_t buffer_index, uint32
     if(light_to_exchange != -1) {
         // Copy light
         cube_lights[light_to_delete] = cube_lights[light_to_exchange];
+        // Change primitive index
+        // cube_lights[light_to_delete].instance_info.primitive_id = primitive_to_delete;
     }
 
     return true;
@@ -862,8 +894,7 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, T
             copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.remap_primitive_index);
         }
         // delete light from buffer
-        restore_light_device_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
-        // TODO: upload instance buffer here
+        restore_light_device_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index, rebuild_task.remap_primitive_index);
         break;
     case TASK::TYPE::UPDATE_BLAS:
         TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -878,7 +909,7 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, T
 }
 
 
-bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(uint32_t buffer_index, uint32_t light_to_recover_index, uint32_t light_exchanged_index)
+bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(uint32_t buffer_index, uint32_t light_to_recover_index, uint32_t light_exchanged_index, uint32_t primivite_exchanged_index)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -891,6 +922,7 @@ bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(uint32_t buffer_index, uint3
         if(light_exchanged_index != -1) {
             // Restore exchanged light to the original light index
             cube_lights[light_exchanged_index] = cube_lights[light_to_recover_index];
+            // cube_lights[light_exchanged_index].instance_info.primitive_id = primivite_exchanged_index;
         }
 
         // Restore light to recover index
@@ -1346,9 +1378,9 @@ bool ACCEL_STRUCT_MNGR::clear_light_remapping_buffer(uint32_t instance_index, ui
                     remapped_primitive_buffer_size);
 
     
-        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, light_index * sizeof(uint32_t), sizeof(uint32_t));
+        upload_primitives(remapped_primitive_staging_buffer, remapping_light_buffer, 0, light_index * sizeof(uint32_t), sizeof(uint32_t));
         if(light_to_exchange != -1) {
-            upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), light_to_exchange * sizeof(uint32_t), sizeof(uint32_t));
+            upload_primitives(remapped_primitive_staging_buffer, remapping_light_buffer, sizeof(uint32_t), light_to_exchange * sizeof(uint32_t), sizeof(uint32_t));
         }
     }
 
@@ -1537,7 +1569,7 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
                 copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index);
             }
             // delete light from buffer
-            delete_light_device_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
+            delete_light_device_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index, rebuild_task.del_primitive_index);
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
