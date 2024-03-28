@@ -44,6 +44,7 @@ public:
             uint32_t remap_primitive_index;
             uint32_t del_light_index;
             uint32_t remap_light_index;
+            uint32_t remap_primitive_light_index;
         };
 
         struct BLAS_BUILD_FROM_CPU
@@ -286,14 +287,20 @@ private:
     void process_undo_settling_task_queue(uint32_t next_index, TASK& task);
 
     // Undo updating rebuilding BLAS
-    bool restore_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index,
-                                    uint32_t primitive_to_recover, uint32_t primitive_exchanged, uint32_t light_exchanged);
+    bool restore_aabb_device_buffer(uint32_t buffer_index,
+                                    uint32_t instance_index,
+                                    uint32_t primitive_to_recover,
+                                    uint32_t primitive_exchanged,
+                                    uint32_t light_deleted,
+                                    uint32_t light_exchanged);
     bool restore_remapping_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_primitive_to_recover, uint32_t instance_primitive_exchanged);
     bool restore_cube_light_remapping_buffer(uint32_t buffer_index, uint32_t light_to_recover, uint32_t light_exchanged);
 
 
     // undo switching rebuilding BLAS
-    bool restore_light_device_buffer(uint32_t buffer_index, uint32_t light_to_recover_index, uint32_t light_exchanged_index, uint32_t primivite_exchanged_index);
+    bool restore_light_device_buffer(uint32_t buffer_index, 
+        uint32_t light_to_recover_index, uint32_t light_exchanged_index, 
+        uint32_t primivite_exchanged_index, uint32_t light_index_from_exchanged_primitive);
 
 
     // Checking modification operations
@@ -314,12 +321,14 @@ private:
     bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
 
     // Settling operations
-    bool delete_light_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
+    bool delete_light_device_buffer(uint32_t buffer_index,
+                                    uint32_t light_to_delete, uint32_t light_to_exchange,
+                                    uint32_t primitive_deleted, uint32_t light_index_from_exchanged_primitive);
     bool update_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
     bool clear_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
     
     bool delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, 
-        uint32_t primitive_to_exchange, uint32_t& light_to_delete, uint32_t& light_to_exchange);
+        uint32_t primitive_to_exchange, uint32_t& light_to_delete, uint32_t& light_to_exchange, uint32_t& light_of_the_exchanged_primitive);
     bool update_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
 
     bool copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_delete_primitive);

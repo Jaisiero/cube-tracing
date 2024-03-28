@@ -13,7 +13,7 @@
 
 #include "shaders/shared.inl"
 
-#define DEBUG 1
+#define DEBUG 0
 
 const uint32_t DOUBLE_BUFFERING = 2;
 
