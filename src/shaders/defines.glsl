@@ -161,3 +161,50 @@ layout(buffer_reference, scalar) buffer TEMPORAL_PATH_RESERVOIR_BUFFER {PATH_RES
 layout(buffer_reference, scalar) buffer BRUSH_COUNTER_BUFFER {BRUSH_COUNTER brush_counter; }; // Brush counter
 layout(buffer_reference, scalar) buffer INSTANCE_BITMASK_BUFFER {daxa_u32 instance_bitmask[]; }; // Instance bitmask
 layout(buffer_reference, scalar) buffer PRIMITIVE_BITMASK_BUFFER {daxa_u32 primitive_bitmask[]; }; // Primitive bitmask
+
+
+
+
+Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size,
+                               daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj,
+                               inout daxa_u32 seed, inout daxa_f32vec2 jitter) {
+
+  // jitter = daxa_f32vec2(rnd_interval(seed, -0.5f + HLF_MIN, 0.5f - HLF_MIN),
+  //                       rnd_interval(seed, -0.5f + HLF_MIN, 0.5f - HLF_MIN));
+  jitter = daxa_f32vec2(0.0);
+
+  const daxa_f32vec2 pixel_center = index + jitter + daxa_f32vec2(0.5);
+  const daxa_f32vec2 inv_UV = pixel_center / rt_size;
+  daxa_f32vec2 d = inv_UV * 2.0 - 1.0;
+
+  // Ray setup
+  Ray ray;
+
+  daxa_f32vec4 origin = inv_view * vec4(0, 0, 0, 1);
+  ray.origin = origin.xyz;
+
+  vec4 target = inv_proj * vec4(d.x, d.y, 1, 1);
+  vec4 direction = inv_view * vec4(normalize(target.xyz), 0);
+
+  ray.direction = direction.xyz;
+
+  return ray;
+}
+
+
+daxa_u32 get_current_pixel_warp(const daxa_i32vec2 index, const daxa_u32vec2 rt_size) {
+  // Calculating the warp index in each dimension
+    daxa_u32 warp_index_X = index.x / 32; // Divide por 32 para obtener el índice de warp
+    daxa_u32 warp_index_Y = index.y / 32;
+    // uint warp_index_Z = index.z / 32;
+
+    // Number of warps in each dimension
+    daxa_u32 num_warps_X = (rt_size.x + 31) / 32; // Redondea hacia arriba al siguiente múltiplo de 32
+    // uint num_warps_Y = (rt_size.y + 31) / 32;
+    // uint num_warps_Z = (rt_size.z + 31) / 32;
+
+    // Calculate the linear warp index
+    // uint linear_warp_index = warp_index_X + warp_index_Y * num_warps_X + warp_index_Z * num_warps_X * num_warps_Y;
+    // Calculate the linear warp index
+    return warp_index_X + warp_index_Y * num_warps_X;
+}

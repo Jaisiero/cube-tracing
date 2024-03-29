@@ -26,8 +26,8 @@ namespace tests
       const char *MODEL_PATH = "assets/models/";
       // const char *MAP_NAME = "monu5.vox";
       // const char *MAP_NAME = "monu6.vox";
-      // const char *MAP_NAME = "monu9.vox";
-      const char *MAP_NAME = "room.vox";
+      const char *MAP_NAME = "monu9.vox";
+      // const char *MAP_NAME = "room.vox";
       const float day_duration = 60.0f; // Duración de un día en segundos
 
       Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
@@ -850,7 +850,7 @@ namespace tests
 
         light_config_buffer = device.create_buffer(daxa::BufferInfo{
             .size = light_config_buffer_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
             .name = ("light_config_buffer"),
         });
 
@@ -877,13 +877,13 @@ namespace tests
 
         point_light_buffer = device.create_buffer(daxa::BufferInfo{
             .size = max_point_light_buffer_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
             .name = ("light_buffer"),
         });
 
         env_light_buffer = device.create_buffer(daxa::BufferInfo{
             .size = max_env_light_buffer_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
             .name = ("env_light_buffer"),
         });
 

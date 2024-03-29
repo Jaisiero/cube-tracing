@@ -15,32 +15,6 @@ layout(location = 0) hitObjectAttributeNV vec3 hit_value;
 #include "indirect_illumination.glsl"
 #include "restir_resampling.glsl"
 
-Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size,
-                               daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj,
-                               inout daxa_u32 seed, inout daxa_f32vec2 jitter) {
-
-  // jitter = daxa_f32vec2(rnd_interval(seed, -0.5f + HLF_MIN, 0.5f - HLF_MIN),
-  //                       rnd_interval(seed, -0.5f + HLF_MIN, 0.5f - HLF_MIN));
-  jitter = daxa_f32vec2(0.0);
-
-  const daxa_f32vec2 pixel_center = index + jitter + daxa_f32vec2(0.5);
-  const daxa_f32vec2 inv_UV = pixel_center / rt_size;
-  daxa_f32vec2 d = inv_UV * 2.0 - 1.0;
-
-  // Ray setup
-  Ray ray;
-
-  daxa_f32vec4 origin = inv_view * vec4(0, 0, 0, 1);
-  ray.origin = origin.xyz;
-
-  vec4 target = inv_proj * vec4(d.x, d.y, 1, 1);
-  vec4 direction = inv_view * vec4(normalize(target.xyz), 0);
-
-  ray.direction = direction.xyz;
-
-  return ray;
-}
-
 #if RESTIR_PREPASS_AND_FIRST_VISIBILITY_TEST == 1
 
 void main() {

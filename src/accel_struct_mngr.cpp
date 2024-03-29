@@ -129,7 +129,7 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
 
         aabb_host_buffer = device.create_buffer({
             .size = max_aabb_host_buffer_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
             .name = "aabb host buffer",
         });
 
