@@ -374,7 +374,7 @@ daxa_f32vec3 compute_shifted_integrand_hybrid(
 
   if (path_reservoir_get_reconnection_length(src_reservoir.path_flags) == 1) {
     tp = daxa_f32vec3(1.0f);
-    dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.0f));
+    dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(INVALID_ID, INVALID_ID), daxa_f32vec3(0.0f));
     dst_rc_prev_vertex_wo =  daxa_f32vec3(1.0f); // this value doesn't matter, as long as it is not all 0
 
     if (params.roughness_based_rejection) {

@@ -366,7 +366,7 @@ namespace tests
 
         // #endif // DYNAMIC_SUN_LIGHT
         light.type = GEOMETRY_LIGHT_POINT;
-        light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
+        light.instance_info = OBJECT_INFO(INVALID_ID, INVALID_ID);
         point_lights[light_config->point_light_count++] = light;
 
         // LIGHT light2 = {};
@@ -394,7 +394,7 @@ namespace tests
 
         LIGHT light = {};
         light.type = GEOMETRY_LIGHT_ENV_MAP;
-        light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
+        light.instance_info = OBJECT_INFO(INVALID_ID, INVALID_ID);
         light.position = daxa_f32vec3(0.0, 0.0, 0.0);
         light.emissive = daxa_f32vec3(5.0, 5.0, 5.0);
         light.size = 0.f;
@@ -622,9 +622,9 @@ namespace tests
 
       //     daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
 
-      //     if (estimated_instance_count > MAX_INSTANCES)
+      //     if (estimated_instance_count > INVALID_ID)
       //     {
-      //         std::cout << "estimated_instance_count (" << estimated_instance_count << ") > MAX_INSTANCES (" << MAX_INSTANCES << ")." << std::endl;
+      //         std::cout << "estimated_instance_count (" << estimated_instance_count << ") > INVALID_ID (" << INVALID_ID << ")." << std::endl;
       //         abort();
       //     }
 

@@ -131,15 +131,15 @@ struct SCENE_PARAMS{
 };
 
 
-layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[MAX_INSTANCES]; }; // Positions of an object
-layout(buffer_reference, scalar) buffer REMAPPED_PRIMITIVE_BUFFER {daxa_u32 primitives[MAX_PRIMITIVES]; }; // Primitive data
-layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[MAX_PRIMITIVES]; }; // Primitive data
-layout(buffer_reference, scalar) buffer AABB_BUFFER {AABB aabbs[MAX_PRIMITIVES]; }; // Positions of a primitive
-layout(buffer_reference, scalar) buffer MATERIAL_BUFFER {MATERIAL materials[MAX_MATERIALS]; }; // Materials
-layout(buffer_reference, scalar) buffer POINT_LIGHT_BUFFER {LIGHT point_lights[MAX_POINT_LIGHTS]; }; // Lights
-layout(buffer_reference, scalar) buffer ENV_LIGHT_BUFFER {LIGHT env_lights[MAX_ENV_LIGHTS]; }; // Environment lights
-layout(buffer_reference, scalar) buffer CUBE_LIGHT_BUFFER {LIGHT cube_lights[MAX_CUBE_LIGHTS]; }; // Cube lights
-layout(buffer_reference, scalar) buffer REMAPPED_CUBE_LIGHT_BUFFER {daxa_u32 lights[MAX_CUBE_LIGHTS]; }; // Primitive data
+layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[]; }; // Positions of an object
+layout(buffer_reference, scalar) buffer REMAPPED_PRIMITIVE_BUFFER {daxa_u32 primitives[]; }; // Primitive data
+layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[]; }; // Primitive data
+layout(buffer_reference, scalar) buffer AABB_BUFFER {AABB aabbs[]; }; // Positions of a primitive
+layout(buffer_reference, scalar) buffer MATERIAL_BUFFER {MATERIAL materials[]; }; // Materials
+layout(buffer_reference, scalar) buffer POINT_LIGHT_BUFFER {LIGHT point_lights[]; }; // Lights
+layout(buffer_reference, scalar) buffer ENV_LIGHT_BUFFER {LIGHT env_lights[]; }; // Environment lights
+layout(buffer_reference, scalar) buffer CUBE_LIGHT_BUFFER {LIGHT cube_lights[]; }; // Cube lights
+layout(buffer_reference, scalar) buffer REMAPPED_CUBE_LIGHT_BUFFER {daxa_u32 lights[]; }; // Primitive data
 layout(buffer_reference, scalar) buffer LIGHT_CONFIG_BUFFER {LIGHT_CONFIG light_config; }; // Lights
 
 layout(buffer_reference, scalar) buffer PREV_RESERVOIR_BUFFER {RESERVOIR reservoirs[MAX_RESERVOIRS]; }; // Reservoirs from the previous frame

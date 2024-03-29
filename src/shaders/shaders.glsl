@@ -424,8 +424,8 @@ void main()
         daxa_u32vec2 pixel = deref(p.status_buffer).pixel; 
         if(index.x == pixel.x && index.y == pixel.y) {
             
-            deref(p.status_output_buffer).instance_id = MAX_INSTANCES;
-            deref(p.status_output_buffer).primitive_id = MAX_PRIMITIVES;
+            deref(p.status_output_buffer).instance_id = INVALID_ID;
+            deref(p.status_output_buffer).primitive_id = INVALID_ID;
 
             // Ray query setup
             uint cull_mask = 0xff;

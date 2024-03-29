@@ -20,7 +20,7 @@ struct PATH_BUILDER
 void path_builder_init(const SCENE_PARAMS params, inout PATH_BUILDER path_builder, daxa_u32 seed)
 {
     path_builder.seed = seed;
-    path_builder.rc_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.f));
+    path_builder.rc_vertex_hit = OBJECT_HIT(OBJECT_INFO(INVALID_ID, INVALID_ID), daxa_f32vec3(0.f));
     path_builder.rc_vertex_wi[0] = daxa_f32vec3(0.0);
     path_builder.cached_random_seed = 0;
     path_builder.rc_vertex_length = params.max_depth;

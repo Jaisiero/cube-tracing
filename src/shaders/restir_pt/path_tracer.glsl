@@ -816,7 +816,7 @@ void path_handle_miss(const SCENE_PARAMS params, inout PATH_STATE path,
             // set rcVertexLength to current length (this will make
             // rcVertexLength = reseroivr.pathLength + 1)
             OBJECT_HIT dummy_hit =
-                OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.f));
+                OBJECT_HIT(OBJECT_INFO(INVALID_ID, INVALID_ID), daxa_f32vec3(0.f));
             path_builder_mark_escape_vertex_as_rc_vertex(
                 path.path_builder, path.path_length + 1, path.path_reservoir,
                 dummy_hit, path_is_delta_event(path),
@@ -905,7 +905,7 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(
   path.is_replay_for_hybrid_shift = true;
   path.path_builder.rc_vertex_length = reconnection_length;
 
-  dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.0));
+  dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(INVALID_ID, INVALID_ID), daxa_f32vec3(0.0));
   dst_rc_prev_vertex_wo = daxa_f32vec3(0.0);
 
   path.origin = compute_ray_origin(i.world_hit, i.world_nrm);
@@ -948,7 +948,7 @@ daxa_f32vec3 trace_random_replay_path_hybrid_simple(
     }
   }
 
-  dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.0));
+  dst_rc_prev_vertex_hit = OBJECT_HIT(OBJECT_INFO(INVALID_ID, INVALID_ID), daxa_f32vec3(0.0));
 
   daxa_f32vec3 L = daxa_f32vec3(1.0);
 

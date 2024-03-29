@@ -75,8 +75,8 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR* as_manager)
 
 bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primitive_count, uint32_t max_cube_light_count, uint32_t* cube_light_count) {
     if(device.is_valid() && !initialized) {
-        proc_blas_scratch_buffer_size = max_instance_count * 1024ULL * 2ULL; // TODO: is this a good estimation?
-        proc_blas_buffer_size = max_instance_count * 1024ULL * 2ULL;         // TODO: is this a good estimation?
+        proc_blas_scratch_buffer_size = max_instance_count * 1024ULL * 1024ULL; // TODO: is this a good estimation?
+        proc_blas_buffer_size = max_instance_count * 1024ULL * 1024ULL;         // TODO: is this a good estimation?
         max_instance_buffer_size = sizeof(INSTANCE) * max_instance_count;
         max_aabb_buffer_size = sizeof(AABB) * max_primitive_count;
         max_aabb_host_buffer_size = sizeof(AABB) * max_primitive_count * 0.1;

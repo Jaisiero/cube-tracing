@@ -9,7 +9,7 @@
 
 
 void reconnection_data_initialise(out RECONNECTION_DATA reconnection_data) {
-    reconnection_data.rc_prev_hit = OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.f));
+    reconnection_data.rc_prev_hit = OBJECT_HIT(OBJECT_INFO(INVALID_ID, INVALID_ID), daxa_f32vec3(0.f));
     reconnection_data.rc_prev_wo = daxa_f32vec3(0.f);
     reconnection_data.path_throughput = daxa_f32vec3(0.f);
 }

@@ -154,14 +154,14 @@ void intersect_initiliaze(INTERSECT i)
     i.world_nrm = vec3(0);
     i.wo = vec3(0);
     i.wi = vec3(0);
-    i.instance_hit = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
+    i.instance_hit = OBJECT_INFO(INVALID_ID, INVALID_ID);
     i.material_idx = MAX_MATERIALS;
     i.mat = mat;
 }
 
 daxa_b32 instance_hit_valid(OBJECT_INFO instance_hit)
 {
-    return instance_hit.instance_id < MAX_INSTANCES && instance_hit.primitive_id < MAX_PRIMITIVES;
+    return instance_hit.instance_id < INVALID_ID && instance_hit.primitive_id < INVALID_ID;
 }
 
 
@@ -498,7 +498,7 @@ void packed_intersection_info(Ray ray,
  */
 daxa_b32 instance_hit_exists(const OBJECT_INFO instance_hit)
 {
-  return instance_hit.instance_id < MAX_INSTANCES && instance_hit.primitive_id < MAX_PRIMITIVES;
+  return instance_hit.instance_id < INVALID_ID && instance_hit.primitive_id < INVALID_ID;
 }
 
 daxa_b32 is_valid_geometry(const INTERSECT central_intersecion, const INTERSECT neighbor_intersection, const daxa_f32vec3 camera_pos) {
