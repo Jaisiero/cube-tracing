@@ -396,7 +396,6 @@ private:
     std::queue<TASK> task_queue = {};
 
     // this queue is used to store the tasks that have been processed
-    // TODO: undo tasks in the future?
     std::stack<TASK> done_task_stack = {};
 
     // used for the worker thread

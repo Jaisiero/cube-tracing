@@ -1,8 +1,9 @@
 #pragma once
 #define DAXA_RAY_TRACING 1
 #extension GL_EXT_ray_tracing : enable
-#include <daxa/daxa.inl>
 #include "shared.inl"
+#include <daxa/daxa.inl>
+
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 
@@ -48,7 +49,6 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
 #define MIN_COS_THETA 1e-6f
 
-
 // TODO: M by parameter?
 const daxa_u32 MIN_RIS_POINT_SAMPLE_COUNT = 1;
 const daxa_u32 MAX_RIS_POINT_SAMPLE_COUNT = 4;
@@ -80,8 +80,6 @@ const daxa_b32 COMPUTE_ENVIRONMENT_LIGHT = true;
 const daxa_i32 NEIGHBOR_COUNT = 3;
 const daxa_i32 NEIGHBOR_RADIUS = 1;
 
-
-
 // PATH FLAGS
 const daxa_u32 PATH_FLAG_ACTIVE = 0x1;
 const daxa_u32 PATH_FLAG_HIT = 0x2;
@@ -97,73 +95,109 @@ const daxa_u32 PATH_FLAG_FREE_PATH = 0x400;
 const daxa_u32 PATH_FLAG_SPECULAR_BOUNCE = 0x800;
 const daxa_u32 PATH_FLAG_SPECULAR_PRIMARY_HIT = 0x1000;
 
-
 // BOUNCE TYPES
 const daxa_u32 BOUNCE_TYPE_DIFFUSE = 0;
 const daxa_u32 BOUNCE_TYPE_SPECULAR = 1;
 // const daxa_u32 BOUNCE_TYPE_TRANSMISSION = 2;
 // const daxa_u32 BOUNCE_TYPE_VOLUME = 3;
 
-
 // SHIFT MAPPING
 const daxa_u32 SHIFT_MAPPING_RECONNECTION = 0;
 const daxa_u32 SHIFT_MAPPING_RANDOM_REPLAY = 1;
 const daxa_u32 SHIFT_MAPPING_HYBRID = 2;
 
-
-struct SCENE_PARAMS{
-    daxa_u32 light_count;
-    daxa_u32 object_count;
-    daxa_u32 max_depth;
-    daxa_b32 temporal_update_for_dynamic_scene;
-    daxa_u32 shift_mapping;
-    daxa_u32 stategy_flags;
-    daxa_b32 distance_based_rejection;
-    daxa_f32 near_field_distance;
-    daxa_b32 roughness_based_rejection;
-    daxa_f32 roughness_threshold;
-    daxa_b32 reject_based_on_jacobian;
-    daxa_f32 jacobian_rejection_threshold;
-    daxa_b32 use_russian_roulette;
-    daxa_b32 compute_environment_light;
-    daxa_u32 neighbor_count;
-    daxa_i32 neighbor_radius;
+struct SCENE_PARAMS {
+  daxa_u32 light_count;
+  daxa_u32 object_count;
+  daxa_u32 max_depth;
+  daxa_b32 temporal_update_for_dynamic_scene;
+  daxa_u32 shift_mapping;
+  daxa_u32 stategy_flags;
+  daxa_b32 distance_based_rejection;
+  daxa_f32 near_field_distance;
+  daxa_b32 roughness_based_rejection;
+  daxa_f32 roughness_threshold;
+  daxa_b32 reject_based_on_jacobian;
+  daxa_f32 jacobian_rejection_threshold;
+  daxa_b32 use_russian_roulette;
+  daxa_b32 compute_environment_light;
+  daxa_u32 neighbor_count;
+  daxa_i32 neighbor_radius;
 };
 
+layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {
+  INSTANCE instances[];
+}; // Positions of an object
+layout(buffer_reference, scalar) buffer REMAPPED_PRIMITIVE_BUFFER {
+  daxa_u32 primitives[];
+}; // Primitive data
+layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {
+  PRIMITIVE primitives[];
+}; // Primitive data
+layout(buffer_reference, scalar) buffer AABB_BUFFER {
+  AABB aabbs[];
+}; // Positions of a primitive
+layout(buffer_reference, scalar) buffer MATERIAL_BUFFER {
+  MATERIAL materials[];
+}; // Materials
+layout(buffer_reference, scalar) buffer POINT_LIGHT_BUFFER {
+  LIGHT point_lights[];
+}; // Lights
+layout(buffer_reference, scalar) buffer ENV_LIGHT_BUFFER {
+  LIGHT env_lights[];
+}; // Environment lights
+layout(buffer_reference, scalar) buffer CUBE_LIGHT_BUFFER {
+  LIGHT cube_lights[];
+}; // Cube lights
+layout(buffer_reference, scalar) buffer REMAPPED_CUBE_LIGHT_BUFFER {
+  daxa_u32 lights[];
+}; // Primitive data
+layout(buffer_reference, scalar) buffer LIGHT_CONFIG_BUFFER {
+  LIGHT_CONFIG light_config;
+}; // Lights
 
-layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[]; }; // Positions of an object
-layout(buffer_reference, scalar) buffer REMAPPED_PRIMITIVE_BUFFER {daxa_u32 primitives[]; }; // Primitive data
-layout(buffer_reference, scalar) buffer PRIMITIVE_BUFFER {PRIMITIVE primitives[]; }; // Primitive data
-layout(buffer_reference, scalar) buffer AABB_BUFFER {AABB aabbs[]; }; // Positions of a primitive
-layout(buffer_reference, scalar) buffer MATERIAL_BUFFER {MATERIAL materials[]; }; // Materials
-layout(buffer_reference, scalar) buffer POINT_LIGHT_BUFFER {LIGHT point_lights[]; }; // Lights
-layout(buffer_reference, scalar) buffer ENV_LIGHT_BUFFER {LIGHT env_lights[]; }; // Environment lights
-layout(buffer_reference, scalar) buffer CUBE_LIGHT_BUFFER {LIGHT cube_lights[]; }; // Cube lights
-layout(buffer_reference, scalar) buffer REMAPPED_CUBE_LIGHT_BUFFER {daxa_u32 lights[]; }; // Primitive data
-layout(buffer_reference, scalar) buffer LIGHT_CONFIG_BUFFER {LIGHT_CONFIG light_config; }; // Lights
+layout(buffer_reference, scalar) buffer PREV_RESERVOIR_BUFFER {
+  RESERVOIR reservoirs[MAX_RESERVOIRS];
+}; // Reservoirs from the previous frame
+layout(buffer_reference, scalar) buffer INT_RESERVOIR_BUFFER {
+  RESERVOIR reservoirs[MAX_RESERVOIRS];
+}; // Intermediate reservoirs
+layout(buffer_reference, scalar) buffer RESERVOIR_BUFFER {
+  RESERVOIR reservoirs[MAX_RESERVOIRS];
+}; // Reservoirs from the current frame
+layout(buffer_reference, scalar) buffer VELOCITY_BUFFER {
+  VELOCITY velocities[MAX_RESERVOIRS];
+}; // Velocities
+layout(buffer_reference, scalar) buffer PREV_DI_BUFFER {
+  DIRECT_ILLUMINATION_INFO di_info[MAX_RESERVOIRS];
+}; // Direct illumination info
+layout(buffer_reference, scalar) buffer DI_BUFFER {
+  DIRECT_ILLUMINATION_INFO di_info[MAX_RESERVOIRS];
+}; // Direct illumination info
 
-layout(buffer_reference, scalar) buffer PREV_RESERVOIR_BUFFER {RESERVOIR reservoirs[MAX_RESERVOIRS]; }; // Reservoirs from the previous frame
-layout(buffer_reference, scalar) buffer INT_RESERVOIR_BUFFER {RESERVOIR reservoirs[MAX_RESERVOIRS]; }; // Intermediate reservoirs
-layout(buffer_reference, scalar) buffer RESERVOIR_BUFFER {RESERVOIR reservoirs[MAX_RESERVOIRS]; }; // Reservoirs from the current frame
-layout(buffer_reference, scalar) buffer VELOCITY_BUFFER {VELOCITY velocities[MAX_RESERVOIRS]; }; // Velocities
-layout(buffer_reference, scalar) buffer PREV_DI_BUFFER {DIRECT_ILLUMINATION_INFO di_info[MAX_RESERVOIRS]; }; // Direct illumination info
-layout(buffer_reference, scalar) buffer DI_BUFFER {DIRECT_ILLUMINATION_INFO di_info[MAX_RESERVOIRS]; }; // Direct illumination info
+layout(buffer_reference, scalar) buffer INDIRECT_COLOR_BUFFER {
+  daxa_f32vec3 colors[MAX_RESERVOIRS];
+}; // Indirect color
 
+layout(buffer_reference, scalar) buffer PIXEL_RECONNECTION_DATA_BUFFER {
+  PIXEL_RECONNECTION_DATA reconnections[MAX_RESERVOIRS];
+}; // Pixel reconnection data
+layout(buffer_reference, scalar) buffer OUTPUT_PATH_RESERVOIR_BUFFER {
+  PATH_RESERVOIR path_reservoirs[MAX_RESERVOIRS];
+}; // Path reservoirs
+layout(buffer_reference, scalar) buffer TEMPORAL_PATH_RESERVOIR_BUFFER {
+  PATH_RESERVOIR path_reservoirs[MAX_RESERVOIRS];
+}; // Path reservoirs
 
-layout(buffer_reference, scalar) buffer INDIRECT_COLOR_BUFFER {daxa_f32vec3 colors[MAX_RESERVOIRS]; }; // Indirect color
-
-
-layout(buffer_reference, scalar) buffer PIXEL_RECONNECTION_DATA_BUFFER {PIXEL_RECONNECTION_DATA reconnections[MAX_RESERVOIRS]; }; // Pixel reconnection data
-layout(buffer_reference, scalar) buffer OUTPUT_PATH_RESERVOIR_BUFFER {PATH_RESERVOIR path_reservoirs[MAX_RESERVOIRS]; }; // Path reservoirs
-layout(buffer_reference, scalar) buffer TEMPORAL_PATH_RESERVOIR_BUFFER {PATH_RESERVOIR path_reservoirs[MAX_RESERVOIRS]; }; // Path reservoirs
-
-
-layout(buffer_reference, scalar) buffer BRUSH_COUNTER_BUFFER {BRUSH_COUNTER brush_counter; }; // Brush counter
-layout(buffer_reference, scalar) buffer INSTANCE_BITMASK_BUFFER {daxa_u32 instance_bitmask[]; }; // Instance bitmask
-layout(buffer_reference, scalar) buffer PRIMITIVE_BITMASK_BUFFER {daxa_u32 primitive_bitmask[]; }; // Primitive bitmask
-
-
-
+layout(buffer_reference, scalar) buffer BRUSH_COUNTER_BUFFER {
+  BRUSH_COUNTER brush_counter;
+}; // Brush counter
+layout(buffer_reference, scalar) buffer INSTANCE_BITMASK_BUFFER {
+  daxa_u32 instance_bitmask[];
+}; // Instance bitmask
+layout(buffer_reference, scalar) buffer PRIMITIVE_BITMASK_BUFFER {
+  daxa_u32 primitive_bitmask[];
+}; // Primitive bitmask
 
 Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size,
                                daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj,
@@ -191,20 +225,23 @@ Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size,
   return ray;
 }
 
-
-daxa_u32 get_current_pixel_warp(const daxa_i32vec2 index, const daxa_u32vec2 rt_size) {
+daxa_u32 get_current_pixel_warp(const daxa_i32vec2 index,
+                                const daxa_u32vec2 rt_size) {
   // Calculating the warp index in each dimension
-    daxa_u32 warp_index_X = index.x / 32; // Divide por 32 para obtener el índice de warp
-    daxa_u32 warp_index_Y = index.y / 32;
-    // uint warp_index_Z = index.z / 32;
+  daxa_u32 warp_index_X =
+      index.x / 32; // Divide por 32 para obtener el índice de warp
+  daxa_u32 warp_index_Y = index.y / 32;
+  // uint warp_index_Z = index.z / 32;
 
-    // Number of warps in each dimension
-    daxa_u32 num_warps_X = (rt_size.x + 31) / 32; // Redondea hacia arriba al siguiente múltiplo de 32
-    // uint num_warps_Y = (rt_size.y + 31) / 32;
-    // uint num_warps_Z = (rt_size.z + 31) / 32;
+  // Number of warps in each dimension
+  daxa_u32 num_warps_X =
+      (rt_size.x + 31) /
+      32; // Redondea hacia arriba al siguiente múltiplo de 32
+  // uint num_warps_Y = (rt_size.y + 31) / 32;
+  // uint num_warps_Z = (rt_size.z + 31) / 32;
 
-    // Calculate the linear warp index
-    // uint linear_warp_index = warp_index_X + warp_index_Y * num_warps_X + warp_index_Z * num_warps_X * num_warps_Y;
-    // Calculate the linear warp index
-    return warp_index_X + warp_index_Y * num_warps_X;
+  // Calculate the linear warp index
+  // uint linear_warp_index = warp_index_X + warp_index_Y * num_warps_X +
+  // warp_index_Z * num_warps_X * num_warps_Y; Calculate the linear warp index
+  return warp_index_X + warp_index_Y * num_warps_X;
 }
