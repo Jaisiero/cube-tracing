@@ -902,6 +902,10 @@ bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(uint32_t buffer_index,
         return false;
     }
 
+#if DEBUG == 1
+    std::cout << " delete_light_device_buffer: light_to_delete: " << light_to_delete << ", light_to_exchange: " << light_to_exchange << std::endl;
+#endif // DEBUG
+
     if(light_to_exchange != -1) {
         // Copy light
         cube_lights[light_to_delete] = cube_lights[light_to_exchange];
@@ -909,7 +913,17 @@ bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(uint32_t buffer_index,
         if(light_index_from_exchanged_primitive != -1) {
             // Copy light index from exchanged primitive
             cube_lights[light_index_from_exchanged_primitive].instance_info.primitive_id = primitive_deleted;
+
+#if DEBUG == 1
+            std::cout << "  delete_light_device_buffer: cube_lights[" << light_index_from_exchanged_primitive << "].instance_info.primitive_id: "
+                  << cube_lights[light_index_from_exchanged_primitive].instance_info.primitive_id << std::endl;
+#endif // DEBUG
         }
+
+#if DEBUG == 1
+        std::cout << "  delete_light_device_buffer: cube_lights[" << light_to_delete << "].instance_info.primitive_id: "
+                  << cube_lights[light_to_delete].instance_info.primitive_id << std::endl;
+#endif // DEBUG
     }
 
     return true;
@@ -971,13 +985,21 @@ bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(uint32_t buffer_index,
         std::cerr << "device.is_valid()" << std::endl;
         return false;
     }
-
+        
+#if DEBUG == 1
+    std::cout << "  restore_light_device_buffer: light_to_recover_index: " << light_to_recover_index << ", light_exchanged_index: " << light_exchanged_index << std::endl;
+#endif // DEBUG
     if(light_to_recover_index != -1) {
         
         if(light_exchanged_index != -1) {
             // Restore exchanged light to the original light index
             cube_lights[light_exchanged_index] = cube_lights[light_to_recover_index];
             // cube_lights[light_exchanged_index].instance_info.primitive_id = primivite_exchanged_index;
+            
+#if DEBUG == 1
+            std::cout << "  restore_light_device_buffer: cube_lights[" << light_exchanged_index << "].instance_info.primitive_id: " 
+                << cube_lights[light_exchanged_index].instance_info.primitive_id << std::endl;
+#endif // DEBUG                
         }
 
         if(light_index_from_exchanged_primitive != -1) {
@@ -986,7 +1008,14 @@ bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(uint32_t buffer_index,
 
         // Restore light to recover index
         // NOTE: Decrease backup light count
-        cube_lights[light_to_recover_index] = backup_cube_lights[--backup_cube_light_count];
+        cube_lights[light_to_recover_index] = backup_cube_lights.at(--backup_cube_light_count);
+        
+#if DEBUG == 1
+        std::cout << "  restore_light_device_buffer: cube_lights[" << light_to_recover_index << "].instance_info.primitive_id: " 
+                << cube_lights[light_to_recover_index].instance_info.primitive_id << std::endl;
+#endif // DEBUG
+
+        backup_cube_lights.pop_back();
 
         ++temp_cube_light_count;
     }
