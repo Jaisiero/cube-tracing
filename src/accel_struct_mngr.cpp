@@ -425,11 +425,32 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
         return false;
     }
 
+    size_t multipurpose_staging_buffer_size = std::max(sizeof(AABB) + sizeof(PRIMITIVE), sizeof(uint32_t)) * 2;
+
+    auto multipurpose_staging_buffer = device.create_buffer({
+        .size = multipurpose_staging_buffer_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+        .name = ("primitive_staging_buffer"),
+    });
+    defer { device.destroy_buffer(multipurpose_staging_buffer); };
+
     uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
-
-
-    // Copy last primitive to deleted primitive
+    // Copy primitive to delete
     uint32_t primitive_to_delete = first_primitive_index + primitive_index;
+    // Copy last primitive
+    uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
+
+    // Copy backup of primitive to delete
+    upload_primitives(primitive_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(PRIMITIVE), 0, sizeof(PRIMITIVE), true);
+    // // Copy backup of primitive to exchange
+    // upload_primitives(primitive_buffer[buffer_index], multipurpose_staging_buffer, last_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
+
+    auto *primitive_buffer_ptr = device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
+
+    // Store primitive to delete
+    primitives[primitive_to_delete] = *(reinterpret_cast<PRIMITIVE *>(primitive_buffer_ptr));
+    // Copy primitive to exchange
+    // PRIMITIVE primitive_to_exchange_gpu = *(reinterpret_cast<PRIMITIVE *>(primitive_buffer_ptr + sizeof(PRIMITIVE)));
 
     // Keep track of primitive light to delete
     if (primitives[primitive_to_delete].light_index != -1)
@@ -442,15 +463,6 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
             light_to_exchange = -1;
         }
     }
-
-    size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE);
-
-    auto multipurpose_staging_buffer = device.create_buffer({
-        .size = multipurpose_staging_buffer_size,
-        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-        .name = ("primitive_staging_buffer"),
-    });
-    defer { device.destroy_buffer(multipurpose_staging_buffer); };
 
     // Backup of the deleted primitive and light
     {
@@ -482,7 +494,6 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
     // Copying last primitive to deleted primitive
     if (primitive_to_exchange != primitive_index)
     {
-        uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
         // Copy AABB
         upload_aabb_primitives(aabb_buffer[buffer_index], aabb_buffer[buffer_index], last_primitive_index * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB));
         // Copy primitive
