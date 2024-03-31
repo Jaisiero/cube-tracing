@@ -53,6 +53,7 @@ namespace cubeland
       daxa::Device device = {};
       // swapchain
       daxa::Swapchain swapchain = {};
+      daxa::ImageId current_frame = {};
       daxa::ImageId previous_frame = {};
       // TAA images
       daxa::ImageId taa_image[2] = {};
@@ -125,7 +126,7 @@ namespace cubeland
       std::unique_ptr<ACCEL_STRUCT_MNGR> as_manager = {};
 
       // Create a task graph struct
-      daxa::TaskBuffer task_input_buffer = {};
+      daxa::TaskBufferView task_input_buffer = {};
 
       App() : AppWindow<App>("Cubeland") {}
 
@@ -1061,38 +1062,72 @@ namespace cubeland
 
       void create_frame_task_graph() {
 
-        // frame_task_graph = daxa::TaskGraph({
-        //     .device = device,
-        //     .record_debug_information = true,
-        //     .name = "rendering task graph",
-        // });
+        frame_task_graph = daxa::TaskGraph({
+            .device = device,
+            .record_debug_information = true,
+            .name = "rendering task graph",
+        });
 
-        // auto task_input_buffer = frame_task_graph.create_transient_buffer({
-        //     .size = static_cast<uint32_t>(cam_update_size),
-        //     .name = "task graph tested buffer",
-        // });
+        task_input_buffer = frame_task_graph.create_transient_buffer({
+            .size = static_cast<uint32_t>(cam_buffer_size),
+            .name = "task graph tested buffer",
+        });
 
-        // frame_task_graph.add_task({
-        //     // .uses = {daxa::TaskBufferUse<daxa::TaskBufferAccess::HOST_TRANSFER_WRITE>{task_input_buffer},
-        //     //          daxa::TaskBufferUse<daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ>{task_input_buffer}},
-        //     .attachments = {daxa::inl_attachment(daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ, task_input_buffer)},
-        //     .task = [this](daxa::TaskInterface const &ti)
-        //     {
-        //       camera_view camera_view = {
-        //           .inv_view = glm_mat4_to_daxa_f32mat4x4(get_inverse_view_matrix(camera)),
-        //           .inv_proj = glm_mat4_to_daxa_f32mat4x4(get_inverse_projection_matrix(camera)),
-        //           .defocus_angle = camera.defocus_angle,
-        //           .focus_dist = camera.focus_dist,
-        //       };
+        frame_task_graph.add_task({
+            // .uses = {daxa::TaskBufferUse<daxa::TaskBufferAccess::HOST_TRANSFER_WRITE>{task_input_buffer},
+            //          daxa::TaskBufferUse<daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ>{task_input_buffer}},
+            .attachments = {daxa::inl_attachment(daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ, task_input_buffer)},
+            .task = [this](daxa::TaskInterface const &ti)
+            {
+              current_frame = swapchain.acquire_next_image();
+              if (current_frame.is_empty())
+              {
+                return;
+              }
+              daxa::u32 width = device.info_image(current_frame).value().size.x;
+              daxa::u32 height = device.info_image(current_frame).value().size.y;
 
-        //       // NOTE: Vulkan has inverted y axis in NDC
-        //       camera_view.inv_proj.y.y *= -1;
+              camera_set_aspect(camera, width, height);
 
-        //       auto *buffer_ptr = task_buffer.get_host_address_as<uint32_t>(ti.get(task_input_buffer).ids[0]).value();
-        //       std::memcpy(buffer_ptr, &camera_view, cam_update_size);
-        //     },
-        //     .name = "camera host transfer buffer",
-        // });
+              camera_view camera_view = {
+                  .inv_view = glm_mat4_to_daxa_f32mat4x4(get_inverse_view_matrix(camera)),
+                  .inv_proj = glm_mat4_to_daxa_f32mat4x4(get_inverse_projection_matrix(camera)),
+                  .defocus_angle = camera.defocus_angle,
+                  .focus_dist = camera.focus_dist,
+              };
+
+              // NOTE: Vulkan has inverted y axis in NDC
+              camera_view.inv_proj.y.y *= -1;
+
+              auto cam_staging_buffer = ti.get(task_input_buffer).ids[0];
+
+              auto *buffer_ptr = device.get_host_address_as<uint32_t>(cam_staging_buffer).value();
+              std::memcpy(buffer_ptr, &camera_view, cam_update_size);
+
+              ti.recorder.copy_buffer_to_buffer({
+                  .src_buffer = cam_staging_buffer,
+                  .dst_buffer = cam_buffer,
+                  .size = cam_buffer_size - previous_matrices,
+              });
+
+              // ti.recorder.copy_buffer_to_buffer(
+              // {
+              //     .src_buffer = status_staging_buffer,
+              //     .dst_buffer = status_buffer,
+              //     .size = status_buffer_size,
+              // });
+
+              ti.recorder.pipeline_barrier({
+                  .src_access = daxa::AccessConsts::TRANSFER_WRITE,
+                  .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
+              });
+            },
+            .name = "camera host transfer buffer",
+        });
+
+        frame_task_graph.submit({});
+        frame_task_graph.complete({});
+        frame_task_graph.execute({});
       }
 
       void initialize()
@@ -1140,7 +1175,7 @@ namespace cubeland
 
         create_pipeline();
 
-        create_frame_task_graph();
+        // create_frame_task_graph();
       }
 
       auto update() -> bool
@@ -1179,8 +1214,8 @@ namespace cubeland
 
       void draw()
       {
-        auto swapchain_image = swapchain.acquire_next_image();
-        if (swapchain_image.is_empty())
+        current_frame = swapchain.acquire_next_image();
+        if (current_frame.is_empty())
         {
           return;
         }
@@ -1188,8 +1223,8 @@ namespace cubeland
             .name = ("recorder (clearcolor)"),
         });
 
-        daxa::u32 width = device.info_image(swapchain_image).value().size.x;
-        daxa::u32 height = device.info_image(swapchain_image).value().size.y;
+        daxa::u32 width = device.info_image(current_frame).value().size.x;
+        daxa::u32 height = device.info_image(current_frame).value().size.y;
 
         camera_set_aspect(camera, width, height);
 
@@ -1226,7 +1261,7 @@ namespace cubeland
           status.num_accumulated_frames = 0;
         }
 
-        auto swapchain_image_view = swapchain_image.default_view();
+        auto swapchain_image_view = current_frame.default_view();
         auto previous_swapchain_image_view = previous_frame.is_empty() ? swapchain_image_view : previous_frame.default_view();
         auto taa_image_view = taa_image[status.frame_number % 2].default_view();
         auto previous_taa_image_view = taa_image[(status.frame_number + 1) % 2].default_view();
@@ -1294,11 +1329,11 @@ namespace cubeland
         });
 
         recorder.copy_buffer_to_buffer(
-            {
-                .src_buffer = status_staging_buffer,
-                .dst_buffer = status_buffer,
-                .size = status_buffer_size,
-            });
+        {
+            .src_buffer = status_staging_buffer,
+            .dst_buffer = status_buffer,
+            .size = status_buffer_size,
+        });
 
         recorder.pipeline_barrier({
             .src_access = daxa::AccessConsts::TRANSFER_WRITE,
@@ -1309,7 +1344,7 @@ namespace cubeland
             .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
             .src_layout = daxa::ImageLayout::UNDEFINED,
             .dst_layout = daxa::ImageLayout::GENERAL,
-            .image_id = swapchain_image,
+            .image_id = current_frame,
         });
 
         recorder.set_pipeline(*rt_pipeline);
@@ -1445,7 +1480,7 @@ namespace cubeland
             .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
             .src_layout = daxa::ImageLayout::GENERAL,
             .dst_layout = daxa::ImageLayout::PRESENT_SRC,
-            .image_id = swapchain_image,
+            .image_id = current_frame,
         });
 
         auto executalbe_commands = recorder.complete_current_commands();
@@ -1470,7 +1505,7 @@ namespace cubeland
         // Update/restore status
         status.frame_number++;
         status.num_accumulated_frames++;
-        previous_frame = swapchain_image;
+        previous_frame = current_frame;
       }
 
       void download_gpu_info()
@@ -1545,7 +1580,7 @@ namespace cubeland
           }
           break;
         }
-        case -1:
+        case static_cast<u32>(-1):
         {
           if (camera_get_shift_status(camera))
           {
