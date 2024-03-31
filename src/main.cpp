@@ -46,7 +46,7 @@ namespace cubeland
       daxa_b32 activate_sun_light = false;
       daxa_b32 building_mode = false;
 
-      daxa::TaskGraph frame_task_graph;
+      daxa::TaskGraph input_task_graph;
 
       // Vulkan objects
       daxa::Instance daxa_ctx = {};
@@ -67,6 +67,7 @@ namespace cubeland
       size_t light_config_buffer_size = sizeof(LIGHT_CONFIG);
 
       daxa::BufferId cam_buffer = {};
+      daxa::BufferId staging_cam_buffer = {};
       size_t cam_buffer_size = sizeof(camera_view);
       size_t previous_matrices = sizeof(daxa_f32mat4x4) * 2;
       size_t cam_update_size = cam_buffer_size - previous_matrices;
@@ -126,7 +127,8 @@ namespace cubeland
       std::unique_ptr<ACCEL_STRUCT_MNGR> as_manager = {};
 
       // Create a task graph struct
-      daxa::TaskBufferView task_input_buffer = {};
+      daxa::TaskBuffer task_input_buffer = {};
+      daxa::TaskBuffer cam_task_input_buffer = {};
 
       App() : AppWindow<App>("Cubeland") {}
 
@@ -140,6 +142,7 @@ namespace cubeland
           as_manager->destroy();
           device.destroy_buffer(light_config_buffer);
           device.destroy_buffer(cam_buffer);
+          device.destroy_buffer(staging_cam_buffer);
           device.destroy_buffer(material_buffer);
           device.destroy_buffer(point_light_buffer);
           device.destroy_buffer(env_light_buffer);
@@ -899,6 +902,12 @@ namespace cubeland
             .name = ("cam_buffer"),
         });
 
+        staging_cam_buffer = device.create_buffer(daxa::BufferInfo{
+            .size = cam_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = ("staging_cam_buffer"),
+        });
+
         status_buffer = device.create_buffer(daxa::BufferInfo{
             .size = status_buffer_size,
             .name = ("status_buffer"),
@@ -1060,30 +1069,37 @@ namespace cubeland
       }
 
 
-      void create_frame_task_graph() {
+      void input_task_graph_create() {
 
-        frame_task_graph = daxa::TaskGraph({
+        input_task_graph = daxa::TaskGraph({
             .device = device,
+            .swapchain = swapchain,
             .record_debug_information = true,
             .name = "rendering task graph",
         });
 
-        task_input_buffer = frame_task_graph.create_transient_buffer({
-            .size = static_cast<uint32_t>(cam_buffer_size),
-            .name = "task graph tested buffer",
-        });
+        task_input_buffer = daxa::TaskBuffer{{
+            .initial_buffers = {.buffers = {std::span{&staging_cam_buffer, 1}}},
+            .name = "task_graph_input_staging_camera_buffer",
+        }};
 
-        frame_task_graph.add_task({
-            // .uses = {daxa::TaskBufferUse<daxa::TaskBufferAccess::HOST_TRANSFER_WRITE>{task_input_buffer},
-            //          daxa::TaskBufferUse<daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ>{task_input_buffer}},
-            .attachments = {daxa::inl_attachment(daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ, task_input_buffer)},
+        cam_task_input_buffer = daxa::TaskBuffer{{
+            .initial_buffers = {.buffers = {std::span{&cam_buffer, 1}}},
+            .name = "task_graph_input_camera_buffer",
+        }};
+
+        input_task_graph.use_persistent_buffer(task_input_buffer);
+        input_task_graph.use_persistent_buffer(cam_task_input_buffer);
+
+        std::vector attachments = {
+            daxa::inl_attachment(daxa::TaskBufferAccess::HOST_TRANSFER_WRITE, task_input_buffer),
+            daxa::inl_attachment(daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ, cam_task_input_buffer),
+        };
+
+        input_task_graph.add_task({
+            .attachments = attachments,
             .task = [this](daxa::TaskInterface const &ti)
             {
-              current_frame = swapchain.acquire_next_image();
-              if (current_frame.is_empty())
-              {
-                return;
-              }
               daxa::u32 width = device.info_image(current_frame).value().size.x;
               daxa::u32 height = device.info_image(current_frame).value().size.y;
 
@@ -1101,33 +1117,28 @@ namespace cubeland
 
               auto cam_staging_buffer = ti.get(task_input_buffer).ids[0];
 
+              auto device_task_input_buffer = ti.get(cam_task_input_buffer).ids[0];
+
               auto *buffer_ptr = device.get_host_address_as<uint32_t>(cam_staging_buffer).value();
               std::memcpy(buffer_ptr, &camera_view, cam_update_size);
 
               ti.recorder.copy_buffer_to_buffer({
                   .src_buffer = cam_staging_buffer,
-                  .dst_buffer = cam_buffer,
+                  .dst_buffer = device_task_input_buffer,
                   .size = cam_buffer_size - previous_matrices,
-              });
-
-              // ti.recorder.copy_buffer_to_buffer(
-              // {
-              //     .src_buffer = status_staging_buffer,
-              //     .dst_buffer = status_buffer,
-              //     .size = status_buffer_size,
-              // });
-
-              ti.recorder.pipeline_barrier({
-                  .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-                  .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
               });
             },
             .name = "camera host transfer buffer",
         });
+        input_task_graph.submit({});
+        input_task_graph.complete({});
+      }
 
-        frame_task_graph.submit({});
-        frame_task_graph.complete({});
-        frame_task_graph.execute({});
+      void input_task_graph_execute() {
+        std::cout << "input_task_graph_execute starts" << std::endl;
+        input_task_graph.execute({});
+        device.wait_idle();
+        std::cout << "input_task_graph_execute ends" << std::endl;
       }
 
       void initialize()
@@ -1175,7 +1186,9 @@ namespace cubeland
 
         create_pipeline();
 
-        // create_frame_task_graph();
+        input_task_graph_create();
+
+        std::cout << "Initialization complete" << std::endl;
       }
 
       auto update() -> bool
@@ -1214,11 +1227,14 @@ namespace cubeland
 
       void draw()
       {
+
         current_frame = swapchain.acquire_next_image();
         if (current_frame.is_empty())
         {
           return;
         }
+        input_task_graph_execute();
+
         auto recorder = device.create_command_recorder({
             .name = ("recorder (clearcolor)"),
         });
@@ -1226,32 +1242,33 @@ namespace cubeland
         daxa::u32 width = device.info_image(current_frame).value().size.x;
         daxa::u32 height = device.info_image(current_frame).value().size.y;
 
-        camera_set_aspect(camera, width, height);
+        // camera_set_aspect(camera, width, height);
 
-        camera_view camera_view = {
-            .inv_view = glm_mat4_to_daxa_f32mat4x4(get_inverse_view_matrix(camera)),
-            .inv_proj = glm_mat4_to_daxa_f32mat4x4(get_inverse_projection_matrix(camera)),
-            .defocus_angle = camera.defocus_angle,
-            .focus_dist = camera.focus_dist,
-        };
+        // camera_view camera_view = {
+        //     .inv_view = glm_mat4_to_daxa_f32mat4x4(get_inverse_view_matrix(camera)),
+        //     .inv_proj = glm_mat4_to_daxa_f32mat4x4(get_inverse_projection_matrix(camera)),
+        //     .defocus_angle = camera.defocus_angle,
+        //     .focus_dist = camera.focus_dist,
+        // };
 
-        // NOTE: Vulkan has inverted y axis in NDC
-        camera_view.inv_proj.y.y *= -1;
+        // // NOTE: Vulkan has inverted y axis in NDC
+        // camera_view.inv_proj.y.y *= -1;
 
-        // camera_view.inv_proj.z.z *= -1;
-        // camera_view.inv_proj.w.z *= -1;
+        // // camera_view.inv_proj.z.z *= -1;
+        // // camera_view.inv_proj.w.z *= -1;
 
-        auto cam_staging_buffer = device.create_buffer({
-            .size = cam_update_size,
-            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-            .name = ("cam_staging_buffer"),
-        });
-        defer { device.destroy_buffer(cam_staging_buffer); };
+        // auto cam_staging_buffer = device.create_buffer({
+        //     .size = cam_update_size,
+        //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+        //     .name = ("cam_staging_buffer"),
+        // });
+        // defer { device.destroy_buffer(cam_staging_buffer); };
 
-        auto *buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(cam_staging_buffer).value();
-        std::memcpy(buffer_ptr,
-                    &camera_view,
-                    cam_update_size);
+        // auto *buffer_ptr = device.get_host_address_as<daxa_f32mat4x4>(cam_staging_buffer).value();
+        // std::memcpy(buffer_ptr,
+        //             &camera_view,
+        //             cam_update_size);
+
 
         // Update/restore status
 
@@ -1322,11 +1339,11 @@ namespace cubeland
             .dst_access = daxa::AccessConsts::TRANSFER_READ,
         });
 
-        recorder.copy_buffer_to_buffer({
-            .src_buffer = cam_staging_buffer,
-            .dst_buffer = cam_buffer,
-            .size = cam_buffer_size - previous_matrices,
-        });
+        // recorder.copy_buffer_to_buffer({
+        //     .src_buffer = cam_staging_buffer,
+        //     .dst_buffer = cam_buffer,
+        //     .size = cam_buffer_size - previous_matrices,
+        // });
 
         recorder.copy_buffer_to_buffer(
         {
