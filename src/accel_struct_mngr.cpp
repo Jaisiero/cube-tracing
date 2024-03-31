@@ -1,4 +1,4 @@
-#include "ACCEL_STRUCT_MNGR.hpp"
+#include "accel_struct_mngr.hpp"
 
 using AS_MANAGER_STATUS = ACCEL_STRUCT_MNGR::AS_MANAGER_STATUS;
 

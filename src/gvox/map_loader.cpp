@@ -223,13 +223,13 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                         {
                             uint32_t index = user_state.scene_info.primitive_count;
 
-                            if (user_state.params.axis_direction == AXIS_DIRECTION::Z_BOTTOM_TOP)
+                            if (user_state.params.axis_direction == AXIS_DIRECTION::X_BOTTOM_TOP)
                             {
                                 x_grid = sample_position.x;
                                 y_grid = sample_position.y;
                                 z_grid = sample_position.z;
                             }
-                            else if (user_state.params.axis_direction == AXIS_DIRECTION::X_BOTTOM_TOP)
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::Z_BOTTOM_TOP)
                             {
                                 x_grid = sample_position.y;
                                 y_grid = sample_position.z;
@@ -241,19 +241,19 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                 y_grid = sample_position.x;
                                 z_grid = sample_position.y;
                             }
-                            else if (user_state.params.axis_direction == AXIS_DIRECTION::X_TOP_BOTTOM)
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::Z_TOP_BOTTOM)
                             {
                                 x_grid = sample_position.y;
                                 y_grid = sample_position.z;
                                 z_grid = sample_position.x;
                             }
-                            else if (user_state.params.axis_direction == AXIS_DIRECTION::Y_TOP_BOTTOM)
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::X_TOP_BOTTOM)
                             {
                                 x_grid = sample_position.z;
                                 y_grid = sample_position.x;
                                 z_grid = sample_position.y;
                             }
-                            else if (user_state.params.axis_direction == AXIS_DIRECTION::Z_TOP_BOTTOM)
+                            else if (user_state.params.axis_direction == AXIS_DIRECTION::Y_TOP_BOTTOM)
                             {
                                 x_grid = sample_position.x;
                                 y_grid = sample_position.y;

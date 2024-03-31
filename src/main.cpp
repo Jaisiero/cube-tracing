@@ -16,7 +16,7 @@
 using namespace std::chrono_literals;
 using Clock = std::chrono::high_resolution_clock;
 using TASK = ACCEL_STRUCT_MNGR::TASK;
-namespace tests
+namespace cubeland
 {
   void cubeland_app()
   {
@@ -113,12 +113,6 @@ namespace tests
       daxa::BufferId indirect_color_buffer = {};
       size_t max_indirect_color_buffer_size = sizeof(daxa_f32vec3) * MAX_RESERVOIRS;
 
-      // DEBUGGING
-      // daxa::BufferId hit_distance_buffer = {};
-      // size_t max_hit_distance_buffer_size = sizeof(HIT_DISTANCE) * WIDTH_RES * HEIGHT_RES;
-      // std::vector<HIT_DISTANCE> hit_distances = {};
-      // DEBUGGING
-
       u32 current_material_count = 0;
       std::unique_ptr<MATERIAL[]> materials = {};
 
@@ -126,10 +120,12 @@ namespace tests
       LIGHT *point_lights = nullptr;
       LIGHT *env_lights = nullptr;
 
-      // std::vector<daxa_f32mat4x4> transforms = {};
 
       MapLoader map_loader = {};
       std::unique_ptr<ACCEL_STRUCT_MNGR> as_manager = {};
+
+      // Create a task graph struct
+      daxa::TaskBuffer task_input_buffer = {};
 
       App() : AppWindow<App>("Cubeland") {}
 
@@ -994,32 +990,8 @@ namespace tests
         env_lights = device.get_host_address_as<LIGHT>(env_light_buffer).value();
       }
 
-      void initialize()
-      {
-        daxa_ctx = daxa::create_instance({});
-        device = daxa_ctx.create_device({
-            .selector = [](daxa::DeviceProperties const &prop) -> i32
-            {
-              auto value = daxa::default_device_score(prop);
-              return prop.ray_tracing_properties.has_value() ? value : -1;
-            },
-            .flags = daxa::DeviceFlagBits::RAY_TRACING,
-        });
 
-        bool ray_tracing_supported = device.properties().ray_tracing_properties.has_value();
-        invocation_reorder_mode = device.properties().invocation_reorder_properties.has_value() ? device.properties().invocation_reorder_properties.value().invocation_reorder_mode : 0;
-        std::string ray_tracing_supported_str = ray_tracing_supported ? "available" : "not available";
-
-        std::cout << "Choosen Device: " << device.properties().device_name << ", Ray Tracing: " << ray_tracing_supported_str << ", Invocation Reordering mode: " << invocation_reorder_mode << std::endl;
-
-        if (ray_tracing_supported == false)
-        {
-          std::cout << "Ray tracing is not supported" << std::endl;
-          abort();
-        }
-
-        create_resources();
-
+      void load_map() {
         as_manager = std::make_unique<ACCEL_STRUCT_MNGR>(device);
         as_manager->create(MAX_INSTANCES, MAX_PRIMITIVES, MAX_CUBE_LIGHTS, &light_config->cube_light_count);
 
@@ -1049,7 +1021,7 @@ namespace tests
         map_loader.create_gvox_context();
 
         GvoxModelDataSerialize gvox_map_serialize = {
-            .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
+            .axis_direction = AXIS_DIRECTION::Z_BOTTOM_TOP,
             .max_instance_count = MAX_INSTANCES,
             .instances = as_manager->get_instances(),
             .max_primitive_count = MAX_PRIMITIVES,
@@ -1084,6 +1056,72 @@ namespace tests
             .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
                                     .primitive_count = gvox_map.primitive_count},
         });
+      }
+
+
+      void create_frame_task_graph() {
+
+        // frame_task_graph = daxa::TaskGraph({
+        //     .device = device,
+        //     .record_debug_information = true,
+        //     .name = "rendering task graph",
+        // });
+
+        // auto task_input_buffer = frame_task_graph.create_transient_buffer({
+        //     .size = static_cast<uint32_t>(cam_update_size),
+        //     .name = "task graph tested buffer",
+        // });
+
+        // frame_task_graph.add_task({
+        //     // .uses = {daxa::TaskBufferUse<daxa::TaskBufferAccess::HOST_TRANSFER_WRITE>{task_input_buffer},
+        //     //          daxa::TaskBufferUse<daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ>{task_input_buffer}},
+        //     .attachments = {daxa::inl_attachment(daxa::TaskBufferAccess::RAY_TRACING_SHADER_READ, task_input_buffer)},
+        //     .task = [this](daxa::TaskInterface const &ti)
+        //     {
+        //       camera_view camera_view = {
+        //           .inv_view = glm_mat4_to_daxa_f32mat4x4(get_inverse_view_matrix(camera)),
+        //           .inv_proj = glm_mat4_to_daxa_f32mat4x4(get_inverse_projection_matrix(camera)),
+        //           .defocus_angle = camera.defocus_angle,
+        //           .focus_dist = camera.focus_dist,
+        //       };
+
+        //       // NOTE: Vulkan has inverted y axis in NDC
+        //       camera_view.inv_proj.y.y *= -1;
+
+        //       auto *buffer_ptr = task_buffer.get_host_address_as<uint32_t>(ti.get(task_input_buffer).ids[0]).value();
+        //       std::memcpy(buffer_ptr, &camera_view, cam_update_size);
+        //     },
+        //     .name = "camera host transfer buffer",
+        // });
+      }
+
+      void initialize()
+      {
+        daxa_ctx = daxa::create_instance({});
+        device = daxa_ctx.create_device({
+            .selector = [](daxa::DeviceProperties const &prop) -> i32
+            {
+              auto value = daxa::default_device_score(prop);
+              return prop.ray_tracing_properties.has_value() ? value : -1;
+            },
+            .flags = daxa::DeviceFlagBits::RAY_TRACING,
+        });
+
+        bool ray_tracing_supported = device.properties().ray_tracing_properties.has_value();
+        invocation_reorder_mode = device.properties().invocation_reorder_properties.has_value() ? device.properties().invocation_reorder_properties.value().invocation_reorder_mode : 0;
+        std::string ray_tracing_supported_str = ray_tracing_supported ? "available" : "not available";
+
+        std::cout << "Choosen Device: " << device.properties().device_name << ", Ray Tracing: " << ray_tracing_supported_str << ", Invocation Reordering mode: " << invocation_reorder_mode << std::endl;
+
+        if (ray_tracing_supported == false)
+        {
+          std::cout << "Ray tracing is not supported" << std::endl;
+          abort();
+        }
+
+        create_resources();
+
+        load_map();
 
         // Update the scene
         as_manager->update_scene(true);
@@ -1101,6 +1139,8 @@ namespace tests
         load_reservoirs();
 
         create_pipeline();
+
+        create_frame_task_graph();
       }
 
       auto update() -> bool
@@ -1162,6 +1202,9 @@ namespace tests
 
         // NOTE: Vulkan has inverted y axis in NDC
         camera_view.inv_proj.y.y *= -1;
+
+        // camera_view.inv_proj.z.z *= -1;
+        // camera_view.inv_proj.w.z *= -1;
 
         auto cam_staging_buffer = device.create_buffer({
             .size = cam_update_size,
@@ -1771,10 +1814,10 @@ namespace tests
       }
     }
   }
-} // namespace tests
+} // namespace cubeland
 
 auto main() -> int
 {
-  tests::cubeland_app();
+  cubeland::cubeland_app();
   return 0;
 }
