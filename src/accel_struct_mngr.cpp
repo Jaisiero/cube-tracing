@@ -243,7 +243,7 @@ bool ACCEL_STRUCT_MNGR::destroy() {
     return !initialized;
 }
 
-void ACCEL_STRUCT_MNGR::upload_primitives(daxa::BufferId src_primitive_buffer, 
+void ACCEL_STRUCT_MNGR::copy_buffer(daxa::BufferId src_primitive_buffer, 
     daxa::BufferId dst_primitive_buffer, size_t src_primitive_buffer_offset, 
     size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize)
 {
@@ -293,7 +293,7 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(uint32_t buffer_index, bool synchro
                 instances.get(),
                 instance_buffer_size);
 
-    upload_primitives(instance_staging_buffer, instance_buffer[buffer_index], 0, 0, instance_buffer_size, synchronize);
+    copy_buffer(instance_staging_buffer, instance_buffer[buffer_index], 0, 0, instance_buffer_size, synchronize);
 
     return true;
 }
@@ -333,7 +333,7 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(uint32_t buffer_index, ui
                 primitives.get(),
                 primitive_buffer_size);
 
-    upload_primitives(primitive_staging_buffer, primitive_buffer[buffer_index], primitive_count_offset, primitive_count_offset, primitive_buffer_size);
+    copy_buffer(primitive_staging_buffer, primitive_buffer[buffer_index], primitive_count_offset, primitive_count_offset, primitive_buffer_size);
 
     return true;
 }
@@ -359,33 +359,9 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(uint32_t buffer_index, uint
     }
 
     uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
-    upload_primitives(primitive_buffer[previous_buffer_index], primitive_buffer[buffer_index], primitive_count_offset, primitive_count_offset, primitive_buffer_size);
+    copy_buffer(primitive_buffer[previous_buffer_index], primitive_buffer[buffer_index], primitive_count_offset, primitive_count_offset, primitive_buffer_size);
 
     return true;
-}
-
-void ACCEL_STRUCT_MNGR::upload_aabb_primitives(daxa::BufferId src_abb_buffer, daxa::BufferId dst_aabb_buffer, 
-    size_t src_aabb_buffer_offset, size_t dst_aabb_buffer_offset, size_t aabb_copy_size, bool synchronize)
-{
-    /// Record build commands:
-    auto exec_cmds = [&]()
-    {
-        auto recorder = device.create_command_recorder({});
-
-        recorder.copy_buffer_to_buffer({
-            .src_buffer = src_abb_buffer,
-            .dst_buffer = dst_aabb_buffer,
-            .src_offset = src_aabb_buffer_offset,
-            .dst_offset = dst_aabb_buffer_offset,
-            .size = aabb_copy_size,
-        });
-
-        return recorder.complete_current_commands();
-    }();
-    device.submit_commands({.command_lists = std::array{exec_cmds}});
-    if(synchronize) {
-        device.wait_idle();
-    }
 }
 
 bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count)
@@ -400,7 +376,7 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_
     {
         size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
         size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
-        upload_aabb_primitives(aabb_host_buffer, aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size);
+        copy_buffer(aabb_host_buffer, aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size, true);
 
         if(!upload_primitive_device_buffer(buffer_index, aabb_host_count)) {
             std::cerr << "Failed to load primitives" << std::endl;
@@ -441,9 +417,9 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
     uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
 
     // Copy backup of primitive to delete
-    upload_primitives(primitive_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(PRIMITIVE), 0, sizeof(PRIMITIVE), true);
+    copy_buffer(primitive_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(PRIMITIVE), 0, sizeof(PRIMITIVE), true);
     // // Copy backup of primitive to exchange
-    // upload_primitives(primitive_buffer[buffer_index], multipurpose_staging_buffer, last_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
+    // copy_buffer(primitive_buffer[buffer_index], multipurpose_staging_buffer, last_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
 
     auto *primitive_buffer_ptr = device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
 
@@ -468,9 +444,9 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
     {
 
         // Copy backup of AABB to delete
-        upload_aabb_primitives(aabb_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(AABB), 0, sizeof(AABB));
+        copy_buffer(aabb_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(AABB), 0, sizeof(AABB));
         // Copy backup of primitive to delete
-        upload_primitives(primitive_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(PRIMITIVE), sizeof(AABB), sizeof(PRIMITIVE), true);
+        copy_buffer(primitive_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(PRIMITIVE), sizeof(AABB), sizeof(PRIMITIVE), true);
 
         auto *primitive_buffer_ptr = device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
 
@@ -495,9 +471,9 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
     if (primitive_to_exchange != primitive_index)
     {
         // Copy AABB
-        upload_aabb_primitives(aabb_buffer[buffer_index], aabb_buffer[buffer_index], last_primitive_index * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB));
+        copy_buffer(aabb_buffer[buffer_index], aabb_buffer[buffer_index], last_primitive_index * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB), false);
         // Copy primitive
-        upload_primitives(primitive_buffer[buffer_index], primitive_buffer[buffer_index], last_primitive_index * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
+        copy_buffer(primitive_buffer[buffer_index], primitive_buffer[buffer_index], last_primitive_index * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
 #if DEBUG == 1                    
         std::cout << "  delete_aabb_device_buffer: primitive_to_exchange: " << primitive_to_exchange << ", primitive_index: " << primitive_index << std::endl;
 #endif // DEBUG
@@ -511,13 +487,13 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
             std::memcpy(multipurpose_staging_buffer_ptr,
                         &light_to_delete,
                         sizeof(uint32_t));
-            upload_primitives(multipurpose_staging_buffer,
+            copy_buffer(multipurpose_staging_buffer,
                               primitive_buffer[buffer_index], 0,
                               primitive_index_from_light_to_exchange * sizeof(PRIMITIVE) + sizeof(uint32_t),
                               sizeof(uint32_t));
 
             // Get light of the exchanged primitive
-            upload_primitives(primitive_buffer[buffer_index],
+            copy_buffer(primitive_buffer[buffer_index],
                               multipurpose_staging_buffer,
                               last_primitive_index * sizeof(PRIMITIVE) + sizeof(uint32_t),
                               0,
@@ -567,11 +543,11 @@ bool ACCEL_STRUCT_MNGR::update_remapping_buffer(uint32_t instance_index, uint32_
                 remapped_primitive_indexes,
                 remapped_primitive_buffer_size);
 
-    upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+    copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
     if (primitive_to_exchange != primitive_index)
     {
         uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
-        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
     }
 
     return true;
@@ -606,10 +582,10 @@ bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(uint32_t instance_index, u
                     remapped_light_indexes,
                     remapped_light_buffer_size);
 
-        upload_primitives(remapped_light_staging_buffer, remapping_light_buffer, 0, light_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, 0, light_to_delete * sizeof(uint32_t), sizeof(uint32_t));
         if (light_to_exchange != -1)
         {
-            upload_primitives(remapped_light_staging_buffer, remapping_light_buffer, sizeof(uint32_t), light_to_exchange * sizeof(uint32_t), sizeof(uint32_t));
+            copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, sizeof(uint32_t), light_to_exchange * sizeof(uint32_t), sizeof(uint32_t));
         }
     }
 
@@ -711,11 +687,11 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
         if (primitive_exchanged != primitive_to_recover)
         {
             // Copy back of AABB exchanged to original place
-            upload_aabb_primitives(aabb_buffer[buffer_index],
+            copy_buffer(aabb_buffer[buffer_index],
                                    aabb_buffer[buffer_index], deleted_primitive_index * sizeof(AABB),
-                                   exchanged_primitive_index * sizeof(AABB), sizeof(AABB));
+                                   exchanged_primitive_index * sizeof(AABB), sizeof(AABB), false);
             // Copy back of primitive exchanged to original place
-            upload_primitives(primitive_buffer[buffer_index],
+            copy_buffer(primitive_buffer[buffer_index],
                               primitive_buffer[buffer_index], deleted_primitive_index * sizeof(PRIMITIVE),
                               exchanged_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
 
@@ -731,7 +707,7 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
                 std::memcpy(multipurpose_staging_buffer_ptr + sizeof(AABB) + sizeof(PRIMITIVE),
                             &light_exchanged,
                             sizeof(uint32_t));
-                upload_primitives(multipurpose_staging_buffer,
+                copy_buffer(multipurpose_staging_buffer,
                                 primitive_buffer[buffer_index], sizeof(AABB) + sizeof(PRIMITIVE),
                                 primitive_index_from_light_exchanged * sizeof(PRIMITIVE) + sizeof(uint32_t),
                                 sizeof(uint32_t), true);
@@ -750,11 +726,11 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
                &backup_primitives[backup_primitive_count], sizeof(PRIMITIVE));
 
         // Upload backup of AABB to deleted primitive place
-        upload_aabb_primitives(multipurpose_staging_buffer, aabb_buffer[buffer_index], 0,
+        copy_buffer(multipurpose_staging_buffer, aabb_buffer[buffer_index], 0,
                                deleted_primitive_index * sizeof(AABB), sizeof(AABB));
         // Upload backup of AABB to deleted primitive place
-        upload_primitives(multipurpose_staging_buffer, primitive_buffer[buffer_index],
-                          sizeof(AABB), deleted_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE));
+        copy_buffer(multipurpose_staging_buffer, primitive_buffer[buffer_index],
+                          sizeof(AABB), deleted_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
 
         // Delete backup of AABB
         backup_aabbs.pop_back();
@@ -796,7 +772,7 @@ bool ACCEL_STRUCT_MNGR::restore_remapping_buffer(uint32_t buffer_index, uint32_t
                     sizeof(uint32_t));
 
     
-        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_recover * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_recover * sizeof(uint32_t), sizeof(uint32_t));
     }
 
     return true;
@@ -829,7 +805,7 @@ bool ACCEL_STRUCT_MNGR::restore_cube_light_remapping_buffer(uint32_t buffer_inde
                     sizeof(uint32_t));
 
         // Copy exchanged light index to the recovered light index into device buffer
-        upload_primitives(remapped_light_staging_buffer, remapping_light_buffer, 0, light_to_recover * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, 0, light_to_recover * sizeof(uint32_t), sizeof(uint32_t));
     }
 
 
@@ -859,7 +835,7 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(uint32_t buffer_index, uint32_t 
         size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
         size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
         uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
-        upload_aabb_primitives(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size);
+        copy_buffer(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size, true);
 
         if(!copy_primitive_device_buffer(buffer_index, aabb_host_count)) {
             std::cerr << "Failed to load primitives" << std::endl;
@@ -885,9 +861,9 @@ bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(uint32_t buffer_index, u
     uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
 
     // Copy AABB from previous buffer to current buffer
-    upload_aabb_primitives(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], instance_primitive_to_copy_index * sizeof(AABB), instance_primitive_to_copy_index * sizeof(AABB), sizeof(AABB));
+    copy_buffer(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], instance_primitive_to_copy_index * sizeof(AABB), instance_primitive_to_copy_index * sizeof(AABB), sizeof(AABB));
     // Copy primitive from previous buffer to current buffer
-    upload_primitives(primitive_buffer[previous_buffer_index], primitive_buffer[buffer_index], instance_primitive_to_copy_index * sizeof(PRIMITIVE), instance_primitive_to_copy_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE));
+    copy_buffer(primitive_buffer[previous_buffer_index], primitive_buffer[buffer_index], instance_primitive_to_copy_index * sizeof(PRIMITIVE), instance_primitive_to_copy_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
 
     return true;
 }
@@ -1069,11 +1045,11 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(uint32_t instance_index, uint32_t
                 remapped_primitive_indexes,
                 remapped_primitive_buffer_size);
 
-    upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+    copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
     if (primitive_to_exchange != primitive_index)
     {
         uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
-        upload_primitives(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
     }
 
     return true;
@@ -1466,9 +1442,9 @@ bool ACCEL_STRUCT_MNGR::clear_light_remapping_buffer(uint32_t instance_index, ui
                     remapped_primitive_buffer_size);
 
     
-        upload_primitives(remapped_primitive_staging_buffer, remapping_light_buffer, 0, light_index * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_primitive_staging_buffer, remapping_light_buffer, 0, light_index * sizeof(uint32_t), sizeof(uint32_t));
         if(light_to_exchange != -1) {
-            upload_primitives(remapped_primitive_staging_buffer, remapping_light_buffer, sizeof(uint32_t), light_to_exchange * sizeof(uint32_t), sizeof(uint32_t));
+            copy_buffer(remapped_primitive_staging_buffer, remapping_light_buffer, sizeof(uint32_t), light_to_exchange * sizeof(uint32_t), sizeof(uint32_t));
         }
     }
 
@@ -1786,7 +1762,7 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
     });
     defer { device.destroy_buffer(instance_bitmask_staging_buffer); };
     
-    upload_aabb_primitives(brush_instance_bitmask_buffer, instance_bitmask_staging_buffer, 0, 0, max_instance_bitmask_size, false);
+    copy_buffer(brush_instance_bitmask_buffer, instance_bitmask_staging_buffer, 0, 0, max_instance_bitmask_size, false);
 
     // Bring voxel modifications to host
     auto primitive_bitmask_staging_buffer = device.create_buffer({
@@ -1796,7 +1772,7 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
     });
     defer { device.destroy_buffer(primitive_bitmask_staging_buffer); };
 
-    upload_aabb_primitives(brush_primitive_bitmask_buffer, primitive_bitmask_staging_buffer, 0, 0, max_primitive_bitmask_size);
+    copy_buffer(brush_primitive_bitmask_buffer, primitive_bitmask_staging_buffer, 0, 0, max_primitive_bitmask_size, true);
     
 
     auto *instance_bitmask_buffer_ptr = device.get_host_address_as<uint32_t>(instance_bitmask_staging_buffer).value();
@@ -1852,9 +1828,9 @@ restore_buffers:
 
         std::memset(voxel_modifications_buffer_ptr, 0, max_primitive_bitmask_size);
 
-        upload_aabb_primitives(instance_bitmask_staging_buffer, brush_instance_bitmask_buffer, 0, 0, max_instance_bitmask_size, false);
+        copy_buffer(instance_bitmask_staging_buffer, brush_instance_bitmask_buffer, 0, 0, max_instance_bitmask_size, false);
 
-        upload_aabb_primitives(primitive_bitmask_staging_buffer, brush_primitive_bitmask_buffer, 0, 0, max_primitive_bitmask_size);
+        copy_buffer(primitive_bitmask_staging_buffer, brush_primitive_bitmask_buffer, 0, 0, max_primitive_bitmask_size, true);
     }
 }
 

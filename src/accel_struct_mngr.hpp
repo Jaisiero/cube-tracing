@@ -308,15 +308,13 @@ private:
     
 
     // Updating operations
-    void upload_primitives(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
+    void copy_buffer(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
         size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
     bool upload_all_instances(uint32_t buffer_index, bool synchronize = false);
     bool upload_primitive_device_buffer(uint32_t buffer_index, daxa_u32 primitive_count);
     bool copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count);
 
     // Switching operations
-    void upload_aabb_primitives(daxa::BufferId aabb_staging_buffer, daxa::BufferId aabb_buffer, size_t src_aabb_buffer_offset, 
-        size_t dst_aabb_buffer_offset, size_t aabb_copy_size, bool synchronize = true);
     bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
     bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
 
