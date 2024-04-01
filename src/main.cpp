@@ -26,8 +26,10 @@ namespace tests
       const char *MODEL_PATH = "assets/models/";
       // const char *MAP_NAME = "monu5.vox";
       // const char *MAP_NAME = "monu6.vox";
+      const char *MAP_NAME = "monu7.vox";
       // const char *MAP_NAME = "monu9.vox";
-      const char *MAP_NAME = "room.vox";
+      // const char *MAP_NAME = "room.vox";
+      const char *DEER_NAME = "deer.vox";
       const float day_duration = 60.0f; // Duración de un día en segundos
 
       Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
@@ -497,11 +499,12 @@ namespace tests
         point_lights[0].emissive = daxa_f32vec3(intensity, intensity, intensity);
       }
 
-      daxa_Bool8 load_materials(daxa_Bool8 synchronize)
+      daxa_Bool8 load_materials(uint32_t material_count, daxa_Bool8 synchronize)
       {
         // TODO: Refactor materials copies
-        daxa_u32 material_buffer_size = static_cast<u32>(current_material_count * sizeof(MATERIAL));
-        if (material_buffer_size > max_material_buffer_size)
+        uint32_t material_current_buffer_size = static_cast<u32>(current_material_count * sizeof(MATERIAL));
+        uint32_t material_buffer_size = static_cast<u32>(material_count * sizeof(MATERIAL));
+        if ((material_buffer_size + material_current_buffer_size) > max_material_buffer_size)
         {
           std::cout << "material_buffer_size > max_material_buffer_size" << std::endl;
           abort();
@@ -527,6 +530,7 @@ namespace tests
           recorder.copy_buffer_to_buffer({
               .src_buffer = material_staging_buffer,
               .dst_buffer = material_buffer,
+              .dst_offset = current_material_count * sizeof(MATERIAL),
               .size = material_buffer_size,
           });
 
@@ -537,6 +541,8 @@ namespace tests
         {
           device.wait_idle();
         }
+
+        current_material_count += material_count;
 
         return true;
       }
@@ -614,185 +620,77 @@ namespace tests
                     restir_buffer_size);
       }
 
-      // // TODO: This could be load from a file
-      // daxa_Bool8 create_procedural_blas() {
+      void load_scene() {
+        GvoxModelDataSerialize gvox_map_serialize = {
+            .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
+            .max_instance_count = MAX_INSTANCES - as_manager->get_instance_count(),
+            .instances = as_manager->get_next_instance_address(),
+            .max_primitive_count = MAX_PRIMITIVES - as_manager->get_primitive_count(),
+            .primitives = as_manager->get_next_primitive_address(),
+            .aabbs = as_manager->get_next_aabb_host_address(),
+            .max_material_count = MAX_MATERIALS - current_material_count,
+            .materials = materials.get() + current_material_count,
+            .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
+            .lights = &as_manager->get_cube_lights()[light_config->cube_light_count],
+        };
 
-      //     u32 instance_count_x = (INSTANCE_X_AXIS_COUNT * 2);
-      //     u32 instance_count_z = (INSTANCE_Z_AXIS_COUNT * 2);
+        // load map
+        GvoxModelData gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + MAP_NAME, gvox_map_serialize);
 
-      //     daxa_u32 estimated_instance_count = (instance_count_x * instance_count_z + CLOUD_INSTANCE_COUNT_X) * CHUNK_VOXEL_COUNT;
+        std::cout << "gvox_map: " << MAP_NAME << std::endl;
+        std::cout << "  instances: " << gvox_map.instance_count << std::endl;
+        std::cout << "  primitives: " << gvox_map.primitive_count << std::endl;
+        std::cout << "  materials: " << gvox_map.material_count << std::endl;
 
-      //     if (estimated_instance_count > MAX_INSTANCES)
-      //     {
-      //         std::cout << "estimated_instance_count (" << estimated_instance_count << ") > MAX_INSTANCES (" << MAX_INSTANCES << ")." << std::endl;
-      //         abort();
-      //     }
+        light_config->cube_light_count += gvox_map.light_count;
 
-      //     if (estimated_instance_count == 0)
-      //     {
-      //         std::cout << "estimated_instance_count == 0" << std::endl;
-      //         abort();
-      //     }
+        load_materials(gvox_map.material_count, true);
 
-      //     transforms.reserve(estimated_instance_count);
+        as_manager->task_queue_add(TASK{
+            .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
+            .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
+                                    .primitive_count = gvox_map.primitive_count},
+        });
 
-      //     // Centered around 0, 0, 0 positioning instances like a mirror
-      //     f32 x_axis_initial_position = ((INSTANCE_X_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
-      //     f32 z_axis_initial_position = ((INSTANCE_Z_AXIS_COUNT)*AXIS_DISPLACEMENT / 2);
 
-      //     for (i32 x_instance = -INSTANCE_X_AXIS_COUNT; x_instance < (i32)INSTANCE_X_AXIS_COUNT; x_instance++)
-      //     {
-      //         auto x_instance_displacement = (x_instance * (AXIS_DISPLACEMENT));
-      //         for (i32 z_instance = -INSTANCE_Z_AXIS_COUNT; z_instance < (i32)INSTANCE_Z_AXIS_COUNT; z_instance++)
-      //         {
-      //             auto z_instance_displacement = (z_instance * (AXIS_DISPLACEMENT));
-      //             for (u32 z = 0; z < VOXEL_COUNT_BY_AXIS; z++)
-      //             {
-      //                 for (u32 y = 0; y < VOXEL_COUNT_BY_AXIS; y++)
-      //                 {
-      //                     for (u32 x = 0; x < VOXEL_COUNT_BY_AXIS; x++)
-      //                     {
-      //                         // if(random_float(0.0, 1.0) > 0.95) {
-      //                         if (random_float(0.0, 1.0) > 0.75)
-      //                         {
-      //                             auto position_instance = generate_center_by_coord(x, y, z, CHUNK_EXTENT);
-      //                             transforms.push_back(daxa_f32mat4x4{
-      //                                 {1, 0, 0, x_instance_displacement + position_instance.x},
-      //                                 {0, 1, 0, position_instance.y},
-      //                                 {0, 0, 1, z_instance_displacement + position_instance.z},
-      //                                 {0, 0, 0, 1},
-      //                             });
-      //                         }
-      //                     }
-      //                 }
-      //             }
-      //         }
-      //     }
-      //     // transforms.push_back(daxa_f32mat4x4{
-      //     //     {1, 0, 0, -AXIS_DISPLACEMENT},
-      //     //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_Z_AXIS_COUNT},
-      //     //     {0, 0, 1, 0},
-      //     //     {0, 0, 0, 1},
-      //     // });
+        // GvoxModelDataSerialize gvox_map_serialize = {
+        //     .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
+        //     .max_instance_count = MAX_INSTANCES - as_manager->get_instance_count(),
+        //     .instances = as_manager->get_next_instance_address(),
+        //     .max_primitive_count = MAX_PRIMITIVES - as_manager->get_primitive_count(),
+        //     .primitives = as_manager->get_next_primitive_address(),
+        //     .aabbs = as_manager->get_next_aabb_host_address(),
+        //     .max_material_count = MAX_MATERIALS - current_material_count,
+        //     .materials = materials.get() + current_material_count,
+        //     .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
+        //     .lights = &as_manager->get_cube_lights()[light_config->cube_light_count],
+        // };
 
-      //     // transforms.push_back(daxa_f32mat4x4{
-      //     //     {1, 0, 0, 0},
-      //     //     {0, 1, 0, AXIS_DISPLACEMENT  * INSTANCE_X_AXIS_COUNT},
-      //     //     {0, 0, 1, 0},
-      //     //     {0, 0, 0, 1},
-      //     // });
+        // // load map
+        // gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + DEER_NAME, gvox_map_serialize);
 
-      //     current_instance_count[0] = transforms.size();
+        // std::cout << "gvox_map" << std::endl;
+        // std::cout << "  instances: " << gvox_map.instance_count << std::endl;
+        // std::cout << "  primitives: " << gvox_map.primitive_count << std::endl;
+        // std::cout << "  materials: " << gvox_map.material_count << std::endl;
 
-      //     // upload_textures();
+        // light_config->cube_light_count += gvox_map.light_count;
 
-      //     return true;
-      // }
+        // load_materials(gvox_map.material_count, true);
 
-      // bool create_materials() {
+        // as_manager->task_queue_add(TASK{
+        //     .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
+        //     .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
+        //                             .primitive_count = gvox_map.primitive_count},
+        // });
 
-      //     current_material_count = 0;
+        // Update the scene
+        as_manager->update_scene(true);
 
-      //     for (u32 i = 0; i < LAMBERTIAN_MATERIAL_COUNT; i++)
-      //     {
 
-      //         daxa_u32 texture_id = MAX_TEXTURES;
-      //         // daxa_f32 random_float_value = random_float(0.0, 1.0);
-      //         // if (random_float_value > 0.80)
-      //         // {
-      //         //     texture_id = random_uint(0, current_texture_count - 1);
-      //         // }
 
-      //         materials[current_material_count++] = MATERIAL{
-      //             .type = MATERIAL_TYPE_LAMBERTIAN,
-      //             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .transmittance = {0.0f, 0.0f, 0.0f},
-      //             .emission = {0.0, 0.0, 0.0},
-      //             .shininess = random_float(0.0, 4.0),
-      //             .roughness = random_float(0.0, 1.0),
-      //             .ior = random_float(1.0, 2.65),
-      //             // .dissolve = (-1/random_float(0.1, 1.0)),
-      //             // .dissolve = (random_float(0.1, 1.0)),
-      //             .dissolve = 1.0,
-      //             .illum = 3
-      //         };
-      //     }
+      }
 
-      //     for (u32 i = 0; i < METAL_MATERIAL_COUNT; i++)
-      //     {
-      //         materials[current_material_count++] = MATERIAL{
-      //             .type = MATERIAL_TYPE_METAL,
-      //             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .transmittance = {0.0f, 0.0f, 0.0f},
-      //             .emission = {0.0, 0.0, 0.0},
-      //             .shininess = random_float(0.0, 4.0),
-      //             .roughness = random_float(0.0, 1.0),
-      //             .ior = random_float(1.0, 2.65),
-      //             // .dissolve = (-1/random_float(0.1, 1.0)),
-      //             // .dissolve = (random_float(0.1, 1.0)),
-      //             .dissolve = 1.0,
-      //             .illum = 3
-      //         };
-      //     }
-
-      //     for (u32 i = 0; i < DIALECTRIC_MATERIAL_COUNT; i++)
-      //     {
-      //         materials[current_material_count++] = MATERIAL{
-      //             .type = MATERIAL_TYPE_DIELECTRIC,
-      //             .ambient = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .specular = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .transmittance = {0.0f, 0.0f, 0.0f},
-      //             .emission = {0.0, 0.0, 0.0},
-      //             .shininess = random_float(0.0, 4.0),
-      //             .roughness = random_float(0.0, 1.0),
-      //             .ior = random_float(1.0, 2.65),
-      //             .dissolve = 1.0,
-      //             .illum = 3
-      //         };
-      //     }
-
-      //     for (u32 i = 0; i < EMISSIVE_MATERIAL_COUNT; i++)
-      //     {
-      //         materials[current_material_count++] = MATERIAL{
-      //             .type = MATERIAL_TYPE_LAMBERTIAN,
-      //             .ambient = {1.0, 1.0, 1.0},
-      //             .diffuse = {random_float(0.001, 0.999), random_float(0.001, 0.999), random_float(0.001, 0.999)},
-      //             .specular = {1.0, 1.0, 1.0},
-      //             .transmittance = {0.0, 0.0, 0.0},
-      //             .emission = {random_float(10.0, 20.0), random_float(10.0, 20.0), random_float(10.0, 20.0)},
-      //             .shininess = random_float(0.0, 4.0),
-      //             .roughness = random_float(0.0, 1.0),
-      //             .ior = random_float(1.0, 2.65),
-      //             .dissolve = 1.0,
-      //             .illum = 3
-      //         };
-      //     }
-
-      //     for (u32 i = 0; i < CONSTANT_MEDIUM_MATERIAL_COUNT; i++)
-      //     {
-      //         materials[current_material_count++] = MATERIAL{
-      //             .type = MATERIAL_TYPE_CONSTANT_MEDIUM,
-      //             .ambient = {0.999, 0.999, 0.999},
-      //             .diffuse = {0.999, 0.999, 0.999},
-      //             .specular = {0.999, 0.999, 0.999},
-      //             .transmittance = {random_float(0.9, 0.999), random_float(0.9, 0.999), random_float(0.9, 0.999)},
-      //             .emission = {0.0, 0.0, 0.0},
-      //             .shininess = random_float(0.0, 4.0),
-      //             .roughness = random_float(0.0, 1.0),
-      //             .ior = random_float(1.0, 2.65),
-      //             // .dissolve = (-1.0f/random_float(0.1, 0.5)),
-      //             .dissolve = random_float(0.1, 0.3),
-      //             .illum = 4
-      //         };
-      //     }
-
-      //     return true;
-      // }
 
       void initialize()
       {
@@ -993,45 +891,13 @@ namespace tests
         // Create a new context for the gvox library
         map_loader.create_gvox_context();
 
-        GvoxModelDataSerialize gvox_map_serialize = {
-            .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
-            .max_instance_count = MAX_INSTANCES,
-            .instances = as_manager->get_instances(),
-            .max_primitive_count = MAX_PRIMITIVES,
-            .primitives = as_manager->get_primitives(),
-            .aabbs = device.get_host_address_as<AABB>(as_manager->get_aabb_host_buffer()).value(),
-            .max_material_count = MAX_MATERIALS,
-            .materials = materials.get(),
-            .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
-            .lights = &as_manager->get_cube_lights()[light_config->cube_light_count],
-        };
-
-        // load map
-        GvoxModelData gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + MAP_NAME, gvox_map_serialize);
-
-        std::cout << "gvox_map" << std::endl;
-        std::cout << "  instances: " << gvox_map.instance_count << std::endl;
-        std::cout << "  primitives: " << gvox_map.primitive_count << std::endl;
-        std::cout << "  materials: " << gvox_map.material_count << std::endl;
-
-        current_material_count += gvox_map.material_count;
-        light_config->cube_light_count += gvox_map.light_count;
+        load_scene();
+        
 
         if (light_config->cube_light_count > 0)
         {
           light_config->brdf_count = BRDF_SAMPLING_COUNT;
         }
-
-        load_materials(false);
-
-        as_manager->task_queue_add(TASK{
-            .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
-            .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
-                                    .primitive_count = gvox_map.primitive_count},
-        });
-
-        // Update the scene
-        as_manager->update_scene(true);
         
         upload_world();
         upload_restir();
@@ -1665,103 +1531,6 @@ namespace tests
       void download_gpu_info()
       {
         as_manager->check_voxel_modifications();
-
-#if (PERFECT_PIXEL_ON == 1)
-        // // Some Device to Host copy here
-        // auto status_output_staging_buffer = device.create_buffer({
-        //     .size = max_status_output_buffer_size,
-        //     .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
-        //     .name = ("status_output_staging_buffer"),
-        // });
-        // defer { device.destroy_buffer(status_output_staging_buffer); };
-
-        // /// Record build commands:
-        // auto exec_cmds = [&]()
-        // {
-        //     auto recorder = device.create_command_recorder({});
-        //     recorder.pipeline_barrier({
-        //         .src_access = daxa::AccessConsts::HOST_WRITE,
-        //         .dst_access = daxa::AccessConsts::TRANSFER_READ,
-        //     });
-
-        //     // recorder.copy_buffer_to_buffer({
-        //     //     .src_buffer = instance_level_buffer,
-        //     //     .dst_buffer = instance_level_staging_buffer,
-        //     //     .size = instance_level_buffer_size,
-        //     // });
-
-        //     // recorder.copy_buffer_to_buffer({
-        //     //     .src_buffer = hit_distance_buffer,
-        //     //     .dst_buffer = hit_distance_staging_buffer,
-        //     //     .size = hit_distance_buffer_size,
-        //     // });
-
-        //     // recorder.copy_buffer_to_buffer({
-        //     //     .src_buffer = instance_distance_buffer,
-        //     //     .dst_buffer = instance_distance_staging_buffer,
-        //     //     .size = instance_distance_buffer_size,
-        //     // });
-
-        //     // recorder.copy_buffer_to_buffer({
-        //     //     .src_buffer = gpu_aabb_buffer,
-        //     //     .dst_buffer = aabb_staging_buffer,
-        //     //     .size = aabb_buffer_size,
-        //     // });
-
-        //     recorder.copy_buffer_to_buffer({
-        //         .src_buffer = status_output_buffer,
-        //         .dst_buffer = status_output_staging_buffer,
-        //         .size = max_status_output_buffer_size,
-        //     });
-
-        //     recorder.pipeline_barrier({
-        //         .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-        //         .dst_access = daxa::AccessConsts::HOST_READ,
-        //     });
-        //     return recorder.complete_current_commands();
-        // }();
-
-        // // WAIT FOR COMMANDS TO FINISH
-        // {
-        //     device.submit_commands({
-        //         .command_lists = std::array{exec_cmds},
-        //         // .signal_binary_semaphores = std::array{swapchain.current_present_semaphore()},
-        //         // .signal_timeline_semaphores = std::array{std::pair{swapchain.gpu_timeline_semaphore(), swapchain.current_cpu_timeline_value()}},
-        //     });
-
-        //     device.wait_idle();
-        //     // daxa::TimelineSemaphore gpu_timeline = device.create_timeline_semaphore({
-        //     //     .name = "timeline semaphpore",
-        //     // });
-
-        //     // usize cpu_timeline = 0;
-
-        //     // device.submit_commands({
-        //     //     .command_lists = std::array{exec_cmds},
-        //     //     .signal_timeline_semaphores = std::array{std::pair{gpu_timeline, cpu_timeline}}
-        //     // });
-
-        //     // gpu_timeline.wait_for_value(cpu_timeline);
-        // }
-
-        // STATUS_OUTPUT status_output;
-
-        // auto * status_buffer_ptr = device.get_host_address_as<Status>(status_output_staging_buffer).value();
-        // std::memcpy(&status_output,
-        //     status_buffer_ptr,
-        //     max_status_output_buffer_size);
-
-        // std::cout << "status pixel [" << status.pixel.x << ", " << status.pixel.y << "]" << std::endl;
-        // std::cout << "status out instance index " << status_output.instance_id << " primitive index " << status_output.primitive_id
-        //     << " distance " << status_output.hit_distance << " exit " << status_output.exit_distance
-        //     << " position [" << status_output.hit_position.x << ", " << status_output.hit_position.y << ", " << status_output.hit_position.z << "]"
-        //     << " normal [" << status_output.hit_normal.x << ", " << status_output.hit_normal.y << ", " << status_output.hit_normal.z << "]"
-        //     << " origin [" << status_output.origin.x << ", " << status_output.origin.y << ", " << status_output.origin.z << "]"
-        //     << " direction [" << status_output.direction.x << ", " << status_output.direction.y << ", " << status_output.direction.z << "]"
-        //     << " primitive center [" << status_output.primitive_center.x << ", " << status_output.primitive_center.y << ", " << status_output.primitive_center.z << "]"
-        //     << " material_index " << status_output.material_index << ", uv [" << status_output.uv.x << ", " << status_output.uv.y << "]"
-        //     << std::endl;
-#endif // PERFECT_PIXEL_ON
 
         status.is_active = 0;
         status.pixel = {0, 0};

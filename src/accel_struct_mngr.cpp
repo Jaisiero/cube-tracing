@@ -1,4 +1,4 @@
-#include "ACCEL_STRUCT_MNGR.hpp"
+#include "accel_struct_mngr.hpp"
 
 using AS_MANAGER_STATUS = ACCEL_STRUCT_MNGR::AS_MANAGER_STATUS;
 
@@ -382,7 +382,7 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_
             std::cerr << "Failed to load primitives" << std::endl;
             return false;
         }
-        // current_aabb_host_count = 0;
+        current_aabb_host_idx += aabb_host_count;
     }
 
     return true;
@@ -1730,6 +1730,11 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
 
     // Set current index as updated
     index_updated[next_index] = true;
+
+    // Reset host aabb buffer to the next index
+    current_aabb_host_count = 0;
+    // Reset host aabb buffer to the next index
+    current_aabb_host_idx = 0;
 
     {
         // TODO: mutex here

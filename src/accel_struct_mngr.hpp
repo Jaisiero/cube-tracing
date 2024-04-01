@@ -147,12 +147,28 @@ public:
         return remapping_light_buffer;
     }
 
+    uint32_t get_instance_count() { 
+        return current_instance_count[current_index];
+    }
+
+    uint32_t get_primitive_count() { 
+        return current_primitive_count[current_index];
+    }
+
     // TODO: Change this for AABB* device.get_host_address_as<AABB>(as_manager->get_aabb_host_buffer()).value();
     daxa::BufferId get_aabb_host_buffer() const { return aabb_host_buffer; }
 
+    AABB* get_aabb_host_address() const { return device.get_host_address_as<AABB>(aabb_host_buffer).value(); }
+
+    AABB* get_next_aabb_host_address() const { return get_aabb_host_address() + current_aabb_host_count; }
+
     INSTANCE* get_instances() const { return instances.get(); }
 
+    INSTANCE* get_next_instance_address() const { return instances.get() + current_instance_count[current_index]; }
+
     PRIMITIVE* get_primitives() const { return primitives.get(); }
+
+    PRIMITIVE* get_next_primitive_address() const { return primitives.get() + current_primitive_count[current_index]; }
 
     daxa::BufferId get_cube_light_buffer() const { return cube_light_buffer; }
 
@@ -169,6 +185,9 @@ public:
     bool task_queue_add(TASK task) {
         std::unique_lock lock(task_queue_mutex);
         task_queue.push(task);
+        if(task.type == TASK::TYPE::BUILD_BLAS_FROM_CPU) {
+            current_aabb_host_count+= task.blas_build_from_cpu.primitive_count;
+        }
         return true;
     }
 
@@ -368,7 +387,8 @@ private:
     
     daxa::BufferId aabb_buffer[DOUBLE_BUFFERING] = {};
     daxa::BufferId aabb_host_buffer = {};
-    // uint32_t current_aabb_host_count = 0;
+    uint32_t current_aabb_host_count = 0;
+    uint32_t current_aabb_host_idx = 0;
 
     uint32_t current_primitive_count[DOUBLE_BUFFERING] = {};
     uint32_t max_current_primitive_count = 0;
