@@ -51,6 +51,7 @@ public:
         {
             uint32_t instance_count;
             uint32_t primitive_count;
+            daxa_f32mat4x4 transform;
         };
 
         struct UNDO_OP_CPU

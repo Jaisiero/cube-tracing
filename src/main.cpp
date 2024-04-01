@@ -126,8 +126,6 @@ namespace tests
       LIGHT *point_lights = nullptr;
       LIGHT *env_lights = nullptr;
 
-      // std::vector<daxa_f32mat4x4> transforms = {};
-
       MapLoader map_loader = {};
       std::unique_ptr<ACCEL_STRUCT_MNGR> as_manager = {};
 
@@ -632,7 +630,7 @@ namespace tests
             .aabbs = as_manager->get_aabb_host_address(),
             .current_material_index = current_material_count,
             .max_material_count = MAX_MATERIALS - current_material_count,
-            .materials = materials.get() + current_material_count,
+            .materials = materials.get(),
             .current_light_index = light_config->cube_light_count,
             .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
             .lights = as_manager->get_cube_lights(),
@@ -653,7 +651,8 @@ namespace tests
         as_manager->task_queue_add(TASK{
             .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
             .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
-                                    .primitive_count = gvox_map.primitive_count},
+                                    .primitive_count = gvox_map.primitive_count,
+                                    .transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f))},
         });
 
 
@@ -668,7 +667,7 @@ namespace tests
             .aabbs = as_manager->get_aabb_host_address(),
             .current_material_index = current_material_count,
             .max_material_count = MAX_MATERIALS - current_material_count,
-            .materials = materials.get() + current_material_count,
+            .materials = materials.get(),
             .current_light_index = light_config->cube_light_count,
             .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
             .lights = as_manager->get_cube_lights(),
@@ -686,10 +685,14 @@ namespace tests
 
         load_materials(gvox_map.material_count, current_material_count, true);
 
+        glm::mat4 transform = glm::mat4(1.0f);
+        transform = glm::translate(transform, glm::vec3(VOXEL_EXTENT * 15, -VOXEL_EXTENT * 35, -VOXEL_EXTENT * 50));
+
         as_manager->task_queue_add(TASK{
             .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
             .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
-                                    .primitive_count = gvox_map.primitive_count},
+                                    .primitive_count = gvox_map.primitive_count,
+                                    .transform = glm_mat4_to_daxa_f32mat4x4(transform) },
         });
 
         // Update the scene

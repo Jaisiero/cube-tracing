@@ -1542,6 +1542,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
             upload_aabb_device_buffer(next_index, build_task.primitive_count);
             current_primitive_count[next_index] += build_task.primitive_count;
+            instances[build_task.instance_count].transform = build_task.transform;
+            instances[build_task.instance_count].prev_transform = build_task.transform;
             build_blas(next_index, build_task.instance_count);
             current_instance_count[next_index] += build_task.instance_count;
             break;
