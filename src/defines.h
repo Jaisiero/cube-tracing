@@ -13,7 +13,7 @@
 
 #include "shaders/shared.inl"
 
-#define DEBUG 0
+#define DEBUG 1
 
 const uint32_t DOUBLE_BUFFERING = 2;
 
@@ -55,12 +55,16 @@ enum AXIS_DIRECTION {
 struct GvoxModelDataSerialize {
     AXIS_DIRECTION axis_direction;
     uint32_t max_instance_count;
+    uint32_t current_instance_index;
     INSTANCE* const instances;
+    uint32_t current_primitive_index;
     uint32_t max_primitive_count;
     PRIMITIVE* const primitives;
     AABB* const aabbs;
+    uint32_t current_material_index;
     uint32_t max_material_count;
     MATERIAL* const materials;
+    uint32_t current_light_index;
     uint32_t max_light_count;
     LIGHT* const lights;
 };

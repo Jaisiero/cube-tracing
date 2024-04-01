@@ -499,7 +499,7 @@ namespace tests
         point_lights[0].emissive = daxa_f32vec3(intensity, intensity, intensity);
       }
 
-      daxa_Bool8 load_materials(uint32_t material_count, daxa_Bool8 synchronize)
+      daxa_Bool8 load_materials(uint32_t material_count, uint32_t current_offset_count, daxa_Bool8 synchronize)
       {
         // TODO: Refactor materials copies
         uint32_t material_current_buffer_size = static_cast<u32>(current_material_count * sizeof(MATERIAL));
@@ -519,7 +519,7 @@ namespace tests
 
         auto *material_buffer_ptr = device.get_host_address_as<MATERIAL>(material_staging_buffer).value();
         std::memcpy(material_buffer_ptr,
-                    materials.get(),
+                    materials.get() + current_offset_count,
                     material_buffer_size);
 
         /// Record build commands:
@@ -621,17 +621,21 @@ namespace tests
       }
 
       void load_scene() {
-        GvoxModelDataSerialize gvox_map_serialize = {
+        GvoxModelDataSerialize gvox_map_serialize = GvoxModelDataSerialize{
             .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
-            .max_instance_count = MAX_INSTANCES - as_manager->get_instance_count(),
-            .instances = as_manager->get_next_instance_address(),
-            .max_primitive_count = MAX_PRIMITIVES - as_manager->get_primitive_count(),
-            .primitives = as_manager->get_next_primitive_address(),
-            .aabbs = as_manager->get_next_aabb_host_address(),
+            .max_instance_count = MAX_INSTANCES - as_manager->get_host_instance_count(),
+            .current_instance_index = as_manager->get_host_instance_count(),
+            .instances = as_manager->get_instances(),
+            .current_primitive_index = as_manager->get_host_primitive_count(),
+            .max_primitive_count = MAX_PRIMITIVES - as_manager->get_host_primitive_count(),
+            .primitives = as_manager->get_primitives(),
+            .aabbs = as_manager->get_aabb_host_address(),
+            .current_material_index = current_material_count,
             .max_material_count = MAX_MATERIALS - current_material_count,
             .materials = materials.get() + current_material_count,
+            .current_light_index = light_config->cube_light_count,
             .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
-            .lights = &as_manager->get_cube_lights()[light_config->cube_light_count],
+            .lights = as_manager->get_cube_lights(),
         };
 
         // load map
@@ -644,7 +648,7 @@ namespace tests
 
         light_config->cube_light_count += gvox_map.light_count;
 
-        load_materials(gvox_map.material_count, true);
+        load_materials(gvox_map.material_count, current_material_count, false);
 
         as_manager->task_queue_add(TASK{
             .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
@@ -653,36 +657,40 @@ namespace tests
         });
 
 
-        // GvoxModelDataSerialize gvox_map_serialize = {
-        //     .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
-        //     .max_instance_count = MAX_INSTANCES - as_manager->get_instance_count(),
-        //     .instances = as_manager->get_next_instance_address(),
-        //     .max_primitive_count = MAX_PRIMITIVES - as_manager->get_primitive_count(),
-        //     .primitives = as_manager->get_next_primitive_address(),
-        //     .aabbs = as_manager->get_next_aabb_host_address(),
-        //     .max_material_count = MAX_MATERIALS - current_material_count,
-        //     .materials = materials.get() + current_material_count,
-        //     .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
-        //     .lights = &as_manager->get_cube_lights()[light_config->cube_light_count],
-        // };
+        GvoxModelDataSerialize gvox_map_serialize_deer = GvoxModelDataSerialize{
+            .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
+            .max_instance_count = MAX_INSTANCES - as_manager->get_host_instance_count(),
+            .current_instance_index = as_manager->get_host_instance_count(),
+            .instances = as_manager->get_instances(),
+            .current_primitive_index = as_manager->get_host_primitive_count(),
+            .max_primitive_count = MAX_PRIMITIVES - as_manager->get_host_primitive_count(),
+            .primitives = as_manager->get_primitives(),
+            .aabbs = as_manager->get_aabb_host_address(),
+            .current_material_index = current_material_count,
+            .max_material_count = MAX_MATERIALS - current_material_count,
+            .materials = materials.get() + current_material_count,
+            .current_light_index = light_config->cube_light_count,
+            .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
+            .lights = as_manager->get_cube_lights(),
+        };
 
-        // // load map
-        // gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + DEER_NAME, gvox_map_serialize);
+        // load map
+        gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + DEER_NAME, gvox_map_serialize_deer);
 
-        // std::cout << "gvox_map" << std::endl;
-        // std::cout << "  instances: " << gvox_map.instance_count << std::endl;
-        // std::cout << "  primitives: " << gvox_map.primitive_count << std::endl;
-        // std::cout << "  materials: " << gvox_map.material_count << std::endl;
+        std::cout << "gvox_map" << std::endl;
+        std::cout << "  instances: " << gvox_map.instance_count << std::endl;
+        std::cout << "  primitives: " << gvox_map.primitive_count << std::endl;
+        std::cout << "  materials: " << gvox_map.material_count << std::endl;
 
-        // light_config->cube_light_count += gvox_map.light_count;
+        light_config->cube_light_count += gvox_map.light_count;
 
-        // load_materials(gvox_map.material_count, true);
+        load_materials(gvox_map.material_count, current_material_count, true);
 
-        // as_manager->task_queue_add(TASK{
-        //     .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
-        //     .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
-        //                             .primitive_count = gvox_map.primitive_count},
-        // });
+        as_manager->task_queue_add(TASK{
+            .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
+            .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
+                                    .primitive_count = gvox_map.primitive_count},
+        });
 
         // Update the scene
         as_manager->update_scene(true);

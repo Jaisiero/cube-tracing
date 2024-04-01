@@ -330,10 +330,10 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(uint32_t buffer_index, ui
 
     auto *primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
     std::memcpy(primitive_buffer_ptr,
-                primitives.get(),
+                primitives.get() + previous_primitive_count,
                 primitive_buffer_size);
 
-    copy_buffer(primitive_staging_buffer, primitive_buffer[buffer_index], primitive_count_offset, primitive_count_offset, primitive_buffer_size);
+    copy_buffer(primitive_staging_buffer, primitive_buffer[buffer_index], 0, primitive_count_offset, primitive_buffer_size);
 
     return true;
 }
@@ -375,7 +375,7 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_
     if (aabb_host_count > 0)
     {
         size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
-        size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
+        size_t aabb_buffer_offset = current_aabb_host_idx * sizeof(AABB);
         copy_buffer(aabb_host_buffer, aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size, true);
 
         if(!upload_primitive_device_buffer(buffer_index, aabb_host_count)) {
@@ -1084,6 +1084,10 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
     // build procedural blas
     for (uint32_t i = previous_instance_count; i < all_instance_count; i++)
     {
+#if DEBUG == 1
+        std::cout << "  build_blas: i: " << i << ", first primitive index: " << instances[i].first_primitive_index << ", primitive count: " << instances[i].primitive_count << std::endl;
+#endif // DEBUG
+
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)),
             .stride = sizeof(AABB),
@@ -1603,6 +1607,12 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
 
     // Set current index as updated
     index_updated[next_index] = true;
+    // Reset host aabb buffer to the next index
+    current_aabb_host_idx = 0;
+    // Reset temp instance count
+    temp_instance_count = 0;
+    // Reset temp primitive count
+    temp_primitive_count = 0;
 
     {
         // TODO: mutex here
@@ -1730,11 +1740,6 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
 
     // Set current index as updated
     index_updated[next_index] = true;
-
-    // Reset host aabb buffer to the next index
-    current_aabb_host_count = 0;
-    // Reset host aabb buffer to the next index
-    current_aabb_host_idx = 0;
 
     {
         // TODO: mutex here

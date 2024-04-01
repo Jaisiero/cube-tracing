@@ -84,14 +84,15 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
 
         uint32_t instance_index = user_state.params.max_instance_count;
 
-        if (user_state.params.max_instance_count > user_state.scene_info.instance_count)
+        if (user_state.params.max_instance_count > user_state.scene_info.instance_count + user_state.params.current_instance_index)
         {
             instance_index = user_state.scene_info.instance_count++;
+            instance_index += user_state.params.current_instance_index;
         }
 
         uint32_t voxel_count = 0;
         uint32_t light_count = 0;
-        uint32_t first_voxel_index = user_state.scene_info.primitive_count;
+        uint32_t first_voxel_index = user_state.params.current_primitive_index;
 
         struct palette_entry
         {
@@ -202,7 +203,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
 
                         if (!found && user_state.params.max_material_count > user_state.scene_info.material_count)
                         {
-                            mat_index = user_state.scene_info.material_count;
+                            mat_index = user_state.scene_info.material_count + user_state.params.current_material_index;
                             palette_data.push_back({id, 1, mat_index});
                             user_state.params.materials[mat_index] = MATERIAL{
                                 .type = MATERIAL_TYPE_LAMBERTIAN,
@@ -219,9 +220,9 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             ++user_state.scene_info.material_count;
                         }
 
-                        if (user_state.params.max_primitive_count > user_state.scene_info.primitive_count)
+                        if (user_state.params.max_primitive_count > user_state.scene_info.primitive_count + first_voxel_index)
                         {
-                            uint32_t index = user_state.scene_info.primitive_count;
+                            uint32_t index = user_state.scene_info.primitive_count + first_voxel_index;
 
                             if (user_state.params.axis_direction == AXIS_DIRECTION::Z_BOTTOM_TOP)
                             {
@@ -282,13 +283,14 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                     .size = VOXEL_EXTENT,
                                     .type = GEOMETRY_LIGHT_CUBE};
 
-                                uint32_t light_index = user_state.scene_info.light_count;
+                                uint32_t light_index = user_state.scene_info.light_count + user_state.params.current_light_index;
                                     
                                 user_state.params.primitives[index] = PRIMITIVE{mat_index, light_index};
 
                                 if (user_state.params.max_light_count > light_index)
                                 {
-                                    user_state.params.lights[user_state.scene_info.light_count++] = light;
+                                    user_state.params.lights[light_index] = light;
+                                    user_state.scene_info.light_count++;
                                 }
                             } else {
                                 user_state.params.primitives[index] = PRIMITIVE{mat_index, static_cast<uint32_t>(-1)};
@@ -457,6 +459,11 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path, GvoxModelD
 #else // otherwise, we're going to parse the entire region of the file
     auto *region_range_ptr = (GvoxRegionRange *)nullptr;
 #endif
+
+    // result.material_count += serialize_params.current_material_index;
+    // result.light_count += serialize_params.current_light_index;
+    // result.instance_count += serialize_params.current_instance_index;
+    // result.primitive_count += serialize_params.current_primitive_index;
 
     auto s_config = GvoxModelDataSerializeInternal{
         .scene_info = result,
