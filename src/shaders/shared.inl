@@ -24,7 +24,7 @@
 #define POINT_LIGHT_ON 1
 #define BRDF_SAMPLING_COUNT 1
 // #define SUN_MIDDAY 1
-#define SUN_MAX_INTENSITY 2000.0f
+#define SUN_MAX_INTENSITY 10000.0f
 #define SUN_TOP_POSITION_X 0.0f
 #define SUN_TOP_POSITION_Y 15.0f
 #define SUN_TOP_POSITION_Z -5.0f
@@ -54,6 +54,7 @@
 #define SAMPLE_OFFSET 1e-3f // Multi sample offset
 #define MAX_DEPTH 3
 #define AVOID_VOXEL_COLLAIDE HLF_MIN   // minimum offset to avoid voxel collision
+#define VOXEL_PADDING VOXEL_EXTENT * 0.01f
 #define CUBE_FACE_COUNT 6
 
 #define PERLIN_FACTOR 500

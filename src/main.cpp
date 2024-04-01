@@ -396,7 +396,7 @@ namespace tests
         light.type = GEOMETRY_LIGHT_ENV_MAP;
         light.instance_info = OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES);
         light.position = daxa_f32vec3(0.0, 0.0, 0.0);
-        light.emissive = daxa_f32vec3(5.0, 5.0, 5.0);
+        light.emissive = daxa_f32vec3(10.0, 10.0, 10.0);
         light.size = 0.f;
         env_lights[light_config->env_map_count++] = light;
 
