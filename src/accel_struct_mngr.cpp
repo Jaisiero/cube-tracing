@@ -1065,7 +1065,7 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(uint32_t instance_index, uint32_t
 
 
 
-bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_count)
+bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t> instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1073,10 +1073,7 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
         return false;
     }
 
-    // Get previous instance count
-    uint32_t previous_instance_count = current_instance_count[buffer_index];
-    // Get all instance count
-    uint32_t all_instance_count = previous_instance_count + instance_count;
+    uint32_t instance_count = instance_list.size();
 
     // reserve blas build infos
     blas_build_infos.clear();
@@ -1090,7 +1087,7 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
     uint32_t current_instance_index = 0;
 
     // build procedural blas
-    for (uint32_t i = previous_instance_count; i < all_instance_count; i++)
+    for (auto i : instance_list)
     {
 #if DEBUG == 1
         std::cout << "  build_blas: i: " << i << ", first primitive index: " << instances[i].first_primitive_index << ", primitive count: " << instances[i].primitive_count << std::endl;
@@ -1152,7 +1149,7 @@ bool ACCEL_STRUCT_MNGR::build_blas(uint32_t buffer_index, uint32_t instance_coun
 
         proc_blas_buffer_offset += build_aligment_size;
 
-        blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(proc_blas.size() - 1);
+        blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(i);
 
         ++current_instance_index;
     }
@@ -1536,6 +1533,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
     uint32_t light_index_from_exchanged_primitive = -1;
     temp_cube_light_count = *current_cube_light_count;
 
+    std::vector<uint32_t> blas_index_list = {};
+
     // Iterate over all tasks to process
     for(uint32_t i = 0; i < items_to_process; i++)
     {
@@ -1551,9 +1550,10 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
             upload_aabb_device_buffer(next_index, build_task.primitive_count);
             current_primitive_count[next_index] += build_task.primitive_count;
-            instances[build_task.instance_count].transform = build_task.transform;
-            instances[build_task.instance_count].prev_transform = build_task.transform;
-            build_blas(next_index, build_task.instance_count);
+            instances[current_instance_count[next_index]].transform = build_task.transform;
+            instances[current_instance_count[next_index]].prev_transform = build_task.transform;
+            // build_blas(next_index, build_task.instance_count);
+            blas_index_list.push_back(current_instance_count[next_index]);
             current_instance_count[next_index] += build_task.instance_count;
             break;
         case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
@@ -1612,6 +1612,10 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
 
     // update instances
     upload_all_instances(next_index, false);
+
+    // Build BLASes
+    if(!blas_index_list.empty())
+        build_blases(next_index, blas_index_list);
 
     // Build TLAS
     build_tlas(next_index, true);
