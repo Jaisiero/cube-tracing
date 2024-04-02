@@ -354,7 +354,7 @@ private:
     bool clear_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
 
     bool build_blases(uint32_t buffer_index, std::vector<uint32_t> instance_list);
-    bool rebuild_blas(uint32_t buffer_index, uint32_t instance_index);
+    bool rebuild_blases(uint32_t buffer_index, std::vector<uint32_t> instance_list);
     bool update_blas(uint32_t buffer_index, uint32_t instance_index);
     bool build_tlas(uint32_t buffer_index, bool synchronize);
 

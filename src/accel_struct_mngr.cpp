@@ -611,6 +611,9 @@ bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(uint32_t light_to_delete, 
 
 
 void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK& task) {
+
+    std::vector<uint32_t> rebuild_blas_index_list = {};
+    
     // Process task
     switch (task.type)
     {
@@ -638,7 +641,7 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK& task)
 #endif // DEBUG
         }
         // rebuild blas
-        rebuild_blas(next_index, rebuild_task.instance_index);
+        rebuild_blas_index_list.push_back(rebuild_task.instance_index);
         break;
     case TASK::TYPE::UPDATE_BLAS:
         // TODO: Update BLAS
@@ -651,6 +654,10 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK& task)
     default:
         break;
     }
+
+    // Rebuild BLASes
+    if(!rebuild_blas_index_list.empty())
+        rebuild_blases(next_index, rebuild_blas_index_list);
     
 }
 
@@ -1184,7 +1191,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
 
 
 
-bool ACCEL_STRUCT_MNGR::rebuild_blas(uint32_t buffer_index, uint32_t instance_index)
+bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32_t> instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1192,26 +1199,30 @@ bool ACCEL_STRUCT_MNGR::rebuild_blas(uint32_t buffer_index, uint32_t instance_in
         return false;
     }
 
+    uint32_t instance_count = instance_list.size();
+
     // TODO: adapt this to rebuild many BLAS at once
     // reserve blas build infos
     blas_build_infos.clear();
-    blas_build_infos.reserve(1);
+    blas_build_infos.reserve(instance_count);
 
     // TODO: As much geometry as instances for now
     aabb_geometries.clear();
-    aabb_geometries.resize(1);
+    aabb_geometries.resize(instance_count);
 
     // if(proc_blas.at(instance_index) != daxa::BlasId{})
     //     device.destroy_blas(proc_blas.at(instance_index));
-    
-    if(proc_blas.at(instance_index) != daxa::BlasId{})
-        temp_proc_blas.push_back(proc_blas.at(instance_index));
+
+    for(auto instance_index : instance_list) {
+        if(proc_blas.at(instance_index) != daxa::BlasId{})
+            temp_proc_blas.push_back(proc_blas.at(instance_index));
+    }
 
     uint32_t current_instance_index = 0;
 
     // build procedural blas
-    // for (uint32_t i = previous_instance_count; i < all_instance_count; i++)
-    // {
+    for (auto instance_index : instance_list)
+    {
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)),
             .stride = sizeof(AABB),
@@ -1275,16 +1286,16 @@ bool ACCEL_STRUCT_MNGR::rebuild_blas(uint32_t buffer_index, uint32_t instance_in
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(instance_index);
 
         ++current_instance_index;
-    // }
+    }
 
     proc_blas_scratch_buffer_offset = 0;
 
-    // // Check if all instances were processed
-    // if (current_instance_index != instance_count)
-    // {
-    //     std::cerr << "current_instance_index != current_instance_count" << std::endl;
-    //     return false;
-    // }
+    // Check if all instances were processed
+    if (current_instance_index != instance_count)
+    {
+        std::cerr << "current_instance_index != current_instance_count" << std::endl;
+        return false;
+    }
 
     /// Record build commands:
     auto exec_cmds = [&]()
@@ -1534,6 +1545,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
     temp_cube_light_count = *current_cube_light_count;
 
     std::vector<uint32_t> blas_index_list = {};
+    std::vector<uint32_t> rebuild_blas_index_list = {};
 
     // Iterate over all tasks to process
     for(uint32_t i = 0; i < items_to_process; i++)
@@ -1552,7 +1564,6 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             current_primitive_count[next_index] += build_task.primitive_count;
             instances[current_instance_count[next_index]].transform = build_task.transform;
             instances[current_instance_count[next_index]].prev_transform = build_task.transform;
-            // build_blas(next_index, build_task.instance_count);
             blas_index_list.push_back(current_instance_count[next_index]);
             current_instance_count[next_index] += build_task.instance_count;
             break;
@@ -1578,8 +1589,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             update_remapping_buffer(rebuild_task.instance_index, rebuild_task.del_primitive_index, primitive_to_exchange);
             // update light remapping buffer
             update_light_remapping_buffer(light_to_delete, light_to_exchange);
-            // rebuild blas
-            rebuild_blas(next_index, rebuild_task.instance_index);
+            // keep blas id for rebuilding blas
+            rebuild_blas_index_list.push_back(rebuild_task.instance_index);
             // save primitive to exchange for next frame
             task.blas_rebuild_from_cpu.remap_primitive_index = primitive_to_exchange;
             // save light to delete if any
@@ -1613,9 +1624,14 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
     // update instances
     upload_all_instances(next_index, false);
 
+    // TODO: issue builds, rebuilds & updates together?
     // Build BLASes
     if(!blas_index_list.empty())
         build_blases(next_index, blas_index_list);
+
+    // Rebuild BLASes
+    if(!rebuild_blas_index_list.empty())
+        rebuild_blases(next_index, rebuild_blas_index_list);
 
     // Build TLAS
     build_tlas(next_index, true);
