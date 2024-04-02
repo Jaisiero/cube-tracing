@@ -27,7 +27,7 @@ public:
         enum class TYPE
         {
             BUILD_BLAS_FROM_CPU,
-            REBUILD_BLAS_FROM_CPU,
+            DELETE_PRIMITIVE_BLAS_FROM_CPU,
             UPDATE_BLAS,
             UNDO_OP_CPU,
         };
@@ -37,7 +37,7 @@ public:
             uint32_t instance_index;
         };
 
-        struct BLAS_REBUILD_FROM_CPU
+        struct BLAS_PRIMITIVE_DELETE_FROM_CPU
         {
             uint32_t instance_index;
             uint32_t del_primitive_index;
@@ -63,7 +63,7 @@ public:
         union
         {
             BLAS_BUILD_FROM_CPU blas_build_from_cpu;
-            BLAS_REBUILD_FROM_CPU blas_rebuild_from_cpu;
+            BLAS_PRIMITIVE_DELETE_FROM_CPU blas_delete_primitive_from_cpu;
             BLAS_UPDATE blas_update;
             UNDO_OP_CPU undo_op_cpu;
         };

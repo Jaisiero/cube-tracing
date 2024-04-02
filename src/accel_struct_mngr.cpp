@@ -620,8 +620,8 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK& task)
     case TASK::TYPE::BUILD_BLAS_FROM_CPU:
         // TODO: Destroy BLAS
         break;
-    case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
-        TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
+    case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
+        TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
 #if DEBUG == 1
         std::cout << "  *light_deleted: " << rebuild_task.del_light_index << ", light_exchanged: " << rebuild_task.remap_light_index << std::endl;
 #endif // DEBUG
@@ -941,8 +941,8 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, T
         // // NOTE: build_blas is already called for the previous index
         // current_instance_count[next_index] += build_task.instance_count;
         break;
-    case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
-        TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
+    case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
+        TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
         if(rebuild_task.del_primitive_index != rebuild_task.remap_primitive_index) {
             // copy deleted primtive from device buffer to double buffer
             copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index);
@@ -1484,8 +1484,8 @@ void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(uint32_t next_index, TA
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
             break;
-        case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
-            TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
+        case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
+            TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
             // TODO: this can be optimize cause just deleted primitive is needed to be cleared
             // Restore remapping buffer
             clear_remapping_buffer(next_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
@@ -1567,8 +1567,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             blas_index_list.push_back(current_instance_count[next_index]);
             current_instance_count[next_index] += build_task.instance_count;
             break;
-        case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
-            TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
+        case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
+            TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
             // TODO: this will need a mutex if manager is parallelized
             {
                 // Update instance primitive count
@@ -1592,13 +1592,13 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
             // keep blas id for rebuilding blas
             rebuild_blas_index_list.push_back(rebuild_task.instance_index);
             // save primitive to exchange for next frame
-            task.blas_rebuild_from_cpu.remap_primitive_index = primitive_to_exchange;
+            task.blas_delete_primitive_from_cpu.remap_primitive_index = primitive_to_exchange;
             // save light to delete if any
-            task.blas_rebuild_from_cpu.del_light_index = light_to_delete;
+            task.blas_delete_primitive_from_cpu.del_light_index = light_to_delete;
             // save light to exchange for next frame
-            task.blas_rebuild_from_cpu.remap_light_index = light_to_exchange;
+            task.blas_delete_primitive_from_cpu.remap_light_index = light_to_exchange;
             // save light index of the exchanged primitive
-            task.blas_rebuild_from_cpu.remap_primitive_light_index = light_index_from_exchanged_primitive;
+            task.blas_delete_primitive_from_cpu.remap_primitive_light_index = light_index_from_exchanged_primitive;
             break;
         case TASK::TYPE::UPDATE_BLAS:
             TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -1676,8 +1676,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue() {
             // NOTE: build_blas is already called for the previous index
             current_instance_count[next_index] += build_task.instance_count;
             break;
-        case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
-            TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
+        case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
+            TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
             if(rebuild_task.del_primitive_index != rebuild_task.remap_primitive_index) {
                 // Copy deleted primitive to the double buffer
                 copy_deleted_aabb_device_buffer(next_index, rebuild_task.instance_index, rebuild_task.del_primitive_index);
@@ -1734,8 +1734,8 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue() {
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
             break;
-        case TASK::TYPE::REBUILD_BLAS_FROM_CPU:
-            TASK::BLAS_REBUILD_FROM_CPU rebuild_task = task.blas_rebuild_from_cpu;
+        case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
+            TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
             // Restore remapping buffer
             clear_remapping_buffer(next_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
             // Restore light remapping buffer
@@ -1860,8 +1860,8 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
                                     {
 
                                         auto task_queue = TASK{
-                                            .type = TASK::TYPE::REBUILD_BLAS_FROM_CPU,
-                                            .blas_rebuild_from_cpu = {.instance_index = instance_index, .del_primitive_index = instance_primitive},
+                                            .type = TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU,
+                                            .blas_delete_primitive_from_cpu = {.instance_index = instance_index, .del_primitive_index = instance_primitive},
                                         };
                                         task_queue_add(task_queue);
                                     }
