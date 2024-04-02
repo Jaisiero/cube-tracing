@@ -293,6 +293,14 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(uint32_t buffer_index, bool synchro
                 instances.get(),
                 instance_buffer_size);
 
+#if DEBUG == 1
+    std::cout << "  upload_all_instances: buffer_index: " << buffer_index << ", current_instance_count: " << current_instance_count[buffer_index] << std::endl;
+    for(uint32_t i = 0; i < current_instance_count[buffer_index]; i++) {
+        std::cout << "  instance[" << i << "] - first index: " << instance_buffer_ptr[i].first_primitive_index << 
+            ", primitive count: " << instance_buffer_ptr[i].primitive_count << std::endl;
+    }
+#endif // DEBUG
+
     copy_buffer(instance_staging_buffer, instance_buffer[buffer_index], 0, 0, instance_buffer_size, synchronize);
 
     return true;
@@ -536,7 +544,7 @@ bool ACCEL_STRUCT_MNGR::update_remapping_buffer(uint32_t instance_index, uint32_
     });
     defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
 
-    uint32_t remapped_primitive_indexes[2] = {static_cast<uint32_t>(-1), primitive_to_delete};
+    uint32_t remapped_primitive_indexes[2] = {static_cast<uint32_t>(-1), primitive_index};
 
     auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
     std::memcpy(remapped_primitive_buffer_ptr,
@@ -553,7 +561,7 @@ bool ACCEL_STRUCT_MNGR::update_remapping_buffer(uint32_t instance_index, uint32_
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(uint32_t instance_index, uint32_t light_to_delete, uint32_t light_to_exchange) {
+bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(uint32_t light_to_delete, uint32_t light_to_exchange) {
     if (!device.is_valid() || !initialized)
     {
         std::cerr << "device.is_valid()" << std::endl;
@@ -1266,7 +1274,8 @@ bool ACCEL_STRUCT_MNGR::rebuild_blas(uint32_t buffer_index, uint32_t instance_in
 
         proc_blas_buffer_offset += build_aligment_size;
 
-        blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(proc_blas.size() - 1);
+        // Here BLAS buffer is updated
+        blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(instance_index);
 
         ++current_instance_index;
     // }
@@ -1566,9 +1575,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue() {
                 light_to_exchange,
                 light_index_from_exchanged_primitive);
             // Update remapping buffer
-            update_remapping_buffer(next_index, rebuild_task.del_primitive_index, primitive_to_exchange);
+            update_remapping_buffer(rebuild_task.instance_index, rebuild_task.del_primitive_index, primitive_to_exchange);
             // update light remapping buffer
-            update_light_remapping_buffer(next_index, light_to_delete, light_to_exchange);
+            update_light_remapping_buffer(light_to_delete, light_to_exchange);
             // rebuild blas
             rebuild_blas(next_index, rebuild_task.instance_index);
             // save primitive to exchange for next frame
@@ -1794,34 +1803,52 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
     uint32_t changes_so_far = 0;
 
     // Check instances first
-    for(uint32_t i = 0; i < (current_instance_count[current_index] << 5); i++) {
+    for(uint32_t i = 0; i < (current_instance_count[current_index]); i++) {
         if(instance_bitmask_buffer_ptr[i] != 0U) {
-            for(uint32_t j = 0; j < 32; j++) {
+            for(uint32_t j = 0; j < 32 && j < current_instance_count[current_index]; j++) {
                 if(instance_bitmask_buffer_ptr[i] & (1 << j)) {
                     uint32_t instance_index = i * 32 + j;
                     // Process instance
                     INSTANCE instance = instances[instance_index];
-                    for(uint32_t k = 0; k < instance.primitive_count; k++) {
-                        if(voxel_modifications_buffer_ptr[instance.first_primitive_index + k] != 0U) {
-                            for(uint32_t l = 0; l < 32; l++) {
-                                if(voxel_modifications_buffer_ptr[instance.first_primitive_index + k] & (1 << l)) {
+#if DEBUG == 1
+                    std::cout << "Instance: " << instance_index << " Primitive count: " << instance.primitive_count << " First primitive index: " << instance.first_primitive_index << std::endl;
+#endif // DEBUG              
+                    uint32_t first_primitive_mask_index = (instance.first_primitive_index) >> 5;      
+                    uint32_t max_instance_bitmask_size = (instance.first_primitive_index + instance.primitive_count) >> 5;
+                    uint32_t first_l = 0;
+                    for (uint32_t k = first_primitive_mask_index; k <= max_instance_bitmask_size; k++)
+                    {
+                        uint32_t l = 0;
+                        uint32_t last_l = 32;
+                        if (k == first_primitive_mask_index)
+                            first_l = l = (instance.first_primitive_index) & 31;
+                        else if(k == max_instance_bitmask_size) {
+                            last_l = (instance.first_primitive_index + instance.primitive_count) & 31;
+                        }
+                        if (voxel_modifications_buffer_ptr[k] != 0U)
+                        {
+                            for (; l < last_l; l++)
+                            {
+                                if (voxel_modifications_buffer_ptr[k] & (1 << l))
+                                {
                                     changes_so_far++;
-                                    uint32_t instance_primitive = k * 32 + l;
+                                    uint32_t instance_primitive = (32 - first_l) + ((k - first_primitive_mask_index - 1) * 32) + l;
                                     // Process primitive
-#if DEBUG == 1                    
+#if DEBUG == 1
                                     std::cout << "Instance: " << instance_index << " Primitive: " << instance_primitive << std::endl;
-#endif // DEBUG                                    
+#endif // DEBUG
                                     {
-                                        
+
                                         auto task_queue = TASK{
                                             .type = TASK::TYPE::REBUILD_BLAS_FROM_CPU,
-                                            .blas_rebuild_from_cpu = {.instance_index = i, .del_primitive_index = instance_primitive},
+                                            .blas_rebuild_from_cpu = {.instance_index = instance_index, .del_primitive_index = instance_primitive},
                                         };
                                         task_queue_add(task_queue);
                                     }
 
                                     // Check if all changes were processed
-                                    if(changes_so_far >= brush_counters->primitive_count) {
+                                    if (changes_so_far >= brush_counters->primitive_count)
+                                    {
                                         goto restore_buffers;
                                     }
                                 }
@@ -1834,7 +1861,7 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications() {
     }
 
 restore_buffers:
-    if(changes_so_far > 0) {
+    if(brush_counters->primitive_count > 0) {
         // Reset bitmasks
         std::memset(instance_bitmask_buffer_ptr, 0, max_instance_bitmask_size);
 

@@ -343,7 +343,7 @@ private:
     bool delete_light_device_buffer(uint32_t buffer_index,
                                     uint32_t light_to_delete, uint32_t light_to_exchange,
                                     uint32_t primitive_deleted, uint32_t light_index_from_exchanged_primitive);
-    bool update_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
+    bool update_light_remapping_buffer(uint32_t light_index, uint32_t light_to_exchange);
     bool clear_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
     
     bool delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, 

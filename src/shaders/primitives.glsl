@@ -58,16 +58,16 @@ void delete_primtivite_from_instance(OBJECT_INFO instance_hit){
     daxa_u32 instance_index = instance_hit.instance_id;
 
     // atomic or operation to set the bit to 1
-    daxa_u32 result_primitive = atomicOr(primitive_bitmask_buffer.primitive_bitmask[primitive_index / 32], 1 << (primitive_index % 32));
+    daxa_u32 result_instance = atomicOr(instance_bitmask_buffer.instance_bitmask[instance_index >> 5], 1 << (instance_index & 31));
     // atomic or operation to set the bit to 1
-    daxa_u32 result_instance = atomicOr(instance_bitmask_buffer.instance_bitmask[instance_index / 32], 1 << (instance_index % 32));
+    daxa_u32 result_primitive = atomicOr(primitive_bitmask_buffer.primitive_bitmask[primitive_index >> 5], 1 << (primitive_index & 31));
 
 
-    if((result_primitive &  (1U << (primitive_index % 32))) == 0U){
+    if((result_primitive &  (1U << (primitive_index & 31))) == 0U){
         increment_brush_counter_primitive_count();
     }
 
-    if((result_instance &  (1U << (instance_index % 32))) == 0U){
+    if((result_instance &  (1U << (instance_index & 31))) == 0U){
         increment_brush_counter_instance_count();
     }
 }
