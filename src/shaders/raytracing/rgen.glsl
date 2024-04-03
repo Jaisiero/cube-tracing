@@ -82,8 +82,8 @@ void main() {
   daxa_u32 screen_pos = index.y * rt_size.x + index.x;
 
   daxa_b32 is_hit = false;
-  daxa_f32mat4x4 model;
-  daxa_f32mat4x4 inv_model;
+  daxa_f32mat4x4 obj2world;
+  daxa_f32mat4x4 world2obj;
 
 #if SER == 1
   daxa_f32 distance = -1.0;
@@ -123,11 +123,18 @@ void main() {
 
     daxa_f32 distance = -1.0;
 
-    prd.distance = is_hit_from_ray(ray, prd.instance_hit, half_extent, distance,
-                                   prd.world_hit, prd.world_nrm, model,
-                                   inv_model, false, true, true)
-                       ? distance
-                       : -1.0;
+    mat4x3 obj2world4x3 = hitObjectGetObjectToWorldNV(hit_object);
+
+    obj2world = mat4(obj2world4x3[0], 0, obj2world4x3[1], 0, obj2world4x3[2], 0, obj2world4x3[3], 1.0);
+
+    world2obj = inverse(obj2world);
+
+    prd.distance =
+        is_hit_from_ray_providing_model_get_pos_and_nor(
+            ray, prd.instance_hit, half_extent, distance, prd.world_hit,
+            prd.world_nrm, obj2world, world2obj, true, true)
+            ? distance
+            : -1.0;
     prd.distance = length(prd.world_hit - ray.origin);
 
     prd.mat_index =
@@ -178,7 +185,7 @@ void main() {
 
   } else {
 #if SER != 1
-    model = get_geometry_transform_from_instance_id(
+    obj2world = get_geometry_transform_from_instance_id(
         di_info.instance_hit.instance_id);
 #endif // SER
 
@@ -188,7 +195,7 @@ void main() {
     // Previous frame screen coord
     daxa_f32vec2 motion_vector =
         get_motion_vector(Xi, di_info.position, rt_size.xy,
-                          di_info.instance_hit.instance_id, model);
+                          di_info.instance_hit.instance_id, obj2world);
 
     VELOCITY velocity = VELOCITY(motion_vector);
     velocity_buffer_set_velocity(index, rt_size, velocity);

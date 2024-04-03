@@ -1173,11 +1173,21 @@ namespace tests
             .type = TASK::TYPE::UPDATE_BLAS,
             .blas_update = {
               .instance_index = 1,
-              .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f))),
+              .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f))),
               .aabb_alterations = nullptr, // empty vector means no aabb alterations
               .aabbs = nullptr, // nullptr means no aabb alterations
             }
         };
+
+        // TASK task = {
+        //     .type = TASK::TYPE::UPDATE_BLAS,
+        //     .blas_update = {
+        //       .instance_index = 1,
+        //       .transform = glm_mat4_to_daxa_f32mat4x4(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0001f, 0.0f))),
+        //       .aabb_alterations = nullptr, // empty vector means no aabb alterations
+        //       .aabbs = nullptr, // nullptr means no aabb alterations
+        //     }
+        // };
 
         as_manager->task_queue_add(task);
 
@@ -1812,9 +1822,10 @@ namespace tests
         case GLFW_KEY_R:
           if (action == GLFW_PRESS)
           {
-            as_manager->task_queue_add(TASK{
-                .type = TASK::TYPE::UNDO_OP_CPU
-            });
+            // TODO: update makes the recovery intractable right now
+            // as_manager->task_queue_add(TASK{
+            //     .type = TASK::TYPE::UNDO_OP_CPU
+            // });
           }
           break;
         case GLFW_KEY_LEFT_CONTROL:
