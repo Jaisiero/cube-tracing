@@ -621,9 +621,12 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK &task)
     switch (task.type)
     {
     case TASK::TYPE::BUILD_BLAS_FROM_CPU:
+    {
         // TODO: Destroy BLAS
-        break;
+    }
+    break;
     case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
+    {
         TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
 #if DEBUG == 1
         std::cout << "  *light_deleted: " << rebuild_task.del_light_index << ", light_exchanged: " << rebuild_task.remap_light_index << std::endl;
@@ -645,15 +648,20 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK &task)
         }
         // rebuild blas
         rebuild_blas_index_list.push_back(rebuild_task.instance_index);
-        break;
+    }
+    break;
     case TASK::TYPE::UPDATE_BLAS:
+    {
         // TODO: Update BLAS
         TASK::BLAS_UPDATE update_task = task.blas_update;
         // update_blas(next_index, update_task.instance_index);
-        break;
+    }
+    break;
     case TASK::TYPE::UNDO_OP_CPU:
+    {
         std::cerr << "UNDO_OP_CPU impossible option" << std::endl;
-        break;
+    }
+    break;
     default:
         break;
     }
@@ -921,13 +929,16 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, T
     switch (task.type)
     {
     case TASK::TYPE::BUILD_BLAS_FROM_CPU:
+    {
         // TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
         // copy_aabb_device_buffer(next_index, build_task.primitive_count);
         // current_primitive_count[next_index] += build_task.primitive_count;
         // // NOTE: build_blas is already called for the previous index
         // current_instance_count[next_index] += build_task.instance_count;
-        break;
+    }
+    break;
     case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
+    {
         TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
         if (rebuild_task.del_primitive_index != rebuild_task.remap_primitive_index)
         {
@@ -940,16 +951,23 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, T
         restore_light_device_buffer(next_index, rebuild_task.del_light_index,
                                     rebuild_task.remap_light_index,
                                     rebuild_task.remap_primitive_index, rebuild_task.remap_primitive_light_index);
-        break;
+    }
+    break;
     case TASK::TYPE::UPDATE_BLAS:
+    {
         TASK::BLAS_UPDATE update_task = task.blas_update;
         // update_blas(next_index, update_task.instance_index);
-        break;
+    }
+    break;
     case TASK::TYPE::UNDO_OP_CPU:
+    {
         std::cerr << "UNDO_OP_CPU impossible option" << std::endl;
-        break;
+    }
+    break;
     default:
+    {
         break;
+    }
     }
 }
 
@@ -1076,7 +1094,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[i].primitive_count,
             // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-            .flags = 0x1, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+            .flags = static_cast<daxa::GeometryFlags>(0x1), // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
         });
 
 #if DEBUG == 1
@@ -1218,7 +1236,7 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[instance_index].primitive_count,
             // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
-            .flags = 0x1, // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+            .flags = static_cast<daxa::GeometryFlags>(0x1), // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
         });
 
         /// Create Procedural Blas:
@@ -1378,7 +1396,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
             .count = current_instance_count[buffer_index],
             .is_data_array_of_pointers = false, // Buffer contains flat array of instances, not an array of pointers to instances.
             // .flags = daxa::GeometryFlagBits::OPAQUE,
-            .flags = 0x1,
+            .flags = static_cast<daxa::GeometryFlags>(0x1),
         }};
     auto tlas_build_info = daxa::TlasBuildInfo{
         .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD,
@@ -1484,8 +1502,10 @@ void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(uint32_t next_index, TA
     switch (task.type)
     {
     case TASK::TYPE::BUILD_BLAS_FROM_CPU:
+    {
         TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
-        break;
+    }
+    break;
     case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
     {
         TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;

@@ -1610,7 +1610,7 @@ namespace tests
           }
           break;
         }
-        case -1:
+        case static_cast<uint32_t>(-1):
         {
           if (camera_get_shift_status(camera))
           {
