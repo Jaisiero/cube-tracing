@@ -1,6 +1,7 @@
 
 #pragma once
 #include "defines.h"
+#include "math.inl"
 #include <queue>
 #include <stack>
 #include <mutex>
@@ -35,6 +36,10 @@ public:
         struct BLAS_UPDATE
         {
             uint32_t instance_index;
+            daxa_f32mat4x4 transform;
+            uint32_t primitive_count;
+            uint32_t* aabb_alterations; // primitive index 
+            AABB* aabbs; // host pointer to the aabbs to update
         };
 
         struct BLAS_PRIMITIVE_DELETE_FROM_CPU
@@ -185,6 +190,7 @@ public:
 
     bool task_queue_add(TASK task) {
         std::unique_lock lock(task_queue_mutex);
+        // Check if the task is valid before pushing it to the queue
         task_queue.push(task);
         if(task.type == TASK::TYPE::BUILD_BLAS_FROM_CPU) {
             temp_instance_count++;
@@ -353,9 +359,9 @@ private:
     bool copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_delete_primitive);
     bool clear_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
 
-    bool build_blases(uint32_t buffer_index, std::vector<uint32_t> instance_list);
-    bool rebuild_blases(uint32_t buffer_index, std::vector<uint32_t> instance_list);
-    bool update_blas(uint32_t buffer_index, uint32_t instance_index);
+    bool build_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list);
+    bool rebuild_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list);
+    bool update_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list);
     bool build_tlas(uint32_t buffer_index, bool synchronize);
 
 

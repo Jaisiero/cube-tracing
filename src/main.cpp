@@ -5,6 +5,7 @@
 #include <daxa/utils/task_graph.hpp>
 
 #include "defines.h"
+#include "math.inl" 
 
 #include <map_loader.hpp>
 #include <accel_struct_mngr.hpp>
@@ -912,25 +913,6 @@ namespace tests
         
         upload_world();
         upload_restir();
-
-        // if (!as_manager->build_new_blas(0, false))
-        // {
-        //   std::cout << "Failed to build blas" << std::endl;
-        //   abort();
-        // }
-
-        // if (!as_manager->build_tlas(0, false))
-        // {
-        //   std::cout << "Failed to build tlas" << std::endl;
-        //   abort();
-        // }
-
-        // if (!as_manager->build_tlas(1, true))
-        // {
-        //   std::cout << "Failed to build tlas" << std::endl;
-        //   abort();
-        // }
-
         load_lights();
 
         reset_camera(camera);
@@ -1184,6 +1166,24 @@ namespace tests
                                               .value();
       }
 
+
+      void update_model_animation() {
+        
+        TASK task = {
+            .type = TASK::TYPE::UPDATE_BLAS,
+            .blas_update = {
+              .instance_index = 1,
+              .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f))),
+              .aabb_alterations = nullptr, // empty vector means no aabb alterations
+              .aabbs = nullptr, // nullptr means no aabb alterations
+            }
+        };
+
+        as_manager->task_queue_add(task);
+
+
+      }
+
       auto update() -> bool
       {
         auto reload_result = pipeline_manager.reload_all();
@@ -1203,6 +1203,7 @@ namespace tests
 #if POINT_LIGHT_ON == 1
           update_time_and_sun_light();
 #endif // DYNAMIC_SUN_LIGHT == 1
+          update_model_animation();
           // Update the scene if needed
           as_manager->update_scene();
           upload_world();

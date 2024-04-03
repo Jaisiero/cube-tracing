@@ -1,5 +1,7 @@
 #include "accel_struct_mngr.hpp"
 
+#include <map>
+
 using AS_MANAGER_STATUS = ACCEL_STRUCT_MNGR::AS_MANAGER_STATUS;
 
 void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR *as_manager)
@@ -1064,7 +1066,7 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(uint32_t instance_index, uint32_t
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t> instance_list)
+bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1107,7 +1109,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
 
         /// Create Procedural Blas:
         blas_build_infos.push_back(daxa::BlasBuildInfo{
-            .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD, // Is also default
+            .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD | daxa::AccelerationStructureBuildFlagBits::ALLOW_UPDATE, // Is also default
             .dst_blas = {},                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
             .geometries = daxa::Span<const daxa::BlasAabbGeometryInfo>(aabb_geometries.at(current_instance_index).data(), aabb_geometries.at(current_instance_index).size()),
             .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
@@ -1196,7 +1198,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32_t> instance_list)
+bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1241,7 +1243,8 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
 
         /// Create Procedural Blas:
         blas_build_infos.push_back(daxa::BlasBuildInfo{
-            .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD, // Is also default
+            // TODO: allow update per instance
+            .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD | daxa::AccelerationStructureBuildFlagBits::ALLOW_UPDATE, // Is also default
             .dst_blas = {},                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
             .geometries = daxa::Span<const daxa::BlasAabbGeometryInfo>(aabb_geometries.at(current_instance_index).data(), aabb_geometries.at(current_instance_index).size()),
             .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
@@ -1339,9 +1342,165 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::update_blas(uint32_t buffer_index, uint32_t instance_index)
+bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list)
 {
-    // TODO: update blas here
+    if (!device.is_valid() || !initialized)
+    {
+        std::cerr << "device.is_valid()" << std::endl;
+        return false;
+    }
+
+    uint32_t instance_count = instance_list.size();
+
+    // TODO: adapt this to rebuild many BLAS at once
+    // reserve blas build infos
+    blas_build_infos.clear();
+    blas_build_infos.reserve(instance_count);
+
+    // TODO: As much geometry as instances for now
+    aabb_geometries.clear();
+    aabb_geometries.resize(instance_count);
+
+    // if(proc_blas.at(instance_index) != daxa::BlasId{})
+    //     device.destroy_blas(proc_blas.at(instance_index));
+
+    std::map<uint32_t, daxa::BlasId> blas_to_update;
+
+    for (auto instance_index : instance_list)
+    {
+        if (proc_blas.at(instance_index) != daxa::BlasId{}) {
+            blas_to_update[instance_index] = proc_blas.at(instance_index);
+        }
+    }
+
+    uint32_t current_instance_index = 0;
+
+    // build procedural blas
+    for (auto instance_index : instance_list)
+    {
+#if DEBUG == 1
+        std::cout << "  build_blas: i: " << instance_index << ", first primitive index: " << instances[instance_index].first_primitive_index << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
+#endif // DEBUG
+
+        aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
+            .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[instance_index].primitive_count,
+            // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
+            .flags = static_cast<daxa::GeometryFlags>(0x1), // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
+        });
+
+        /// Create Procedural Blas:
+        blas_build_infos.push_back(daxa::BlasBuildInfo{
+            .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD | daxa::AccelerationStructureBuildFlagBits::ALLOW_UPDATE, // Is also default
+            .update = true,
+            .src_blas = blas_to_update[instance_index],                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+            .dst_blas = {},                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+            .geometries = daxa::Span<const daxa::BlasAabbGeometryInfo>(aabb_geometries.at(current_instance_index).data(), aabb_geometries.at(current_instance_index).size()),
+            .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
+        });
+
+#if DEBUG == 1
+        std::cout << "      build_blas: aabb_geometries[" << current_instance_index << "].size(): " << aabb_geometries.at(current_instance_index).size() << std::endl;
+        for (auto &aabb_geometry : aabb_geometries.at(current_instance_index))
+        {
+            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometry.data << ", aabb_geometry.stride: " << aabb_geometry.stride << ", aabb_geometry.count: " << aabb_geometry.count << std::endl;
+        }
+#endif // DEBUG
+
+        daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
+
+        auto get_aligned = [&](uint64_t operand, uint64_t granularity) -> uint64_t
+        {
+            return ((operand + (granularity - 1)) & ~(granularity - 1));
+        };
+
+        uint32_t scratch_alignment_size = get_aligned(proc_build_size_info.update_scratch_size, acceleration_structure_scratch_offset_alignment);
+
+        if(scratch_alignment_size == 0)
+        {
+            blas_build_infos.pop_back();
+            std::cerr << "  build_blas: update not allowed for instance_index: " << instance_index << std::endl;
+        }
+        
+        if (proc_blas.at(instance_index) != daxa::BlasId{}) {
+            temp_proc_blas.push_back(proc_blas.at(instance_index));
+        }
+
+        if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
+        {
+            // TODO: Try to resize buffer
+            std::cerr << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
+            return false;
+        }
+        blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
+        proc_blas_scratch_buffer_offset += scratch_alignment_size;
+
+        uint32_t build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
+
+        if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
+        {
+            // TODO: Try to resize buffer
+            std::cerr << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
+            return false;
+        }
+
+        // Replace old BLAS
+        proc_blas.at(instance_index) = device.create_blas_from_buffer({
+            .blas_info = {
+                .size = proc_build_size_info.acceleration_structure_size,
+                .name = "procedural blas",
+            },
+            .buffer_id = proc_blas_buffer,
+            .offset = proc_blas_buffer_offset,
+        });
+
+        proc_blas_buffer_offset += build_aligment_size;
+
+        // Here BLAS buffer is updated
+        blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(instance_index);
+
+        // blas_build_infos.at(blas_build_infos.size() - 1).src_blas = blas_to_update[instance_index];
+
+        // blas_build_infos.at(blas_build_infos.size() - 1).update = true;
+
+#if DEBUG == 1
+        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index << "]: " << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 << "].scratch_data: " << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
+
+        auto aabb_geometries = daxa::get<daxa::Span<daxa::BlasAabbGeometryInfo const>>(blas_build_infos.at(blas_build_infos.size() - 1).geometries);
+
+        for (uint32_t i = 0; i < aabb_geometries.size(); i++)
+        {
+            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data << ", aabb_geometry.stride: " << aabb_geometries[i].stride << ", aabb_geometry.count: " << aabb_geometries[i].count << std::endl;
+        }
+#endif // DEBUG
+
+        ++current_instance_index;
+    }
+
+    proc_blas_scratch_buffer_offset = 0;
+
+    // Check if all instances were processed
+    if (current_instance_index != instance_count)
+    {
+        std::cerr << "current_instance_index != current_instance_count" << std::endl;
+        return false;
+    }
+
+    /// Record build commands:
+    auto exec_cmds = [&]()
+    {
+        auto recorder = device.create_command_recorder({});
+        recorder.pipeline_barrier({
+            .src_access = daxa::AccessConsts::HOST_WRITE,
+            .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
+        });
+        recorder.build_acceleration_structures({
+            .blas_build_infos = blas_build_infos,
+        });
+
+        return recorder.complete_current_commands();
+    }();
+    device.submit_commands({.command_lists = std::array{exec_cmds}});
+
     return true;
 }
 
@@ -1571,6 +1730,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
 
     std::vector<uint32_t> blas_index_list = {};
     std::vector<uint32_t> rebuild_blas_index_list = {};
+    std::vector<uint32_t> update_blas_index_list = {};
 
     // Iterate over all tasks to process
     for (uint32_t i = 0; i < items_to_process; i++)
@@ -1632,7 +1792,13 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         case TASK::TYPE::UPDATE_BLAS:
         {
             TASK::BLAS_UPDATE update_task = task.blas_update;
-            // update_blas(next_index, update_task.instance_index);
+            instances[update_task.instance_index].prev_transform = instances[update_task.instance_index].transform;
+            instances[update_task.instance_index].transform = daxa_f32mat4x4_mult(instances[update_task.instance_index].transform, update_task.transform);
+
+            // TODO: update aabb buffer with new positions
+            // update_aabb(next_index, update_task.instance_index);
+
+            update_blas_index_list.push_back(update_task.instance_index);
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -1666,8 +1832,18 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         build_blases(next_index, blas_index_list);
 
     // Rebuild BLASes
-    if (!rebuild_blas_index_list.empty())
+    if (!rebuild_blas_index_list.empty()) {
         rebuild_blases(next_index, rebuild_blas_index_list);
+    }
+
+    
+    // Build BLASes
+    if (!update_blas_index_list.empty()) {
+        // TODO: find a better way to get unique indices
+        auto ip = std::unique(update_blas_index_list.begin(), update_blas_index_list.begin() + update_blas_index_list.size());
+        update_blas_index_list.resize(std::distance(update_blas_index_list.begin(), ip));
+        update_blases(next_index, update_blas_index_list);
+    }
 
     // Build TLAS
     build_tlas(next_index, true);

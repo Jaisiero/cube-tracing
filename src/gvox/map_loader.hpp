@@ -1,6 +1,7 @@
 
 #pragma once 
 #include "defines.h"
+#include "math.inl"
 
 #include <fstream>
 #include <filesystem>
