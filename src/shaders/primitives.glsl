@@ -376,9 +376,9 @@ daxa_b32 is_hit_from_ray_providing_model_get_pos_and_nor(
   Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(1.f));
 
   daxa_b32 hit = intersect_box(box, obj_ray, t_hit, nor, ray_can_start_in_box,
-                               oriented, safeInverse(obj_ray.direction));
+                               false, safeInverse(obj_ray.direction));
   pos = ray.origin + ray.direction * t_hit;
-  nor = (transpose(obj2world) * vec4(nor, 0)).xyz;
+  nor = (transpose(world2obj) * vec4(nor, 0)).xyz;
 
   return hit;
 }
@@ -416,10 +416,10 @@ daxa_b32 is_hit_from_ray(Ray ray, OBJECT_INFO instance_hit,
   Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(1.f));
 
   daxa_b32 hit = intersect_box(box, obj_ray, t_hit, nor, ray_can_start_in_box,
-                               oriented, safeInverse(obj_ray.direction));
+                               false, safeInverse(obj_ray.direction));
   pos = ray.origin + ray.direction * t_hit;
   // translate normal to world space
-  nor = (transpose(obj2world) * vec4(nor, 0)).xyz;
+  nor = (transpose(world2obj) * vec4(nor, 0)).xyz;
 
   return hit;
 }
@@ -461,26 +461,9 @@ daxa_b32 is_hit_from_origin(daxa_f32vec3 origin_world_space,
   Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(1.f));
 
   daxa_b32 hit = intersect_box(box, obj_ray, t_hit, nor, ray_can_start_in_box,
-                               oriented, safeInverse(obj_ray.direction));
+                               false, safeInverse(obj_ray.direction));
   pos = world_ray.origin + world_ray.direction * t_hit;
-  nor = (transpose(obj2world) * vec4(nor, 0)).xyz;
-
-  return hit;
-}
-
-daxa_b32 is_hit_from_origin_with_geometry_center(
-    daxa_f32vec3 origin_world_space, daxa_f32vec3 aabb_center,
-    daxa_f32vec3 half_extent, out daxa_f32 t_hit, out daxa_f32vec3 pos,
-    out daxa_f32vec3 nor, const in daxa_b32 oriented) {
-
-  Ray world_ray =
-      Ray(origin_world_space, normalize(aabb_center - origin_world_space));
-
-  Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(1.0));
-
-  daxa_b32 hit = intersect_box(box, world_ray, t_hit, nor, false, oriented,
-                               safeInverse(world_ray.direction));
-  pos = world_ray.origin + world_ray.direction * t_hit;
+  nor = (transpose(world2obj) * vec4(nor, 0)).xyz;
 
   return hit;
 }
