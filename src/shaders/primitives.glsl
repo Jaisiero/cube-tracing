@@ -329,9 +329,12 @@ daxa_b32 is_hit_from_ray_providing_model(Ray ray,
     daxa_f32vec3 pos;
     daxa_f32vec3 nor;
 
-    aabb_center = (obj2world * vec4(aabb_center, 1)).xyz;
+    ray.origin = (world2obj * vec4(ray.origin, 1)).xyz;
+    ray.direction = (world2obj * vec4(ray.direction, 0)).xyz;
 
-    Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(obj2world));
+    // aabb_center = (obj2world * vec4(aabb_center, 1)).xyz;
+
+    Box box = Box(aabb_center, half_extent, safeInverse(half_extent), mat3(1.f));
 
     daxa_b32 hit = intersect_box(box, ray, t_hit, nor, ray_can_start_in_box,
                                  oriented, safeInverse(ray.direction));
@@ -354,14 +357,17 @@ daxa_b32 is_hit_from_ray_providing_model_get_pos_and_nor(
 
   daxa_f32vec3 aabb_center = (aabb.minimum + aabb.maximum) * 0.5;
 
-  aabb_center = (obj2world * vec4(aabb_center, 1)).xyz;
+  // aabb_center = (obj2world * vec4(aabb_center, 1)).xyz;
+
+  Ray obj_ray = Ray((world2obj * vec4(ray.origin, 1)).xyz, (world2obj * vec4(ray.direction, 0)).xyz);
 
   Box box =
-      Box(aabb_center, half_extent, safeInverse(half_extent), mat3(obj2world));
+      Box(aabb_center, half_extent, safeInverse(half_extent), mat3(1.f));
 
-  daxa_b32 hit = intersect_box(box, ray, t_hit, nor, ray_can_start_in_box,
-                               oriented, safeInverse(ray.direction));
+  daxa_b32 hit = intersect_box(box, obj_ray, t_hit, nor, ray_can_start_in_box,
+                               oriented, safeInverse(obj_ray.direction));
   pos = ray.origin + ray.direction * t_hit;
+  nor = (transpose(obj2world) * vec4(nor, 0)).xyz;
 
   return hit;
 }
