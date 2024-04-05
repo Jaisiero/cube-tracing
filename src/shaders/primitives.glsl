@@ -11,14 +11,21 @@
 daxa_f32mat4x4
 get_geometry_previous_transform_from_instance_id(daxa_u32 instance_id) {
   INSTANCES_BUFFER instance_buffer =
-      INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
-  return instance_buffer.instances[instance_id].prev_transform;
+      INSTANCES_BUFFER(deref(p.world_buffer).instance_address_prev);
+  return instance_buffer.instances[instance_id].transform;
 }
 
 daxa_f32mat4x4 get_geometry_transform_from_instance_id(daxa_u32 instance_id) {
   INSTANCES_BUFFER instance_buffer =
       INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
   return instance_buffer.instances[instance_id].transform;
+}
+
+daxa_u32
+get_geometry_previous_first_primitive_index_from_instance_id(daxa_u32 instance_id) {
+  INSTANCES_BUFFER instance_buffer =
+      INSTANCES_BUFFER(deref(p.world_buffer).instance_address_prev);
+  return instance_buffer.instances[instance_id].first_primitive_index;
 }
 
 daxa_u32
@@ -37,6 +44,31 @@ daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(
   // Get actual primitive index from offset and primitive id
   return primitive_index + instance_hit.primitive_id;
 }
+
+daxa_u32 get_previous_primitive_index_from_instance_and_primitive_id(
+    OBJECT_INFO instance_hit) {
+  // Get first primitive index from instance id
+  daxa_u32 primitive_index =
+      get_geometry_previous_first_primitive_index_from_instance_id(
+          instance_hit.instance_id);
+  // Get actual primitive index from offset and primitive id
+  return primitive_index + instance_hit.primitive_id;
+}
+
+INSTANCE get_instance_from_instance_id(daxa_u32 instance_id) {
+  INSTANCES_BUFFER instance_buffer =
+      INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
+  return instance_buffer.instances[instance_id];
+}
+
+INSTANCE get_previous_instance_from_instance_id(daxa_u32 instance_id) {
+  INSTANCES_BUFFER instance_buffer =
+      INSTANCES_BUFFER(deref(p.world_buffer).instance_address_prev);
+  return instance_buffer.instances[instance_id];
+}
+
+
+// BRUSH COUNTER BUFFER
 
 daxa_u32 get_brush_counter_instance_count() {
   BRUSH_COUNTER_BUFFER p =
@@ -88,12 +120,6 @@ void delete_primtivite_from_instance(OBJECT_INFO instance_hit) {
   if ((result_instance & (1U << (instance_index & 31))) == 0U) {
     increment_brush_counter_instance_count();
   }
-}
-
-INSTANCE get_instance_from_instance_id(daxa_u32 instance_id) {
-  INSTANCES_BUFFER instance_buffer =
-      INSTANCES_BUFFER(deref(p.world_buffer).instance_address);
-  return instance_buffer.instances[instance_id];
 }
 
 // REMAPPED PRIMITIVE BUFFER
@@ -391,20 +417,22 @@ daxa_b32 is_hit_from_ray(Ray ray, OBJECT_INFO instance_hit,
                          const in daxa_b32 previous_frame,
                          const in daxa_b32 ray_can_start_in_box,
                          const in daxa_b32 oriented) {
-  INSTANCE instance = get_instance_from_instance_id(instance_hit.instance_id);
+  INSTANCE instance;
+  
+
+  // Get model matrix from instance
+  if (previous_frame) {
+    instance = get_instance_from_instance_id(instance_hit.instance_id);
+  } else {
+    instance = get_previous_instance_from_instance_id(instance_hit.instance_id);
+  }
+  obj2world = instance.transform;
 
   daxa_u32 current_primitive_index =
       instance.first_primitive_index + instance_hit.primitive_id;
 
   // Get aabb from primitive
   AABB aabb = get_aabb_from_primitive_index(current_primitive_index);
-
-  // Get model matrix from instance
-  if (previous_frame) {
-    obj2world = instance.prev_transform;
-  } else {
-    obj2world = instance.transform;
-  }
 
   world2obj = inverse(obj2world);
 

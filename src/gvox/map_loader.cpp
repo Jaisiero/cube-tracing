@@ -314,7 +314,6 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
         {
             INSTANCE inst = {0};
             inst.transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f));
-            inst.prev_transform = glm_mat4_to_daxa_f32mat4x4(glm::mat4(1.0f));
             inst.first_primitive_index = first_voxel_index;
             inst.primitive_count = voxel_count;
 

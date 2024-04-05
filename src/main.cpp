@@ -1169,27 +1169,27 @@ namespace tests
 
       void update_model_animation() {
         
-        TASK task = {
-            .type = TASK::TYPE::UPDATE_BLAS,
-            .blas_update = {
-              .instance_index = 1,
-              .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f))),
-              .aabb_alterations = nullptr, // empty vector means no aabb alterations
-              .aabbs = nullptr, // nullptr means no aabb alterations
-            }
-        };
-
         // TASK task = {
         //     .type = TASK::TYPE::UPDATE_BLAS,
         //     .blas_update = {
         //       .instance_index = 1,
-        //       .transform = glm_mat4_to_daxa_f32mat4x4(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0001f, 0.0f))),
+        //       .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f))),
         //       .aabb_alterations = nullptr, // empty vector means no aabb alterations
         //       .aabbs = nullptr, // nullptr means no aabb alterations
         //     }
         // };
 
-        as_manager->task_queue_add(task);
+        // TASK task = {
+        //     .type = TASK::TYPE::UPDATE_BLAS,
+        //     .blas_update = {
+        //       .instance_index = 1,
+        //       .transform = glm_mat4_to_daxa_f32mat4x4(glm::translate(glm::mat4(1.0f), status.frame_number % 2 ? glm::vec3(0.0f, 0.01f, 0.0f) : glm::vec3(0.0f, -0.01f, 0.0f))),
+        //       .aabb_alterations = nullptr, // empty vector means no aabb alterations
+        //       .aabbs = nullptr, // nullptr means no aabb alterations
+        //     }
+        // };
+
+        // as_manager->task_queue_add(task);
 
 
       }
@@ -1343,11 +1343,11 @@ namespace tests
         });
 
         recorder.copy_buffer_to_buffer(
-            {
-                .src_buffer = status_staging_buffer,
-                .dst_buffer = status_buffer,
-                .size = status_buffer_size,
-            });
+        {
+            .src_buffer = status_staging_buffer,
+            .dst_buffer = status_buffer,
+            .size = status_buffer_size,
+        });
 
         recorder.pipeline_barrier({
             .src_access = daxa::AccessConsts::TRANSFER_WRITE,
@@ -1373,59 +1373,6 @@ namespace tests
             .camera_buffer = this->device.get_device_address(cam_buffer).value(),
             .status_buffer = this->device.get_device_address(status_buffer).value(),
             .world_buffer = this->device.get_device_address(world_buffer).value(),
-            // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
-            .restir_buffer = this->device.get_device_address(restir_buffer).value(),
-            // .hit_distance_buffer = this->device.get_device_address(hit_distance_buffer).value(),
-            // .instance_level_buffer = this->device.get_device_address(instance_level_buffer).value(),
-            // .instance_distance_buffer = this->device.get_device_address(instance_distance_buffer).value(),
-            // .aabb_buffer = this->device.get_device_address(gpu_aabb_buffer).value(),
-        });
-
-        recorder.trace_rays({
-            .width = width,
-            .height = height,
-            .depth = 1,
-        });
-
-        // recorder.pipeline_barrier({
-        //     .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
-        //     .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
-        // });
-
-        // recorder.push_constant(PushConstant{
-        //     .size = {width, height},
-        //     .tlas = tlas,
-        //     .swapchain = swapchain_image_view,
-        //     .camera_buffer = this->device.get_device_address(cam_buffer).value(),
-        //     .status_buffer = this->device.get_device_address(status_buffer).value(),
-        //     .world_buffer = this->device.get_device_address(world_buffer).value(),
-        //     // .status_output_buffer = this->device.get_device_address(status_output_buffer).value(),
-        //     .restir_buffer = this->device.get_device_address(restir_buffer).value(),
-        // });
-
-        // recorder.trace_rays({
-        //     .width = width,
-        //     .height = height,
-        //     .depth = 1,
-        //     .raygen_shader_binding_table_offset = 1,
-        // });
-
-        recorder.pipeline_barrier({
-            .src_access = daxa::AccessConsts::RAY_TRACING_SHADER_WRITE,
-            .dst_access = daxa::AccessConsts::RAY_TRACING_SHADER_READ,
-        });
-
-        recorder.push_constant(PushConstant{
-            .size = {width, height},
-            .tlas = as_manager->get_current_tlas(),
-            .tlas_previous = as_manager->get_previous_tlas(),
-            .swapchain = swapchain_image_view,
-            .previous_swapchain = previous_swapchain_image_view,
-            .taa_frame = taa_image_view,
-            .taa_prev_frame = previous_taa_image_view,
-            .camera_buffer = this->device.get_device_address(cam_buffer).value(),
-            .status_buffer = this->device.get_device_address(status_buffer).value(),
-            .world_buffer = this->device.get_device_address(world_buffer).value(),
             .restir_buffer = this->device.get_device_address(restir_buffer).value(),
         });
 
@@ -1433,7 +1380,6 @@ namespace tests
             .width = width,
             .height = height,
             .depth = 1,
-            .raygen_shader_binding_table_offset = 2,
         });
 
         recorder.pipeline_barrier({

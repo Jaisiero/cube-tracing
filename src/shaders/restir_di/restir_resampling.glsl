@@ -354,6 +354,8 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
           compute_ray_origin(prev_hit.world_hit, prev_hit.world_nrm);
       prev_hit.world_hit =
           compute_ray_origin(prev_hit.world_hit, prev_hit.world_nrm);
+      // TODO: the position of the previous hit world modifies flickering. Why?
+      // prev_hit.world_hit += 0.0015 * prev_hit.world_nrm;
 
       MATERIAL prev_mat =
           get_material_from_material_index(di_info_previous.mat_index);

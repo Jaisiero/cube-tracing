@@ -336,6 +336,7 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(uint32_t buffer_index, ui
     if (current_primitive_count_offset > max_primitive_buffer_size)
     {
         std::cerr << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+        // TODO: handle this case
         return false;
     }
 
@@ -661,7 +662,8 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK &task)
     break;
     case TASK::TYPE::UNDO_OP_CPU:
     {
-        std::cerr << "UNDO_OP_CPU impossible option" << std::endl;
+        std::cerr << "      UNDO_OP_CPU impossible option for process_undo_task_queue" << std::endl;
+        std::abort();
     }
     break;
     default:
@@ -963,7 +965,8 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, T
     break;
     case TASK::TYPE::UNDO_OP_CPU:
     {
-        std::cerr << "UNDO_OP_CPU impossible option" << std::endl;
+        std::cerr << "UNDO_OP_CPU impossible option for process_undo_switching_task_queue" << std::endl;
+        std::abort();
     }
     break;
     default:
@@ -1419,6 +1422,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
         {
             blas_build_infos.pop_back();
             std::cerr << "  build_blas: update not allowed for instance_index: " << instance_index << std::endl;
+            return false;
         }
         
         if (proc_blas.at(instance_index) != daxa::BlasId{}) {
@@ -1684,10 +1688,10 @@ void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(uint32_t next_index, TA
     break;
     case TASK::TYPE::UNDO_OP_CPU:
     {
-        // TODO: undo task
         if (task.undo_op_cpu.undo_task)
         {
-            std::cerr << "      UNDO_OP_CPU not implemented yet" << std::endl;
+            std::cerr << "      UNDO_OP_CPU should not reach process_undo_settling_task_queue" << std::endl;
+            std::abort();
         }
     }
     break;
@@ -1749,7 +1753,6 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             upload_aabb_device_buffer(next_index, build_task.primitive_count);
             current_primitive_count[next_index] += build_task.primitive_count;
             instances[current_instance_count[next_index]].transform = build_task.transform;
-            instances[current_instance_count[next_index]].prev_transform = build_task.transform;
             blas_index_list.push_back(current_instance_count[next_index]);
             current_instance_count[next_index] += build_task.instance_count;
         }
@@ -1791,9 +1794,30 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         break;
         case TASK::TYPE::UPDATE_BLAS:
         {
+#if DEBUG == 1
             TASK::BLAS_UPDATE update_task = task.blas_update;
-            instances[update_task.instance_index].prev_transform = instances[update_task.instance_index].transform;
-            instances[update_task.instance_index].transform = daxa_f32mat4x4_mult(instances[update_task.instance_index].transform, update_task.transform);
+            instances[update_task.instance_index].transform = 
+                daxa_f32mat4x4_mult(instances[update_task.instance_index].transform, update_task.transform);
+
+            // print transform matrix
+            std::cout << "matrix instance_index: " << update_task.instance_index << std::endl;
+            std::cout << "  [" << instances[update_task.instance_index].transform.x.x << ", " << 
+                instances[update_task.instance_index].transform.x.y << ", " << 
+                instances[update_task.instance_index].transform.x.z << ", " << 
+                instances[update_task.instance_index].transform.x.w << "]" << std::endl;
+            std::cout << "  [" << instances[update_task.instance_index].transform.y.x << ", " <<
+                instances[update_task.instance_index].transform.y.y << ", " <<
+                instances[update_task.instance_index].transform.y.z << ", " <<
+                instances[update_task.instance_index].transform.y.w << "]" << std::endl;
+            std::cout << "  [" << instances[update_task.instance_index].transform.z.x << ", " <<
+                instances[update_task.instance_index].transform.z.y << ", " <<
+                instances[update_task.instance_index].transform.z.z << ", " <<
+                instances[update_task.instance_index].transform.z.w << "]" << std::endl;
+            std::cout << "  [" << instances[update_task.instance_index].transform.w.x << ", " <<
+                instances[update_task.instance_index].transform.w.y << ", " <<
+                instances[update_task.instance_index].transform.w.z << ", " <<
+                instances[update_task.instance_index].transform.w.w << "]" << std::endl;
+#endif // DEBUG
 
             // TODO: update aabb buffer with new positions
             // update_aabb(next_index, update_task.instance_index);

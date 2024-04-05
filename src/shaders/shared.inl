@@ -229,7 +229,6 @@ DAXA_DECL_BUFFER_PTR(Status)
 struct INSTANCE
 {
   daxa_f32mat4x4 transform;
-  daxa_f32mat4x4 prev_transform;
   daxa_u32 first_primitive_index;
   daxa_u32 primitive_count;
 };
