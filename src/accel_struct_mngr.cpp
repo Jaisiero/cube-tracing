@@ -2,7 +2,8 @@
 
 #include <map>
 
-using AS_MANAGER_STATUS = ACCEL_STRUCT_MNGR::AS_MANAGER_STATUS;
+using AS_MANAGER_STATUS = cubeland::ACCEL_STRUCT_MNGR::AS_MANAGER_STATUS;
+using ACCEL_STRUCT_MNGR = cubeland::ACCEL_STRUCT_MNGR;
 
 void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR *as_manager)
 {
@@ -77,7 +78,7 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR *as_manager)
     };
 }
 
-bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primitive_count, uint32_t max_cube_light_count, uint32_t *cube_light_count)
+bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, u32 max_cube_light_count, u32 *cube_light_count)
 {
     if (device.is_valid() && !initialized)
     {
@@ -88,10 +89,10 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
         max_aabb_host_buffer_size = sizeof(AABB) * max_primitive_count * 0.1;
         max_primitive_buffer_size = sizeof(PRIMITIVE) * max_primitive_count;
         max_cube_light_buffer_size = sizeof(LIGHT) * max_cube_light_count;
-        max_remapping_primitive_buffer_size = sizeof(uint32_t) * max_primitive_count;
-        max_remapping_light_buffer_size = sizeof(uint32_t) * max_cube_light_count;
-        max_instance_bitmask_size = max_instance_count / sizeof(uint32_t) + 1;
-        max_primitive_bitmask_size = max_primitive_count / sizeof(uint32_t) + 1;
+        max_remapping_primitive_buffer_size = sizeof(u32) * max_primitive_count;
+        max_remapping_light_buffer_size = sizeof(u32) * max_cube_light_count;
+        max_instance_bitmask_size = max_instance_count / sizeof(u32) + 1;
+        max_primitive_bitmask_size = max_primitive_count / sizeof(u32) + 1;
 
         instances = std::make_unique<INSTANCE[]>(max_instance_count);
         primitives = std::make_unique<PRIMITIVE[]>(max_primitive_count);
@@ -108,10 +109,16 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
             .name = "proc blas buffer",
         });
 
+        blas_free_list =
+            std::make_unique<gpu_free_list<daxa::BlasId,
+                                           gpu_allocator<daxa::BlasId>>>(device,
+                                                                         proc_blas_buffer_size,
+                                                                         proc_blas_buffer);
+
         // Clear previous procedural blas
         this->proc_blas.clear();
 
-        for (uint32_t i = 0; i < DOUBLE_BUFFERING; i++)
+        for (u32 i = 0; i < DOUBLE_BUFFERING; i++)
         {
             tlas[i] = daxa::TlasId{};
             instance_buffer[i] = device.create_buffer({
@@ -120,7 +127,7 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
             });
         }
 
-        for (uint32_t i = 0; i < DOUBLE_BUFFERING; i++)
+        for (u32 i = 0; i < DOUBLE_BUFFERING; i++)
         {
             primitive_buffer[i] = device.create_buffer({
                 .size = max_primitive_buffer_size,
@@ -128,7 +135,7 @@ bool ACCEL_STRUCT_MNGR::create(uint32_t max_instance_count, uint32_t max_primiti
             });
         }
 
-        for (uint32_t i = 0; i < DOUBLE_BUFFERING; i++)
+        for (u32 i = 0; i < DOUBLE_BUFFERING; i++)
         {
             aabb_buffer[i] = device.create_buffer({
                 .size = max_aabb_buffer_size,
@@ -280,12 +287,12 @@ void ACCEL_STRUCT_MNGR::copy_buffer(daxa::BufferId src_primitive_buffer,
     }
 }
 
-bool ACCEL_STRUCT_MNGR::upload_all_instances(uint32_t buffer_index, bool synchronize)
+bool ACCEL_STRUCT_MNGR::upload_all_instances(u32 buffer_index, bool synchronize)
 {
 
     // TODO: optimize by range copy?
     //  Copy instances to buffer
-    uint32_t instance_buffer_size = static_cast<uint32_t>(current_instance_count[buffer_index] * sizeof(INSTANCE));
+    u32 instance_buffer_size = static_cast<u32>(current_instance_count[buffer_index] * sizeof(INSTANCE));
     if (instance_buffer_size > max_instance_buffer_size)
     {
         std::cerr << "instance_buffer_size > max_instance_buffer_size" << std::endl;
@@ -306,7 +313,7 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(uint32_t buffer_index, bool synchro
 
 #if DEBUG == 1
     std::cout << "  upload_all_instances: buffer_index: " << buffer_index << ", current_instance_count: " << current_instance_count[buffer_index] << std::endl;
-    for (uint32_t i = 0; i < current_instance_count[buffer_index]; i++)
+    for (u32 i = 0; i < current_instance_count[buffer_index]; i++)
     {
         std::cout << "  instance[" << i << "] - first index: " << instance_buffer_ptr[i].first_primitive_index << ", primitive count: " << instance_buffer_ptr[i].primitive_count << std::endl;
     }
@@ -319,7 +326,7 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(uint32_t buffer_index, bool synchro
 
 //////////////////////////////// UPDATING //////////////////////////////////////
 
-bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count)
+bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 primitive_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -327,11 +334,11 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(uint32_t buffer_index, ui
         return false;
     }
 
-    uint32_t previous_primitive_count = current_primitive_count[buffer_index];
-    uint32_t primitive_count_offset = previous_primitive_count * sizeof(PRIMITIVE);
-    uint32_t primitive_buffer_size = primitive_count * sizeof(PRIMITIVE);
-    uint32_t current_primitive_count = previous_primitive_count + primitive_count;
-    uint32_t current_primitive_count_offset = current_primitive_count * sizeof(PRIMITIVE);
+    u32 previous_primitive_count = current_primitive_count[buffer_index];
+    u32 primitive_count_offset = previous_primitive_count * sizeof(PRIMITIVE);
+    u32 primitive_buffer_size = primitive_count * sizeof(PRIMITIVE);
+    u32 current_primitive_count = previous_primitive_count + primitive_count;
+    u32 current_primitive_count_offset = current_primitive_count * sizeof(PRIMITIVE);
 
     if (current_primitive_count_offset > max_primitive_buffer_size)
     {
@@ -357,7 +364,7 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(uint32_t buffer_index, ui
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count)
+bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -365,11 +372,11 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(uint32_t buffer_index, uint
         return false;
     }
 
-    uint32_t previous_primitive_count = current_primitive_count[buffer_index];
-    uint32_t primitive_count_offset = previous_primitive_count * sizeof(PRIMITIVE);
-    uint32_t primitive_buffer_size = primitive_count * sizeof(PRIMITIVE);
-    uint32_t current_primitive_count = previous_primitive_count + primitive_count;
-    uint32_t current_primitive_count_offset = current_primitive_count * sizeof(PRIMITIVE);
+    u32 previous_primitive_count = current_primitive_count[buffer_index];
+    u32 primitive_count_offset = previous_primitive_count * sizeof(PRIMITIVE);
+    u32 primitive_buffer_size = primitive_count * sizeof(PRIMITIVE);
+    u32 current_primitive_count = previous_primitive_count + primitive_count;
+    u32 current_primitive_count_offset = current_primitive_count * sizeof(PRIMITIVE);
 
     if (current_primitive_count_offset > max_primitive_buffer_size)
     {
@@ -377,13 +384,13 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(uint32_t buffer_index, uint
         return false;
     }
 
-    uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
+    u32 previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
     copy_buffer(primitive_buffer[previous_buffer_index], primitive_buffer[buffer_index], primitive_count_offset, primitive_count_offset, primitive_buffer_size);
 
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count)
+bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -408,11 +415,11 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(uint32_t buffer_index, uint32_
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
-                                                  uint32_t instance_index, uint32_t primitive_index,
-                                                  uint32_t primitive_to_exchange,
-                                                  uint32_t &light_to_delete, uint32_t &light_to_exchange,
-                                                  uint32_t &light_of_the_exchanged_primitive)
+bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(u32 buffer_index,
+                                                  u32 instance_index, u32 primitive_index,
+                                                  u32 primitive_to_exchange,
+                                                  u32 &light_to_delete, u32 &light_to_exchange,
+                                                  u32 &light_of_the_exchanged_primitive)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -420,7 +427,7 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
         return false;
     }
 
-    size_t multipurpose_staging_buffer_size = std::max(sizeof(AABB) + sizeof(PRIMITIVE), sizeof(uint32_t)) * 2;
+    size_t multipurpose_staging_buffer_size = std::max(sizeof(AABB) + sizeof(PRIMITIVE), sizeof(u32)) * 2;
 
     auto multipurpose_staging_buffer = device.create_buffer({
         .size = multipurpose_staging_buffer_size,
@@ -429,11 +436,11 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
     });
     defer { device.destroy_buffer(multipurpose_staging_buffer); };
 
-    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+    u32 first_primitive_index = instances[instance_index].first_primitive_index;
     // Copy primitive to delete
-    uint32_t primitive_to_delete = first_primitive_index + primitive_index;
+    u32 primitive_to_delete = first_primitive_index + primitive_index;
     // Copy last primitive
-    uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
+    u32 last_primitive_index = first_primitive_index + primitive_to_exchange;
 
     // Copy backup of primitive to delete
     copy_buffer(primitive_buffer[buffer_index], multipurpose_staging_buffer, primitive_to_delete * sizeof(PRIMITIVE), 0, sizeof(PRIMITIVE), true);
@@ -499,27 +506,27 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
 #endif // DEBUG
         if (light_to_exchange != -1)
         {
-            uint32_t primitive_index_from_light_to_exchange =
+            u32 primitive_index_from_light_to_exchange =
                 instances[cube_lights[light_to_exchange].instance_info.instance_id].first_primitive_index +
                 cube_lights[light_to_exchange].instance_info.primitive_id;
             auto *multipurpose_staging_buffer_ptr =
-                device.get_host_address_as<uint32_t>(multipurpose_staging_buffer).value();
+                device.get_host_address_as<u32>(multipurpose_staging_buffer).value();
             std::memcpy(multipurpose_staging_buffer_ptr,
                         &light_to_delete,
-                        sizeof(uint32_t));
+                        sizeof(u32));
             copy_buffer(multipurpose_staging_buffer,
                         primitive_buffer[buffer_index], 0,
-                        primitive_index_from_light_to_exchange * sizeof(PRIMITIVE) + sizeof(uint32_t),
-                        sizeof(uint32_t));
+                        primitive_index_from_light_to_exchange * sizeof(PRIMITIVE) + sizeof(u32),
+                        sizeof(u32));
 
             // Get light of the exchanged primitive
             copy_buffer(primitive_buffer[buffer_index],
                         multipurpose_staging_buffer,
-                        last_primitive_index * sizeof(PRIMITIVE) + sizeof(uint32_t),
+                        last_primitive_index * sizeof(PRIMITIVE) + sizeof(u32),
                         0,
-                        sizeof(uint32_t), true);
+                        sizeof(u32), true);
 
-            memcpy(&light_of_the_exchanged_primitive, multipurpose_staging_buffer_ptr, sizeof(uint32_t));
+            memcpy(&light_of_the_exchanged_primitive, multipurpose_staging_buffer_ptr, sizeof(u32));
 
 #if DEBUG == 1
             std::cout << "  delete_aabb_device_buffer primitive["
@@ -533,7 +540,7 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(uint32_t buffer_index,
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::update_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange)
+bool ACCEL_STRUCT_MNGR::update_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -541,12 +548,12 @@ bool ACCEL_STRUCT_MNGR::update_remapping_buffer(uint32_t instance_index, uint32_
         return false;
     }
 
-    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+    u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
     // Copy last primitive to deleted primitive
-    uint32_t primitive_to_delete = first_primitive_index + primitive_index;
+    u32 primitive_to_delete = first_primitive_index + primitive_index;
 
-    size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
+    size_t remapped_primitive_buffer_size = sizeof(u32) * 2;
 
     auto remapped_primitive_staging_buffer = device.create_buffer({
         .size = remapped_primitive_buffer_size,
@@ -555,24 +562,24 @@ bool ACCEL_STRUCT_MNGR::update_remapping_buffer(uint32_t instance_index, uint32_
     });
     defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
 
-    uint32_t remapped_primitive_indexes[2] = {static_cast<uint32_t>(-1), primitive_index};
+    u32 remapped_primitive_indexes[2] = {static_cast<u32>(-1), primitive_index};
 
-    auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
+    auto *remapped_primitive_buffer_ptr = device.get_host_address_as<u32>(remapped_primitive_staging_buffer).value();
     std::memcpy(remapped_primitive_buffer_ptr,
                 remapped_primitive_indexes,
                 remapped_primitive_buffer_size);
 
-    copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+    copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(u32), sizeof(u32));
     if (primitive_to_exchange != primitive_index)
     {
-        uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
-        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
+        u32 last_primitive_index = first_primitive_index + primitive_to_exchange;
+        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(u32), last_primitive_index * sizeof(u32), sizeof(u32));
     }
 
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(uint32_t light_to_delete, uint32_t light_to_exchange)
+bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(u32 light_to_delete, u32 light_to_exchange)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -587,7 +594,7 @@ bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(uint32_t light_to_delete, 
 
     if (light_to_delete != -1)
     {
-        size_t remapped_light_buffer_size = sizeof(uint32_t) * 2;
+        size_t remapped_light_buffer_size = sizeof(u32) * 2;
 
         auto remapped_light_staging_buffer = device.create_buffer({
             .size = remapped_light_buffer_size,
@@ -596,17 +603,17 @@ bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(uint32_t light_to_delete, 
         });
         defer { device.destroy_buffer(remapped_light_staging_buffer); };
 
-        uint32_t remapped_light_indexes[2] = {static_cast<uint32_t>(-1), light_to_delete};
+        u32 remapped_light_indexes[2] = {static_cast<u32>(-1), light_to_delete};
 
-        auto *remapped_light_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_light_staging_buffer).value();
+        auto *remapped_light_buffer_ptr = device.get_host_address_as<u32>(remapped_light_staging_buffer).value();
         std::memcpy(remapped_light_buffer_ptr,
                     remapped_light_indexes,
                     remapped_light_buffer_size);
 
-        copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, 0, light_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, 0, light_to_delete * sizeof(u32), sizeof(u32));
         if (light_to_exchange != -1)
         {
-            copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, sizeof(uint32_t), light_to_exchange * sizeof(uint32_t), sizeof(uint32_t));
+            copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, sizeof(u32), light_to_exchange * sizeof(u32), sizeof(u32));
         }
     }
 
@@ -615,10 +622,10 @@ bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(uint32_t light_to_delete, 
 
 //////////////////////////////// UPDATING - UNDO  STARTS//////////////////////////////////////
 
-void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK &task)
+void ACCEL_STRUCT_MNGR::process_undo_task_queue(u32 next_index, TASK &task)
 {
 
-    std::vector<uint32_t> rebuild_blas_index_list = {};
+    std::vector<u32> rebuild_blas_index_list = {};
 
     // Process task
     switch (task.type)
@@ -675,8 +682,8 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(uint32_t next_index, TASK &task)
         rebuild_blases(next_index, rebuild_blas_index_list);
 }
 
-bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index,
-                                                   uint32_t primitive_to_recover, uint32_t primitive_exchanged, uint32_t light_deleted, uint32_t light_exchanged)
+bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(u32 buffer_index, u32 instance_index,
+                                                   u32 primitive_to_recover, u32 primitive_exchanged, u32 light_deleted, u32 light_exchanged)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -688,7 +695,7 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
 
     // Backup of the deleted primitive and light
     {
-        size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE) + sizeof(uint32_t);
+        size_t multipurpose_staging_buffer_size = sizeof(AABB) + sizeof(PRIMITIVE) + sizeof(u32);
 
         auto multipurpose_staging_buffer = device.create_buffer({
             .size = multipurpose_staging_buffer_size,
@@ -699,10 +706,10 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
 
         --backup_primitive_count;
 
-        uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+        u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
-        uint32_t exchanged_primitive_index = first_primitive_index + primitive_exchanged;
-        uint32_t deleted_primitive_index = first_primitive_index + primitive_to_recover;
+        u32 exchanged_primitive_index = first_primitive_index + primitive_exchanged;
+        u32 deleted_primitive_index = first_primitive_index + primitive_to_recover;
 
         auto *multipurpose_staging_buffer_ptr =
             device.get_host_address_as<uint8_t>(multipurpose_staging_buffer).value();
@@ -724,16 +731,16 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
 
             if (light_exchanged != -1)
             {
-                uint32_t primitive_index_from_light_exchanged =
+                u32 primitive_index_from_light_exchanged =
                     instances[cube_lights[light_deleted].instance_info.instance_id].first_primitive_index +
                     cube_lights[light_deleted].instance_info.primitive_id;
                 std::memcpy(multipurpose_staging_buffer_ptr + sizeof(AABB) + sizeof(PRIMITIVE),
                             &light_exchanged,
-                            sizeof(uint32_t));
+                            sizeof(u32));
                 copy_buffer(multipurpose_staging_buffer,
                             primitive_buffer[buffer_index], sizeof(AABB) + sizeof(PRIMITIVE),
-                            primitive_index_from_light_exchanged * sizeof(PRIMITIVE) + sizeof(uint32_t),
-                            sizeof(uint32_t), true);
+                            primitive_index_from_light_exchanged * sizeof(PRIMITIVE) + sizeof(u32),
+                            sizeof(u32), true);
 #if DEBUG == 1
                 std::cout << "  restore_aabb_device_buffer primitive["
                           << primitive_index_from_light_exchanged << "]: light_exchanged: "
@@ -764,7 +771,7 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(uint32_t buffer_index, uint32
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::restore_remapping_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_primitive_to_recover, uint32_t instance_primitive_exchanged)
+bool ACCEL_STRUCT_MNGR::restore_remapping_buffer(u32 buffer_index, u32 instance_index, u32 instance_primitive_to_recover, u32 instance_primitive_exchanged)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -776,32 +783,32 @@ bool ACCEL_STRUCT_MNGR::restore_remapping_buffer(uint32_t buffer_index, uint32_t
     if (instance_primitive_exchanged != instance_primitive_to_recover)
     {
 
-        uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+        u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
         // Actual primitive index in the buffer
-        uint32_t primitive_to_recover = first_primitive_index + instance_primitive_to_recover;
-        uint32_t primitive_exchanged = first_primitive_index + instance_primitive_exchanged;
+        u32 primitive_to_recover = first_primitive_index + instance_primitive_to_recover;
+        u32 primitive_exchanged = first_primitive_index + instance_primitive_exchanged;
 
         // Staging buffer
         auto remapped_primitive_staging_buffer = device.create_buffer({
-            .size = sizeof(uint32_t),
+            .size = sizeof(u32),
             .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
             .name = ("remapped_primitive_staging_buffer"),
         });
         defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
 
-        auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
+        auto *remapped_primitive_buffer_ptr = device.get_host_address_as<u32>(remapped_primitive_staging_buffer).value();
         std::memcpy(remapped_primitive_buffer_ptr,
                     &primitive_exchanged,
-                    sizeof(uint32_t));
+                    sizeof(u32));
 
-        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_recover * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_recover * sizeof(u32), sizeof(u32));
     }
 
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::restore_cube_light_remapping_buffer(uint32_t buffer_index, uint32_t light_to_recover, uint32_t light_exchanged)
+bool ACCEL_STRUCT_MNGR::restore_cube_light_remapping_buffer(u32 buffer_index, u32 light_to_recover, u32 light_exchanged)
 {
 
     if (!device.is_valid() || !initialized)
@@ -814,7 +821,7 @@ bool ACCEL_STRUCT_MNGR::restore_cube_light_remapping_buffer(uint32_t buffer_inde
     if (light_to_recover != -1)
     {
 
-        size_t remapped_light_buffer_size = sizeof(uint32_t);
+        size_t remapped_light_buffer_size = sizeof(u32);
 
         auto remapped_light_staging_buffer = device.create_buffer({
             .size = remapped_light_buffer_size,
@@ -823,13 +830,13 @@ bool ACCEL_STRUCT_MNGR::restore_cube_light_remapping_buffer(uint32_t buffer_inde
         });
         defer { device.destroy_buffer(remapped_light_staging_buffer); };
 
-        auto *remapped_light_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_light_staging_buffer).value();
+        auto *remapped_light_buffer_ptr = device.get_host_address_as<u32>(remapped_light_staging_buffer).value();
         std::memcpy(remapped_light_buffer_ptr,
                     &light_exchanged,
-                    sizeof(uint32_t));
+                    sizeof(u32));
 
         // Copy exchanged light index to the recovered light index into device buffer
-        copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, 0, light_to_recover * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_light_staging_buffer, remapping_light_buffer, 0, light_to_recover * sizeof(u32), sizeof(u32));
     }
 
     return true;
@@ -839,7 +846,7 @@ bool ACCEL_STRUCT_MNGR::restore_cube_light_remapping_buffer(uint32_t buffer_inde
 
 //////////////////////////////// SWITCHING //////////////////////////////////////
 
-bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count)
+bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -851,7 +858,7 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(uint32_t buffer_index, uint32_t 
     {
         size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
         size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
-        uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
+        u32 previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
         copy_buffer(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size, true);
 
         if (!copy_primitive_device_buffer(buffer_index, aabb_host_count))
@@ -864,7 +871,7 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(uint32_t buffer_index, uint32_t 
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_primitive_to_copy)
+bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 instance_primitive_to_copy)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -872,11 +879,11 @@ bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(uint32_t buffer_index, u
         return false;
     }
 
-    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+    u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
-    uint32_t instance_primitive_to_copy_index = first_primitive_index + instance_primitive_to_copy;
+    u32 instance_primitive_to_copy_index = first_primitive_index + instance_primitive_to_copy;
 
-    uint32_t previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
+    u32 previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
 
     // Copy AABB from previous buffer to current buffer
     copy_buffer(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], instance_primitive_to_copy_index * sizeof(AABB), instance_primitive_to_copy_index * sizeof(AABB), sizeof(AABB));
@@ -886,9 +893,9 @@ bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(uint32_t buffer_index, u
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(uint32_t buffer_index,
-                                                   uint32_t light_to_delete, uint32_t light_to_exchange,
-                                                   uint32_t primitive_deleted, uint32_t light_index_from_exchanged_primitive)
+bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(u32 buffer_index,
+                                                   u32 light_to_delete, u32 light_to_exchange,
+                                                   u32 primitive_deleted, u32 light_index_from_exchanged_primitive)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -927,7 +934,7 @@ bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(uint32_t buffer_index,
 
 //////////////////////////////// SWITCHING - UNDO  STARTS//////////////////////////////////////
 
-void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, TASK &task)
+void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(u32 next_index, TASK &task)
 {
 
     switch (task.type)
@@ -976,9 +983,9 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(uint32_t next_index, T
     }
 }
 
-bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(uint32_t buffer_index,
-                                                    uint32_t light_to_recover_index, uint32_t light_exchanged_index,
-                                                    uint32_t primivite_exchanged_index, uint32_t light_index_from_exchanged_primitive)
+bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(u32 buffer_index,
+                                                    u32 light_to_recover_index, u32 light_exchanged_index,
+                                                    u32 primivite_exchanged_index, u32 light_index_from_exchanged_primitive)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1030,7 +1037,7 @@ bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(uint32_t buffer_index,
 
 //////////////////////////////// SETTLING //////////////////////////////////////
 
-bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange)
+bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1038,12 +1045,12 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(uint32_t instance_index, uint32_t
         return false;
     }
 
-    uint32_t first_primitive_index = instances[instance_index].first_primitive_index;
+    u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
     // Copy last primitive to deleted primitive
-    uint32_t primitive_to_delete = first_primitive_index + primitive_index;
+    u32 primitive_to_delete = first_primitive_index + primitive_index;
 
-    size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
+    size_t remapped_primitive_buffer_size = sizeof(u32) * 2;
 
     auto remapped_primitive_staging_buffer = device.create_buffer({
         .size = remapped_primitive_buffer_size,
@@ -1052,24 +1059,24 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(uint32_t instance_index, uint32_t
     });
     defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
 
-    uint32_t remapped_primitive_indexes[2] = {0, 0};
+    u32 remapped_primitive_indexes[2] = {0, 0};
 
-    auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
+    auto *remapped_primitive_buffer_ptr = device.get_host_address_as<u32>(remapped_primitive_staging_buffer).value();
     std::memcpy(remapped_primitive_buffer_ptr,
                 remapped_primitive_indexes,
                 remapped_primitive_buffer_size);
 
-    copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(uint32_t), sizeof(uint32_t));
+    copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, primitive_to_delete * sizeof(u32), sizeof(u32));
     if (primitive_to_exchange != primitive_index)
     {
-        uint32_t last_primitive_index = first_primitive_index + primitive_to_exchange;
-        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(uint32_t), last_primitive_index * sizeof(uint32_t), sizeof(uint32_t));
+        u32 last_primitive_index = first_primitive_index + primitive_to_exchange;
+        copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(u32), last_primitive_index * sizeof(u32), sizeof(u32));
     }
 
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list)
+bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1077,7 +1084,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
         return false;
     }
 
-    uint32_t instance_count = instance_list.size();
+    u32 instance_count = instance_list.size();
 
     // reserve blas build infos
     blas_build_infos.clear();
@@ -1087,7 +1094,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
     aabb_geometries.clear();
     aabb_geometries.resize(instance_count);
 
-    uint32_t current_instance_index = 0;
+    u32 current_instance_index = 0;
 
     // build procedural blas
     for (auto i : instance_list)
@@ -1120,12 +1127,12 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
 
         daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
 
-        auto get_aligned = [&](uint64_t operand, uint64_t granularity) -> uint64_t
+        auto get_aligned = [&](u64 operand, u64 granularity) -> u64
         {
             return ((operand + (granularity - 1)) & ~(granularity - 1));
         };
 
-        uint32_t scratch_alignment_size = get_aligned(proc_build_size_info.build_scratch_size, acceleration_structure_scratch_offset_alignment);
+        u32 scratch_alignment_size = get_aligned(proc_build_size_info.build_scratch_size, acceleration_structure_scratch_offset_alignment);
 
         if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
         {
@@ -1136,7 +1143,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
         blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
         proc_blas_scratch_buffer_offset += scratch_alignment_size;
 
-        uint32_t build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
+        u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
         if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
         {
@@ -1144,21 +1151,27 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
             std::cerr << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
             return false;
         }
-        proc_blas.push_back(device.create_blas_from_buffer({
-            .blas_info = {
-                .size = proc_build_size_info.acceleration_structure_size,
-                .name = "procedural blas",
-            },
-            .buffer_id = proc_blas_buffer,
-            .offset = proc_blas_buffer_offset,
-        }));
+
+        // proc_blas.push_back(device.create_blas_from_buffer({
+        //     .blas_info = {
+        //         .size = build_aligment_size,
+        //         .name = "procedural_blas_" + std::to_string(i),
+        //     },
+        //     .buffer_id = proc_blas_buffer,
+        //     .offset = proc_blas_buffer_offset,
+        // }));
+        proc_blas.push_back(blas_free_list->allocate(build_aligment_size));
 
         proc_blas_buffer_offset += build_aligment_size;
 
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(i);
 
 #if DEBUG == 1
-        std::cout << "      build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << i << "]: " << proc_blas.at(i).index << ", blas_build_infos[" << blas_build_infos.size() - 1 << "].scratch_data: " << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
+        std::cout << "      build_blas: blas_build_infos[" << blas_build_infos.size() - 1 
+            << "].dst_blas: " << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index 
+            << ", proc_blas[" << i << "]: " << proc_blas.at(i).index << ", blas_build_infos[" 
+            << blas_build_infos.size() - 1 << "].scratch_data: " 
+            << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
 #endif // DEBUG
 
         ++current_instance_index;
@@ -1201,7 +1214,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(uint32_t buffer_index, std::vector<uint32_t
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list)
+bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1209,7 +1222,7 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
         return false;
     }
 
-    uint32_t instance_count = instance_list.size();
+    u32 instance_count = instance_list.size();
 
     // TODO: adapt this to rebuild many BLAS at once
     // reserve blas build infos
@@ -1229,13 +1242,15 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
             temp_proc_blas.push_back(proc_blas.at(instance_index));
     }
 
-    uint32_t current_instance_index = 0;
+    u32 current_instance_index = 0;
 
     // build procedural blas
     for (auto instance_index : instance_list)
     {
 #if DEBUG == 1
-        std::cout << "  build_blas: i: " << instance_index << ", first primitive index: " << instances[instance_index].first_primitive_index << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
+        std::cout << "  build_blas: i: " << instance_index 
+        << ", first primitive index: " << instances[instance_index].first_primitive_index 
+        << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
 #endif // DEBUG
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
@@ -1263,12 +1278,12 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
 
         daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
 
-        auto get_aligned = [&](uint64_t operand, uint64_t granularity) -> uint64_t
+        auto get_aligned = [&](u64 operand, u64 granularity) -> u64
         {
             return ((operand + (granularity - 1)) & ~(granularity - 1));
         };
 
-        uint32_t scratch_alignment_size = get_aligned(proc_build_size_info.build_scratch_size, acceleration_structure_scratch_offset_alignment);
+        u32 scratch_alignment_size = get_aligned(proc_build_size_info.build_scratch_size, acceleration_structure_scratch_offset_alignment);
 
         if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
         {
@@ -1279,7 +1294,7 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
         blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
         proc_blas_scratch_buffer_offset += scratch_alignment_size;
 
-        uint32_t build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
+        u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
         if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
         {
@@ -1288,15 +1303,17 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
             return false;
         }
 
-        // Replace old BLAS
-        proc_blas.at(instance_index) = device.create_blas_from_buffer({
-            .blas_info = {
-                .size = proc_build_size_info.acceleration_structure_size,
-                .name = "procedural blas",
-            },
-            .buffer_id = proc_blas_buffer,
-            .offset = proc_blas_buffer_offset,
-        });
+        // // Replace old BLAS
+        // proc_blas.at(instance_index) = device.create_blas_from_buffer({
+        //     .blas_info = {
+        //         .size = build_aligment_size,
+        //         .name = "procedural blas",
+        //     },
+        //     .buffer_id = proc_blas_buffer,
+        //     .offset = proc_blas_buffer_offset,
+        // });
+
+        proc_blas.at(instance_index) = blas_free_list->allocate(build_aligment_size);
 
         proc_blas_buffer_offset += build_aligment_size;
 
@@ -1304,13 +1321,17 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(instance_index);
 
 #if DEBUG == 1
-        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index << "]: " << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 << "].scratch_data: " << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
+        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " 
+            << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index << "]: " 
+                << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 << "].scratch_data: " 
+                << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
 
         auto aabb_geometries = daxa::get<daxa::Span<daxa::BlasAabbGeometryInfo const>>(blas_build_infos.at(blas_build_infos.size() - 1).geometries);
 
-        for (uint32_t i = 0; i < aabb_geometries.size(); i++)
+        for (u32 i = 0; i < aabb_geometries.size(); i++)
         {
-            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data << ", aabb_geometry.stride: " << aabb_geometries[i].stride << ", aabb_geometry.count: " << aabb_geometries[i].count << std::endl;
+            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data << ", aabb_geometry.stride: " 
+            << aabb_geometries[i].stride << ", aabb_geometry.count: " << aabb_geometries[i].count << std::endl;
         }
 #endif // DEBUG
 
@@ -1345,7 +1366,7 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(uint32_t buffer_index, std::vector<uint32
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list)
+bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1353,7 +1374,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
         return false;
     }
 
-    uint32_t instance_count = instance_list.size();
+    u32 instance_count = instance_list.size();
 
     // TODO: adapt this to rebuild many BLAS at once
     // reserve blas build infos
@@ -1367,7 +1388,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
     // if(proc_blas.at(instance_index) != daxa::BlasId{})
     //     device.destroy_blas(proc_blas.at(instance_index));
 
-    std::map<uint32_t, daxa::BlasId> blas_to_update;
+    std::map<u32, daxa::BlasId> blas_to_update;
 
     for (auto instance_index : instance_list)
     {
@@ -1376,7 +1397,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
         }
     }
 
-    uint32_t current_instance_index = 0;
+    u32 current_instance_index = 0;
 
     // build procedural blas
     for (auto instance_index : instance_list)
@@ -1411,22 +1432,18 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
 
         daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
 
-        auto get_aligned = [&](uint64_t operand, uint64_t granularity) -> uint64_t
+        auto get_aligned = [&](u64 operand, u64 granularity) -> u64
         {
             return ((operand + (granularity - 1)) & ~(granularity - 1));
         };
 
-        uint32_t scratch_alignment_size = get_aligned(proc_build_size_info.update_scratch_size, acceleration_structure_scratch_offset_alignment);
+        u32 scratch_alignment_size = get_aligned(proc_build_size_info.update_scratch_size, acceleration_structure_scratch_offset_alignment);
 
         if(scratch_alignment_size == 0)
         {
             blas_build_infos.pop_back();
             std::cerr << "  build_blas: update not allowed for instance_index: " << instance_index << std::endl;
             return false;
-        }
-        
-        if (proc_blas.at(instance_index) != daxa::BlasId{}) {
-            temp_proc_blas.push_back(proc_blas.at(instance_index));
         }
 
         if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
@@ -1435,10 +1452,15 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
             std::cerr << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
             return false;
         }
+        
+        if (proc_blas.at(instance_index) != daxa::BlasId{}) {
+            temp_proc_blas.push_back(proc_blas.at(instance_index));
+        }
+
         blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
         proc_blas_scratch_buffer_offset += scratch_alignment_size;
 
-        uint32_t build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
+        u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
         if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
         {
@@ -1447,15 +1469,17 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
             return false;
         }
 
-        // Replace old BLAS
-        proc_blas.at(instance_index) = device.create_blas_from_buffer({
-            .blas_info = {
-                .size = proc_build_size_info.acceleration_structure_size,
-                .name = "procedural blas",
-            },
-            .buffer_id = proc_blas_buffer,
-            .offset = proc_blas_buffer_offset,
-        });
+        // // Replace old BLAS
+        // proc_blas.at(instance_index) = device.create_blas_from_buffer({
+        //     .blas_info = {
+        //         .size = build_aligment_size,
+        //         .name = "procedural blas",
+        //     },
+        //     .buffer_id = proc_blas_buffer,
+        //     .offset = proc_blas_buffer_offset,
+        // });
+        
+        proc_blas.at(instance_index) = blas_free_list->allocate(build_aligment_size);
 
         proc_blas_buffer_offset += build_aligment_size;
 
@@ -1467,13 +1491,18 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
         // blas_build_infos.at(blas_build_infos.size() - 1).update = true;
 
 #if DEBUG == 1
-        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index << "]: " << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 << "].scratch_data: " << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
+        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " 
+            << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index 
+            << "]: " << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 
+            << "].scratch_data: " << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
 
         auto aabb_geometries = daxa::get<daxa::Span<daxa::BlasAabbGeometryInfo const>>(blas_build_infos.at(blas_build_infos.size() - 1).geometries);
 
-        for (uint32_t i = 0; i < aabb_geometries.size(); i++)
+        for (u32 i = 0; i < aabb_geometries.size(); i++)
         {
-            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data << ", aabb_geometry.stride: " << aabb_geometries[i].stride << ", aabb_geometry.count: " << aabb_geometries[i].count << std::endl;
+            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data 
+                << ", aabb_geometry.stride: " << aabb_geometries[i].stride << ", aabb_geometry.count: " 
+                << aabb_geometries[i].count << std::endl;
         }
 #endif // DEBUG
 
@@ -1508,7 +1537,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(uint32_t buffer_index, std::vector<uint32_
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
+bool ACCEL_STRUCT_MNGR::build_tlas(u32 buffer_index, bool synchronize)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1529,7 +1558,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
     blas_instance_array.reserve(current_instance_count[buffer_index]);
 
     // build procedural blas
-    for (uint32_t i = 0; i < current_instance_count[buffer_index]; i++)
+    for (u32 i = 0; i < current_instance_count[buffer_index]; i++)
     {
         blas_instance_array.push_back(daxa_BlasInstanceData{
             .transform =
@@ -1619,7 +1648,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(uint32_t buffer_index, bool synchronize)
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::clear_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange)
+bool ACCEL_STRUCT_MNGR::clear_light_remapping_buffer(u32 instance_index, u32 light_index, u32 light_to_exchange)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1630,7 +1659,7 @@ bool ACCEL_STRUCT_MNGR::clear_light_remapping_buffer(uint32_t instance_index, ui
     // Copy last primitive to deleted primitive
     if (light_index != -1)
     {
-        size_t remapped_primitive_buffer_size = sizeof(uint32_t) * 2;
+        size_t remapped_primitive_buffer_size = sizeof(u32) * 2;
 
         auto remapped_primitive_staging_buffer = device.create_buffer({
             .size = remapped_primitive_buffer_size,
@@ -1639,17 +1668,17 @@ bool ACCEL_STRUCT_MNGR::clear_light_remapping_buffer(uint32_t instance_index, ui
         });
         defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
 
-        uint32_t remapped_primitive_indexes[2] = {0, 0};
+        u32 remapped_primitive_indexes[2] = {0, 0};
 
-        auto *remapped_primitive_buffer_ptr = device.get_host_address_as<uint32_t>(remapped_primitive_staging_buffer).value();
+        auto *remapped_primitive_buffer_ptr = device.get_host_address_as<u32>(remapped_primitive_staging_buffer).value();
         std::memcpy(remapped_primitive_buffer_ptr,
                     remapped_primitive_indexes,
                     remapped_primitive_buffer_size);
 
-        copy_buffer(remapped_primitive_staging_buffer, remapping_light_buffer, 0, light_index * sizeof(uint32_t), sizeof(uint32_t));
+        copy_buffer(remapped_primitive_staging_buffer, remapping_light_buffer, 0, light_index * sizeof(u32), sizeof(u32));
         if (light_to_exchange != -1)
         {
-            copy_buffer(remapped_primitive_staging_buffer, remapping_light_buffer, sizeof(uint32_t), light_to_exchange * sizeof(uint32_t), sizeof(uint32_t));
+            copy_buffer(remapped_primitive_staging_buffer, remapping_light_buffer, sizeof(u32), light_to_exchange * sizeof(u32), sizeof(u32));
         }
     }
 
@@ -1658,7 +1687,7 @@ bool ACCEL_STRUCT_MNGR::clear_light_remapping_buffer(uint32_t instance_index, ui
 
 //////////////////////////////// SETTLING - UNDO  STARTS//////////////////////////////////////
 
-void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(uint32_t next_index, TASK &task)
+void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(u32 next_index, TASK &task)
 {
 
     // Process task
@@ -1706,7 +1735,7 @@ void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(uint32_t next_index, TA
 
 //////////////////////////////// PROCESSING //////////////////////////////////////
 
-using TASK = ACCEL_STRUCT_MNGR::TASK;
+using TASK = cubeland::ACCEL_STRUCT_MNGR::TASK;
 
 void ACCEL_STRUCT_MNGR::process_task_queue()
 {
@@ -1724,20 +1753,20 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         return;
     }
 
-    uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
+    u32 next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
-    uint32_t primitive_to_exchange = 0;
-    uint32_t light_to_exchange = -1;
-    uint32_t light_to_delete = -1;
-    uint32_t light_index_from_exchanged_primitive = -1;
+    u32 primitive_to_exchange = 0;
+    u32 light_to_exchange = -1;
+    u32 light_to_delete = -1;
+    u32 light_index_from_exchanged_primitive = -1;
     temp_cube_light_count = *current_cube_light_count;
 
-    std::vector<uint32_t> blas_index_list = {};
-    std::vector<uint32_t> rebuild_blas_index_list = {};
-    std::vector<uint32_t> update_blas_index_list = {};
+    std::vector<u32> blas_index_list = {};
+    std::vector<u32> rebuild_blas_index_list = {};
+    std::vector<u32> update_blas_index_list = {};
 
     // Iterate over all tasks to process
-    for (uint32_t i = 0; i < items_to_process; i++)
+    for (u32 i = 0; i < items_to_process; i++)
     {
         auto task = task_queue.front();
         {
@@ -1794,11 +1823,10 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         break;
         case TASK::TYPE::UPDATE_BLAS:
         {
-#if DEBUG == 1
             TASK::BLAS_UPDATE update_task = task.blas_update;
             instances[update_task.instance_index].transform = 
                 daxa_f32mat4x4_mult(instances[update_task.instance_index].transform, update_task.transform);
-
+#if DEBUG == 1
             // print transform matrix
             std::cout << "matrix instance_index: " << update_task.instance_index << std::endl;
             std::cout << "  [" << instances[update_task.instance_index].transform.x.x << ", " << 
@@ -1896,7 +1924,7 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
         return;
     }
 
-    uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
+    u32 next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
     while (!temporal_task_queue.empty())
     {
@@ -1970,7 +1998,7 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
         return;
     }
 
-    uint32_t next_index = (current_index + 1) % DOUBLE_BUFFERING;
+    u32 next_index = (current_index + 1) % DOUBLE_BUFFERING;
 
     while (!switching_task_queue.empty())
     {
@@ -2043,8 +2071,10 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
 
     // delete temp proc blas
     for (auto blas : temp_proc_blas)
-        if (blas != daxa::BlasId{})
-            device.destroy_blas(blas);
+        if (blas != daxa::BlasId{}) {
+            // device.destroy_blas(blas);
+            blas_free_list->deallocate(blas);
+        }
 
     temp_proc_blas.clear();
 }
@@ -2077,34 +2107,34 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
 
     copy_buffer(brush_primitive_bitmask_buffer, primitive_bitmask_staging_buffer, 0, 0, max_primitive_bitmask_size, true);
 
-    auto *instance_bitmask_buffer_ptr = device.get_host_address_as<uint32_t>(instance_bitmask_staging_buffer).value();
+    auto *instance_bitmask_buffer_ptr = device.get_host_address_as<u32>(instance_bitmask_staging_buffer).value();
 
-    auto *voxel_modifications_buffer_ptr = device.get_host_address_as<uint32_t>(primitive_bitmask_staging_buffer).value();
+    auto *voxel_modifications_buffer_ptr = device.get_host_address_as<u32>(primitive_bitmask_staging_buffer).value();
 
-    uint32_t changes_so_far = 0;
+    u32 changes_so_far = 0;
 
     // Check instances first
-    for (uint32_t i = 0; i < (current_instance_count[current_index]); i++)
+    for (u32 i = 0; i < (current_instance_count[current_index]); i++)
     {
         if (instance_bitmask_buffer_ptr[i] != 0U)
         {
-            for (uint32_t j = 0; j < 32 && j < current_instance_count[current_index]; j++)
+            for (u32 j = 0; j < 32 && j < current_instance_count[current_index]; j++)
             {
                 if (instance_bitmask_buffer_ptr[i] & (1 << j))
                 {
-                    uint32_t instance_index = i * 32 + j;
+                    u32 instance_index = i * 32 + j;
                     // Process instance
                     INSTANCE instance = instances[instance_index];
 #if DEBUG == 1
                     std::cout << "Instance: " << instance_index << " Primitive count: " << instance.primitive_count << " First primitive index: " << instance.first_primitive_index << std::endl;
 #endif // DEBUG
-                    uint32_t first_primitive_mask_index = (instance.first_primitive_index) >> 5;
-                    uint32_t max_instance_bitmask_size = (instance.first_primitive_index + instance.primitive_count) >> 5;
-                    uint32_t first_l = 0;
-                    for (uint32_t k = first_primitive_mask_index; k <= max_instance_bitmask_size; k++)
+                    u32 first_primitive_mask_index = (instance.first_primitive_index) >> 5;
+                    u32 max_instance_bitmask_size = (instance.first_primitive_index + instance.primitive_count) >> 5;
+                    u32 first_l = 0;
+                    for (u32 k = first_primitive_mask_index; k <= max_instance_bitmask_size; k++)
                     {
-                        uint32_t l = 0;
-                        uint32_t last_l = 32;
+                        u32 l = 0;
+                        u32 last_l = 32;
                         if (k == first_primitive_mask_index)
                             first_l = l = (instance.first_primitive_index) & 31;
                         else if (k == max_instance_bitmask_size)
@@ -2118,7 +2148,7 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
                                 if (voxel_modifications_buffer_ptr[k] & (1 << l))
                                 {
                                     changes_so_far++;
-                                    uint32_t instance_primitive = (32 - first_l) + ((k - first_primitive_mask_index - 1) * 32) + l;
+                                    u32 instance_primitive = (32 - first_l) + ((k - first_primitive_mask_index - 1) * 32) + l;
                                     // Process primitive
 #if DEBUG == 1
                                     std::cout << "Instance: " << instance_index << " Primitive: " << instance_primitive << std::endl;

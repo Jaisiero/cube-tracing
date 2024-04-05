@@ -2,12 +2,17 @@
 #pragma once
 #include "defines.h"
 #include "math.inl"
+
 #include <queue>
 #include <stack>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
 #include <thread>
+
+#include <free_list.hpp>
+
+CL_NAMESPACE_BEGIN
 
 struct ACCEL_STRUCT_MNGR
 {
@@ -35,27 +40,27 @@ public:
 
         struct BLAS_UPDATE
         {
-            uint32_t instance_index;
+            u32 instance_index;
             daxa_f32mat4x4 transform;
-            uint32_t primitive_count;
-            uint32_t* aabb_alterations; // primitive index 
+            u32 primitive_count;
+            u32* aabb_alterations; // primitive index 
             AABB* aabbs; // host pointer to the aabbs to update
         };
 
         struct BLAS_PRIMITIVE_DELETE_FROM_CPU
         {
-            uint32_t instance_index;
-            uint32_t del_primitive_index;
-            uint32_t remap_primitive_index;
-            uint32_t del_light_index;
-            uint32_t remap_light_index;
-            uint32_t remap_primitive_light_index;
+            u32 instance_index;
+            u32 del_primitive_index;
+            u32 remap_primitive_index;
+            u32 del_light_index;
+            u32 remap_light_index;
+            u32 remap_primitive_light_index;
         };
 
         struct BLAS_BUILD_FROM_CPU
         {
-            uint32_t instance_count;
-            uint32_t primitive_count;
+            u32 instance_count;
+            u32 primitive_count;
             daxa_f32mat4x4 transform;
         };
 
@@ -86,7 +91,7 @@ public:
         }
     }
     
-    bool create(uint32_t max_instance_count, uint32_t max_primitive_count, uint32_t max_cube_light_count, uint32_t* cube_light_count);
+    bool create(u32 max_instance_count, u32 max_primitive_count, u32 max_cube_light_count, u32* cube_light_count);
     bool destroy();
 
 
@@ -108,7 +113,7 @@ public:
     }
 
     daxa::TlasId get_previous_tlas() { 
-        uint32_t prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        u32 prev_index = current_index - 1 % DOUBLE_BUFFERING;
         return is_switching() ? tlas[prev_index] : tlas[current_index];
     }
 
@@ -117,7 +122,7 @@ public:
     }
 
     daxa::BufferId get_previous_instance_buffer() { 
-        uint32_t prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        u32 prev_index = current_index - 1 % DOUBLE_BUFFERING;
         return is_switching() ? instance_buffer[prev_index] : instance_buffer[current_index];
     }
 
@@ -126,7 +131,7 @@ public:
     }
     
     daxa::BufferId get_previous_aabb_buffer() { 
-        // uint32_t prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        // u32 prev_index = current_index - 1 % DOUBLE_BUFFERING;
         // return switching ? aabb_buffer[prev_index] : aabb_buffer[current_index];
         return aabb_buffer[current_index];
     }
@@ -136,7 +141,7 @@ public:
     }
     
     daxa::BufferId get_previous_primitive_buffer() { 
-        // uint32_t prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        // u32 prev_index = current_index - 1 % DOUBLE_BUFFERING;
         // return switching ? primitive_buffer[prev_index] : primitive_buffer[current_index];
         return primitive_buffer[current_index];
     }
@@ -153,11 +158,11 @@ public:
         return remapping_light_buffer;
     }
 
-    uint32_t get_host_instance_count() { 
+    u32 get_host_instance_count() { 
         return temp_instance_count;
     }
 
-    uint32_t get_host_primitive_count() { 
+    u32 get_host_primitive_count() { 
         return temp_primitive_count;
     }
 
@@ -309,25 +314,25 @@ public:
     std::condition_variable synchronize_cv = {};
 private:
     // Undo operations
-    void process_undo_task_queue(uint32_t next_index, TASK& task);
-    void process_undo_switching_task_queue(uint32_t next_index, TASK& task);
-    void process_undo_settling_task_queue(uint32_t next_index, TASK& task);
+    void process_undo_task_queue(u32 next_index, TASK& task);
+    void process_undo_switching_task_queue(u32 next_index, TASK& task);
+    void process_undo_settling_task_queue(u32 next_index, TASK& task);
 
     // Undo updating rebuilding BLAS
-    bool restore_aabb_device_buffer(uint32_t buffer_index,
-                                    uint32_t instance_index,
-                                    uint32_t primitive_to_recover,
-                                    uint32_t primitive_exchanged,
-                                    uint32_t light_deleted,
-                                    uint32_t light_exchanged);
-    bool restore_remapping_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_primitive_to_recover, uint32_t instance_primitive_exchanged);
-    bool restore_cube_light_remapping_buffer(uint32_t buffer_index, uint32_t light_to_recover, uint32_t light_exchanged);
+    bool restore_aabb_device_buffer(u32 buffer_index,
+                                    u32 instance_index,
+                                    u32 primitive_to_recover,
+                                    u32 primitive_exchanged,
+                                    u32 light_deleted,
+                                    u32 light_exchanged);
+    bool restore_remapping_buffer(u32 buffer_index, u32 instance_index, u32 instance_primitive_to_recover, u32 instance_primitive_exchanged);
+    bool restore_cube_light_remapping_buffer(u32 buffer_index, u32 light_to_recover, u32 light_exchanged);
 
 
     // undo switching rebuilding BLAS
-    bool restore_light_device_buffer(uint32_t buffer_index, 
-        uint32_t light_to_recover_index, uint32_t light_exchanged_index, 
-        uint32_t primivite_exchanged_index, uint32_t light_index_from_exchanged_primitive);
+    bool restore_light_device_buffer(u32 buffer_index, 
+        u32 light_to_recover_index, u32 light_exchanged_index, 
+        u32 primivite_exchanged_index, u32 light_index_from_exchanged_primitive);
 
 
     // Checking modification operations
@@ -337,32 +342,32 @@ private:
     // Updating operations
     void copy_buffer(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
         size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
-    bool upload_all_instances(uint32_t buffer_index, bool synchronize = false);
-    bool upload_primitive_device_buffer(uint32_t buffer_index, daxa_u32 primitive_count);
-    bool copy_primitive_device_buffer(uint32_t buffer_index, uint32_t primitive_count);
+    bool upload_all_instances(u32 buffer_index, bool synchronize = false);
+    bool upload_primitive_device_buffer(u32 buffer_index, daxa_u32 primitive_count);
+    bool copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count);
 
     // Switching operations
-    bool upload_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
-    bool copy_aabb_device_buffer(uint32_t buffer_index, uint32_t aabb_host_count);
+    bool upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count);
+    bool copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count);
 
     // Settling operations
-    bool delete_light_device_buffer(uint32_t buffer_index,
-                                    uint32_t light_to_delete, uint32_t light_to_exchange,
-                                    uint32_t primitive_deleted, uint32_t light_index_from_exchanged_primitive);
-    bool update_light_remapping_buffer(uint32_t light_index, uint32_t light_to_exchange);
-    bool clear_light_remapping_buffer(uint32_t instance_index, uint32_t light_index, uint32_t light_to_exchange);
+    bool delete_light_device_buffer(u32 buffer_index,
+                                    u32 light_to_delete, u32 light_to_exchange,
+                                    u32 primitive_deleted, u32 light_index_from_exchanged_primitive);
+    bool update_light_remapping_buffer(u32 light_index, u32 light_to_exchange);
+    bool clear_light_remapping_buffer(u32 instance_index, u32 light_index, u32 light_to_exchange);
     
-    bool delete_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t primitive_index, 
-        uint32_t primitive_to_exchange, uint32_t& light_to_delete, uint32_t& light_to_exchange, uint32_t& light_of_the_exchanged_primitive);
-    bool update_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
+    bool delete_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_index, 
+        u32 primitive_to_exchange, u32& light_to_delete, u32& light_to_exchange, u32& light_of_the_exchanged_primitive);
+    bool update_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange);
 
-    bool copy_deleted_aabb_device_buffer(uint32_t buffer_index, uint32_t instance_index, uint32_t instance_delete_primitive);
-    bool clear_remapping_buffer(uint32_t instance_index, uint32_t primitive_index, uint32_t primitive_to_exchange);
+    bool copy_deleted_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 instance_delete_primitive);
+    bool clear_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange);
 
-    bool build_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list);
-    bool rebuild_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list);
-    bool update_blases(uint32_t buffer_index, std::vector<uint32_t>& instance_list);
-    bool build_tlas(uint32_t buffer_index, bool synchronize);
+    bool build_blases(u32 buffer_index, std::vector<u32>& instance_list);
+    bool rebuild_blases(u32 buffer_index, std::vector<u32>& instance_list);
+    bool update_blases(u32 buffer_index, std::vector<u32>& instance_list);
+    bool build_tlas(u32 buffer_index, bool synchronize);
 
 
     daxa::Device& device;
@@ -377,32 +382,34 @@ private:
     size_t max_remapping_primitive_buffer_size = 0;
     size_t max_remapping_light_buffer_size = 0;
 
+
     // Acceleration structures
     daxa::TlasId tlas[DOUBLE_BUFFERING] = {}, temp_tlas = {};
     std::vector<daxa::BlasId> proc_blas = {}, temp_proc_blas = {};
     daxa::BufferId proc_blas_scratch_buffer = {};
-    uint64_t proc_blas_scratch_buffer_offset = 0;
-    uint32_t acceleration_structure_scratch_offset_alignment = 0;
+    u64 proc_blas_scratch_buffer_offset = 0;
+    u32 acceleration_structure_scratch_offset_alignment = 0;
     daxa::BufferId proc_blas_buffer = {};
-    uint64_t proc_blas_buffer_offset = 0;
-    const uint32_t ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
+    std::unique_ptr<gpu_free_list<daxa::BlasId, gpu_allocator<daxa::BlasId>>> blas_free_list = nullptr;
+    u64 proc_blas_buffer_offset = 0;
+    const u32 ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
     std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
     std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
     
     daxa::BufferId instance_buffer[DOUBLE_BUFFERING] = {};
-    uint32_t current_instance_count[DOUBLE_BUFFERING] = {0, 0};
+    u32 current_instance_count[DOUBLE_BUFFERING] = {0, 0};
     // We store the instance count not uploaded yet
-    uint32_t temp_instance_count = 0;
+    u32 temp_instance_count = 0;
     std::unique_ptr<INSTANCE[]> instances = {};
     
     daxa::BufferId aabb_buffer[DOUBLE_BUFFERING] = {};
     daxa::BufferId aabb_host_buffer = {};
-    uint32_t current_aabb_host_idx = 0;
+    u32 current_aabb_host_idx = 0;
 
-    uint32_t current_primitive_count[DOUBLE_BUFFERING] = {0, 0};
+    u32 current_primitive_count[DOUBLE_BUFFERING] = {0, 0};
     // We store the primitive count not uploaded yet
-    uint32_t temp_primitive_count = 0;
-    uint32_t max_current_primitive_count = 0;
+    u32 temp_primitive_count = 0;
+    u32 max_current_primitive_count = 0;
     std::unique_ptr<PRIMITIVE[]> primitives = {};
 
     daxa::BufferId primitive_buffer[DOUBLE_BUFFERING] = {};
@@ -420,8 +427,8 @@ private:
 
     std::jthread worker_thread;
     bool index_updated[DOUBLE_BUFFERING] = {true, true};
-    uint32_t current_index = 0;
-    uint32_t items_to_process = 0;
+    u32 current_index = 0;
+    u32 items_to_process = 0;
     std::queue<TASK> task_queue = {};
 
     // this queue is used to store the tasks that have been processed
@@ -437,8 +444,8 @@ private:
     size_t max_instance_bitmask_size = 0;
     size_t max_primitive_bitmask_size = 0;
 
-    uint32_t *current_cube_light_count = nullptr;
-    uint32_t temp_cube_light_count = 0;
+    u32 *current_cube_light_count = nullptr;
+    u32 temp_cube_light_count = 0;
 
     daxa::BufferId cube_light_buffer = {};
     LIGHT *cube_lights = nullptr;
@@ -450,11 +457,13 @@ private:
 
     BRUSH_COUNTER* brush_counters = nullptr;
     
-    uint32_t backup_primitive_count = 0;
+    u32 backup_primitive_count = 0;
     std::vector<PRIMITIVE> backup_primitives = {};
     std::vector<AABB> backup_aabbs = {};
-    uint32_t backup_cube_light_count = 0;
+    u32 backup_cube_light_count = 0;
     std::vector<LIGHT> backup_cube_lights = {};
-    uint32_t backup_instance_count = 0;
+    u32 backup_instance_count = 0;
     std::vector<INSTANCE> backup_instances = {};
 };
+
+CL_NAMESPACE_END

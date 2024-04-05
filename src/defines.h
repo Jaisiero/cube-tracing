@@ -17,6 +17,9 @@
 
 const uint32_t DOUBLE_BUFFERING = 2;
 
+#define CL_NAMESPACE_BEGIN namespace cubeland {
+#define CL_NAMESPACE_END }
+
 // const daxa_f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
 // const daxa_u32 INSTANCE_X_AXIS_COUNT = 1;                              // X^2 (mirrored on both sides of the x axis)
 // const daxa_u32 INSTANCE_Z_AXIS_COUNT = 1;                              // Z^2 (mirrored on both sides of the z axis)
@@ -34,6 +37,31 @@ const uint32_t DOUBLE_BUFFERING = 2;
 // const daxa_u32 MATERIAL_COUNT_UP_TO_DIALECTRIC = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT;
 // const daxa_u32 MATERIAL_COUNT_UP_TO_EMISSIVE = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT;
 
+
+CL_NAMESPACE_BEGIN
+
+inline namespace types
+{
+    using u8 = std::uint8_t;
+    using u16 = std::uint16_t;
+    using u32 = std::uint32_t;
+    using u64 = std::uint64_t;
+    using usize = std::size_t;
+    using b32 = u32;
+
+    using i8 = std::int8_t;
+    using i16 = std::int16_t;
+    using i32 = std::int32_t;
+    using i64 = std::int64_t;
+    using isize = std::ptrdiff_t;
+
+    using f32 = float;
+    using f64 = double;
+
+    using DeviceAddress = u64;
+} // namespace types
+
+CL_NAMESPACE_END
 
 struct GvoxModelData {
     uint32_t instance_count;
