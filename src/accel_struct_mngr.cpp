@@ -1145,24 +1145,16 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
 
         u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
-        if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
+        auto blas = blas_free_list->allocate(build_aligment_size);
+        if(blas == daxa::BlasId{})
         {
-            // TODO: Try to resize buffer
-            std::cerr << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
-            return false;
+            std::cerr << " Could not allocate BLAS from free list" << std::endl;
+            // TODO: abort for now but try to resize buffer
+            std::abort();
+            // return false;
         }
 
-        // proc_blas.push_back(device.create_blas_from_buffer({
-        //     .blas_info = {
-        //         .size = build_aligment_size,
-        //         .name = "procedural_blas_" + std::to_string(i),
-        //     },
-        //     .buffer_id = proc_blas_buffer,
-        //     .offset = proc_blas_buffer_offset,
-        // }));
-        proc_blas.push_back(blas_free_list->allocate(build_aligment_size));
-
-        proc_blas_buffer_offset += build_aligment_size;
+        proc_blas.push_back(blas);
 
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(i);
 
@@ -1296,26 +1288,16 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
 
         u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
-        if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
+        auto blas = blas_free_list->allocate(build_aligment_size);
+        if(blas == daxa::BlasId{})
         {
-            // TODO: Try to resize buffer
-            std::cerr << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
-            return false;
+            std::cerr << " Could not allocate BLAS from free list" << std::endl;
+            // TODO: abort for now but try to resize buffer
+            std::abort();
+            // return false;
         }
 
-        // // Replace old BLAS
-        // proc_blas.at(instance_index) = device.create_blas_from_buffer({
-        //     .blas_info = {
-        //         .size = build_aligment_size,
-        //         .name = "procedural blas",
-        //     },
-        //     .buffer_id = proc_blas_buffer,
-        //     .offset = proc_blas_buffer_offset,
-        // });
-
-        proc_blas.at(instance_index) = blas_free_list->allocate(build_aligment_size);
-
-        proc_blas_buffer_offset += build_aligment_size;
+        proc_blas.at(instance_index) = blas;
 
         // Here BLAS buffer is updated
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(instance_index);
@@ -1462,26 +1444,16 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
 
         u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
-        if ((proc_blas_buffer_offset + build_aligment_size) > proc_blas_buffer_size)
+        auto blas = blas_free_list->allocate(build_aligment_size);
+        if(blas == daxa::BlasId{})
         {
-            // TODO: Try to resize buffer
-            std::cerr << "proc_blas_buffer_offset > proc_blas_buffer_size" << std::endl;
-            return false;
+            std::cerr << " Could not allocate BLAS from free list" << std::endl;
+            // TODO: abort for now but try to resize buffer
+            std::abort();
+            // return false;
         }
-
-        // // Replace old BLAS
-        // proc_blas.at(instance_index) = device.create_blas_from_buffer({
-        //     .blas_info = {
-        //         .size = build_aligment_size,
-        //         .name = "procedural blas",
-        //     },
-        //     .buffer_id = proc_blas_buffer,
-        //     .offset = proc_blas_buffer_offset,
-        // });
         
-        proc_blas.at(instance_index) = blas_free_list->allocate(build_aligment_size);
-
-        proc_blas_buffer_offset += build_aligment_size;
+        proc_blas.at(instance_index) = blas;
 
         // Here BLAS buffer is updated
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(instance_index);
