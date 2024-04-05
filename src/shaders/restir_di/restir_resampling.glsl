@@ -84,7 +84,7 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config,
 
       daxa_f32vec3 F = calculate_sampled_light(ray, hit, mat, point_light_count,
                                                light, pdf, light_pdf, G_factor,
-                                               seed, true, false, false);
+                                               seed, false, true, false, false);
 
       daxa_f32 brdf_pdf = sample_material_pdf(mat, hit.world_nrm,
                                               -ray.direction, hit.scatter_dir) *
@@ -120,7 +120,7 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config,
       daxa_f32 G_factor;
       daxa_f32vec3 F = calculate_sampled_light(ray, hit, mat, env_light_count,
                                                light, pdf, light_pdf, G_factor,
-                                               seed, true, false, false);
+                                               seed, false, true, false, false);
 
       daxa_f32 brdf_pdf = sample_material_pdf(mat, hit.world_nrm,
                                               -ray.direction, hit.scatter_dir) *
@@ -162,7 +162,7 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config,
 
       daxa_f32vec3 F = calculate_sampled_light(ray, hit, mat, cube_light_count,
                                                light, pdf, light_pdf, G_factor,
-                                               seed, true, false, false);
+                                               seed, false, true, false, false);
 
       daxa_f32 brdf_pdf = sample_material_pdf(mat, hit.world_nrm,
                                               -ray.direction, hit.scatter_dir) *
@@ -248,7 +248,7 @@ RESERVOIR RIS(daxa_u32 active_features, LIGHT_CONFIG light_config,
   }
 
   if (requires_visibility) {
-    reservoir_visibility_pass(reservoir, ray, hit, mat);
+    reservoir_visibility_pass(reservoir, ray, hit, mat, false);
   }
 
   return reservoir;
@@ -363,8 +363,8 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
               normalize(prev_hit.world_hit - di_info_previous.ray_origin));
 
       // // calculate target at previous pixel with current reservoir's sample
-      target_lum_at_prev = luminance(
-          reservoir_get_radiance(reservoir, prev_ray, prev_hit, prev_mat));
+      target_lum_at_prev = luminance(reservoir_get_radiance(
+          reservoir, prev_ray, prev_hit, prev_mat, is_remapping_active));
     }
 
     const float p_curr = reservoir.M * luminance(reservoir.F);
@@ -386,7 +386,7 @@ void TEMPORAL_REUSE(inout RESERVOIR reservoir, RESERVOIR reservoir_previous,
 
   if (prev_light_index != -1) {
     daxa_f32vec3 current_target =
-        reservoir_get_radiance(reservoir_previous, ray, hit, mat);
+        reservoir_get_radiance(reservoir_previous, ray, hit, mat, false);
 
     const float target_lum_at_curr = luminance(current_target);
 

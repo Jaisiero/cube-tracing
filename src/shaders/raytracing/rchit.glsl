@@ -147,7 +147,7 @@ void main()
 
     daxa_f32 G;
 
-    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, G, prd.seed, true, true, true);
+    radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf, pdf_out, G, prd.seed, false, true, true, true);
 
     prd.distance = distance;
     prd.instance_hit = instance_hit;

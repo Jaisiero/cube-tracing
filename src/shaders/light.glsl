@@ -79,7 +79,7 @@ float luminance(daxa_f32vec3 linearRGB) {
   return dot(daxa_f32vec3(0.2126f, 0.7152f, 0.0722f), linearRGB);
 }
 
-daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_target, daxa_b32 check_instance, const daxa_b32 previous_frame) {
+daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_target, daxa_b32 check_instance, daxa_b32 previous_frame) {
   // NOTE: CHANGE RAY TRACE FOR RAY QUERY GAVE ME A 15% PERFORMANCE BOOST!!??
 
   daxa_f32 t_min = 0.0;
@@ -99,7 +99,7 @@ daxa_b32 is_vertex_visible(Ray ray, daxa_f32 distance, OBJECT_INFO instance_targ
 
   rayQueryEXT ray_query;
 
-  rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(p.tlas),
+  rayQueryInitializeEXT(ray_query, daxa_accelerationStructureEXT(previous_frame ? p.tlas_previous : p.tlas),
                         ray_flags, cull_mask, ray.origin, t_min, ray.direction,
                         t_max);
 
@@ -295,7 +295,7 @@ daxa_f32 sample_lights_pdf(inout HIT_INFO_INPUT hit, INTERSECT i,
 daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
                        out daxa_f32vec3 P_out, out daxa_f32vec3 n_out,
                        out daxa_f32vec3 Le_out, inout daxa_u32 seed,
-                       out daxa_f32 G_out,
+                       out daxa_f32 G_out, daxa_b32 previous_frame,
                        const in daxa_b32 calc_pdf, const daxa_b32 visibility) {
   daxa_f32vec3 l_pos, l_nor;
 
@@ -389,7 +389,7 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
 
   if (visibility && vis) {
     // TODO: check if we need to use the previous frame
-    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, check_instance, false);
+    vis = vis && is_vertex_visible(shadow_ray, distance, l.instance_info, check_instance, previous_frame);
   }
 
   P_out = l_pos;
@@ -400,9 +400,10 @@ daxa_b32 sample_lights(inout HIT_INFO_INPUT hit, LIGHT l, inout daxa_f32 pdf,
 
 daxa_f32vec3 calculate_sampled_light(
     Ray ray, inout HIT_INFO_INPUT hit, MATERIAL mat, daxa_u32 light_count,
-    LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, out daxa_f32 G, inout daxa_u32 seed, const in daxa_b32 calc_pdf,
+    LIGHT light, daxa_f32 pdf, out daxa_f32 pdf_out, out daxa_f32 G,
+    inout daxa_u32 seed, daxa_b32 previous_frame, const in daxa_b32 calc_pdf,
     const in daxa_b32 use_pdf, const daxa_b32 use_visibility) {
-  //2. Get light direction
+  // 2. Get light direction
   daxa_f32vec3 surface_normal = normalize(hit.world_nrm);
   daxa_f32vec3 wo = -normalize(ray.direction);
 
@@ -416,8 +417,8 @@ daxa_f32vec3 calculate_sampled_light(
     return result;
   }
 
-  if (sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, seed, G, calc_pdf,
-                    use_visibility)) {
+  if (sample_lights(hit, light, pdf_out, l_pos, l_nor, Le, seed, G,
+                    previous_frame, calc_pdf, use_visibility)) {
     daxa_f32vec3 wi = normalize(l_pos - hit.world_hit);
     daxa_f32vec3 brdf = evaluate_material(mat, surface_normal, wo, wi);
     // daxa_f32 G = geom_fact_sa(hit.world_hit, l_pos, l_nor);
@@ -438,6 +439,7 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
                         out INTERSECT i, out daxa_f32 pdf_out,
                         inout daxa_u32 seed, out daxa_f32 path_pdf,
                         inout daxa_f32vec3 throughput,
+                        daxa_b32 previous_frame,
                         const in daxa_b32 use_pdf,
                         const in daxa_b32 use_visibility) {
   daxa_f32vec3 result = vec3(0.0);
@@ -455,8 +457,8 @@ daxa_f32vec3 direct_mis(Ray ray, inout HIT_INFO_INPUT hit, daxa_u32 light_count,
   daxa_f32 G;
 
   // Light sampling
-  if (sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, seed, G, use_pdf,
-                    use_visibility)) {
+  if (sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, seed, G,
+                    previous_frame, use_pdf, use_visibility)) {
     daxa_f32vec3 l_wi = normalize(l_pos - P);
     // daxa_f32 G = geom_fact_sa(P, l_pos, l_nor);
     daxa_f32 m_pdf = sample_material_pdf(mat, n, wo, l_wi);

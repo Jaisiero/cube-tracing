@@ -73,10 +73,9 @@ daxa_b32 is_reservoir_valid(in RESERVOIR reservoir) {
   return reservoir.M > 0.0 && reservoir.Y != -1 && reservoir.l_type != GEOMETRY_LIGHT_NONE;
 }
 
-
-
 daxa_b32 reservoir_check_visibility(inout RESERVOIR reservoir, Ray ray,
-                                    HIT_INFO_INPUT hit, MATERIAL mat) {
+                                    HIT_INFO_INPUT hit, MATERIAL mat,
+                                    daxa_b32 previous_frame) {
   if (is_reservoir_valid(reservoir)) {
 
     daxa_f32vec3 l_pos;
@@ -85,37 +84,37 @@ daxa_b32 reservoir_check_visibility(inout RESERVOIR reservoir, Ray ray,
     daxa_f32 G;
     daxa_f32 l_pdf = 1.0;
 
-    LIGHT light = light_get_by_type(get_reservoir_type(reservoir), get_reservoir_light_index(reservoir));
+    LIGHT light = light_get_by_type(get_reservoir_type(reservoir),
+                                    get_reservoir_light_index(reservoir));
 
     daxa_u32 seed = reservoir.seed;
-    return sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, seed, G, false,
-                         true);
+    return sample_lights(hit, light, l_pdf, l_pos, l_nor, Le, seed, G,
+                         previous_frame, false, true);
   }
 
   return false;
 }
 
-
 daxa_f32vec3 reservoir_get_radiance(RESERVOIR reservoir, Ray ray,
-                                    HIT_INFO_INPUT hit, MATERIAL mat) {     
+                                    HIT_INFO_INPUT hit, MATERIAL mat, daxa_b32 previous_frame) {     
   if (is_reservoir_valid(reservoir)) {
     LIGHT light = light_get_by_type(get_reservoir_type(reservoir), get_reservoir_light_index(reservoir));
 
     daxa_f32 pdf = 1.0;
     daxa_f32 current_pdf = 1.0;
     daxa_f32 G;
-    return calculate_sampled_light(ray, hit, mat, 1, light, pdf,
-                                current_pdf, G, reservoir.seed, false, false,
-                                true);
+    return calculate_sampled_light(ray, hit, mat, 1, light, pdf, current_pdf, G,
+                                   reservoir.seed, previous_frame, false, false,
+                                   true);
   }
 
   return daxa_f32vec3(0.0);
 }
 
 void reservoir_visibility_pass(inout RESERVOIR reservoir, Ray ray,
-                               HIT_INFO_INPUT hit, MATERIAL mat) {
+                               HIT_INFO_INPUT hit, MATERIAL mat, daxa_b32 previous_frame) {
 
-  daxa_b32 visibility = reservoir_check_visibility(reservoir, ray, hit, mat);
+  daxa_b32 visibility = reservoir_check_visibility(reservoir, ray, hit, mat, previous_frame);
 
   // TODO: Check visibility here
   reservoir.W_y =

@@ -497,7 +497,7 @@ void indirect_illumination_path_tracing(
 
       daxa_f32vec3 radiance =
           direct_mis(scattered_ray, hit, light_count, light, object_count,
-                     i.mat, i, pdf_out, seed, path_pdf, throughput, true, true);
+                     i.mat, i, pdf_out, seed, path_pdf, throughput, false, true, true);
 
       prd.hit_value += radiance;
       prd.done = false;

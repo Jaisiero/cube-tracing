@@ -416,7 +416,7 @@ void main() {
 
     // Calculate radiance
     radiance = calculate_sampled_light(ray, hit, mat, light_count, light, pdf,
-                                       pdf_out, G, di_info.seed, true, true, true);
+                                       pdf_out, G, di_info.seed, false, true, true, true);
 
 #if DIRECT_ILLUMINATION_ON == 1
     // Add the radiance to the hit value

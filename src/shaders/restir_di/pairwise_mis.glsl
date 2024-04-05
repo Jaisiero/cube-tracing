@@ -64,7 +64,7 @@ void pairwise_stream(inout PAIRWISE_MIS mis, RESERVOIR canonical_reservoir,
   if (is_reservoir_valid(input_reservoir)) {
 
     curr_target = reservoir_get_radiance(input_reservoir, canonical_ray,
-                                         canonical_hit, canonical_material);
+                                         canonical_hit, canonical_material, false);
 
     const daxa_f32 target_lum = luminance(curr_target);
     m_i = pairwise_compute_m_i(mis.k, canonical_reservoir, input_reservoir,
@@ -76,7 +76,7 @@ void pairwise_stream(inout PAIRWISE_MIS mis, RESERVOIR canonical_reservoir,
   // m_c
   if (is_reservoir_valid(canonical_reservoir)) {
     input_target = reservoir_get_radiance(canonical_reservoir, input_ray,
-                                         input_hit, input_material);
+                                         input_hit, input_material, false);
   }
 
   pairwise_update_m_c(mis, canonical_reservoir, input_reservoir, input_target, seed);
