@@ -1798,7 +1798,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             TASK::BLAS_UPDATE update_task = task.blas_update;
             instances[update_task.instance_index].transform = 
                 daxa_f32mat4x4_mult(instances[update_task.instance_index].transform, update_task.transform);
-#if DEBUG == 1
+
             // print transform matrix
             std::cout << "matrix instance_index: " << update_task.instance_index << std::endl;
             std::cout << "  [" << instances[update_task.instance_index].transform.x.x << ", " << 

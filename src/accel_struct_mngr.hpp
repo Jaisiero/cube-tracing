@@ -228,6 +228,9 @@ public:
 #endif // DEBUG                    
                     // Switch to next index
                     current_index = (current_index + 1) % DOUBLE_BUFFERING;
+                    // if(synchronize) {
+                        synchronizing = true;
+                    // }
 
                     // set the updating flag to true
                     wake_up = true;
@@ -237,11 +240,12 @@ public:
                     task_queue_cv.notify_one();
                 }
 
+                {
                 // if(synchronize) {
                     std::unique_lock lock(synchronize_mutex);
-                    synchronizing = true;
                     synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
                 // }
+                }
             }
             break;
             case AS_MANAGER_STATUS::SWITCHING:
@@ -258,6 +262,8 @@ public:
                     current_index = (current_index + 1) % DOUBLE_BUFFERING;
                     // set the wake up flag to true
                     wake_up = true;
+                    // set the synchronize flag to true
+                    synchronizing = true;
                     // status = AS_MANAGER_STATUS::SWITCH;
                     status = AS_MANAGER_STATUS::SWITCH;
                     // wake up the worker thread
@@ -267,7 +273,6 @@ public:
                 // Wait for the worker thread to finish
                 {
                     std::unique_lock lock(synchronize_mutex);
-                    synchronizing = true;
                     synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
                 }
             } 
@@ -281,17 +286,20 @@ public:
                     std::unique_lock lock(task_queue_mutex);
                     // set the wake up flag to true
                     wake_up = true;
+                    // set the synchronize flag to true
+                    synchronizing = true;
                     // status = AS_MANAGER_STATUS::SETTLE;
                     status = AS_MANAGER_STATUS::SETTLE;
                     // wake up the worker thread
                     task_queue_cv.notify_one();
                 }
                 
+                {
                 // if(synchronize){
                     std::unique_lock lock(synchronize_mutex);
-                    synchronizing = true;
                     synchronize_cv.wait(lock, [&] { return !is_synchronizing(); });
                 // }
+                }
             }
                 break;
             default:
