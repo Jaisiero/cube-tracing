@@ -1166,7 +1166,8 @@ void cubeland_app()
         u32 primitive_index_buf_offset = 0;
         u32 aabb_buf_offset = 0;
 
-        if(status.frame_number == 500) {
+        // TODO: this is a test
+        if(status.frame_number == 2000) {
           mod_primitive_count = 2;
           u32 temp_index = 0;
           u32* primitive_host_ptr = as_manager->request_primitive_index_host_buffer_count(mod_primitive_count, primitive_index_buf_offset);
@@ -1178,14 +1179,18 @@ void cubeland_app()
 
           temp_index = 0;
 
-          aabb_host_ptr[temp_index++] = AABB{
-            .minimum = daxa_f32vec3(VOXEL_EXTENT * 15, -VOXEL_EXTENT * 35, -VOXEL_EXTENT * 50),
-            .maximum = daxa_f32vec3(VOXEL_EXTENT * (15 + 1), -VOXEL_EXTENT * (35 + 1), -VOXEL_EXTENT * (50 + 1)),
-          };
+          daxa_i32vec3 coord = daxa_i32vec3{5, -3, 8};
 
           aabb_host_ptr[temp_index++] = AABB{
-            .minimum = daxa_f32vec3(VOXEL_EXTENT * 20, -VOXEL_EXTENT * 5, -VOXEL_EXTENT * 15),
-            .maximum = daxa_f32vec3(VOXEL_EXTENT * (20 + 1), -VOXEL_EXTENT * (5 + 1), -VOXEL_EXTENT * (15 + 1)),
+            .minimum = daxa_f32vec3(VOXEL_EXTENT * coord.x, VOXEL_EXTENT * coord.y, VOXEL_EXTENT * coord.z),
+            .maximum = daxa_f32vec3(VOXEL_EXTENT * (coord.x + 1), -VOXEL_EXTENT * (coord.y + 1), VOXEL_EXTENT * (coord.z + 1)),
+          };
+
+          coord = daxa_i32vec3{-5, 3, -5};
+
+          aabb_host_ptr[temp_index++] = AABB{
+            .minimum = daxa_f32vec3(VOXEL_EXTENT * coord.x, VOXEL_EXTENT * coord.y, VOXEL_EXTENT * coord.z),
+            .maximum = daxa_f32vec3(VOXEL_EXTENT * (coord.x + 1), VOXEL_EXTENT * (coord.y + 1), VOXEL_EXTENT * (coord.z + 1)),
           };
         }
 

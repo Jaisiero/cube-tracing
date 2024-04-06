@@ -378,6 +378,7 @@ private:
 
     // Updating operations
     bool update_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset);
+    bool copy_updated_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset);
 
     // Switching operations
     bool upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count);

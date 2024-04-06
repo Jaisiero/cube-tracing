@@ -461,11 +461,100 @@ bool ACCEL_STRUCT_MNGR::update_aabb_device_buffer(u32 buffer_index, u32 instance
     {
         u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
-        // Get the primitive indices from the host buffer
+        // Get aabb staging buffer
+        auto aabb_host_buffer = get_aabb_host_buffer();
+
+        // Get the primitive indices host buffer pointer
+        auto primitive_index_host_buffer_ptr = get_primitive_index_host_address() + indices_buffer_offset;
+        
+        // Iterate over the primitive indices and copy the AABBs to the aabb buffer
+        for (u32 i = 0; i < primitive_count; i++)
+        {
+            // Get aabb index to change
+            u32 primitive_index = primitive_index_host_buffer_ptr[i];
+
+            if(primitive_index > instances[instance_index].primitive_count)
+            {
+#if WARN
+                std::cerr << "primitive_index > instances[instance_index].primitive_count" << std::endl;
+#endif // WARN
+                continue;
+            }
+
+            // Get the host buffer AABB index
+            u32 host_buffer_aabb_index = aabb_buffer_offset + i;
+            // Get the primitive buffer offset
+            u32 primitive_buffer_offset = first_primitive_index + primitive_index;
+
+            // Copy AABB to the aabb buffer
+            copy_buffer(aabb_host_buffer,
+                        aabb_buffer[buffer_index],
+                        host_buffer_aabb_index * sizeof(AABB),
+                        primitive_buffer_offset * sizeof(AABB),
+                        sizeof(AABB), i == primitive_count - 1);
+        }
+
+
     }
 
     return true;
 }
+
+
+
+bool ACCEL_STRUCT_MNGR::copy_updated_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset)
+{
+    if (!device.is_valid() || !initialized)
+    {
+#if WARN
+        std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
+        return false;
+    }
+
+    // NOTE: We assume that the AABBs are already in the staging buffer from the aabb_buffer_offset
+    // There's another staging buffer for the indices where the indices are stored for each AABB
+    // The indices are the primitive indices that are associated with the AABBs
+    // Copy all AABBs to the aabb buffer based on the primitive indices
+
+    if(primitive_count > 0)
+    {
+        u32 first_primitive_index = instances[instance_index].first_primitive_index;
+
+        // Get the primitive indices host buffer pointer
+        auto primitive_index_host_buffer_ptr = get_primitive_index_host_address() + indices_buffer_offset;
+        
+        // Iterate over the primitive indices and copy the AABBs to the aabb buffer
+        for (u32 i = 0; i < primitive_count; i++)
+        {
+            // Get aabb index to change
+            u32 primitive_index = primitive_index_host_buffer_ptr[i];
+
+            if(primitive_index > instances[instance_index].primitive_count)
+            {
+#if WARN
+                std::cerr << "primitive_index > instances[instance_index].primitive_count" << std::endl;
+#endif // WARN
+                continue;
+            }
+
+            // Get the primitive buffer offset
+            u32 primitive_buffer_offset = first_primitive_index + primitive_index;
+            // Get the previous index
+            u32 previous_index = (buffer_index - 1) % DOUBLE_BUFFERING;
+
+            // Copy previous AABB buffer to the current buffer
+            copy_buffer(aabb_buffer[previous_index],
+                        aabb_buffer[buffer_index],
+                        primitive_buffer_offset * sizeof(AABB),
+                        primitive_buffer_offset * sizeof(AABB),
+                        sizeof(AABB), i == primitive_count - 1);
+        }
+    }
+
+    return true;
+}
+
 
 bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(u32 buffer_index,
                                                   u32 instance_index, u32 primitive_index,
@@ -2067,7 +2156,16 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
         case TASK::TYPE::UPDATE_BLAS:
         {
             TASK::BLAS_UPDATE update_task = task.blas_update;
-            // update_blas(next_index, update_task.instance_index);
+            if(update_task.primitive_count > 0)
+            {
+                // update aabb buffer
+                copy_updated_aabb_device_buffer(next_index, 
+                    update_task.instance_index, 
+                    update_task.primitive_count, 
+                    update_task.primitive_index_buf_offset,
+                    update_task.aabb_buf_offset);
+            }
+            // TODO: update light buffer
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -2134,9 +2232,8 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
         }
         break;
         case TASK::TYPE::UPDATE_BLAS:
-        {
-            TASK::BLAS_UPDATE update_task = task.blas_update;
-            // update_blas(next_index, update_task.instance_index);
+        { 
+            // TODO: do we need to do something here?
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
