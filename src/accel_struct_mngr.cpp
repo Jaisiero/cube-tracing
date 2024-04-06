@@ -9,18 +9,18 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR *as_manager)
 {
     while (!stoken.stop_requested())
     {
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "Worker thread is sleeping" << std::endl;
-#endif // DEBUG
+#endif // TRACE
        // Wait for task queue to wake up
         {
             std::unique_lock lock(as_manager->task_queue_mutex);
             as_manager->task_queue_cv.wait(lock, [&]
                                            { return as_manager->is_wake_up() || stoken.stop_requested(); });
         }
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "Worker thread woke up" << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
         // Check if stop is requested
         if (stoken.stop_requested())
@@ -55,7 +55,9 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR *as_manager)
             as_manager->process_settling_task_queue();
             break;
         default:
+#if WARN
             std::cerr << "Unknown status" << std::endl;
+#endif // WARN
             break;
         }
 
@@ -295,7 +297,9 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(u32 buffer_index, bool synchronize)
     u32 instance_buffer_size = static_cast<u32>(current_instance_count[buffer_index] * sizeof(INSTANCE));
     if (instance_buffer_size > max_instance_buffer_size)
     {
+#if WARN
         std::cerr << "instance_buffer_size > max_instance_buffer_size" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -311,13 +315,13 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(u32 buffer_index, bool synchronize)
                 instances.get(),
                 instance_buffer_size);
 
-#if DEBUG == 1
+#if TRACE == 1
     std::cout << "  upload_all_instances: buffer_index: " << buffer_index << ", current_instance_count: " << current_instance_count[buffer_index] << std::endl;
     for (u32 i = 0; i < current_instance_count[buffer_index]; i++)
     {
         std::cout << "  instance[" << i << "] - first index: " << instance_buffer_ptr[i].first_primitive_index << ", primitive count: " << instance_buffer_ptr[i].primitive_count << std::endl;
     }
-#endif // DEBUG
+#endif // TRACE
 
     copy_buffer(instance_staging_buffer, instance_buffer[buffer_index], 0, 0, instance_buffer_size, synchronize);
 
@@ -330,7 +334,9 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 pri
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -342,7 +348,9 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 pri
 
     if (current_primitive_count_offset > max_primitive_buffer_size)
     {
+#if WARN
         std::cerr << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+#endif // WARN
         // TODO: handle this case
         return false;
     }
@@ -368,7 +376,9 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(u32 buffer_index, u32 primi
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -380,7 +390,9 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(u32 buffer_index, u32 primi
 
     if (current_primitive_count_offset > max_primitive_buffer_size)
     {
+#if WARN
         std::cerr << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -394,7 +406,9 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_hos
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -406,7 +420,9 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_hos
 
         if (!upload_primitive_device_buffer(buffer_index, aabb_host_count))
         {
+#if WARN
             std::cerr << "Failed to load primitives" << std::endl;
+#endif // WARN
             return false;
         }
         current_aabb_host_idx += aabb_host_count;
@@ -423,7 +439,9 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(u32 buffer_index,
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -501,9 +519,9 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(u32 buffer_index,
         copy_buffer(aabb_buffer[buffer_index], aabb_buffer[buffer_index], last_primitive_index * sizeof(AABB), primitive_to_delete * sizeof(AABB), sizeof(AABB), false);
         // Copy primitive
         copy_buffer(primitive_buffer[buffer_index], primitive_buffer[buffer_index], last_primitive_index * sizeof(PRIMITIVE), primitive_to_delete * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  delete_aabb_device_buffer: primitive_to_exchange: " << primitive_to_exchange << ", primitive_index: " << primitive_index << std::endl;
-#endif // DEBUG
+#endif // TRACE
         if (light_to_exchange != -1)
         {
             u32 primitive_index_from_light_to_exchange =
@@ -528,12 +546,12 @@ bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(u32 buffer_index,
 
             memcpy(&light_of_the_exchanged_primitive, multipurpose_staging_buffer_ptr, sizeof(u32));
 
-#if DEBUG == 1
+#if TRACE == 1
             std::cout << "  delete_aabb_device_buffer primitive["
                       << primitive_index_from_light_to_exchange << "]: light_to_delete: "
                       << light_to_delete << ", light_to_exchange: " << light_to_exchange
                       << ", light_of_the_exchanged_primitive: " << light_of_the_exchanged_primitive << std::endl;
-#endif // DEBUG
+#endif // TRACE
         }
     }
 
@@ -544,7 +562,9 @@ bool ACCEL_STRUCT_MNGR::update_remapping_buffer(u32 instance_index, u32 primitiv
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -583,13 +603,15 @@ bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(u32 light_to_delete, u32 l
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
-#if DEBUG == 1
+#if TRACE == 1
     std::cout << "  *light_to_delete: " << light_to_delete << ", light_to_exchange: " << light_to_exchange << std::endl;
-#endif // DEBUG
+#endif // TRACE
     // Copy last primitive to deleted primitive
 
     if (light_to_delete != -1)
@@ -638,9 +660,9 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(u32 next_index, TASK &task)
     case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
     {
         TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  *light_deleted: " << rebuild_task.del_light_index << ", light_exchanged: " << rebuild_task.remap_light_index << std::endl;
-#endif // DEBUG
+#endif // TRACE
        // restore primitive buffer
         restore_aabb_device_buffer(next_index, rebuild_task.instance_index,
                                    rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index,
@@ -652,9 +674,9 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(u32 next_index, TASK &task)
         // increment instance primitive count
         {
             instances[rebuild_task.instance_index].primitive_count++;
-#if DEBUG == 1
+#if TRACE == 1
             std::cout << "  >Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
-#endif // DEBUG
+#endif // TRACE
         }
         // rebuild blas
         rebuild_blas_index_list.push_back(rebuild_task.instance_index);
@@ -669,7 +691,9 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(u32 next_index, TASK &task)
     break;
     case TASK::TYPE::UNDO_OP_CPU:
     {
+#if FATAL
         std::cerr << "      UNDO_OP_CPU impossible option for process_undo_task_queue" << std::endl;
+#endif // FATAL
         std::abort();
     }
     break;
@@ -687,7 +711,9 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(u32 buffer_index, u32 instanc
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -725,9 +751,9 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(u32 buffer_index, u32 instanc
                         primitive_buffer[buffer_index], deleted_primitive_index * sizeof(PRIMITIVE),
                         exchanged_primitive_index * sizeof(PRIMITIVE), sizeof(PRIMITIVE), true);
 
-#if DEBUG == 1
+#if TRACE == 1
             std::cout << "  restore_aabb_device_buffer: primitive_exchanged: " << primitive_exchanged << ", primitive_to_recover: " << primitive_to_recover << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
             if (light_exchanged != -1)
             {
@@ -741,11 +767,11 @@ bool ACCEL_STRUCT_MNGR::restore_aabb_device_buffer(u32 buffer_index, u32 instanc
                             primitive_buffer[buffer_index], sizeof(AABB) + sizeof(PRIMITIVE),
                             primitive_index_from_light_exchanged * sizeof(PRIMITIVE) + sizeof(u32),
                             sizeof(u32), true);
-#if DEBUG == 1
+#if TRACE == 1
                 std::cout << "  restore_aabb_device_buffer primitive["
                           << primitive_index_from_light_exchanged << "]: light_exchanged: "
                           << light_exchanged << ", light_deleted: " << light_deleted << std::endl;
-#endif // DEBUG
+#endif // TRACE
             }
         }
 
@@ -775,7 +801,9 @@ bool ACCEL_STRUCT_MNGR::restore_remapping_buffer(u32 buffer_index, u32 instance_
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -813,7 +841,9 @@ bool ACCEL_STRUCT_MNGR::restore_cube_light_remapping_buffer(u32 buffer_index, u3
 
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -850,7 +880,9 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -863,7 +895,9 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_
 
         if (!copy_primitive_device_buffer(buffer_index, aabb_host_count))
         {
+#if WARN
             std::cerr << "Failed to load primitives" << std::endl;
+#endif // WARN
             return false;
         }
     }
@@ -875,7 +909,9 @@ bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(u32 buffer_index, u32 in
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -899,13 +935,15 @@ bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(u32 buffer_index,
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
-#if DEBUG == 1
+#if TRACE == 1
     std::cout << " delete_light_device_buffer: light_to_delete: " << light_to_delete << ", light_to_exchange: " << light_to_exchange << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
     if (light_to_exchange != -1)
     {
@@ -917,16 +955,16 @@ bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(u32 buffer_index,
             // Copy light index from exchanged primitive
             cube_lights[light_index_from_exchanged_primitive].instance_info.primitive_id = primitive_deleted;
 
-#if DEBUG == 1
+#if TRACE == 1
             std::cout << "  delete_light_device_buffer: cube_lights[" << light_index_from_exchanged_primitive << "].instance_info.primitive_id: "
                       << cube_lights[light_index_from_exchanged_primitive].instance_info.primitive_id << std::endl;
-#endif // DEBUG
+#endif // TRACE
         }
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  delete_light_device_buffer: cube_lights[" << light_to_delete << "].instance_info.primitive_id: "
                   << cube_lights[light_to_delete].instance_info.primitive_id << std::endl;
-#endif // DEBUG
+#endif // TRACE
     }
 
     return true;
@@ -972,7 +1010,9 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(u32 next_index, TASK &
     break;
     case TASK::TYPE::UNDO_OP_CPU:
     {
+#if FATAL
         std::cerr << "UNDO_OP_CPU impossible option for process_undo_switching_task_queue" << std::endl;
+#endif // FATAL
         std::abort();
     }
     break;
@@ -989,13 +1029,15 @@ bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(u32 buffer_index,
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
-#if DEBUG == 1
+#if TRACE == 1
     std::cout << "  restore_light_device_buffer: light_to_recover_index: " << light_to_recover_index << ", light_exchanged_index: " << light_exchanged_index << std::endl;
-#endif // DEBUG
+#endif // TRACE
     if (light_to_recover_index != -1)
     {
 
@@ -1005,10 +1047,10 @@ bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(u32 buffer_index,
             cube_lights[light_exchanged_index] = cube_lights[light_to_recover_index];
             // cube_lights[light_exchanged_index].instance_info.primitive_id = primivite_exchanged_index;
 
-#if DEBUG == 1
+#if TRACE == 1
             std::cout << "  restore_light_device_buffer: cube_lights[" << light_exchanged_index << "].instance_info.primitive_id: "
                       << cube_lights[light_exchanged_index].instance_info.primitive_id << std::endl;
-#endif // DEBUG
+#endif // TRACE
         }
 
         if (light_index_from_exchanged_primitive != -1)
@@ -1020,10 +1062,10 @@ bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(u32 buffer_index,
         // NOTE: Decrease backup light count
         cube_lights[light_to_recover_index] = backup_cube_lights.at(--backup_cube_light_count);
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  restore_light_device_buffer: cube_lights[" << light_to_recover_index << "].instance_info.primitive_id: "
                   << cube_lights[light_to_recover_index].instance_info.primitive_id << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
         backup_cube_lights.pop_back();
 
@@ -1041,7 +1083,9 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(u32 instance_index, u32 primitive
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN  
         return false;
     }
 
@@ -1080,7 +1124,9 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -1099,9 +1145,9 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
     // build procedural blas
     for (auto i : instance_list)
     {
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  build_blas: i: " << i << ", first primitive index: " << instances[i].first_primitive_index << ", primitive count: " << instances[i].primitive_count << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[i].primitive_count,
@@ -1109,13 +1155,13 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
             .flags = static_cast<daxa::GeometryFlags>(0x1), // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
         });
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "      build_blas: aabb_geometries[" << current_instance_index << "].size(): " << aabb_geometries.at(current_instance_index).size() << std::endl;
         for (auto &aabb_geometry : aabb_geometries.at(current_instance_index))
         {
             std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometry.data << ", aabb_geometry.stride: " << aabb_geometry.stride << ", aabb_geometry.count: " << aabb_geometry.count << std::endl;
         }
-#endif // DEBUG
+#endif // TRACE
 
         /// Create Procedural Blas:
         blas_build_infos.push_back(daxa::BlasBuildInfo{
@@ -1137,7 +1183,9 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
         if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
         {
             // TODO: Try to resize buffer
+#if WARN
             std::cerr << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
+#endif // WARN
             return false;
         }
         blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
@@ -1148,23 +1196,28 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
         auto blas = blas_free_list->allocate(build_aligment_size);
         if(blas == daxa::BlasId{})
         {
+#if FATAL
             std::cerr << " Could not allocate BLAS from free list" << std::endl;
+#endif // FATAL
             // TODO: abort for now but try to resize buffer
             std::abort();
             // return false;
         }
+#if TRACE
+    std::cout << "  build_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
+#endif
 
         proc_blas.push_back(blas);
 
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(i);
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "      build_blas: blas_build_infos[" << blas_build_infos.size() - 1 
             << "].dst_blas: " << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index 
             << ", proc_blas[" << i << "]: " << proc_blas.at(i).index << ", blas_build_infos[" 
             << blas_build_infos.size() - 1 << "].scratch_data: " 
             << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
         ++current_instance_index;
     }
@@ -1174,7 +1227,9 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
     // Check if all instances were processed
     if (current_instance_index != instance_count)
     {
+#if WARN
         std::cerr << "current_instance_index != current_instance_count" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -1187,13 +1242,13 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
             .dst_access = daxa::AccessConsts::ACCELERATION_STRUCTURE_BUILD_READ_WRITE,
         });
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "      build_blas infos.size(): " << blas_build_infos.size() << std::endl;
         for (auto &blas_build_info : blas_build_infos)
         {
             std::cout << "      build_blas: blas_build_info.dst_blas: " << blas_build_info.dst_blas.index << ", blas_build_info.scratch_data: " << blas_build_info.scratch_data << std::endl;
         }
-#endif // DEBUG
+#endif // TRACE
 
         recorder.build_acceleration_structures({
             .blas_build_infos = blas_build_infos,
@@ -1210,7 +1265,9 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -1239,11 +1296,11 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
     // build procedural blas
     for (auto instance_index : instance_list)
     {
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  build_blas: i: " << instance_index 
         << ", first primitive index: " << instances[instance_index].first_primitive_index 
         << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[instance_index].primitive_count,
@@ -1260,13 +1317,13 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
             .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
         });
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "      build_blas: aabb_geometries[" << current_instance_index << "].size(): " << aabb_geometries.at(current_instance_index).size() << std::endl;
         for (auto &aabb_geometry : aabb_geometries.at(current_instance_index))
         {
             std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometry.data << ", aabb_geometry.stride: " << aabb_geometry.stride << ", aabb_geometry.count: " << aabb_geometry.count << std::endl;
         }
-#endif // DEBUG
+#endif // TRACE
 
         daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
 
@@ -1280,7 +1337,9 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
         if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
         {
             // TODO: Try to resize buffer
+#if WARN
             std::cerr << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
+#endif // WARN
             return false;
         }
         blas_build_infos.at(blas_build_infos.size() - 1).scratch_data = (device.get_device_address(proc_blas_scratch_buffer).value() + proc_blas_scratch_buffer_offset);
@@ -1291,18 +1350,23 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
         auto blas = blas_free_list->allocate(build_aligment_size);
         if(blas == daxa::BlasId{})
         {
+#if FATAL
             std::cerr << " Could not allocate BLAS from free list" << std::endl;
+#endif // FATAL
             // TODO: abort for now but try to resize buffer
             std::abort();
             // return false;
         }
+#if TRACE
+    std::cout << "  rebuild_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
+#endif
 
         proc_blas.at(instance_index) = blas;
 
         // Here BLAS buffer is updated
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(instance_index);
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " 
             << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index << "]: " 
                 << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 << "].scratch_data: " 
@@ -1315,7 +1379,7 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
             std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data << ", aabb_geometry.stride: " 
             << aabb_geometries[i].stride << ", aabb_geometry.count: " << aabb_geometries[i].count << std::endl;
         }
-#endif // DEBUG
+#endif // TRACE
 
         ++current_instance_index;
     }
@@ -1325,7 +1389,9 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
     // Check if all instances were processed
     if (current_instance_index != instance_count)
     {
+#if WARN
         std::cerr << "current_instance_index != current_instance_count" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -1352,7 +1418,9 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -1384,9 +1452,9 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
     // build procedural blas
     for (auto instance_index : instance_list)
     {
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  build_blas: i: " << instance_index << ", first primitive index: " << instances[instance_index].first_primitive_index << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[instance_index].primitive_count,
@@ -1404,13 +1472,13 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
             .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
         });
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "      build_blas: aabb_geometries[" << current_instance_index << "].size(): " << aabb_geometries.at(current_instance_index).size() << std::endl;
         for (auto &aabb_geometry : aabb_geometries.at(current_instance_index))
         {
             std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometry.data << ", aabb_geometry.stride: " << aabb_geometry.stride << ", aabb_geometry.count: " << aabb_geometry.count << std::endl;
         }
-#endif // DEBUG
+#endif // TRACE
 
         daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
 
@@ -1424,14 +1492,18 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
         if(scratch_alignment_size == 0)
         {
             blas_build_infos.pop_back();
+#if WARN
             std::cerr << "  build_blas: update not allowed for instance_index: " << instance_index << std::endl;
+#endif // WARN
             return false;
         }
 
         if ((proc_blas_scratch_buffer_offset + scratch_alignment_size) > proc_blas_scratch_buffer_size)
         {
             // TODO: Try to resize buffer
+#if WARN
             std::cerr << "proc_blas_scratch_buffer_offset > proc_blas_scratch_buffer_size" << std::endl;
+#endif // WARN
             return false;
         }
         
@@ -1447,11 +1519,16 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
         auto blas = blas_free_list->allocate(build_aligment_size);
         if(blas == daxa::BlasId{})
         {
-            std::cerr << " Could not allocate BLAS from free list" << std::endl;
+#if FATAL
+           std::cerr << " Could not allocate BLAS from free list" << std::endl;
+#endif // FATAL
             // TODO: abort for now but try to resize buffer
             std::abort();
             // return false;
         }
+#if TRACE
+    std::cout << "  update_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
+#endif
         
         proc_blas.at(instance_index) = blas;
 
@@ -1462,7 +1539,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
 
         // blas_build_infos.at(blas_build_infos.size() - 1).update = true;
 
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " 
             << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index 
             << "]: " << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 
@@ -1476,7 +1553,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
                 << ", aabb_geometry.stride: " << aabb_geometries[i].stride << ", aabb_geometry.count: " 
                 << aabb_geometries[i].count << std::endl;
         }
-#endif // DEBUG
+#endif // TRACE
 
         ++current_instance_index;
     }
@@ -1486,7 +1563,9 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
     // Check if all instances were processed
     if (current_instance_index != instance_count)
     {
+#if WARN
         std::cerr << "current_instance_index != current_instance_count" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -1513,13 +1592,17 @@ bool ACCEL_STRUCT_MNGR::build_tlas(u32 buffer_index, bool synchronize)
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
     if (buffer_index >= DOUBLE_BUFFERING)
     {
+#if WARN
         std::cerr << "buffer_index >= tlas.size()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -1624,7 +1707,9 @@ bool ACCEL_STRUCT_MNGR::clear_light_remapping_buffer(u32 instance_index, u32 lig
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return false;
     }
 
@@ -1691,7 +1776,9 @@ void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(u32 next_index, TASK &t
     {
         if (task.undo_op_cpu.undo_task)
         {
+#if FATAL
             std::cerr << "      UNDO_OP_CPU should not reach process_undo_settling_task_queue" << std::endl;
+#endif // FATAL
             std::abort();
         }
     }
@@ -1714,7 +1801,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
 
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return;
     }
 
@@ -1765,9 +1854,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             {
                 // Update instance primitive count
                 primitive_to_exchange = --instances[rebuild_task.instance_index].primitive_count;
-#if DEBUG == 1
+#if TRACE == 1
                 std::cout << "  >Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
-#endif // DEBUG
+#endif // TRACE
             }
             // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
             delete_aabb_device_buffer(next_index,
@@ -1799,6 +1888,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             instances[update_task.instance_index].transform = 
                 daxa_f32mat4x4_mult(instances[update_task.instance_index].transform, update_task.transform);
 
+#if TRACE == 1
             // print transform matrix
             std::cout << "matrix instance_index: " << update_task.instance_index << std::endl;
             std::cout << "  [" << instances[update_task.instance_index].transform.x.x << ", " << 
@@ -1817,7 +1907,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 instances[update_task.instance_index].transform.w.y << ", " <<
                 instances[update_task.instance_index].transform.w.z << ", " <<
                 instances[update_task.instance_index].transform.w.w << "]" << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
             // TODO: update aabb buffer with new positions
             // update_aabb(next_index, update_task.instance_index);
@@ -1892,7 +1982,9 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return;
     }
 
@@ -1966,7 +2058,9 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return;
     }
 
@@ -2043,8 +2137,10 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
 
     // delete temp proc blas
     for (auto blas : temp_proc_blas)
-        if (blas != daxa::BlasId{}) {
-            // device.destroy_blas(blas);
+        if (blas != daxa::BlasId{}) {      
+#if TRACE
+    std::cout << "  delete temp proc blas: " << blas.index << ", version: " << blas.version << std::endl;
+#endif
             blas_free_list->deallocate(blas);
         }
 
@@ -2055,7 +2151,9 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return;
     }
 
@@ -2097,9 +2195,9 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
                     u32 instance_index = i * 32 + j;
                     // Process instance
                     INSTANCE instance = instances[instance_index];
-#if DEBUG == 1
+#if TRACE == 1
                     std::cout << "Instance: " << instance_index << " Primitive count: " << instance.primitive_count << " First primitive index: " << instance.first_primitive_index << std::endl;
-#endif // DEBUG
+#endif // TRACE
                     u32 first_primitive_mask_index = (instance.first_primitive_index) >> 5;
                     u32 max_instance_bitmask_size = (instance.first_primitive_index + instance.primitive_count) >> 5;
                     u32 first_l = 0;
@@ -2122,9 +2220,9 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
                                     changes_so_far++;
                                     u32 instance_primitive = (32 - first_l) + ((k - first_primitive_mask_index - 1) * 32) + l;
                                     // Process primitive
-#if DEBUG == 1
+#if TRACE == 1
                                     std::cout << "Instance: " << instance_index << " Primitive: " << instance_primitive << std::endl;
-#endif // DEBUG
+#endif // TRACE
                                     {
 
                                         auto task_queue = TASK{
@@ -2166,15 +2264,17 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
 {
     if (!device.is_valid() || !initialized)
     {
+#if WARN
         std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
         return;
     }
 
     if (brush_counters->instance_count > 0)
     {
-#if DEBUG == 1
+#if TRACE == 1
         std::cout << "  Modifications instances: " << brush_counters->instance_count << " primitives: " << brush_counters->primitive_count << std::endl;
-#endif // DEBUG
+#endif // TRACE
 
         // Bring bitmask to host
         process_voxel_modifications();
