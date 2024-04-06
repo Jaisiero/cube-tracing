@@ -43,8 +43,8 @@ public:
             u32 instance_index;
             daxa_f32mat4x4 transform;
             u32 primitive_count;
-            u32* aabb_alterations; // primitive index 
-            AABB* aabbs; // host pointer to the aabbs to update
+            u32 primitive_index_buf_offset;
+            u32 aabb_buf_offset;
         };
 
         struct BLAS_PRIMITIVE_DELETE_FROM_CPU
@@ -172,6 +172,28 @@ public:
     AABB* get_aabb_host_address() const { return device.get_host_address_as<AABB>(aabb_host_buffer).value(); }
 
     AABB* get_next_aabb_host_address() const { return get_aabb_host_address() + temp_primitive_count; }
+
+    AABB* request_aabb_host_buffer_count(u32 count, u32& temp_primitive_offset) {
+        // TODO: mutex
+        temp_primitive_offset = temp_primitive_count;
+        AABB* address = get_aabb_host_address();
+        temp_primitive_count += count;
+        return address;
+    }
+    
+    daxa::BufferId get_primitive_index_host_buffer() const { return primitive_index_host_buffer; }
+
+    u32* get_primitive_index_host_address() const { return device.get_host_address_as<u32>(primitive_index_host_buffer).value(); }
+
+    u32* get_next_primitive_index_host_address() const { return get_primitive_index_host_address() + temp_primitive_index_count; }
+
+    u32* request_primitive_index_host_buffer_count(u32 count, u32& temp_primitive_index_offset) { 
+        // TODO: mutex
+        temp_primitive_index_offset = temp_primitive_index_count; 
+        u32* address = get_primitive_index_host_address();
+        temp_primitive_index_count += count;
+        return address;
+    }
 
     INSTANCE* get_instances() const { return instances.get(); }
 
@@ -326,7 +348,7 @@ private:
     void process_undo_switching_task_queue(u32 next_index, TASK& task);
     void process_undo_settling_task_queue(u32 next_index, TASK& task);
 
-    // Undo updating rebuilding BLAS
+    // Undo deleting rebuilding BLAS
     bool restore_aabb_device_buffer(u32 buffer_index,
                                     u32 instance_index,
                                     u32 primitive_to_recover,
@@ -347,12 +369,15 @@ private:
     void process_voxel_modifications();
     
 
-    // Updating operations
+    // Deleting operations
     void copy_buffer(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
         size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
     bool upload_all_instances(u32 buffer_index, bool synchronize = false);
     bool upload_primitive_device_buffer(u32 buffer_index, daxa_u32 primitive_count);
     bool copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count);
+
+    // Updating operations
+    bool update_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset);
 
     // Switching operations
     bool upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count);
@@ -385,6 +410,7 @@ private:
     size_t max_instance_buffer_size = 0;
     size_t max_aabb_buffer_size = 0;
     size_t max_aabb_host_buffer_size = 0;
+    size_t max_primitive_index_host_buffer_size = 0;
     size_t max_primitive_buffer_size = 0;
     size_t max_cube_light_buffer_size = 0;
     size_t max_remapping_primitive_buffer_size = 0;
@@ -404,15 +430,20 @@ private:
     std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
     std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
     
+    // TODO: revisit every atomic variable
     daxa::BufferId instance_buffer[DOUBLE_BUFFERING] = {};
     u32 current_instance_count[DOUBLE_BUFFERING] = {0, 0};
     // We store the instance count not uploaded yet
-    u32 temp_instance_count = 0;
+    std::atomic<u32> temp_instance_count = 0;
     std::unique_ptr<INSTANCE[]> instances = {};
     
     daxa::BufferId aabb_buffer[DOUBLE_BUFFERING] = {};
     daxa::BufferId aabb_host_buffer = {};
     u32 current_aabb_host_idx = 0;
+
+    std::atomic<u32> temp_primitive_index_count = 0;
+    daxa::BufferId primitive_index_host_buffer = {};
+    u32 current_primitive_host_idx = 0;
 
     u32 current_primitive_count[DOUBLE_BUFFERING] = {0, 0};
     // We store the primitive count not uploaded yet

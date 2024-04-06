@@ -1161,15 +1161,44 @@ void cubeland_app()
 
 
       void update_model_animation() {
+
+        u32 mod_primitive_count = 0;
+        u32 primitive_index_buf_offset = 0;
+        u32 aabb_buf_offset = 0;
+
+        if(status.frame_number == 500) {
+          mod_primitive_count = 2;
+          u32 temp_index = 0;
+          u32* primitive_host_ptr = as_manager->request_primitive_index_host_buffer_count(mod_primitive_count, primitive_index_buf_offset);
+
+          primitive_host_ptr[temp_index++] = 0;
+          primitive_host_ptr[temp_index++] = 200;
+
+          AABB* aabb_host_ptr = as_manager->request_aabb_host_buffer_count(mod_primitive_count, aabb_buf_offset);
+
+          temp_index = 0;
+
+          aabb_host_ptr[temp_index++] = AABB{
+            .minimum = daxa_f32vec3(VOXEL_EXTENT * 15, -VOXEL_EXTENT * 35, -VOXEL_EXTENT * 50),
+            .maximum = daxa_f32vec3(VOXEL_EXTENT * (15 + 1), -VOXEL_EXTENT * (35 + 1), -VOXEL_EXTENT * (50 + 1)),
+          };
+
+          aabb_host_ptr[temp_index++] = AABB{
+            .minimum = daxa_f32vec3(VOXEL_EXTENT * 20, -VOXEL_EXTENT * 5, -VOXEL_EXTENT * 15),
+            .maximum = daxa_f32vec3(VOXEL_EXTENT * (20 + 1), -VOXEL_EXTENT * (5 + 1), -VOXEL_EXTENT * (15 + 1)),
+          };
+        }
+
         
         TASK task = {
             .type = TASK::TYPE::UPDATE_BLAS,
             .blas_update = {
               .instance_index = 1,
               .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f))),
-              .aabb_alterations = nullptr, // empty vector means no aabb alterations
-              .aabbs = nullptr, // nullptr means no aabb alterations
-            }
+              .primitive_count = mod_primitive_count, // 0 means no primitive alterations
+              .primitive_index_buf_offset = primitive_index_buf_offset,
+              .aabb_buf_offset = aabb_buf_offset,
+            },
         };
 
       // TASK task = {

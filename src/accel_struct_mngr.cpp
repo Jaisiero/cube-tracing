@@ -89,6 +89,7 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
         max_instance_buffer_size = sizeof(INSTANCE) * max_instance_count;
         max_aabb_buffer_size = sizeof(AABB) * max_primitive_count;
         max_aabb_host_buffer_size = sizeof(AABB) * max_primitive_count * 0.1;
+        max_primitive_index_host_buffer_size = max_primitive_count * sizeof(u32) * 0.1;
         max_primitive_buffer_size = sizeof(PRIMITIVE) * max_primitive_count;
         max_cube_light_buffer_size = sizeof(LIGHT) * max_cube_light_count;
         max_remapping_primitive_buffer_size = sizeof(u32) * max_primitive_count;
@@ -149,6 +150,12 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
             .size = max_aabb_host_buffer_size,
             .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
             .name = "aabb host buffer",
+        });
+
+        primitive_index_host_buffer = device.create_buffer({
+            .size = max_primitive_index_host_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = "primitive index host buffer",
         });
 
         remapping_primitive_buffer = device.create_buffer({
@@ -224,6 +231,9 @@ bool ACCEL_STRUCT_MNGR::destroy()
 
         if (aabb_host_buffer != daxa::BufferId{})
             device.destroy_buffer(aabb_host_buffer);
+
+        if (primitive_index_host_buffer != daxa::BufferId{})
+            device.destroy_buffer(primitive_index_host_buffer);
 
         for (auto buffer : primitive_buffer)
             if (buffer != daxa::BufferId{})
@@ -426,6 +436,32 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_hos
             return false;
         }
         current_aabb_host_idx += aabb_host_count;
+    }
+
+    return true;
+}
+
+
+bool ACCEL_STRUCT_MNGR::update_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset)
+{
+    if (!device.is_valid() || !initialized)
+    {
+#if WARN
+        std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
+        return false;
+    }
+
+    // NOTE: We assume that the AABBs are already in the staging buffer from the aabb_buffer_offset
+    // There's another staging buffer for the indices where the indices are stored for each AABB
+    // The indices are the primitive indices that are associated with the AABBs
+    // Copy all AABBs to the aabb buffer based on the primitive indices
+
+    if(primitive_count > 0)
+    {
+        u32 first_primitive_index = instances[instance_index].first_primitive_index;
+
+        // Get the primitive indices from the host buffer
     }
 
     return true;
@@ -1909,8 +1945,15 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 instances[update_task.instance_index].transform.w.w << "]" << std::endl;
 #endif // TRACE
 
-            // TODO: update aabb buffer with new positions
-            // update_aabb(next_index, update_task.instance_index);
+            if(update_task.primitive_count > 0)
+            {
+                    // update aabb buffer
+                update_aabb_device_buffer(next_index, 
+                    update_task.instance_index, 
+                    update_task.primitive_count, 
+                    update_task.primitive_index_buf_offset,
+                    update_task.aabb_buf_offset);
+            }
 
             update_blas_index_list.push_back(update_task.instance_index);
         }
@@ -1970,6 +2013,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     temp_instance_count = 0;
     // Reset temp primitive count
     temp_primitive_count = 0;
+    // Reset temp primitive index count
+    temp_primitive_index_count = 0;
 
     {
         // TODO: mutex here
