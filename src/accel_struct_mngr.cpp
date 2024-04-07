@@ -121,6 +121,8 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
         // Clear previous procedural blas
         this->proc_blas.clear();
 
+        instance_free_list = std::make_unique<free_uuid_list<uuid32>>(max_instance_count);
+
         for (u32 i = 0; i < DOUBLE_BUFFERING; i++)
         {
             tlas[i] = daxa::TlasId{};
@@ -130,7 +132,10 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
             });
         }
 
-        instance_free_list = std::make_unique<free_uuid_list<uuid32>>(max_instance_count);
+        primitive_free_list =
+            std::make_unique<gpu_free_list<VoxelBuffer, gpu_allocator<VoxelBuffer>>>(device,
+                                                                                           max_primitive_count,
+                                                                                           primitive_buffer[0]);
 
         for (u32 i = 0; i < DOUBLE_BUFFERING; i++)
         {
@@ -414,7 +419,7 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(u32 buffer_index, u32 primi
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count)
+bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, size_t buffer_offset)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1320,7 +1325,8 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
 
         u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
-        auto blas = blas_free_list->allocate(build_aligment_size);
+        size_t offset = 0;
+        auto blas = blas_free_list->allocate(build_aligment_size, offset);
         if(blas == daxa::BlasId{})
         {
 #if FATAL
@@ -1474,7 +1480,8 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
 
         u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
-        auto blas = blas_free_list->allocate(build_aligment_size);
+        size_t offset = 0;
+        auto blas = blas_free_list->allocate(build_aligment_size, offset);
         if(blas == daxa::BlasId{})
         {
 #if FATAL
@@ -1643,7 +1650,8 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
 
         u32 build_aligment_size = get_aligned(proc_build_size_info.acceleration_structure_size, ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT);
 
-        auto blas = blas_free_list->allocate(build_aligment_size);
+        size_t offset = 0;
+        auto blas = blas_free_list->allocate(build_aligment_size, offset);
         if(blas == daxa::BlasId{})
         {
 #if FATAL
@@ -1948,6 +1956,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     u32 light_to_delete = -1;
     u32 light_index_from_exchanged_primitive = -1;
     temp_cube_light_count = *current_cube_light_count;
+    size_t primitive_buffer_offset = 0;
 
     std::vector<u32> blas_index_list = {};
     std::vector<u32> rebuild_blas_index_list = {};
@@ -1967,10 +1976,6 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
         {
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
-            // Update primitive buffers
-            upload_aabb_device_buffer(next_index, build_task.primitive_count);
-            // Update primitive count
-            current_primitive_count[next_index] += build_task.primitive_count;
             // Allocate new instance
             uuid32 new_instance_id = instance_free_list->allocate();
             if (new_instance_id == static_cast<uuid32>(-1))
@@ -1980,9 +1985,18 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
 #endif // FATAL
                 std::abort();
             }
+            primitive_free_list->allocate(build_task.primitive_count, primitive_buffer_offset, new_instance_id);
+            // Update primitive buffers
+            upload_aabb_device_buffer(next_index, build_task.primitive_count, primitive_buffer_offset);
+            // Update primitive count
+            current_primitive_count[next_index] += build_task.primitive_count;
             // Update instance
             instances[new_instance_id].transform = build_task.transform;
+            instances[new_instance_id].first_primitive_index = primitive_buffer_offset;
+            instances[new_instance_id].primitive_count = build_task.primitive_count;
+            // Keep blas id for building blas
             blas_index_list.push_back(new_instance_id);
+            // Global instance count
             current_instance_count[next_index] += build_task.instance_count;
         }
         break;

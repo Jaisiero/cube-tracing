@@ -389,7 +389,7 @@ private:
     bool copy_updated_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset);
 
     // Switching operations
-    bool upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count);
+    bool upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, size_t buffer_offset);
     bool copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count);
 
     // Settling operations
@@ -460,8 +460,9 @@ private:
     u32 temp_primitive_count = 0;
     u32 max_current_primitive_count = 0;
     std::unique_ptr<PRIMITIVE[]> primitives = {};
-
     daxa::BufferId primitive_buffer[DOUBLE_BUFFERING] = {};
+
+    std::unique_ptr<gpu_free_list<VoxelBuffer, gpu_allocator<VoxelBuffer>>> primitive_free_list = nullptr;
 
     // Remapping buffer for primitives when rebuilding BLAS
     daxa::BufferId remapping_primitive_buffer = {};

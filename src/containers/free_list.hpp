@@ -15,6 +15,14 @@ public:
   void printid(T id)
   {
   }
+  template <typename... Args>
+  T allocate(daxa::Device &device, daxa::BufferId buffer, size_t size, size_t offset, Args... args)
+  {
+    return T();
+  }
+
+  template <typename... Args>
+  void deallocate(daxa::Device &device, daxa::BlasId id, Args... args) {}
 };
 
 // gpu_allocator specialization for daxa::BlasId
@@ -25,7 +33,8 @@ public:
   gpu_allocator() = default;
   ~gpu_allocator() = default;
 
-  auto allocate(daxa::Device &device, daxa::BufferId buffer, size_t size, size_t offset)
+  template <typename... Args>
+  auto allocate(daxa::Device &device, daxa::BufferId buffer, size_t size, size_t offset, Args... args)
   {
     auto id = device.create_blas_from_buffer({
         .blas_info = {
@@ -41,7 +50,8 @@ public:
     return id;
   }
 
-  void deallocate(daxa::Device &device, daxa::BlasId id)
+  template <typename... Args>
+  void deallocate(daxa::Device &device, daxa::BlasId id, Args... args)
   {
 #if TRACE
     std::cout << "  *Deallocating BLAS " << id.index << " version " << id.version << std::endl;
@@ -55,6 +65,37 @@ public:
   }
 };
 
+
+// gpu_allocator specialization for daxa::BlasId
+template <>
+class gpu_allocator<VoxelBuffer>
+{
+public:
+  gpu_allocator() = default;
+  ~gpu_allocator() = default;
+
+  template <typename... Args>
+  auto allocate(daxa::Device &device, daxa::BufferId buffer, size_t size, size_t offset, Args... args)
+  {
+    // get index from args
+    return VoxelBuffer( { .index = args... });
+  }
+
+  template <typename... Args>
+  void deallocate(daxa::Device &device, daxa::BlasId id, Args... args)
+  {
+#if TRACE
+    std::cout << "  *Deallocating VoxelRange " << v.index << std::endl;
+#endif
+  }
+
+  void print_id(VoxelBuffer v)
+  {
+    std::cout << "  *VoxelBuffer index: " << v.index << std::endl;
+  }
+};
+
+
 // T is the element type of the free list
 // U is the allocator type
 
@@ -64,7 +105,7 @@ class gpu_free_list
 public:
   gpu_free_list(daxa::Device &device, size_t size, BufferId buffer) : m_device(device), m_buffer(buffer)
   {
-    static_assert(std::is_base_of<daxa::GPUResourceId, T>::value, "T is not derived from daxa::GPUResourceId");
+    static_assert(std::is_base_of<daxa::GPUResourceId, T>::value ||  std::is_base_of<CubelandGPUResource, T>::value, "T is not derived from daxa::GPUResourceId or CubelandGPUResource");
     m_head = std::make_shared<free_list_node>();
     m_head->size = size;
     m_head->offset = 0;
@@ -76,7 +117,8 @@ public:
   ~gpu_free_list() = default;
 
   // Use the m_allocator to allocate
-  T allocate(size_t size)
+  template <typename... Args>
+  T allocate(size_t size, size_t& offset, Args... args)
   {
     auto node = m_head;
     while (node)
@@ -86,6 +128,7 @@ public:
         // split the node, save data in the first part and create a new node for the second part
         if (node->size > size)
         {
+          // create a new node for the second part
           auto new_node = std::make_shared<free_list_node>();
           new_node->size = node->size - size;
           new_node->offset = node->offset + size;
@@ -101,7 +144,8 @@ public:
           }
           node->next = new_node;
 
-          node->data = m_allocator.allocate(m_device, m_buffer, size, node->offset);
+          // allocate the first part
+          node->data = m_allocator.allocate(m_device, m_buffer, size, node->offset, args...);
           node->size = size;
 #if TRACE
         std::cout << "  *Allocated " << size << " bytes at offset " << node->offset << std::endl;
@@ -111,7 +155,7 @@ public:
         } 
         else if(node->size == size)
         {
-          node->data = m_allocator.allocate(m_device, m_buffer, size, node->offset);
+          node->data = m_allocator.allocate(m_device, m_buffer, size, node->offset, args...);
 #if TRACE
         std::cout << "  *Allocated " << size << " bytes at offset " << node->offset << std::endl;
         m_allocator.print_id(node->data);
@@ -126,6 +170,9 @@ public:
           return T();
         }
 
+        // return the offset
+        offset = node->offset;
+
         return node->data;
       }
       node = node->next;
@@ -138,7 +185,8 @@ public:
   }
 
   // Use the m_allocator to deallocate
-  bool deallocate(T data)
+  template <typename... Args>
+  bool deallocate(T data, Args... args)
   {
     auto node = m_head;
     while (node)
@@ -148,7 +196,7 @@ public:
 #if TRACE
         std::cout << "  *Deallocating node at offset " << node->offset << " with size " << node->size << std::endl;
 #endif
-        m_allocator.deallocate(m_device, data);
+        m_allocator.deallocate(m_device, data, Args()...);
         node->data = T();
 
         // merge with the next node if possible

@@ -68,6 +68,32 @@ inline namespace types
     using DeviceAddress = u64;
 } // namespace types
 
+
+struct  CubelandGPUResource
+{
+    u64 index = 0xFFFFFFFFFFFFFFFF;
+
+    auto is_valid() const -> bool { return index != 0xFFFFFFFFFFFFFFFF; }
+    auto is_invalid() const -> bool { return index == 0xFFFFFFFFFFFFFFFF; }
+
+    constexpr auto operator<=>(CubelandGPUResource const & other) const
+    {
+        return std::bit_cast<u64>(*this) <=> std::bit_cast<u64>(other);
+    }
+    
+    constexpr bool operator==(CubelandGPUResource const &other) const = default;
+    constexpr bool operator!=(CubelandGPUResource const &other) const = default;
+    constexpr bool operator<(CubelandGPUResource const &other) const = default;
+    constexpr bool operator>(CubelandGPUResource const &other) const = default;
+    constexpr bool operator<=(CubelandGPUResource const &other) const = default;
+    constexpr bool operator>=(CubelandGPUResource const &other) const = default;
+};
+
+struct VoxelBuffer : public CubelandGPUResource
+{
+    
+};
+
 CL_NAMESPACE_END
 
 struct GvoxModelData {
