@@ -1196,7 +1196,7 @@ void cubeland_app()
 
         
         TASK task = {
-            .type = TASK::TYPE::UPDATE_BLAS,
+            .type = TASK::TYPE::UPDATE_BLAS_FROM_CPU,
             .blas_update = {
               .instance_index = 1,
               .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f))),
@@ -1207,7 +1207,7 @@ void cubeland_app()
         };
 
       // TASK task = {
-      //     .type = TASK::TYPE::UPDATE_BLAS,
+      //     .type = TASK::TYPE::UPDATE_BLAS_FROM_CPU,
       //     .blas_update = {
       //       .instance_index = 1,
       //       .transform = glm_mat4_to_daxa_f32mat4x4(glm::translate(glm::mat4(1.0f), status.frame_number % 2 ? glm::vec3(0.0f, 0.01f, 0.0f) : glm::vec3(0.0f, -0.01f, 0.0f))),

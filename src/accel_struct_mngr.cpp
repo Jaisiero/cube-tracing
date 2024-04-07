@@ -130,6 +130,8 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
             });
         }
 
+        instance_free_list = std::make_unique<free_uuid_list<uuid32>>(max_instance_count);
+
         for (u32 i = 0; i < DOUBLE_BUFFERING; i++)
         {
             primitive_buffer[i] = device.create_buffer({
@@ -807,7 +809,7 @@ void ACCEL_STRUCT_MNGR::process_undo_task_queue(u32 next_index, TASK &task)
         rebuild_blas_index_list.push_back(rebuild_task.instance_index);
     }
     break;
-    case TASK::TYPE::UPDATE_BLAS:
+    case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
     {
         // TODO: Update BLAS
         TASK::BLAS_UPDATE update_task = task.blas_update;
@@ -1127,7 +1129,7 @@ void ACCEL_STRUCT_MNGR::process_undo_switching_task_queue(u32 next_index, TASK &
                                     rebuild_task.remap_primitive_index, rebuild_task.remap_primitive_light_index);
     }
     break;
-    case TASK::TYPE::UPDATE_BLAS:
+    case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
     {
         TASK::BLAS_UPDATE update_task = task.blas_update;
         // update_blas(next_index, update_task.instance_index);
@@ -1891,7 +1893,7 @@ void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(u32 next_index, TASK &t
         // NOTE: build_blas is already called for the previous index
     }
     break;
-    case TASK::TYPE::UPDATE_BLAS:
+    case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
     {
         TASK::BLAS_UPDATE update_task = task.blas_update;
         // update_blas(next_index, update_task.instance_index);
@@ -1965,10 +1967,22 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
         {
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
+            // Update primitive buffers
             upload_aabb_device_buffer(next_index, build_task.primitive_count);
+            // Update primitive count
             current_primitive_count[next_index] += build_task.primitive_count;
-            instances[current_instance_count[next_index]].transform = build_task.transform;
-            blas_index_list.push_back(current_instance_count[next_index]);
+            // Allocate new instance
+            uuid32 new_instance_id = instance_free_list->allocate();
+            if (new_instance_id == static_cast<uuid32>(-1))
+            {
+#if FATAL
+                std::cerr << " Could not allocate instance from free list" << std::endl;
+#endif // FATAL
+                std::abort();
+            }
+            // Update instance
+            instances[new_instance_id].transform = build_task.transform;
+            blas_index_list.push_back(new_instance_id);
             current_instance_count[next_index] += build_task.instance_count;
         }
         break;
@@ -2007,7 +2021,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             task.blas_delete_primitive_from_cpu.remap_primitive_light_index = light_index_from_exchanged_primitive;
         }
         break;
-        case TASK::TYPE::UPDATE_BLAS:
+        case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
         {
             TASK::BLAS_UPDATE update_task = task.blas_update;
             instances[update_task.instance_index].transform = 
@@ -2045,6 +2059,22 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             }
 
             update_blas_index_list.push_back(update_task.instance_index);
+        }
+        break;
+        case TASK::TYPE::DELETE_BLAS_FROM_CPU:
+        {
+            TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
+            // TODO: this will need a mutex if manager is parallelized
+            {
+                // Update instance count
+                current_instance_count[next_index]--;
+            }
+            // TODO: free instance buffers (aabb & primitive) free list
+            // delete_aabb_device_buffer(next_index, delete_task.instance_index);
+            // TODO: delete emissive light buffer(in the next step?)
+            // delete_light_device_buffer(next_index, delete_task.instance_index);
+            // free instance
+            instance_free_list->deallocate(delete_task.instance_index);
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -2153,7 +2183,7 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
                                        rebuild_task.del_primitive_index, rebuild_task.remap_primitive_light_index);
         }
         break;
-        case TASK::TYPE::UPDATE_BLAS:
+        case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
         {
             TASK::BLAS_UPDATE update_task = task.blas_update;
             if(update_task.primitive_count > 0)
@@ -2231,7 +2261,7 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
             // NOTE: build_blas is already called for the previous index
         }
         break;
-        case TASK::TYPE::UPDATE_BLAS:
+        case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
         { 
             // TODO: do we need to do something here?
         }

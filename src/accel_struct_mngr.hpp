@@ -11,6 +11,7 @@
 #include <thread>
 
 #include <free_list.hpp>
+#include <uuid.hpp>
 
 CL_NAMESPACE_BEGIN
 
@@ -34,7 +35,8 @@ public:
         {
             BUILD_BLAS_FROM_CPU,
             DELETE_PRIMITIVE_BLAS_FROM_CPU,
-            UPDATE_BLAS,
+            DELETE_BLAS_FROM_CPU,
+            UPDATE_BLAS_FROM_CPU,
             UNDO_OP_CPU,
         };
 
@@ -64,6 +66,11 @@ public:
             daxa_f32mat4x4 transform;
         };
 
+        struct BLAS_DELETE_FROM_CPU
+        {
+            u32 instance_index;
+        };
+
         struct UNDO_OP_CPU
         {
             TASK* undo_task;
@@ -74,6 +81,7 @@ public:
         {
             BLAS_BUILD_FROM_CPU blas_build_from_cpu;
             BLAS_PRIMITIVE_DELETE_FROM_CPU blas_delete_primitive_from_cpu;
+            BLAS_DELETE_FROM_CPU blas_delete_from_cpu;
             BLAS_UPDATE blas_update;
             UNDO_OP_CPU undo_op_cpu;
         };
@@ -437,6 +445,7 @@ private:
     // We store the instance count not uploaded yet
     std::atomic<u32> temp_instance_count = 0;
     std::unique_ptr<INSTANCE[]> instances = {};
+    std::unique_ptr<free_uuid_list<uuid32>> instance_free_list = nullptr;
     
     daxa::BufferId aabb_buffer[DOUBLE_BUFFERING] = {};
     daxa::BufferId aabb_host_buffer = {};
