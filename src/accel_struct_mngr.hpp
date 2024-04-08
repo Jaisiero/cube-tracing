@@ -70,6 +70,7 @@ public:
         struct BLAS_DELETE_FROM_CPU
         {
             u32 instance_index;
+            u32 deleted_primitive_count;
         };
 
         struct UNDO_OP_CPU

@@ -126,8 +126,8 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
                                                                          proc_blas_buffer_size,
                                                                          proc_blas_buffer);
 
-        // Clear previous procedural blas
-        this->proc_blas.clear();
+        // Initialize BLASes
+        proc_blas.resize(max_instance_count, daxa::BlasId{});
 
         instance_free_list = std::make_unique<free_uuid_list<uuid32>>(max_instance_count);
 
@@ -344,7 +344,7 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(u32 buffer_index, bool synchronize)
                 instance_buffer_size);
 
 #if TRACE == 1
-    std::cout << "  upload_all_instances: buffer_index: " << buffer_index << ", current_instance_count: " << current_instance_count[buffer_index] <<, ", max_wide_instance_count: " << max_wide_instance_count[buffer_index] << std::endl;
+    std::cout << "  upload_all_instances: buffer_index: " << buffer_index << ", current_instance_count: " << current_instance_count[buffer_index] << ", max_wide_instance_count: " << max_wide_instance_count[buffer_index] << std::endl;
     for (u32 i = 0; i < max_wide_instance_count[buffer_index]; i++)
     {
         if(instance_buffer_ptr[i].primitive_count > 0)
@@ -1287,7 +1287,9 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32> &instanc
 #endif // TRACE
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
-            .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[i].primitive_count,
+            .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)), 
+            .stride = sizeof(AABB), 
+            .count = instances[i].primitive_count,
             // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
             .flags = static_cast<daxa::GeometryFlags>(0x1), // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
         });
@@ -1345,7 +1347,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32> &instanc
         std::cout << "  build_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
 #endif
 
-        proc_blas.push_back(blas);
+        proc_blas.at(i) = blas;
 
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(i);
 
@@ -2172,6 +2174,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             std::cout << "      Instance primitive count: " << instances[delete_task.instance_index].primitive_count << std::endl;
             std::cout << "      Instance first primitive index: " << instances[delete_task.instance_index].first_primitive_index << std::endl;
 
+            task.blas_delete_from_cpu.deleted_primitive_count = instances[delete_task.instance_index].primitive_count;
+
             instances[delete_task.instance_index].primitive_count = 0;
             instances[delete_task.instance_index].first_primitive_index = -1;
             delete_blas_index_list.push_back(delete_task.instance_index);
@@ -2222,7 +2226,10 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 rebuild_blas_index_list.erase(std::remove(rebuild_blas_index_list.begin(), rebuild_blas_index_list.end(), instance_index), rebuild_blas_index_list.end());
             }
         }
-        rebuild_blases(next_index, rebuild_blas_index_list);
+        if (!rebuild_blas_index_list.empty())
+        {
+            rebuild_blases(next_index, rebuild_blas_index_list);
+        }
     }
 
     // Build BLASes
@@ -2239,7 +2246,10 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 update_blas_index_list.erase(std::remove(update_blas_index_list.begin(), update_blas_index_list.end(), instance_index), update_blas_index_list.end());
             }
         }
-        update_blases(next_index, update_blas_index_list);
+        if (!update_blas_index_list.empty())
+        {
+            update_blases(next_index, update_blas_index_list);
+        }
     }
 
     // Build TLAS
@@ -2357,7 +2367,7 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
             // delete_light_device_buffer(next_index, delete_task.instance_index);
             // Update instance count
             --current_instance_count[next_index];
-            current_primitive_count[next_index] -= instances[delete_task.instance_index].primitive_count;
+            current_primitive_count[next_index] -= task.blas_delete_from_cpu.deleted_primitive_count;
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:

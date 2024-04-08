@@ -16,8 +16,8 @@
 #define FATAL 1
 #define WARN 1
 #define INFO 1
-#define DEBUG 0
-#define TRACE 0
+#define DEBUG 1
+#define TRACE 1
 
 const uint32_t DOUBLE_BUFFERING = 2;
 
