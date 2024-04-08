@@ -1443,9 +1443,9 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32> &insta
                   << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
 #endif // TRACE
 
-        if(proc_blas.at(instance_index) != daxa::BlasId{}) {
+        if(proc_blas.at(instance_index) == daxa::BlasId{}) {
 #if WARN == 1
-            std::cerr << "proc_blas.at(instance_index) != daxa::BlasId{}" << std::endl;
+            std::cerr << "proc_blas.at(instance_index) == daxa::BlasId{}" << std::endl;
 #endif // WARN
             continue;
         }
