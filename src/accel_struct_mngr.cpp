@@ -1425,8 +1425,9 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32> &insta
 
     for (auto instance_index : instance_list)
     {
-        if (proc_blas.at(instance_index) != daxa::BlasId{})
+        if (proc_blas.at(instance_index) != daxa::BlasId{}) {
             temp_proc_blas.push_back(proc_blas.at(instance_index));
+        }
     }
 
     u32 current_instance_index = 0;
@@ -1439,6 +1440,14 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32> &insta
                   << ", first primitive index: " << instances[instance_index].first_primitive_index
                   << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
 #endif // TRACE
+
+        if(proc_blas.at(instance_index) != daxa::BlasId{}) {
+#if WARN == 1
+            std::cerr << "proc_blas.at(instance_index) != daxa::BlasId{}" << std::endl;
+#endif // WARN
+            continue;
+        }
+            
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[instance_index].primitive_count,
@@ -1526,7 +1535,7 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32> &insta
     proc_blas_scratch_buffer_offset = 0;
 
     // Check if all instances were processed
-    if (current_instance_index != instance_count)
+    if (current_instance_index == 0)
     {
 #if WARN
         std::cerr << "current_instance_index != current_instance_count" << std::endl;
@@ -1595,6 +1604,14 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32> &instan
 #if TRACE == 1
         std::cout << "  build_blas: i: " << instance_index << ", first primitive index: " << instances[instance_index].first_primitive_index << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
 #endif // TRACE
+
+        if(blas_to_update.find(instance_index) == blas_to_update.end())
+        {
+#if WARN
+            std::cerr << "  build_blas: instance_index: " << instance_index << " not found in blas_to_update" << std::endl;
+#endif // WARN
+            continue;
+        }
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[instance_index].primitive_count,
@@ -1703,7 +1720,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32> &instan
     proc_blas_scratch_buffer_offset = 0;
 
     // Check if all instances were processed
-    if (current_instance_index != instance_count)
+    if (current_instance_index == 0)
     {
 #if WARN
         std::cerr << "current_instance_index != current_instance_count" << std::endl;
@@ -1973,6 +1990,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     std::vector<u32> blas_index_list = {};
     std::vector<u32> rebuild_blas_index_list = {};
     std::vector<u32> update_blas_index_list = {};
+    std::vector<u32> delete_blas_index_list = {};
     u32 queue_instance_count = 0;
     u32 instance_count = 0;
 
@@ -2087,6 +2105,15 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
         {
             TASK::BLAS_UPDATE update_task = task.blas_update;
+
+
+            if(proc_blas.at(update_task.instance_index) == daxa::BlasId{}) {
+#if WARN
+                std::cerr << " Could not find instance_index: " << update_task.instance_index << " in proc_blas" << std::endl;
+#endif // WARN
+                continue;
+            }
+
             instances[update_task.instance_index].transform =
                 daxa_f32mat4x4_mult(instances[update_task.instance_index].transform, update_task.transform);
 
@@ -2144,6 +2171,10 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             std::cout << "  Deleted Instance id: " << delete_task.instance_index << std::endl;
             std::cout << "      Instance primitive count: " << instances[delete_task.instance_index].primitive_count << std::endl;
             std::cout << "      Instance first primitive index: " << instances[delete_task.instance_index].first_primitive_index << std::endl;
+
+            instances[delete_task.instance_index].primitive_count = 0;
+            instances[delete_task.instance_index].first_primitive_index = -1;
+            delete_blas_index_list.push_back(delete_task.instance_index);
 #endif // INFO
         }
         break;
@@ -2183,6 +2214,14 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     // Rebuild BLASes
     if (!rebuild_blas_index_list.empty())
     {
+        if(!delete_blas_index_list.empty())
+        {
+            for(auto instance_index : delete_blas_index_list)
+            {
+                // free instance
+                rebuild_blas_index_list.erase(std::remove(rebuild_blas_index_list.begin(), rebuild_blas_index_list.end(), instance_index), rebuild_blas_index_list.end());
+            }
+        }
         rebuild_blases(next_index, rebuild_blas_index_list);
     }
 
@@ -2192,6 +2231,14 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         // TODO: find a better way to get unique indices
         auto ip = std::unique(update_blas_index_list.begin(), update_blas_index_list.begin() + update_blas_index_list.size());
         update_blas_index_list.resize(std::distance(update_blas_index_list.begin(), ip));
+        if(!delete_blas_index_list.empty())
+        {
+            for(auto instance_index : delete_blas_index_list)
+            {
+                // free instance
+                update_blas_index_list.erase(std::remove(update_blas_index_list.begin(), update_blas_index_list.end(), instance_index), update_blas_index_list.end());
+            }
+        }
         update_blases(next_index, update_blas_index_list);
     }
 
