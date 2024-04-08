@@ -31,6 +31,7 @@ void cubeland_app()
     // const char *MAP_NAME = "monu9.vox";
     // const char *MAP_NAME = "room.vox";
     const char *DEER_NAME = "deer.vox";
+    const char *SWORD_NAME = "chr_sword.vox";
     const float day_duration = 60.0f; // Duración de un día en segundos
 
     Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
@@ -129,6 +130,10 @@ void cubeland_app()
 
     MapLoader map_loader = {};
     std::unique_ptr<ACCEL_STRUCT_MNGR> as_manager = {};
+
+    // TODO: test
+    daxa_b32 deer_loaded = false;
+    daxa_b32 sword_loaded = false;
 
     App() : AppWindow<App>("Cubeland") {}
 
@@ -619,6 +624,45 @@ void cubeland_app()
                   restir_buffer_size);
     }
 
+
+    void load_model(const char *model_name, glm::mat4 transform) {
+      GvoxModelDataSerialize gvox_map_serialize = GvoxModelDataSerialize{
+          .axis_direction = AXIS_DIRECTION::X_BOTTOM_TOP,
+          .max_instance_count = MAX_INSTANCES - as_manager->get_host_instance_count(),
+          .current_instance_index = as_manager->get_host_instance_count(),
+          .instances = as_manager->get_instances(),
+          .current_primitive_index = as_manager->get_host_primitive_count(),
+          .max_primitive_count = MAX_PRIMITIVES - as_manager->get_host_primitive_count(),
+          .primitives = as_manager->get_primitives(),
+          .aabbs = as_manager->get_aabb_host_address(),
+          .current_material_index = current_material_count,
+          .max_material_count = MAX_MATERIALS - current_material_count,
+          .materials = materials.get(),
+          .current_light_index = light_config->cube_light_count,
+          .max_light_count = MAX_CUBE_LIGHTS - light_config->cube_light_count,
+          .lights = as_manager->get_cube_lights(),
+      };
+
+      // load map
+      GvoxModelData gvox_map = map_loader.load_gvox_data(std::string(MODEL_PATH) + "/" + model_name, gvox_map_serialize);
+
+      std::cout << "gvox_map: " << model_name << std::endl;
+      std::cout << "  instances: " << gvox_map.instance_count << std::endl;
+      std::cout << "  primitives: " << gvox_map.primitive_count << std::endl;
+      std::cout << "  materials: " << gvox_map.material_count << std::endl;
+
+      light_config->cube_light_count += gvox_map.light_count;
+
+      load_materials(gvox_map.material_count, current_material_count, true);
+
+      as_manager->task_queue_add(TASK{
+          .type = TASK::TYPE::BUILD_BLAS_FROM_CPU,
+          .blas_build_from_cpu = {.instance_count = gvox_map.instance_count,
+                                  .primitive_count = gvox_map.primitive_count,
+                                  .transform = glm_mat4_to_daxa_f32mat4x4(transform)},
+      });
+    }
+
     void load_scene()
     {
       GvoxModelDataSerialize gvox_map_serialize = GvoxModelDataSerialize{
@@ -695,6 +739,8 @@ void cubeland_app()
                                   .primitive_count = gvox_map.primitive_count,
                                   .transform = glm_mat4_to_daxa_f32mat4x4(transform)},
       });
+
+      deer_loaded = true;
 
       // Update the scene
       as_manager->update_scene(true);
@@ -1159,66 +1205,66 @@ void cubeland_app()
                                             .value();
     }
 
-
+      // TODO: test
       void update_model_animation() {
 
-        u32 mod_primitive_count = 0;
-        u32 primitive_index_buf_offset = 0;
-        u32 aabb_buf_offset = 0;
+        if(deer_loaded) {
+          u32 mod_primitive_count = 0;
+          u32 primitive_index_buf_offset = 0;
+          u32 aabb_buf_offset = 0;
 
-        // TODO: this is a test
-        if(status.frame_number == 2000) {
-          mod_primitive_count = 2;
-          u32 temp_index = 0;
-          u32* primitive_host_ptr = as_manager->request_primitive_index_host_buffer_count(mod_primitive_count, primitive_index_buf_offset);
+          // TODO: this is a test
+          if(status.frame_number == 2000) {
+            mod_primitive_count = 2;
+            u32 temp_index = 0;
+            u32* primitive_host_ptr = as_manager->request_primitive_index_host_buffer_count(mod_primitive_count, primitive_index_buf_offset);
 
-          primitive_host_ptr[temp_index++] = 0;
-          primitive_host_ptr[temp_index++] = 200;
+            primitive_host_ptr[temp_index++] = 0;
+            primitive_host_ptr[temp_index++] = 200;
 
-          AABB* aabb_host_ptr = as_manager->request_aabb_host_buffer_count(mod_primitive_count, aabb_buf_offset);
+            AABB* aabb_host_ptr = as_manager->request_aabb_host_buffer_count(mod_primitive_count, aabb_buf_offset);
 
-          temp_index = 0;
+            temp_index = 0;
 
-          daxa_i32vec3 coord = daxa_i32vec3{5, -3, 8};
+            daxa_i32vec3 coord = daxa_i32vec3{5, -3, 8};
 
-          aabb_host_ptr[temp_index++] = AABB{
-            .minimum = daxa_f32vec3(VOXEL_EXTENT * coord.x, VOXEL_EXTENT * coord.y, VOXEL_EXTENT * coord.z),
-            .maximum = daxa_f32vec3(VOXEL_EXTENT * (coord.x + 1), -VOXEL_EXTENT * (coord.y + 1), VOXEL_EXTENT * (coord.z + 1)),
+            aabb_host_ptr[temp_index++] = AABB{
+              .minimum = daxa_f32vec3(VOXEL_EXTENT * coord.x, VOXEL_EXTENT * coord.y, VOXEL_EXTENT * coord.z),
+              .maximum = daxa_f32vec3(VOXEL_EXTENT * (coord.x + 1), -VOXEL_EXTENT * (coord.y + 1), VOXEL_EXTENT * (coord.z + 1)),
+            };
+
+            coord = daxa_i32vec3{-5, 3, -5};
+
+            aabb_host_ptr[temp_index++] = AABB{
+              .minimum = daxa_f32vec3(VOXEL_EXTENT * coord.x, VOXEL_EXTENT * coord.y, VOXEL_EXTENT * coord.z),
+              .maximum = daxa_f32vec3(VOXEL_EXTENT * (coord.x + 1), VOXEL_EXTENT * (coord.y + 1), VOXEL_EXTENT * (coord.z + 1)),
+            };
+          }
+
+          
+          TASK task = {
+              .type = TASK::TYPE::UPDATE_BLAS_FROM_CPU,
+              .blas_update = {
+                .instance_index = 1,
+                .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f))),
+                .primitive_count = mod_primitive_count, // 0 means no primitive alterations
+                .primitive_index_buf_offset = primitive_index_buf_offset,
+                .aabb_buf_offset = aabb_buf_offset,
+              },
           };
 
-          coord = daxa_i32vec3{-5, 3, -5};
+        // TASK task = {
+        //     .type = TASK::TYPE::UPDATE_BLAS_FROM_CPU,
+        //     .blas_update = {
+        //       .instance_index = 1,
+        //       .transform = glm_mat4_to_daxa_f32mat4x4(glm::translate(glm::mat4(1.0f), status.frame_number % 2 ? glm::vec3(0.0f, 0.01f, 0.0f) : glm::vec3(0.0f, -0.01f, 0.0f))),
+        //       .aabb_alterations = nullptr, // empty vector means no aabb alterations
+        //       .aabbs = nullptr, // nullptr means no aabb alterations
+        //     }
+        // };
 
-          aabb_host_ptr[temp_index++] = AABB{
-            .minimum = daxa_f32vec3(VOXEL_EXTENT * coord.x, VOXEL_EXTENT * coord.y, VOXEL_EXTENT * coord.z),
-            .maximum = daxa_f32vec3(VOXEL_EXTENT * (coord.x + 1), VOXEL_EXTENT * (coord.y + 1), VOXEL_EXTENT * (coord.z + 1)),
-          };
+          as_manager->task_queue_add(task);
         }
-
-        
-        TASK task = {
-            .type = TASK::TYPE::UPDATE_BLAS_FROM_CPU,
-            .blas_update = {
-              .instance_index = 1,
-              .transform = glm_mat4_to_daxa_f32mat4x4(glm::rotate(glm::mat4(1.0f), glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f))),
-              .primitive_count = mod_primitive_count, // 0 means no primitive alterations
-              .primitive_index_buf_offset = primitive_index_buf_offset,
-              .aabb_buf_offset = aabb_buf_offset,
-            },
-        };
-
-      // TASK task = {
-      //     .type = TASK::TYPE::UPDATE_BLAS_FROM_CPU,
-      //     .blas_update = {
-      //       .instance_index = 1,
-      //       .transform = glm_mat4_to_daxa_f32mat4x4(glm::translate(glm::mat4(1.0f), status.frame_number % 2 ? glm::vec3(0.0f, 0.01f, 0.0f) : glm::vec3(0.0f, -0.01f, 0.0f))),
-      //       .aabb_alterations = nullptr, // empty vector means no aabb alterations
-      //       .aabbs = nullptr, // nullptr means no aabb alterations
-      //     }
-      // };
-
-        as_manager->task_queue_add(task);
-
-
       }
 
     auto update() -> bool
@@ -1800,6 +1846,30 @@ void cubeland_app()
           // as_manager->task_queue_add(TASK{
           //     .type = TASK::TYPE::UNDO_OP_CPU
           // });
+        }
+        break;
+      case GLFW_KEY_Y:
+        if (action == GLFW_PRESS)
+        {
+          if(deer_loaded) {
+            deer_loaded = false;
+            as_manager->task_queue_add(TASK{
+              .type = TASK::TYPE::DELETE_BLAS_FROM_CPU,
+              .blas_delete_from_cpu = {
+                .instance_index = 1,
+              },
+            });
+          }
+        }
+        break;
+      case GLFW_KEY_L:
+        if (action == GLFW_PRESS)
+        {
+          if(!sword_loaded) {
+            sword_loaded = true;
+            glm::mat4 sword_transform = glm::translate(glm::mat4(1.0f), glm::vec3(VOXEL_EXTENT * 30, -VOXEL_EXTENT * 20, -VOXEL_EXTENT * 50));
+            load_model(SWORD_NAME, sword_transform);
+          }
         }
         break;
       case GLFW_KEY_LEFT_CONTROL:

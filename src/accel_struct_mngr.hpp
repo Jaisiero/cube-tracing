@@ -64,6 +64,7 @@ public:
             u32 instance_count;
             u32 primitive_count;
             daxa_f32mat4x4 transform;
+            u32* instance_indices;
         };
 
         struct BLAS_DELETE_FROM_CPU
@@ -203,9 +204,9 @@ public:
         return address;
     }
 
-    INSTANCE* get_instances() const { return instances.get(); }
+    INSTANCE* get_instances() const { return temp_instances.get(); }
 
-    INSTANCE* get_next_instance_address() const { return instances.get() + temp_instance_count; }
+    INSTANCE* get_next_instance_address() const { return temp_instances.get() + temp_instance_count; }
 
     PRIMITIVE* get_primitives() const { return primitives.get(); }
 
@@ -381,16 +382,16 @@ private:
     void copy_buffer(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
         size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
     bool upload_all_instances(u32 buffer_index, bool synchronize = false);
-    bool upload_primitive_device_buffer(u32 buffer_index, daxa_u32 primitive_count);
-    bool copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count);
+    bool upload_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 host_buffer_offset_count, u32 buffer_offset_count);
+    bool copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 buffer_offset_count);
 
     // Updating operations
     bool update_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset);
     bool copy_updated_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset);
 
     // Switching operations
-    bool upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, size_t buffer_offset);
-    bool copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count);
+    bool upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, u32 host_buffer_offset_count, u32 buffer_offset_count);
+    bool copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, u32 buffer_offset_count);
 
     // Settling operations
     bool delete_light_device_buffer(u32 buffer_index,
@@ -442,10 +443,15 @@ private:
     // TODO: revisit every atomic variable
     daxa::BufferId instance_buffer[DOUBLE_BUFFERING] = {};
     u32 current_instance_count[DOUBLE_BUFFERING] = {0, 0};
+    // TODO: find a better way to copy to the instance buffer
+    u32 max_wide_instance_count[DOUBLE_BUFFERING] = {0, 0};
+    daxa::BufferId host_instance_buffer = {};
+    INSTANCE* instances = nullptr;
+    std::unique_ptr<free_uuid_list<uuid32>> instance_free_list = nullptr;
+
     // We store the instance count not uploaded yet
     std::atomic<u32> temp_instance_count = 0;
-    std::unique_ptr<INSTANCE[]> instances = {};
-    std::unique_ptr<free_uuid_list<uuid32>> instance_free_list = nullptr;
+    std::unique_ptr<INSTANCE[]> temp_instances = {};
     
     daxa::BufferId aabb_buffer[DOUBLE_BUFFERING] = {};
     daxa::BufferId aabb_host_buffer = {};

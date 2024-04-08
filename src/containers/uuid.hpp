@@ -9,7 +9,7 @@ template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
 class free_uuid_list
 {
 public:
-  free_uuid_list(size_t N) {
+  free_uuid_list(T N) {
     size_ = N;
     free_list_.resize(size_);
     for(T index = 0; index < N; index++) {
@@ -21,7 +21,7 @@ public:
   // allocate a new element
   T allocate()
   {
-    T new_free_index = 0;
+    T new_free_index = size_;
     for(T index = 0; index < size_; index++)
     {
       if(!is_allocated(index))
@@ -39,8 +39,18 @@ public:
   }
 
   // deallocate an element
-  void deallocate(T index)
+  bool deallocate(T index)
   {
+    if(index >= size_)
+    {
+      return false;
+    }
+
+    if(!is_allocated(index))
+    {
+      return false;
+    }
+
     // memset to ones as many bytes as the size of T
     // this is to make sure that the memory is not reused
     // before the next frame
@@ -48,6 +58,8 @@ public:
     {
       *(((u8*)&free_list_[index]) + i) = 0xFF;
     }
+
+    return true;
   }
 
   // get the number of free elements

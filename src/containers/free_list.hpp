@@ -82,7 +82,7 @@ public:
   }
 
   template <typename... Args>
-  void deallocate(daxa::Device &device, daxa::BlasId id, Args... args)
+  void deallocate(daxa::Device &device, VoxelBuffer v, Args... args)
   {
 #if TRACE
     std::cout << "  *Deallocating VoxelRange " << v.index << std::endl;
@@ -196,7 +196,7 @@ public:
 #if TRACE
         std::cout << "  *Deallocating node at offset " << node->offset << " with size " << node->size << std::endl;
 #endif
-        m_allocator.deallocate(m_device, data, Args()...);
+        m_allocator.deallocate(m_device, data, args...);
         node->data = T();
 
         // merge with the next node if possible

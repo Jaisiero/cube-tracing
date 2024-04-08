@@ -97,8 +97,16 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
         max_instance_bitmask_size = max_instance_count / sizeof(u32) + 1;
         max_primitive_bitmask_size = max_primitive_count / sizeof(u32) + 1;
 
-        instances = std::make_unique<INSTANCE[]>(max_instance_count);
+        temp_instances = std::make_unique<INSTANCE[]>(max_instance_count);
         primitives = std::make_unique<PRIMITIVE[]>(max_primitive_count);
+
+        host_instance_buffer = device.create_buffer({
+            .size = max_instance_buffer_size,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+            .name = "host_instance_buffer",
+        });
+
+        instances = device.get_host_address_as<INSTANCE>(host_instance_buffer).value();
 
         current_cube_light_count = cube_light_count;
 
@@ -134,8 +142,8 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
 
         primitive_free_list =
             std::make_unique<gpu_free_list<VoxelBuffer, gpu_allocator<VoxelBuffer>>>(device,
-                                                                                           max_primitive_count,
-                                                                                           primitive_buffer[0]);
+                                                                                     max_primitive_count,
+                                                                                     primitive_buffer[0]);
 
         for (u32 i = 0; i < DOUBLE_BUFFERING; i++)
         {
@@ -228,6 +236,9 @@ bool ACCEL_STRUCT_MNGR::destroy()
         if (proc_blas_buffer != daxa::BufferId{})
             device.destroy_buffer(proc_blas_buffer);
 
+        if(host_instance_buffer != daxa::BufferId{})
+            device.destroy_buffer(host_instance_buffer);
+
         for (auto buffer : instance_buffer)
             if (buffer != daxa::BufferId{})
                 device.destroy_buffer(buffer);
@@ -311,7 +322,7 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(u32 buffer_index, bool synchronize)
 
     // TODO: optimize by range copy?
     //  Copy instances to buffer
-    u32 instance_buffer_size = static_cast<u32>(current_instance_count[buffer_index] * sizeof(INSTANCE));
+    u32 instance_buffer_size = static_cast<u32>(max_wide_instance_count[buffer_index] * sizeof(INSTANCE));
     if (instance_buffer_size > max_instance_buffer_size)
     {
 #if WARN
@@ -329,14 +340,15 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(u32 buffer_index, bool synchronize)
 
     auto *instance_buffer_ptr = device.get_host_address_as<INSTANCE>(instance_staging_buffer).value();
     std::memcpy(instance_buffer_ptr,
-                instances.get(),
+                instances,
                 instance_buffer_size);
 
 #if TRACE == 1
-    std::cout << "  upload_all_instances: buffer_index: " << buffer_index << ", current_instance_count: " << current_instance_count[buffer_index] << std::endl;
-    for (u32 i = 0; i < current_instance_count[buffer_index]; i++)
+    std::cout << "  upload_all_instances: buffer_index: " << buffer_index << ", current_instance_count: " << current_instance_count[buffer_index] <<, ", max_wide_instance_count: " << max_wide_instance_count[buffer_index] << std::endl;
+    for (u32 i = 0; i < max_wide_instance_count[buffer_index]; i++)
     {
-        std::cout << "  instance[" << i << "] - first index: " << instance_buffer_ptr[i].first_primitive_index << ", primitive count: " << instance_buffer_ptr[i].primitive_count << std::endl;
+        if(instance_buffer_ptr[i].primitive_count > 0)
+            std::cout << "  instance[" << i << "] - first index: " << instance_buffer_ptr[i].first_primitive_index << ", primitive count: " << instance_buffer_ptr[i].primitive_count << std::endl;
     }
 #endif // TRACE
 
@@ -347,7 +359,7 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(u32 buffer_index, bool synchronize)
 
 //////////////////////////////// UPDATING //////////////////////////////////////
 
-bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 primitive_count)
+bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 host_buffer_offset_count, u32 buffer_offset_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -357,10 +369,9 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 pri
         return false;
     }
 
-    u32 previous_primitive_count = current_primitive_count[buffer_index];
-    u32 primitive_count_offset = previous_primitive_count * sizeof(PRIMITIVE);
+    u32 primitive_count_offset = buffer_offset_count * sizeof(PRIMITIVE);
     u32 primitive_buffer_size = primitive_count * sizeof(PRIMITIVE);
-    u32 current_primitive_count = previous_primitive_count + primitive_count;
+    u32 current_primitive_count = buffer_offset_count + primitive_count;
     u32 current_primitive_count_offset = current_primitive_count * sizeof(PRIMITIVE);
 
     if (current_primitive_count_offset > max_primitive_buffer_size)
@@ -368,7 +379,7 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 pri
 #if WARN
         std::cerr << "primitive_buffer_size > max_primitive_buffer_size" << std::endl;
 #endif // WARN
-        // TODO: handle this case
+       // TODO: handle this case
         return false;
     }
 
@@ -381,7 +392,7 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 pri
 
     auto *primitive_buffer_ptr = device.get_host_address_as<PRIMITIVE>(primitive_staging_buffer).value();
     std::memcpy(primitive_buffer_ptr,
-                primitives.get() + previous_primitive_count,
+                primitives.get() + host_buffer_offset_count,
                 primitive_buffer_size);
 
     copy_buffer(primitive_staging_buffer, primitive_buffer[buffer_index], 0, primitive_count_offset, primitive_buffer_size);
@@ -389,7 +400,7 @@ bool ACCEL_STRUCT_MNGR::upload_primitive_device_buffer(u32 buffer_index, u32 pri
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count)
+bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 buffer_offset_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -399,10 +410,9 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(u32 buffer_index, u32 primi
         return false;
     }
 
-    u32 previous_primitive_count = current_primitive_count[buffer_index];
-    u32 primitive_count_offset = previous_primitive_count * sizeof(PRIMITIVE);
+    u32 primitive_count_offset = buffer_offset_count * sizeof(PRIMITIVE);
     u32 primitive_buffer_size = primitive_count * sizeof(PRIMITIVE);
-    u32 current_primitive_count = previous_primitive_count + primitive_count;
+    u32 current_primitive_count = buffer_offset_count + primitive_count;
     u32 current_primitive_count_offset = current_primitive_count * sizeof(PRIMITIVE);
 
     if (current_primitive_count_offset > max_primitive_buffer_size)
@@ -419,7 +429,7 @@ bool ACCEL_STRUCT_MNGR::copy_primitive_device_buffer(u32 buffer_index, u32 primi
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, size_t buffer_offset)
+bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, u32 host_buffer_offset_count, u32 buffer_offset_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -432,10 +442,11 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_hos
     if (aabb_host_count > 0)
     {
         size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
-        size_t aabb_buffer_offset = current_aabb_host_idx * sizeof(AABB);
-        copy_buffer(aabb_host_buffer, aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size, true);
+        size_t aabb_buffer_offset = host_buffer_offset_count * sizeof(AABB);
+        size_t aabb_copy_offset = buffer_offset_count * sizeof(AABB);
+        copy_buffer(aabb_host_buffer, aabb_buffer[buffer_index], aabb_buffer_offset, aabb_copy_offset, aabb_copy_size, true);
 
-        if (!upload_primitive_device_buffer(buffer_index, aabb_host_count))
+        if (!upload_primitive_device_buffer(buffer_index, aabb_host_count, host_buffer_offset_count, buffer_offset_count))
         {
 #if WARN
             std::cerr << "Failed to load primitives" << std::endl;
@@ -447,7 +458,6 @@ bool ACCEL_STRUCT_MNGR::upload_aabb_device_buffer(u32 buffer_index, u32 aabb_hos
 
     return true;
 }
-
 
 bool ACCEL_STRUCT_MNGR::update_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset)
 {
@@ -464,7 +474,7 @@ bool ACCEL_STRUCT_MNGR::update_aabb_device_buffer(u32 buffer_index, u32 instance
     // The indices are the primitive indices that are associated with the AABBs
     // Copy all AABBs to the aabb buffer based on the primitive indices
 
-    if(primitive_count > 0)
+    if (primitive_count > 0)
     {
         u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
@@ -473,14 +483,14 @@ bool ACCEL_STRUCT_MNGR::update_aabb_device_buffer(u32 buffer_index, u32 instance
 
         // Get the primitive indices host buffer pointer
         auto primitive_index_host_buffer_ptr = get_primitive_index_host_address() + indices_buffer_offset;
-        
+
         // Iterate over the primitive indices and copy the AABBs to the aabb buffer
         for (u32 i = 0; i < primitive_count; i++)
         {
             // Get aabb index to change
             u32 primitive_index = primitive_index_host_buffer_ptr[i];
 
-            if(primitive_index > instances[instance_index].primitive_count)
+            if (primitive_index > instances[instance_index].primitive_count)
             {
 #if WARN
                 std::cerr << "primitive_index > instances[instance_index].primitive_count" << std::endl;
@@ -500,14 +510,10 @@ bool ACCEL_STRUCT_MNGR::update_aabb_device_buffer(u32 buffer_index, u32 instance
                         primitive_buffer_offset * sizeof(AABB),
                         sizeof(AABB), i == primitive_count - 1);
         }
-
-
     }
 
     return true;
 }
-
-
 
 bool ACCEL_STRUCT_MNGR::copy_updated_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset)
 {
@@ -524,20 +530,20 @@ bool ACCEL_STRUCT_MNGR::copy_updated_aabb_device_buffer(u32 buffer_index, u32 in
     // The indices are the primitive indices that are associated with the AABBs
     // Copy all AABBs to the aabb buffer based on the primitive indices
 
-    if(primitive_count > 0)
+    if (primitive_count > 0)
     {
         u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
         // Get the primitive indices host buffer pointer
         auto primitive_index_host_buffer_ptr = get_primitive_index_host_address() + indices_buffer_offset;
-        
+
         // Iterate over the primitive indices and copy the AABBs to the aabb buffer
         for (u32 i = 0; i < primitive_count; i++)
         {
             // Get aabb index to change
             u32 primitive_index = primitive_index_host_buffer_ptr[i];
 
-            if(primitive_index > instances[instance_index].primitive_count)
+            if (primitive_index > instances[instance_index].primitive_count)
             {
 #if WARN
                 std::cerr << "primitive_index > instances[instance_index].primitive_count" << std::endl;
@@ -561,7 +567,6 @@ bool ACCEL_STRUCT_MNGR::copy_updated_aabb_device_buffer(u32 buffer_index, u32 in
 
     return true;
 }
-
 
 bool ACCEL_STRUCT_MNGR::delete_aabb_device_buffer(u32 buffer_index,
                                                   u32 instance_index, u32 primitive_index,
@@ -1008,7 +1013,7 @@ bool ACCEL_STRUCT_MNGR::restore_cube_light_remapping_buffer(u32 buffer_index, u3
 
 //////////////////////////////// SWITCHING //////////////////////////////////////
 
-bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count)
+bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, u32 buffer_offset_count)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1021,11 +1026,11 @@ bool ACCEL_STRUCT_MNGR::copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_
     if (aabb_host_count > 0)
     {
         size_t aabb_copy_size = aabb_host_count * sizeof(AABB);
-        size_t aabb_buffer_offset = current_primitive_count[buffer_index] * sizeof(AABB);
+        size_t aabb_buffer_offset = buffer_offset_count * sizeof(AABB);
         u32 previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
         copy_buffer(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], aabb_buffer_offset, aabb_buffer_offset, aabb_copy_size, true);
 
-        if (!copy_primitive_device_buffer(buffer_index, aabb_host_count))
+        if (!copy_primitive_device_buffer(buffer_index, aabb_host_count, buffer_offset_count))
         {
 #if WARN
             std::cerr << "Failed to load primitives" << std::endl;
@@ -1217,7 +1222,7 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(u32 instance_index, u32 primitive
     {
 #if WARN
         std::cerr << "device.is_valid()" << std::endl;
-#endif // WARN  
+#endif // WARN
         return false;
     }
 
@@ -1252,7 +1257,7 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(u32 instance_index, u32 primitive
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instance_list)
+bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32> &instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1298,7 +1303,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
         /// Create Procedural Blas:
         blas_build_infos.push_back(daxa::BlasBuildInfo{
             .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD | daxa::AccelerationStructureBuildFlagBits::ALLOW_UPDATE, // Is also default
-            .dst_blas = {},                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+            .dst_blas = {},                                                                                                                // Ignored in get_acceleration_structure_build_sizes.       // Is also default
             .geometries = daxa::Span<const daxa::BlasAabbGeometryInfo>(aabb_geometries.at(current_instance_index).data(), aabb_geometries.at(current_instance_index).size()),
             .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
         });
@@ -1327,17 +1332,17 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
 
         size_t offset = 0;
         auto blas = blas_free_list->allocate(build_aligment_size, offset);
-        if(blas == daxa::BlasId{})
+        if (blas == daxa::BlasId{})
         {
 #if FATAL
             std::cerr << " Could not allocate BLAS from free list" << std::endl;
 #endif // FATAL
-            // TODO: abort for now but try to resize buffer
+       // TODO: abort for now but try to resize buffer
             std::abort();
             // return false;
         }
 #if TRACE
-    std::cout << "  build_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
+        std::cout << "  build_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
 #endif
 
         proc_blas.push_back(blas);
@@ -1345,11 +1350,11 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(i);
 
 #if TRACE == 1
-        std::cout << "      build_blas: blas_build_infos[" << blas_build_infos.size() - 1 
-            << "].dst_blas: " << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index 
-            << ", proc_blas[" << i << "]: " << proc_blas.at(i).index << ", blas_build_infos[" 
-            << blas_build_infos.size() - 1 << "].scratch_data: " 
-            << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
+        std::cout << "      build_blas: blas_build_infos[" << blas_build_infos.size() - 1
+                  << "].dst_blas: " << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index
+                  << ", proc_blas[" << i << "]: " << proc_blas.at(i).index << ", blas_build_infos["
+                  << blas_build_infos.size() - 1 << "].scratch_data: "
+                  << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
 #endif // TRACE
 
         ++current_instance_index;
@@ -1394,7 +1399,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32>& instanc
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& instance_list)
+bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32> &instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1430,9 +1435,9 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
     for (auto instance_index : instance_list)
     {
 #if TRACE == 1
-        std::cout << "  build_blas: i: " << instance_index 
-        << ", first primitive index: " << instances[instance_index].first_primitive_index 
-        << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
+        std::cout << "  build_blas: i: " << instance_index
+                  << ", first primitive index: " << instances[instance_index].first_primitive_index
+                  << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
 #endif // TRACE
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
@@ -1445,7 +1450,7 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
         blas_build_infos.push_back(daxa::BlasBuildInfo{
             // TODO: allow update per instance
             .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD | daxa::AccelerationStructureBuildFlagBits::ALLOW_UPDATE, // Is also default
-            .dst_blas = {},                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+            .dst_blas = {},                                                                                                                // Ignored in get_acceleration_structure_build_sizes.       // Is also default
             .geometries = daxa::Span<const daxa::BlasAabbGeometryInfo>(aabb_geometries.at(current_instance_index).data(), aabb_geometries.at(current_instance_index).size()),
             .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
         });
@@ -1482,17 +1487,17 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
 
         size_t offset = 0;
         auto blas = blas_free_list->allocate(build_aligment_size, offset);
-        if(blas == daxa::BlasId{})
+        if (blas == daxa::BlasId{})
         {
 #if FATAL
             std::cerr << " Could not allocate BLAS from free list" << std::endl;
 #endif // FATAL
-            // TODO: abort for now but try to resize buffer
+       // TODO: abort for now but try to resize buffer
             std::abort();
             // return false;
         }
 #if TRACE
-    std::cout << "  rebuild_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
+        std::cout << "  rebuild_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
 #endif
 
         proc_blas.at(instance_index) = blas;
@@ -1501,17 +1506,17 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
         blas_build_infos.at(blas_build_infos.size() - 1).dst_blas = proc_blas.at(instance_index);
 
 #if TRACE == 1
-        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " 
-            << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index << "]: " 
-                << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 << "].scratch_data: " 
-                << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
+        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: "
+                  << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index << "]: "
+                  << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 << "].scratch_data: "
+                  << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
 
         auto aabb_geometries = daxa::get<daxa::Span<daxa::BlasAabbGeometryInfo const>>(blas_build_infos.at(blas_build_infos.size() - 1).geometries);
 
         for (u32 i = 0; i < aabb_geometries.size(); i++)
         {
-            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data << ", aabb_geometry.stride: " 
-            << aabb_geometries[i].stride << ", aabb_geometry.count: " << aabb_geometries[i].count << std::endl;
+            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data << ", aabb_geometry.stride: "
+                      << aabb_geometries[i].stride << ", aabb_geometry.count: " << aabb_geometries[i].count << std::endl;
         }
 #endif // TRACE
 
@@ -1548,7 +1553,7 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32>& insta
     return true;
 }
 
-bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instance_list)
+bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32> &instance_list)
 {
     if (!device.is_valid() || !initialized)
     {
@@ -1576,7 +1581,8 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
 
     for (auto instance_index : instance_list)
     {
-        if (proc_blas.at(instance_index) != daxa::BlasId{}) {
+        if (proc_blas.at(instance_index) != daxa::BlasId{})
+        {
             blas_to_update[instance_index] = proc_blas.at(instance_index);
         }
     }
@@ -1600,8 +1606,8 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
         blas_build_infos.push_back(daxa::BlasBuildInfo{
             .flags = daxa::AccelerationStructureBuildFlagBits::PREFER_FAST_BUILD | daxa::AccelerationStructureBuildFlagBits::ALLOW_UPDATE, // Is also default
             .update = true,
-            .src_blas = blas_to_update[instance_index],                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
-            .dst_blas = {},                                                       // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+            .src_blas = blas_to_update[instance_index], // Ignored in get_acceleration_structure_build_sizes.       // Is also default
+            .dst_blas = {},                             // Ignored in get_acceleration_structure_build_sizes.       // Is also default
             .geometries = daxa::Span<const daxa::BlasAabbGeometryInfo>(aabb_geometries.at(current_instance_index).data(), aabb_geometries.at(current_instance_index).size()),
             .scratch_data = {}, // Ignored in get_acceleration_structure_build_sizes.   // Is also default
         });
@@ -1623,7 +1629,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
 
         u32 scratch_alignment_size = get_aligned(proc_build_size_info.update_scratch_size, acceleration_structure_scratch_offset_alignment);
 
-        if(scratch_alignment_size == 0)
+        if (scratch_alignment_size == 0)
         {
             blas_build_infos.pop_back();
 #if WARN
@@ -1640,8 +1646,9 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
 #endif // WARN
             return false;
         }
-        
-        if (proc_blas.at(instance_index) != daxa::BlasId{}) {
+
+        if (proc_blas.at(instance_index) != daxa::BlasId{})
+        {
             temp_proc_blas.push_back(proc_blas.at(instance_index));
         }
 
@@ -1652,19 +1659,19 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
 
         size_t offset = 0;
         auto blas = blas_free_list->allocate(build_aligment_size, offset);
-        if(blas == daxa::BlasId{})
+        if (blas == daxa::BlasId{})
         {
 #if FATAL
-           std::cerr << " Could not allocate BLAS from free list" << std::endl;
+            std::cerr << " Could not allocate BLAS from free list" << std::endl;
 #endif // FATAL
-            // TODO: abort for now but try to resize buffer
+       // TODO: abort for now but try to resize buffer
             std::abort();
             // return false;
         }
 #if TRACE
-    std::cout << "  update_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
+        std::cout << "  update_blases - allocated blas index: " << blas.index << ", version: " << blas.version << std::endl;
 #endif
-        
+
         proc_blas.at(instance_index) = blas;
 
         // Here BLAS buffer is updated
@@ -1675,18 +1682,18 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32>& instan
         // blas_build_infos.at(blas_build_infos.size() - 1).update = true;
 
 #if TRACE == 1
-        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: " 
-            << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index 
-            << "]: " << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1 
-            << "].scratch_data: " << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
+        std::cout << "  build_blas: blas_build_infos[" << blas_build_infos.size() - 1 << "].dst_blas: "
+                  << blas_build_infos.at(blas_build_infos.size() - 1).dst_blas.index << ", proc_blas[" << instance_index
+                  << "]: " << proc_blas.at(instance_index).index << ", blas_build_infos[" << blas_build_infos.size() - 1
+                  << "].scratch_data: " << blas_build_infos.at(blas_build_infos.size() - 1).scratch_data << std::endl;
 
         auto aabb_geometries = daxa::get<daxa::Span<daxa::BlasAabbGeometryInfo const>>(blas_build_infos.at(blas_build_infos.size() - 1).geometries);
 
         for (u32 i = 0; i < aabb_geometries.size(); i++)
         {
-            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data 
-                << ", aabb_geometry.stride: " << aabb_geometries[i].stride << ", aabb_geometry.count: " 
-                << aabb_geometries[i].count << std::endl;
+            std::cout << "      build_blas: aabb_geometry.data: " << aabb_geometries[i].data
+                      << ", aabb_geometry.stride: " << aabb_geometries[i].stride << ", aabb_geometry.count: "
+                      << aabb_geometries[i].count << std::endl;
         }
 #endif // TRACE
 
@@ -1748,8 +1755,13 @@ bool ACCEL_STRUCT_MNGR::build_tlas(u32 buffer_index, bool synchronize)
     blas_instance_array.reserve(current_instance_count[buffer_index]);
 
     // build procedural blas
-    for (u32 i = 0; i < current_instance_count[buffer_index]; i++)
+    for (u32 i = 0; i < max_wide_instance_count[buffer_index]; i++)
     {
+        if(proc_blas.at(i) == daxa::BlasId{})
+        {
+            continue;
+        }
+
         blas_instance_array.push_back(daxa_BlasInstanceData{
             .transform =
                 daxa_f32mat4x4_to_daxa_f32mat3x4(instances[i].transform),
@@ -1961,6 +1973,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     std::vector<u32> blas_index_list = {};
     std::vector<u32> rebuild_blas_index_list = {};
     std::vector<u32> update_blas_index_list = {};
+    u32 queue_instance_count = 0;
+    u32 instance_count = 0;
 
     // Iterate over all tasks to process
     for (u32 i = 0; i < items_to_process; i++)
@@ -1976,28 +1990,61 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
         {
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
-            // Allocate new instance
-            uuid32 new_instance_id = instance_free_list->allocate();
-            if (new_instance_id == static_cast<uuid32>(-1))
-            {
-#if FATAL
-                std::cerr << " Could not allocate instance from free list" << std::endl;
-#endif // FATAL
-                std::abort();
+
+            instance_count = build_task.instance_count;
+
+            if(instance_count > 0) {
+                task.blas_build_from_cpu.instance_indices = new u32[instance_count];
+                for(u32 i = 0; i < instance_count; i++) {
+                    task.blas_build_from_cpu.instance_indices[i] = -1;
+                }
             }
-            primitive_free_list->allocate(build_task.primitive_count, primitive_buffer_offset, new_instance_id);
-            // Update primitive buffers
-            upload_aabb_device_buffer(next_index, build_task.primitive_count, primitive_buffer_offset);
-            // Update primitive count
-            current_primitive_count[next_index] += build_task.primitive_count;
-            // Update instance
-            instances[new_instance_id].transform = build_task.transform;
-            instances[new_instance_id].first_primitive_index = primitive_buffer_offset;
-            instances[new_instance_id].primitive_count = build_task.primitive_count;
-            // Keep blas id for building blas
-            blas_index_list.push_back(new_instance_id);
-            // Global instance count
-            current_instance_count[next_index] += build_task.instance_count;
+
+            for (u32 i = 0; i < instance_count; i++)
+            {
+
+                // Allocate new instance
+                uuid32 new_instance_id = instance_free_list->allocate();
+                if (new_instance_id == static_cast<uuid32>(-1))
+                {
+#if FATAL
+                    std::cerr << " Could not allocate instance from free list" << std::endl;
+#endif // FATAL
+                    std::abort();
+                }
+
+                task.blas_build_from_cpu.instance_indices[i] = new_instance_id;
+
+                primitive_free_list->allocate(temp_instances[queue_instance_count].primitive_count,
+                                              primitive_buffer_offset, new_instance_id);
+                // Update primitive buffers
+                upload_aabb_device_buffer(next_index,
+                                          temp_instances[queue_instance_count].primitive_count,
+                                          temp_instances[queue_instance_count].first_primitive_index,
+                                          primitive_buffer_offset);
+                // Update primitive count
+                current_primitive_count[next_index] += temp_instances[queue_instance_count].primitive_count;
+                // Update instance
+                instances[new_instance_id].transform = build_task.transform;
+                instances[new_instance_id].first_primitive_index = primitive_buffer_offset;
+                instances[new_instance_id].primitive_count = temp_instances[queue_instance_count].primitive_count;
+                // Keep blas id for building blas
+                blas_index_list.push_back(new_instance_id);
+                // Global instance count
+                ++current_instance_count[next_index];
+
+#if INFO == 1
+                std::cout << "  Created Instance id: " << new_instance_id << std::endl;
+                std::cout << "      Instance primitive count: " << instances[new_instance_id].primitive_count << std::endl;
+                std::cout << "      Instance first primitive index: " << instances[new_instance_id].first_primitive_index << std::endl;
+#endif // INFO
+                ++queue_instance_count;
+            }
+#if INFO == 1
+            std::cout << "BLAS_BUILD_FROM_CPU:" << std::endl;
+            std::cout << "  >Instance count: " << current_instance_count[next_index] << std::endl;
+            std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
+#endif // INFO
         }
         break;
         case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
@@ -2007,8 +2054,10 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             {
                 // Update instance primitive count
                 primitive_to_exchange = --instances[rebuild_task.instance_index].primitive_count;
+                --current_primitive_count[next_index];
 #if TRACE == 1
                 std::cout << "  >Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
+                std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
 #endif // TRACE
             }
             // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
@@ -2038,38 +2087,26 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
         {
             TASK::BLAS_UPDATE update_task = task.blas_update;
-            instances[update_task.instance_index].transform = 
+            instances[update_task.instance_index].transform =
                 daxa_f32mat4x4_mult(instances[update_task.instance_index].transform, update_task.transform);
 
 #if TRACE == 1
             // print transform matrix
             std::cout << "matrix instance_index: " << update_task.instance_index << std::endl;
-            std::cout << "  [" << instances[update_task.instance_index].transform.x.x << ", " << 
-                instances[update_task.instance_index].transform.x.y << ", " << 
-                instances[update_task.instance_index].transform.x.z << ", " << 
-                instances[update_task.instance_index].transform.x.w << "]" << std::endl;
-            std::cout << "  [" << instances[update_task.instance_index].transform.y.x << ", " <<
-                instances[update_task.instance_index].transform.y.y << ", " <<
-                instances[update_task.instance_index].transform.y.z << ", " <<
-                instances[update_task.instance_index].transform.y.w << "]" << std::endl;
-            std::cout << "  [" << instances[update_task.instance_index].transform.z.x << ", " <<
-                instances[update_task.instance_index].transform.z.y << ", " <<
-                instances[update_task.instance_index].transform.z.z << ", " <<
-                instances[update_task.instance_index].transform.z.w << "]" << std::endl;
-            std::cout << "  [" << instances[update_task.instance_index].transform.w.x << ", " <<
-                instances[update_task.instance_index].transform.w.y << ", " <<
-                instances[update_task.instance_index].transform.w.z << ", " <<
-                instances[update_task.instance_index].transform.w.w << "]" << std::endl;
+            std::cout << "  [" << instances[update_task.instance_index].transform.x.x << ", " << instances[update_task.instance_index].transform.x.y << ", " << instances[update_task.instance_index].transform.x.z << ", " << instances[update_task.instance_index].transform.x.w << "]" << std::endl;
+            std::cout << "  [" << instances[update_task.instance_index].transform.y.x << ", " << instances[update_task.instance_index].transform.y.y << ", " << instances[update_task.instance_index].transform.y.z << ", " << instances[update_task.instance_index].transform.y.w << "]" << std::endl;
+            std::cout << "  [" << instances[update_task.instance_index].transform.z.x << ", " << instances[update_task.instance_index].transform.z.y << ", " << instances[update_task.instance_index].transform.z.z << ", " << instances[update_task.instance_index].transform.z.w << "]" << std::endl;
+            std::cout << "  [" << instances[update_task.instance_index].transform.w.x << ", " << instances[update_task.instance_index].transform.w.y << ", " << instances[update_task.instance_index].transform.w.z << ", " << instances[update_task.instance_index].transform.w.w << "]" << std::endl;
 #endif // TRACE
 
-            if(update_task.primitive_count > 0)
+            if (update_task.primitive_count > 0)
             {
-                    // update aabb buffer
-                update_aabb_device_buffer(next_index, 
-                    update_task.instance_index, 
-                    update_task.primitive_count, 
-                    update_task.primitive_index_buf_offset,
-                    update_task.aabb_buf_offset);
+                // update aabb buffer
+                update_aabb_device_buffer(next_index,
+                                          update_task.instance_index,
+                                          update_task.primitive_count,
+                                          update_task.primitive_index_buf_offset,
+                                          update_task.aabb_buf_offset);
             }
 
             update_blas_index_list.push_back(update_task.instance_index);
@@ -2078,17 +2115,36 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         case TASK::TYPE::DELETE_BLAS_FROM_CPU:
         {
             TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
+            // free instance
+            if(!instance_free_list->deallocate(delete_task.instance_index))
+            { 
+#if WARN
+                std::cerr << " Could not deallocate instance from free list instance_index: " << delete_task.instance_index << std::endl;
+#endif // WARN
+                continue;
+            }
+            primitive_free_list->deallocate(VoxelBuffer({.index = delete_task.instance_index}));
+            // TODO: remap primitive buffer ?
+            // TODO: remap light buffer ?
+            // keep blas id for deleting blas
+            temp_proc_blas.push_back(proc_blas.at(delete_task.instance_index));
+            // set proc blas to zero
+            proc_blas.at(delete_task.instance_index) = daxa::BlasId{};
             // TODO: this will need a mutex if manager is parallelized
             {
                 // Update instance count
                 current_instance_count[next_index]--;
+                current_primitive_count[next_index] -= instances[delete_task.instance_index].primitive_count;
             }
-            // TODO: free instance buffers (aabb & primitive) free list
-            // delete_aabb_device_buffer(next_index, delete_task.instance_index);
-            // TODO: delete emissive light buffer(in the next step?)
-            // delete_light_device_buffer(next_index, delete_task.instance_index);
-            // free instance
-            instance_free_list->deallocate(delete_task.instance_index);
+#if INFO == 1
+            std::cout << "DELETE_BLAS_FROM_CPU:" << std::endl;
+            std::cout << "  >Instance count: " << current_instance_count[next_index] << std::endl;
+            std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
+
+            std::cout << "  Deleted Instance id: " << delete_task.instance_index << std::endl;
+            std::cout << "      Instance primitive count: " << instances[delete_task.instance_index].primitive_count << std::endl;
+            std::cout << "      Instance first primitive index: " << instances[delete_task.instance_index].first_primitive_index << std::endl;
+#endif // INFO
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -2113,6 +2169,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     // Set items to process to zero
     items_to_process = 0;
 
+    // update max wide instance count
+    max_wide_instance_count[next_index] = std::max(max_wide_instance_count[next_index], current_instance_count[next_index]);
+
     // update instances
     upload_all_instances(next_index, false);
 
@@ -2122,13 +2181,14 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         build_blases(next_index, blas_index_list);
 
     // Rebuild BLASes
-    if (!rebuild_blas_index_list.empty()) {
+    if (!rebuild_blas_index_list.empty())
+    {
         rebuild_blases(next_index, rebuild_blas_index_list);
     }
 
-    
     // Build BLASes
-    if (!update_blas_index_list.empty()) {
+    if (!update_blas_index_list.empty())
+    {
         // TODO: find a better way to get unique indices
         auto ip = std::unique(update_blas_index_list.begin(), update_blas_index_list.begin() + update_blas_index_list.size());
         update_blas_index_list.resize(std::distance(update_blas_index_list.begin(), ip));
@@ -2167,6 +2227,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
     }
 
     u32 next_index = (current_index + 1) % DOUBLE_BUFFERING;
+    u32 instance_count = 0;
+    u32 current_instance_index = static_cast<u32>(-1);
 
     while (!temporal_task_queue.empty())
     {
@@ -2178,15 +2240,44 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
         case TASK::TYPE::BUILD_BLAS_FROM_CPU:
         {
             TASK::BLAS_BUILD_FROM_CPU build_task = task.blas_build_from_cpu;
-            copy_aabb_device_buffer(next_index, build_task.primitive_count);
-            current_primitive_count[next_index] += build_task.primitive_count;
-            // NOTE: build_blas is already called for the previous index
-            current_instance_count[next_index] += build_task.instance_count;
+
+            instance_count = build_task.instance_count;
+
+            if(!task.blas_build_from_cpu.instance_indices) {
+#if FATAL
+                std::cerr << "blas_build_from_cpu.instance_indices is null" << std::endl;
+#endif // FATAL
+                std::abort();
+                break;
+            }
+                
+            for(u32 i = 0; i < instance_count; i++)
+            {
+                current_instance_index = task.blas_build_from_cpu.instance_indices[i];
+                if(current_instance_index == static_cast<u32>(-1)) {
+#if WARN
+                    std::cerr << "current_instance_index == -1" << std::endl;
+#endif // WARN
+                    break;
+                }
+
+                // copy primitive info from previous frame buffer
+                copy_aabb_device_buffer(next_index, instances[current_instance_index].primitive_count, instances[current_instance_index].first_primitive_index);
+                // Update primitive count
+                current_primitive_count[next_index] += instances[current_instance_index].primitive_count;
+                // Global instance count
+                ++current_instance_count[next_index];
+            }
+
+            if(task.blas_build_from_cpu.instance_indices) {
+                delete[] task.blas_build_from_cpu.instance_indices;
+            }
         }
         break;
         case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
         {
             TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
+            --current_primitive_count[next_index];
             if (rebuild_task.del_primitive_index != rebuild_task.remap_primitive_index)
             {
                 // Copy deleted primitive to the double buffer
@@ -2200,16 +2291,26 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
         case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
         {
             TASK::BLAS_UPDATE update_task = task.blas_update;
-            if(update_task.primitive_count > 0)
+            if (update_task.primitive_count > 0)
             {
                 // update aabb buffer
-                copy_updated_aabb_device_buffer(next_index, 
-                    update_task.instance_index, 
-                    update_task.primitive_count, 
-                    update_task.primitive_index_buf_offset,
-                    update_task.aabb_buf_offset);
+                copy_updated_aabb_device_buffer(next_index,
+                                                update_task.instance_index,
+                                                update_task.primitive_count,
+                                                update_task.primitive_index_buf_offset,
+                                                update_task.aabb_buf_offset);
             }
             // TODO: update light buffer
+        }
+        break;
+        case TASK::TYPE::DELETE_BLAS_FROM_CPU:
+        {
+            TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
+            // TODO: delete emissive light buffer
+            // delete_light_device_buffer(next_index, delete_task.instance_index);
+            // Update instance count
+            --current_instance_count[next_index];
+            current_primitive_count[next_index] -= instances[delete_task.instance_index].primitive_count;
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -2276,8 +2377,18 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
         }
         break;
         case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
-        { 
+        {
+            TASK::BLAS_UPDATE update_task = task.blas_update;
             // TODO: do we need to do something here?
+        }
+        break;
+        case TASK::TYPE::DELETE_BLAS_FROM_CPU:
+        {
+            TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
+            // TODO: clear remapping buffer
+            // clear_remapping_buffer(next_index, delete_task.instance_index);
+            // TODO: clear light remapping buffer
+            // clear_light_remapping_buffer(next_index, delete_task.instance_index);
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -2305,6 +2416,9 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
             done_task_stack.pop();
         }
     }
+    
+    // update max wide instance count
+    max_wide_instance_count[next_index] = std::max(max_wide_instance_count[next_index], current_instance_count[next_index]);
 
     // update instances
     upload_all_instances(next_index, false);
@@ -2323,9 +2437,10 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
 
     // delete temp proc blas
     for (auto blas : temp_proc_blas)
-        if (blas != daxa::BlasId{}) {      
+        if (blas != daxa::BlasId{})
+        {
 #if TRACE
-    std::cout << "  delete temp proc blas: " << blas.index << ", version: " << blas.version << std::endl;
+            std::cout << "  delete temp proc blas: " << blas.index << ", version: " << blas.version << std::endl;
 #endif
             blas_free_list->deallocate(blas);
         }
@@ -2370,11 +2485,11 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
     u32 changes_so_far = 0;
 
     // Check instances first
-    for (u32 i = 0; i < (current_instance_count[current_index]); i++)
+    for (u32 i = 0; i < (max_wide_instance_count[current_index]); i++)
     {
         if (instance_bitmask_buffer_ptr[i] != 0U)
         {
-            for (u32 j = 0; j < 32 && j < current_instance_count[current_index]; j++)
+            for (u32 j = 0; j < 32 && j < max_wide_instance_count[current_index]; j++)
             {
                 if (instance_bitmask_buffer_ptr[i] & (1 << j))
                 {
