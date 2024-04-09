@@ -779,6 +779,39 @@ bool ACCEL_STRUCT_MNGR::update_light_remapping_buffer(u32 light_to_delete, u32 l
     return true;
 }
 
+bool ACCEL_STRUCT_MNGR::update_instance_remapping_buffer(u32 first_primitive_index, u32 primitive_count, u32 value)
+{
+    if (!device.is_valid() || !initialized)
+    {
+#if WARN
+        std::cerr << "device.is_valid()" << std::endl;
+#endif // WARN
+        return false;
+    }
+
+    size_t remapped_primitive_buffer_size = sizeof(u32) * primitive_count;
+
+    auto remapped_primitive_staging_buffer = device.create_buffer({
+        .size = remapped_primitive_buffer_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_RANDOM,
+        .name = ("remapped_primitive_staging_buffer"),
+    });
+    defer { device.destroy_buffer(remapped_primitive_staging_buffer); };
+
+    auto *remapped_primitive_buffer_ptr = device.get_host_address_as<u32>(remapped_primitive_staging_buffer).value();
+
+    // iterate over all the primitives and update the remapping buffer with -1 from range
+
+    for (u32 i = 0; i < primitive_count; i++)
+    {
+        remapped_primitive_buffer_ptr[i] = static_cast<u32>(value);
+    }
+
+    copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, 0, first_primitive_index * sizeof(u32), remapped_primitive_buffer_size);
+
+    return true;
+}
+
 //////////////////////////////// UPDATING - UNDO  STARTS//////////////////////////////////////
 
 void ACCEL_STRUCT_MNGR::process_undo_task_queue(u32 next_index, TASK &task)
@@ -1256,6 +1289,7 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(u32 instance_index, u32 primitive
 
     return true;
 }
+
 
 bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32> &instance_list)
 {
@@ -1926,9 +1960,9 @@ void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(u32 next_index, TASK &t
         TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
         // TODO: this can be optimize cause just deleted primitive is needed to be cleared
         // Restore remapping buffer
-        clear_remapping_buffer(next_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
+        clear_remapping_buffer(rebuild_task.instance_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
         // Restore light remapping buffer
-        clear_light_remapping_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
+        clear_light_remapping_buffer(rebuild_task.instance_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
         // NOTE: build_blas is already called for the previous index
     }
     break;
@@ -2153,7 +2187,15 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 continue;
             }
             primitive_free_list->deallocate(VoxelBuffer({.index = delete_task.instance_index}));
-            // TODO: remap primitive buffer ?
+
+            task.blas_delete_from_cpu.first_primitive_index = instances[delete_task.instance_index].first_primitive_index;
+            task.blas_delete_from_cpu.deleted_primitive_count = instances[delete_task.instance_index].primitive_count;
+
+            // Update remapping buffer for deleted instance
+            update_instance_remapping_buffer(
+                task.blas_delete_from_cpu.first_primitive_index, 
+                task.blas_delete_from_cpu.deleted_primitive_count, 
+                static_cast<u32>(-1));
             // TODO: remap light buffer ?
             // keep blas id for deleting blas
             temp_proc_blas.push_back(proc_blas.at(delete_task.instance_index));
@@ -2171,15 +2213,12 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
 
             std::cout << "  Deleted Instance id: " << delete_task.instance_index << std::endl;
-            std::cout << "      Instance primitive count: " << instances[delete_task.instance_index].primitive_count << std::endl;
-            std::cout << "      Instance first primitive index: " << instances[delete_task.instance_index].first_primitive_index << std::endl;
-
-            task.blas_delete_from_cpu.deleted_primitive_count = instances[delete_task.instance_index].primitive_count;
-
+            std::cout << "      Instance first primitive index: " << task.blas_delete_from_cpu.first_primitive_index << std::endl;
+            std::cout << "      Instance primitive count: " << task.blas_delete_from_cpu.deleted_primitive_count << std::endl;
+#endif // INFO
             instances[delete_task.instance_index].primitive_count = 0;
             instances[delete_task.instance_index].first_primitive_index = -1;
             delete_blas_index_list.push_back(delete_task.instance_index);
-#endif // INFO
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -2427,9 +2466,9 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
         {
             TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
             // Restore remapping buffer
-            clear_remapping_buffer(next_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
+            clear_remapping_buffer(rebuild_task.instance_index, rebuild_task.del_primitive_index, rebuild_task.remap_primitive_index);
             // Restore light remapping buffer
-            clear_light_remapping_buffer(next_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
+            clear_light_remapping_buffer(rebuild_task.instance_index, rebuild_task.del_light_index, rebuild_task.remap_light_index);
             // NOTE: build_blas is already called for the previous index
         }
         break;
@@ -2443,7 +2482,9 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
         {
             TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
             // TODO: clear remapping buffer
-            // clear_remapping_buffer(next_index, delete_task.instance_index);
+            update_instance_remapping_buffer(delete_task.first_primitive_index,
+                                             delete_task.deleted_primitive_count,
+                                             0);
             // TODO: clear light remapping buffer
             // clear_light_remapping_buffer(next_index, delete_task.instance_index);
         }

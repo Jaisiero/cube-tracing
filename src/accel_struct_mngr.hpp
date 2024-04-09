@@ -70,6 +70,7 @@ public:
         struct BLAS_DELETE_FROM_CPU
         {
             u32 instance_index;
+            u32 first_primitive_index;
             u32 deleted_primitive_count;
         };
 
@@ -385,6 +386,9 @@ private:
     bool upload_all_instances(u32 buffer_index, bool synchronize = false);
     bool upload_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 host_buffer_offset_count, u32 buffer_offset_count);
     bool copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 buffer_offset_count);
+    bool update_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange);
+    
+    bool update_instance_remapping_buffer(u32 first_primitive_index, u32 primitive_count, u32 value);
 
     // Updating operations
     bool update_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_count, u32 indices_buffer_offset, u32 aabb_buffer_offset);
@@ -403,7 +407,6 @@ private:
     
     bool delete_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_index, 
         u32 primitive_to_exchange, u32& light_to_delete, u32& light_to_exchange, u32& light_of_the_exchanged_primitive);
-    bool update_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange);
 
     bool copy_deleted_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 instance_delete_primitive);
     bool clear_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange);
