@@ -18,7 +18,6 @@ CL_NAMESPACE_BEGIN
 struct ACCEL_STRUCT_MNGR
 {
 public:
-
     enum class AS_MANAGER_STATUS
     {
         IDLE = 0,
@@ -28,6 +27,12 @@ public:
         SETTLING = 4,
         SETTLE = 5,
         BUILDING = 6,
+    };
+
+    struct PrimitiveChangeInfo {
+        std::shared_ptr<daxa::ComputePipeline> primitive_changes_compute_pipeline;
+        daxa::BufferId status_buffer;
+        daxa::BufferId world_buffer;
     };
     struct TASK
     {
@@ -90,6 +95,71 @@ public:
         };
     };
 
+    struct WritePrimitiveChanges : PrimitiveChangesTaskHead::Task
+    {
+        AttachmentViews views = {};
+        std::shared_ptr<daxa::ComputePipeline> pipeline = {};
+        daxa_u32vec3 size = {0 ,0, 0};
+        void callback(daxa::TaskInterface ti)
+        {
+            ti.recorder.set_pipeline(*pipeline);
+            ti.recorder.push_constant(PushConstantChanges{.size = size});
+            ti.recorder.push_constant_vptr({
+                ti.attachment_shader_blob.data(), 
+                ti.attachment_shader_blob.size(),
+                sizeof(daxa_u32vec3)});
+            ti.recorder.dispatch({.x = size.x,
+                    .y = size.y, 
+                    .z = size.z});
+        }
+    };
+    
+
+    auto record_primitive_changes_task_graph(
+        std::shared_ptr<daxa::ComputePipeline> record_compute_pipeline,
+        daxa_u32vec3 dispatch_size,
+        daxa::BufferId status_buffer,
+        daxa::BufferId world_buffer) -> daxa::TaskGraph
+    {
+        using namespace PrimitiveChangesTaskHead;
+        auto task_graph = daxa::TaskGraph({
+            .device = device,
+            .record_debug_information = true,
+            .name = "task_graph",
+        });
+
+        auto task_status_buffer = daxa::TaskBuffer({
+            .initial_buffers = {
+                .buffers = {&status_buffer, 1},
+                .latest_access = daxa::AccessConsts::HOST_WRITE,
+            },
+            .name = "status_buffer", // This name MUST be identical to the name used in the shader.
+        });
+
+        auto task_world_buffer = daxa::TaskBuffer({
+            .initial_buffers = {
+                .buffers = {&world_buffer, 1},
+                .latest_access = daxa::AccessConsts::HOST_WRITE,
+            },
+            .name = "world_buffer", // This name MUST be identical to the name used in the shader.
+        });
+
+        task_graph.use_persistent_buffer(task_status_buffer);
+        task_graph.use_persistent_buffer(task_world_buffer);
+
+        task_graph.add_task(WritePrimitiveChanges{
+            .views = std::array{
+                daxa::attachment_view(AT.status_buffer, task_status_buffer),
+                daxa::attachment_view(AT.world_buffer, task_world_buffer),
+            },
+            .pipeline = record_compute_pipeline,
+            .size = dispatch_size,
+        });
+        task_graph.submit({});
+        task_graph.complete({});
+
+        return task_graph;
+    }
 
     ACCEL_STRUCT_MNGR(daxa::Device& device) : device(device) {
         if(device.is_valid()) {
@@ -102,7 +172,7 @@ public:
         }
     }
     
-    bool create(u32 max_instance_count, u32 max_primitive_count, u32 max_cube_light_count, u32* cube_light_count);
+    bool create(u32 max_instance_count, u32 max_primitive_count, u32 max_cube_light_count, u32* cube_light_count, PrimitiveChangeInfo primitive_change_info);
     bool destroy();
 
 
@@ -524,6 +594,9 @@ private:
     std::vector<LIGHT> backup_cube_lights = {};
     u32 backup_instance_count = 0;
     std::vector<INSTANCE> backup_instances = {};
+
+    daxa::TaskGraph brush_task_graph = {};
+    PrimitiveChangeInfo change_info = {};
 };
 
 CL_NAMESPACE_END

@@ -79,7 +79,7 @@ daxa_u32 get_brush_counter_instance_count() {
 daxa_u32 get_brush_counter_primitive_count() {
   BRUSH_COUNTER_BUFFER p =
       BRUSH_COUNTER_BUFFER(deref(p.status_buffer).brush_counter_address);
-  return atomicAdd(p.brush_counter.primitive_count, 0);
+  return atomicAdd(p.brush_counter.primitive_count.x, 0);
 }
 
 daxa_u32 increment_brush_counter_instance_count() {
@@ -91,7 +91,7 @@ daxa_u32 increment_brush_counter_instance_count() {
 daxa_u32 increment_brush_counter_primitive_count() {
   BRUSH_COUNTER_BUFFER p =
       BRUSH_COUNTER_BUFFER(deref(p.status_buffer).brush_counter_address);
-  return atomicAdd(p.brush_counter.primitive_count, 1);
+  return atomicAdd(p.brush_counter.primitive_count.x, 1);
 }
 
 void delete_primtivite_from_instance(OBJECT_INFO instance_hit) {

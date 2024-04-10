@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <daxa/daxa.hpp>
+#include <daxa/utils/task_graph.hpp>
 #include <window.hpp>
 #include <shared.hpp>
 
@@ -13,11 +14,19 @@
 
 #include "shaders/shared.inl"
 
+#define DEBUG_MODE 0
+
 #define FATAL 1
 #define WARN 1
 #define INFO 1
+#if DEBUG_MODE
 #define DEBUG 1
 #define TRACE 1
+#else
+#define DEBUG 0
+#define TRACE 0
+#endif
+
 
 const uint32_t DOUBLE_BUFFERING = 2;
 

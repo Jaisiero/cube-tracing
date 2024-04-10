@@ -80,7 +80,7 @@ void worker_thread_fn(std::stop_token stoken, ACCEL_STRUCT_MNGR *as_manager)
     };
 }
 
-bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, u32 max_cube_light_count, u32 *cube_light_count)
+bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, u32 max_cube_light_count, u32 *cube_light_count, PrimitiveChangeInfo primitive_change_info)
 {
     if (device.is_valid() && !initialized)
     {
@@ -211,6 +211,15 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
 
         brush_counters = device.get_host_address_as<BRUSH_COUNTER>(brush_counter_buffer).value();
 
+        change_info = primitive_change_info;
+
+        brush_task_graph = record_primitive_changes_task_graph(
+            change_info.primitive_changes_compute_pipeline,
+            daxa_u32vec3{.x = 1, .y = 1, .z = 1},
+            change_info.status_buffer,
+            change_info.world_buffer
+        );
+
         initialized = true;
 
         worker_thread = std::jthread(worker_thread_fn, this);
@@ -221,9 +230,9 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
 
 bool ACCEL_STRUCT_MNGR::destroy()
 {
-
-    if (device.is_valid() && initialized)
+    if (initialized)
     {
+        if(!device.is_valid()) return false;
         for (auto _tlas : tlas)
             if (_tlas != daxa::TlasId{})
                 device.destroy_tlas(_tlas);
@@ -2677,6 +2686,15 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
 
         // Bring bitmask to host
         process_voxel_modifications();
+
+        std::cout << "Before execute" << std::endl;
+
+        // brush_task_graph.execute({});
+        
+        std::cout << "After execute" << std::endl;
+#if TRACE == 1
+        std::cout << brush_task_graph.get_debug_string() << std::endl;
+#endif // TRACE
 
         // zero out brush counters
         brush_counters->instance_count = 0;

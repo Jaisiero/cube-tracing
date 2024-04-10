@@ -2,6 +2,9 @@
 #extension GL_EXT_ray_tracing : enable
 #include <daxa/daxa.inl>
 #include "defines.glsl"
+
+DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
+
 #include "prng.glsl"
 #include "primitives.glsl"
 

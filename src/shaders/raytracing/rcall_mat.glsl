@@ -1,11 +1,11 @@
 #define DAXA_RAY_TRACING 1
 #extension GL_EXT_ray_tracing : enable
 #include <daxa/daxa.inl>
-
 #include "shared.inl"
-#include "perlin.glsl"
 
 DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
+
+#include "perlin.glsl"
 
 layout(location = 3) callableDataInEXT HIT_MAT_PAY_LOAD hit_call;
 

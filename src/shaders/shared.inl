@@ -2,6 +2,7 @@
 
 #define DAXA_RAY_TRACING 1
 #include <daxa/daxa.inl>
+#include <daxa/utils/task_graph.inl>
 
 // #define MAX_LEVELS 2
 
@@ -209,6 +210,13 @@ struct BRUSH_COUNTER
   daxa_u32 primitive_count;
 };
 
+
+struct DISPATCH_BUFFER
+{
+  daxa_u32vec3 dispatch_size;
+};
+DAXA_DECL_BUFFER_PTR(DISPATCH_BUFFER)
+
 struct Status
 {
   daxa_u32 frame_number;
@@ -314,21 +322,6 @@ struct LIGHT
   daxa_u32 type; // 0: point, 1: quad, 2: sphere
 };
 
-// struct STATUS_OUTPUT
-// {
-//     OBJECT_INFO instance_hit;
-//     daxa_f32 hit_distance;
-//     daxa_f32 exit_distance;
-//     daxa_f32vec3 hit_position;
-//     daxa_f32vec3 hit_normal;
-//     daxa_f32vec3 origin;
-//     daxa_f32vec3 direction;
-//     daxa_f32vec3 primitive_center;
-//     daxa_u32 material_index;
-//     daxa_f32vec2 uv;
-// };
-// DAXA_DECL_BUFFER_PTR(STATUS_OUTPUT)
-
 struct RESTIR
 {
   daxa_u64 previous_reservoir_address;
@@ -378,13 +371,6 @@ const int K_RC_ATTR_COUNT = 2;
 const int K_RC_ATTR_COUNT = 1;
 #endif
 
-// TODO: not sure if this is needed
-// struct PATH_REUSE_MIS_WEIGHT
-// {
-//     float rc_BSDF_MIS_weight;
-//     float rc_NEE_MIS_weight;
-// };
-
 // 88/128 B
 struct PATH_RESERVOIR
 {
@@ -423,48 +409,6 @@ struct DIRECT_ILLUMINATION_INFO
   daxa_f32 confidence;
 };
 
-// struct INSTANCE_LEVEL
-// {
-//     daxa_i32 level_index;
-// };
-
-// struct INSTANCE_LEVELS
-// {
-//     INSTANCE_LEVEL instance_levels[MAX_INSTANCES];
-// };
-// DAXA_DECL_BUFFER_PTR(INSTANCE_LEVELS)
-
-// NOTE: Debugging
-
-// #define WIDTH_RES 3840
-// #define HEIGHT_RES 2160
-
-// struct HIT_DISTANCE
-// {
-//     daxa_f32 distance;
-//     daxa_f32vec3 position;
-//     daxa_f32vec3 normal;
-//     daxa_u32 instance_index;
-//     daxa_u32 primitive_index;
-// };
-
-// struct HIT_DISTANCES
-// {
-//     HIT_DISTANCE hit_distances[WIDTH_RES*HEIGHT_RES];
-// };
-// DAXA_DECL_BUFFER_PTR(HIT_DISTANCES)
-
-// struct INSTANCE_DISTANCE
-// {
-//     daxa_f32 distance;
-// };
-
-// struct INSTANCE_DISTANCES
-// {
-//     INSTANCE_DISTANCE instance_distances[MAX_INSTANCES];
-// };
-// DAXA_DECL_BUFFER_PTR(INSTANCE_DISTANCES)
-
 struct PushConstant
 {
   daxa_u32vec2 size;
@@ -477,10 +421,17 @@ struct PushConstant
   daxa_BufferPtr(camera_view) camera_buffer;
   daxa_BufferPtr(Status) status_buffer;
   daxa_BufferPtr(WORLD) world_buffer;
-  // daxa_RWBufferPtr(STATUS_OUTPUT) status_output_buffer;
   daxa_RWBufferPtr(RESTIR) restir_buffer;
-  // daxa_RWBufferPtr(HIT_DISTANCES) hit_distance_buffer;
-  // daxa_RWBufferPtr(INSTANCE_LEVELS) instance_level_buffer;
-  // daxa_RWBufferPtr(INSTANCE_DISTANCES) instance_distance_buffer;
-  // daxa_RWBufferPtr(PRIMITIVE_AABBS) aabb_buffer;
+};
+
+
+DAXA_DECL_TASK_HEAD_BEGIN(PrimitiveChangesTaskHead)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ,  daxa_BufferPtr(Status), status_buffer)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(WORLD), world_buffer)
+DAXA_DECL_TASK_HEAD_END
+
+struct PushConstantChanges
+{
+  daxa_u32vec3 size;
+  DAXA_TH_BLOB(PrimitiveChangesTaskHead, head)
 };

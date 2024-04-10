@@ -2,7 +2,9 @@
 #extension GL_EXT_ray_tracing : enable
 #include <daxa/daxa.inl>
 #include "defines.glsl"
-#include "shared.inl"
+
+DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
+
 #include "mat.glsl"
 #include "reservoir.glsl"
 #include "light.glsl"

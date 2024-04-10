@@ -1,8 +1,10 @@
 #define DAXA_RAY_TRACING 1
 #extension GL_EXT_ray_tracing : enable
 #include <daxa/daxa.inl>
+#include "defines.glsl"
 
-#include "shared.inl"
+DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
+
 #include "mat.glsl"
 
 #if defined(MISS_SHADOW)
