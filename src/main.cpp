@@ -1185,11 +1185,6 @@ void cubeland_app()
             .name = ("env_light_buffer"),
         });
 
-        // status_output_buffer = device.create_buffer(daxa::BufferInfo{
-        //     .size = max_status_output_buffer_size,
-        //     .name = ("status_output_buffer"),
-        // });
-
         restir_buffer = device.create_buffer(daxa::BufferInfo{
             .size = restir_buffer_size,
             .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
@@ -1245,14 +1240,6 @@ void cubeland_app()
             .size = max_indirect_color_buffer_size,
             .name = ("indirect_color_buffer"),
         });
-
-        // hit_distance_buffer = device.create_buffer(daxa::BufferInfo{
-        //     .size = max_hit_distance_buffer_size,
-        //     .name = ("hit_distance_buffer"),
-        // });
-
-        // DEBUGGING
-        // hit_distances.resize(WIDTH_RES * HEIGHT_RES);
 
         light_config = device.get_host_address_as<LIGHT_CONFIG>(light_config_buffer).value();
 
@@ -1668,7 +1655,7 @@ void cubeland_app()
             .swapchain = swapchain,
         });
 
-        // device.collect_garbage();
+        device.collect_garbage();
 
         // Update/restore status
         status.frame_number++;
