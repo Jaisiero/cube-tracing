@@ -7,12 +7,12 @@
 #include <window.hpp>
 #include <shared.hpp>
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/quaternion.hpp>
+// #include <glm/glm.hpp>
+// #include <glm/gtc/matrix_transform.hpp>
+// #include <glm/gtc/quaternion.hpp>
+// #include <glm/gtx/quaternion.hpp>
 
-#include "shaders/shared.inl"
+// #include "shaders/shared.inl"
 
 #define DEBUG_MODE 0
 
@@ -105,41 +105,41 @@ struct VoxelBuffer : public CubelandGPUResource
 
 CL_NAMESPACE_END
 
-struct GvoxModelData {
-    uint32_t instance_count;
-    uint32_t primitive_count;
-    uint32_t material_count;
-    uint32_t light_count;
-};
+// struct GvoxModelData {
+//     uint32_t instance_count;
+//     uint32_t primitive_count;
+//     uint32_t material_count;
+//     uint32_t light_count;
+// };
 
-enum AXIS_DIRECTION {
-    X_BOTTOM_TOP = 0,
-    Y_BOTTOM_TOP = 1,
-    Z_BOTTOM_TOP = 2,
-    X_TOP_BOTTOM = 3,
-    Y_TOP_BOTTOM = 4,
-    Z_TOP_BOTTOM = 5
-};
+// enum AXIS_DIRECTION {
+//     X_BOTTOM_TOP = 0,
+//     Y_BOTTOM_TOP = 1,
+//     Z_BOTTOM_TOP = 2,
+//     X_TOP_BOTTOM = 3,
+//     Y_TOP_BOTTOM = 4,
+//     Z_TOP_BOTTOM = 5
+// };
 
 
-struct GvoxModelDataSerialize {
-    AXIS_DIRECTION axis_direction;
-    uint32_t max_instance_count;
-    uint32_t current_instance_index;
-    INSTANCE* const instances;
-    uint32_t current_primitive_index;
-    uint32_t max_primitive_count;
-    PRIMITIVE* const primitives;
-    AABB* const aabbs;
-    uint32_t current_material_index;
-    uint32_t max_material_count;
-    MATERIAL* const materials;
-    uint32_t current_light_index;
-    uint32_t max_light_count;
-    LIGHT* const lights;
-};
+// struct GvoxModelDataSerialize {
+//     AXIS_DIRECTION axis_direction;
+//     uint32_t max_instance_count;
+//     uint32_t current_instance_index;
+//     INSTANCE* const instances;
+//     uint32_t current_primitive_index;
+//     uint32_t max_primitive_count;
+//     PRIMITIVE* const primitives;
+//     AABB* const aabbs;
+//     uint32_t current_material_index;
+//     uint32_t max_material_count;
+//     MATERIAL* const materials;
+//     uint32_t current_light_index;
+//     uint32_t max_light_count;
+//     LIGHT* const lights;
+// };
 
-struct GvoxModelDataSerializeInternal {
-  GvoxModelData& scene_info;
-  GvoxModelDataSerialize& params;
-};
+// struct GvoxModelDataSerializeInternal {
+//   GvoxModelData& scene_info;
+//   GvoxModelDataSerialize& params;
+// };

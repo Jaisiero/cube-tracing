@@ -9,8 +9,8 @@ project(daxa-lod VERSION 0.1.0)
 
 add_executable(${PROJECT_NAME} 
     "${CMAKE_CURRENT_LIST_DIR}/src/main.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/src/gvox/map_loader.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/src/accel_struct_mngr.cpp"
+    # "${CMAKE_CURRENT_LIST_DIR}/src/gvox/map_loader.cpp"
+    # "${CMAKE_CURRENT_LIST_DIR}/src/accel_struct_mngr.cpp"
 )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
