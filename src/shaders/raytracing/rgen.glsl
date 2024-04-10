@@ -10,12 +10,12 @@ DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 #include "indirect_illumination.glsl"
 #include "restir_resampling.glsl"
 
-#if SER == 1
-#extension GL_NV_shader_invocation_reorder : enable
-layout(location = 0) hitObjectAttributeNV vec3 hit_value;
-#else
-#extension GL_EXT_ray_query : enable
-#endif
+// #if SER == 1
+// #extension GL_NV_shader_invocation_reorder : enable
+// layout(location = 0) hitObjectAttributeNV vec3 hit_value;
+// #else
+// #extension GL_EXT_ray_query : enable
+// #endif
 
 Ray get_ray_from_current_pixel(daxa_f32vec2 index, daxa_f32vec2 rt_size,
                                daxa_f32mat4x4 inv_view, daxa_f32mat4x4 inv_proj,

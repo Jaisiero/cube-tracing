@@ -298,7 +298,9 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                         }
                         else
                         {
+#if TRACE == 1                            
                             printf("max_primitive_count exceeded\n");
+#endif // TRACE
                         }
 
                         ++voxel_count;
@@ -320,6 +322,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
             user_state.params.instances[instance_index] = inst;
         }
 
+#if TRACE == 1
         printf("voxel count: %d\n", voxel_count);
         printf("light count: %d\n", light_count);
 
@@ -327,6 +330,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
         {
             printf("id: %u count: %u\n", entry.id, entry.count);
         }
+#endif // TRACE
     }
 }
 

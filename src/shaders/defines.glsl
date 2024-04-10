@@ -1,6 +1,7 @@
 #pragma once
 #define DAXA_RAY_TRACING 1
 #extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_ray_query : enable
 #include <daxa/daxa.inl>
 #include "shared.inl"
 

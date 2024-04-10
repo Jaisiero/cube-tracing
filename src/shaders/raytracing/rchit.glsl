@@ -9,10 +9,10 @@ DAXA_DECL_PUSH_CONSTANT(PushConstant, p)
 #include "reservoir.glsl"
 #include "light.glsl"
 
-#if SER == 1
-#extension GL_NV_shader_invocation_reorder : enable
-layout(location = 0) hitObjectAttributeNV vec3 hitValue;
-#endif
+// #if SER == 1
+// #extension GL_NV_shader_invocation_reorder : enable
+// layout(location = 0) hitObjectAttributeNV vec3 hitValue;
+// #endif
 
 
 #if defined(RIS_SELECTION)

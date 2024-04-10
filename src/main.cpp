@@ -641,20 +641,6 @@ void cubeland_app()
         rgen_restir_prepass_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
       }
 
-      auto rgen_restir_temp_reuse_selection_compile_options = rt_shader_compile_options;
-      rgen_restir_temp_reuse_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"TEMPORAL_REUSE_PASS", "1"}};
-      if (invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER))
-      {
-        rgen_restir_temp_reuse_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
-      }
-
-      auto rgen_restir_spatial_reuse_selection_compile_options = rt_shader_compile_options;
-      rgen_restir_spatial_reuse_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"SPATIAL_REUSE_PASS", "1"}};
-      if (invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER))
-      {
-        rgen_restir_spatial_reuse_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
-      }
-
       auto rgen_restir_shading_selection_compile_options = rt_shader_compile_options;
       rgen_restir_shading_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"THIRD_VISIBILITY_TEST_AND_SHADING_PASS", "1"}};
       if (invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER))
@@ -685,9 +671,17 @@ void cubeland_app()
 
       auto ris_selection_compile_options = rt_shader_compile_options;
       ris_selection_compile_options.defines = std::vector{daxa::ShaderDefine{"RIS_SELECTION", "1"}};
+      if (invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER))
+      {
+        ris_selection_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
+      }
 
       auto indirect_illumination_compile_options = rt_shader_compile_options;
       indirect_illumination_compile_options.defines = std::vector{daxa::ShaderDefine{"INDIRECT_ILLUMINATION", "1"}};
+      if (invocation_reorder_mode == static_cast<daxa_u32>(daxa::InvocationReorderMode::ALLOW_REORDER))
+      {
+        indirect_illumination_compile_options.defines.push_back(daxa::ShaderDefine{"SER", "1"});
+      }
 
       auto const ray_trace_pipe_info = daxa::RayTracingPipelineCompileInfo{
           .ray_gen_infos = {daxa::ShaderCompileInfo{
