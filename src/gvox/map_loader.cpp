@@ -148,12 +148,13 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             light_found = true;
                         }
                     }
-                    region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_FLUX);
-                    if (region_sample.is_present != 0)
-                    {
-                        flux = *(float *)(&region_sample.data);
-                        flux *= vox_emission;
-                    }
+                    // TODO: implement flux
+                    // region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_FLUX);
+                    // if (region_sample.is_present != 0)
+                    // {
+                    //     flux = *(float *)(&region_sample.data);
+                    //     flux *= vox_emission;
+                    // }
 
                     region_sample = gvox_sample_region(blit_ctx, region, &sample_position, GVOX_CHANNEL_ID_ROUGHNESS);
                     if (region_sample.is_present != 0)
@@ -194,7 +195,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             }
                         }
 
-                        if(light_found)
+                        if (light_found)
                         {
                             emission_r = (l_r / 255.0f) * flux;
                             emission_g = (l_g / 255.0f) * flux;
@@ -284,7 +285,7 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                     .type = GEOMETRY_LIGHT_CUBE};
 
                                 uint32_t light_index = user_state.scene_info.light_count + user_state.params.current_light_index;
-                                    
+
                                 user_state.params.primitives[index] = PRIMITIVE{mat_index, light_index};
 
                                 if (user_state.params.max_light_count > light_index)
@@ -292,13 +293,15 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                                     user_state.params.lights[light_index] = light;
                                     user_state.scene_info.light_count++;
                                 }
-                            } else {
+                            }
+                            else
+                            {
                                 user_state.params.primitives[index] = PRIMITIVE{mat_index, static_cast<uint32_t>(-1)};
                             }
                         }
                         else
                         {
-#if TRACE == 1                            
+#if TRACE == 1
                             printf("max_primitive_count exceeded\n");
 #endif // TRACE
                         }
@@ -484,10 +487,10 @@ auto MapLoader::load_gvox_data(std::filesystem::path gvox_model_path, GvoxModelD
         gvox_blit_region(
             i_ctx, o_ctx, p_ctx, s_ctx,
             region_range_ptr,
-            GVOX_CHANNEL_BIT_COLOR | GVOX_CHANNEL_BIT_MATERIAL_ID | 
-            GVOX_CHANNEL_BIT_ROUGHNESS | GVOX_CHANNEL_BIT_IOR | 
-            GVOX_CHANNEL_BIT_METALNESS | GVOX_CHANNEL_BIT_TRANSPARENCY | 
-            GVOX_CHANNEL_BIT_EMISSIVITY);
+            GVOX_CHANNEL_BIT_COLOR | GVOX_CHANNEL_BIT_MATERIAL_ID |
+                GVOX_CHANNEL_BIT_ROUGHNESS | GVOX_CHANNEL_BIT_IOR |
+                GVOX_CHANNEL_BIT_METALNESS | GVOX_CHANNEL_BIT_TRANSPARENCY |
+                GVOX_CHANNEL_BIT_EMISSIVITY);
         // GVOX_CHANNEL_BIT_COLOR);
         // time_t end = clock();
         // double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;

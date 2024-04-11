@@ -1,8 +1,8 @@
 {
-    "name": "daxa-lod",
+    "name": "cube-tracing",
     "version": "0.1.0",
-    "description": "daxa-lod",
-    "homepage": "https://github.com/Jaisiero/daxa-lod",
+    "description": "cube-tracing",
+    "homepage": "https://github.com/Jaisiero/cube-tracing",
     "dependencies": [
       {
         "name": "daxa",
