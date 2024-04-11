@@ -1,24 +1,7 @@
 #pragma once
-#define DAXA_RAY_TRACING 1
-#extension GL_EXT_ray_tracing : enable
-#extension GL_EXT_ray_query : enable
-#include <daxa/daxa.inl>
 #include "shared.inl"
 
-#if DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_RAYGEN
-layout(location = 0) rayPayloadEXT HIT_PAY_LOAD prd;
-layout(location = 1) rayPayloadEXT bool is_shadowed;
-layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
-#elif DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_CLOSEST_HIT
-layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
-layout(location = 1) rayPayloadEXT bool is_shadowed;
-layout(location = 3) callableDataEXT HIT_MAT_PAY_LOAD hit_call;
-layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
-#elif DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_CALLABLE
-layout(location = 4) callableDataInEXT HIT_SCATTER_PAY_LOAD call_scatter;
-#elif DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_ANY_HIT
-layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
-#endif
+// SHADER VARIABLES
 
 #define DEBUG_NORMALS_ON 0
 #define ACCUMULATOR_ON 1
@@ -46,7 +29,6 @@ layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
 #define DELTA_RAY 1e-6f   // Delta ray offset for shadow rays
 #define MAX_DISTANCE 1e9f // Max distance for shadow rays
 #define MIN_COS_THETA 1e-6f
-
 
 // TODO: M by parameter?
 const daxa_u32 MIN_RIS_POINT_SAMPLE_COUNT = 1;
@@ -79,8 +61,6 @@ const daxa_b32 COMPUTE_ENVIRONMENT_LIGHT = true;
 const daxa_i32 NEIGHBOR_COUNT = 3;
 const daxa_i32 NEIGHBOR_RADIUS = 1;
 
-
-
 // PATH FLAGS
 const daxa_u32 PATH_FLAG_ACTIVE = 0x1;
 const daxa_u32 PATH_FLAG_HIT = 0x2;
@@ -96,38 +76,51 @@ const daxa_u32 PATH_FLAG_FREE_PATH = 0x400;
 const daxa_u32 PATH_FLAG_SPECULAR_BOUNCE = 0x800;
 const daxa_u32 PATH_FLAG_SPECULAR_PRIMARY_HIT = 0x1000;
 
-
 // BOUNCE TYPES
 const daxa_u32 BOUNCE_TYPE_DIFFUSE = 0;
 const daxa_u32 BOUNCE_TYPE_SPECULAR = 1;
 // const daxa_u32 BOUNCE_TYPE_TRANSMISSION = 2;
 // const daxa_u32 BOUNCE_TYPE_VOLUME = 3;
 
-
 // SHIFT MAPPING
 const daxa_u32 SHIFT_MAPPING_RECONNECTION = 0;
 const daxa_u32 SHIFT_MAPPING_RANDOM_REPLAY = 1;
 const daxa_u32 SHIFT_MAPPING_HYBRID = 2;
 
-
-struct SCENE_PARAMS{
-    daxa_u32 light_count;
-    daxa_u32 object_count;
-    daxa_u32 max_depth;
-    daxa_b32 temporal_update_for_dynamic_scene;
-    daxa_u32 shift_mapping;
-    daxa_u32 stategy_flags;
-    daxa_b32 distance_based_rejection;
-    daxa_f32 near_field_distance;
-    daxa_b32 roughness_based_rejection;
-    daxa_f32 roughness_threshold;
-    daxa_b32 reject_based_on_jacobian;
-    daxa_f32 jacobian_rejection_threshold;
-    daxa_b32 use_russian_roulette;
-    daxa_b32 compute_environment_light;
-    daxa_u32 neighbor_count;
-    daxa_i32 neighbor_radius;
+struct SCENE_PARAMS
+{
+  daxa_u32 light_count;
+  daxa_u32 object_count;
+  daxa_u32 max_depth;
+  daxa_b32 temporal_update_for_dynamic_scene;
+  daxa_u32 shift_mapping;
+  daxa_u32 stategy_flags;
+  daxa_b32 distance_based_rejection;
+  daxa_f32 near_field_distance;
+  daxa_b32 roughness_based_rejection;
+  daxa_f32 roughness_threshold;
+  daxa_b32 reject_based_on_jacobian;
+  daxa_f32 jacobian_rejection_threshold;
+  daxa_b32 use_russian_roulette;
+  daxa_b32 compute_environment_light;
+  daxa_u32 neighbor_count;
+  daxa_i32 neighbor_radius;
 };
+
+#if DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_RAYGEN
+layout(location = 0) rayPayloadEXT HIT_PAY_LOAD prd;
+layout(location = 1) rayPayloadEXT bool is_shadowed;
+layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
+#elif DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_CLOSEST_HIT
+layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
+layout(location = 1) rayPayloadEXT bool is_shadowed;
+layout(location = 3) callableDataEXT HIT_MAT_PAY_LOAD hit_call;
+layout(location = 4) callableDataEXT HIT_SCATTER_PAY_LOAD call_scatter;
+#elif DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_CALLABLE
+layout(location = 4) callableDataInEXT HIT_SCATTER_PAY_LOAD call_scatter;
+#elif DAXA_SHADER_STAGE == DAXA_SHADER_STAGE_ANY_HIT
+layout(location = 0) rayPayloadInEXT HIT_PAY_LOAD prd;
+#endif
 
 
 layout(buffer_reference, scalar) buffer INSTANCES_BUFFER {INSTANCE instances[]; }; // Positions of an object

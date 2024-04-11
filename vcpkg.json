@@ -9,6 +9,7 @@
         "features": [
           "utils-mem",
           "utils-pipeline-manager-glslang",
+          "utils-pipeline-manager-slang",
           "utils-task-graph"
         ]
       },
@@ -21,6 +22,7 @@
     "vcpkg-configuration": {
       "overlay-ports": [
         "deps/Daxa",
+        "deps/daxa/cmake/vcpkg-overlay-ports/shader-slang",
         "deps/gvox"
       ]
     }

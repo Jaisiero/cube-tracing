@@ -103,7 +103,7 @@ public:
         void callback(daxa::TaskInterface ti)
         {
             ti.recorder.set_pipeline(*pipeline);
-            ti.recorder.push_constant(PushConstantChanges{.size = size});
+            ti.recorder.push_constant(changes_push_constant{.size = size});
             ti.recorder.push_constant_vptr({
                 ti.attachment_shader_blob.data(), 
                 ti.attachment_shader_blob.size(),

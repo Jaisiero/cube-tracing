@@ -1,6 +1,11 @@
 #pragma once
 
 #define DAXA_RAY_TRACING 1
+#if defined(GL_core_profile) // GLSL
+#extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_ray_query : enable
+#endif // GL_core_profile
+
 #include <daxa/daxa.inl>
 #include <daxa/utils/task_graph.inl>
 
@@ -210,7 +215,6 @@ struct BRUSH_COUNTER
   daxa_u32 primitive_count;
 };
 
-
 struct DISPATCH_BUFFER
 {
   daxa_u32vec3 dispatch_size;
@@ -365,11 +369,13 @@ struct PIXEL_RECONNECTION_DATA
   RECONNECTION_DATA data[RCDATA_PATH_NUM];
 };
 
-#if BPR // path reuse
-const int K_RC_ATTR_COUNT = 2;
-#else
-const int K_RC_ATTR_COUNT = 1;
-#endif
+// #if BPR // path reuse
+// const int K_RC_ATTR_COUNT = 2;
+// #else
+// const int K_RC_ATTR_COUNT = 1;
+// #endif
+
+#define K_RC_ATTR_COUNT 1
 
 // 88/128 B
 struct PATH_RESERVOIR
@@ -383,13 +389,13 @@ struct PATH_RESERVOIR
   daxa_f32vec3 cached_jacobian;                       // saved previous vertex scatter PDF, scatter PDF, and geometry term at rc_vertex (used when rc_vertex is not v2)
   daxa_u32 init_random_seed;                          // saved random seed at the first bounce (for recovering the random distance threshold for hybrid shift)
   OBJECT_HIT rc_vertex_hit;                           // hitinfo of the reconnection vertex
-  daxa_f32vec3 rc_vertex_wi[K_RC_ATTR_COUNT];         // incident direction on reconnection vertex
-  daxa_f32vec3 rc_vertex_irradiance[K_RC_ATTR_COUNT]; // sampled irradiance on reconnection vertex
+  daxa_f32vec3 rc_vertex_wi[1];         // incident direction on reconnection vertex
+  daxa_f32vec3 rc_vertex_irradiance[1]; // sampled irradiance on reconnection vertex
 
-#if BPR
-  daxa_f32 rc_light_pdf;
-  daxa_f32vec3 rc_vertex_BSDF_light_sampling_irradiance;
-#endif
+  // #if BPR
+  //   daxa_f32 rc_light_pdf;
+  //   daxa_f32vec3 rc_vertex_BSDF_light_sampling_irradiance;
+  // #endif
 };
 
 struct VELOCITY
@@ -424,13 +430,12 @@ struct PushConstant
   daxa_RWBufferPtr(RESTIR) restir_buffer;
 };
 
-
 DAXA_DECL_TASK_HEAD_BEGIN(PrimitiveChangesTaskHead)
-DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ,  daxa_BufferPtr(Status), status_buffer)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(Status), status_buffer)
 DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(WORLD), world_buffer)
 DAXA_DECL_TASK_HEAD_END
 
-struct PushConstantChanges
+struct changes_push_constant
 {
   daxa_u32vec3 size;
   DAXA_TH_BLOB(PrimitiveChangesTaskHead, head)

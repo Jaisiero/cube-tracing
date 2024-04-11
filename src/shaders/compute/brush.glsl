@@ -4,9 +4,7 @@
 #include <daxa/daxa.inl>
 #include "defines.glsl"
 
-DAXA_DECL_PUSH_CONSTANT(PushConstantChanges, p)
-
-
+DAXA_DECL_PUSH_CONSTANT(changes_push_constant, p)
 
 #define ALPHA 0.8
 

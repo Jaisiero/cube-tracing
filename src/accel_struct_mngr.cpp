@@ -217,8 +217,7 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
             change_info.primitive_changes_compute_pipeline,
             daxa_u32vec3{.x = 1, .y = 1, .z = 1},
             change_info.status_buffer,
-            change_info.world_buffer
-        );
+            change_info.world_buffer);
 
         initialized = true;
 
@@ -232,7 +231,8 @@ bool ACCEL_STRUCT_MNGR::destroy()
 {
     if (initialized)
     {
-        if(!device.is_valid()) return false;
+        if (!device.is_valid())
+            return false;
         for (auto _tlas : tlas)
             if (_tlas != daxa::TlasId{})
                 device.destroy_tlas(_tlas);
@@ -245,7 +245,7 @@ bool ACCEL_STRUCT_MNGR::destroy()
         if (proc_blas_buffer != daxa::BufferId{})
             device.destroy_buffer(proc_blas_buffer);
 
-        if(host_instance_buffer != daxa::BufferId{})
+        if (host_instance_buffer != daxa::BufferId{})
             device.destroy_buffer(host_instance_buffer);
 
         for (auto buffer : instance_buffer)
@@ -356,7 +356,7 @@ bool ACCEL_STRUCT_MNGR::upload_all_instances(u32 buffer_index, bool synchronize)
     std::cout << "  upload_all_instances: buffer_index: " << buffer_index << ", current_instance_count: " << current_instance_count[buffer_index] << ", max_wide_instance_count: " << max_wide_instance_count[buffer_index] << std::endl;
     for (u32 i = 0; i < max_wide_instance_count[buffer_index]; i++)
     {
-        if(instance_buffer_ptr[i].primitive_count > 0)
+        if (instance_buffer_ptr[i].primitive_count > 0)
             std::cout << "  instance[" << i << "] - first index: " << instance_buffer_ptr[i].first_primitive_index << ", primitive count: " << instance_buffer_ptr[i].primitive_count << std::endl;
     }
 #endif // TRACE
@@ -1299,7 +1299,6 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(u32 instance_index, u32 primitive
     return true;
 }
 
-
 bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32> &instance_list)
 {
     if (!device.is_valid() || !initialized)
@@ -1330,9 +1329,7 @@ bool ACCEL_STRUCT_MNGR::build_blases(u32 buffer_index, std::vector<u32> &instanc
 #endif // TRACE
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
-            .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)), 
-            .stride = sizeof(AABB), 
-            .count = instances[i].primitive_count,
+            .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[i].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[i].primitive_count,
             // .flags = daxa::GeometryFlagBits::OPAQUE,                                    // Is also default
             .flags = static_cast<daxa::GeometryFlags>(0x1), // 0x1: OPAQUE, 0x2: NO_DUPLICATE_ANYHIT_INVOCATION, 0x4: TRI_CULL_DISABLE
         });
@@ -1470,7 +1467,8 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32> &insta
 
     for (auto instance_index : instance_list)
     {
-        if (proc_blas.at(instance_index) != daxa::BlasId{}) {
+        if (proc_blas.at(instance_index) != daxa::BlasId{})
+        {
             temp_proc_blas.push_back(proc_blas.at(instance_index));
         }
     }
@@ -1486,13 +1484,13 @@ bool ACCEL_STRUCT_MNGR::rebuild_blases(u32 buffer_index, std::vector<u32> &insta
                   << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
 #endif // TRACE
 
-        if(proc_blas.at(instance_index) == daxa::BlasId{}) {
+        if (proc_blas.at(instance_index) == daxa::BlasId{})
+        {
 #if WARN == 1
             std::cerr << "proc_blas.at(instance_index) == daxa::BlasId{}" << std::endl;
 #endif // WARN
             continue;
         }
-            
 
         aabb_geometries.at(current_instance_index).push_back(daxa::BlasAabbGeometryInfo{
             .data = device.get_device_address(aabb_buffer[buffer_index]).value() + (instances[instance_index].first_primitive_index * sizeof(AABB)), .stride = sizeof(AABB), .count = instances[instance_index].primitive_count,
@@ -1650,7 +1648,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32> &instan
         std::cout << "  build_blas: i: " << instance_index << ", first primitive index: " << instances[instance_index].first_primitive_index << ", primitive count: " << instances[instance_index].primitive_count << std::endl;
 #endif // TRACE
 
-        if(blas_to_update.find(instance_index) == blas_to_update.end())
+        if (blas_to_update.find(instance_index) == blas_to_update.end())
         {
 #if WARN
             std::cerr << "  build_blas: instance_index: " << instance_index << " not found in blas_to_update" << std::endl;
@@ -1819,7 +1817,7 @@ bool ACCEL_STRUCT_MNGR::build_tlas(u32 buffer_index, bool synchronize)
     // build procedural blas
     for (u32 i = 0; i < max_wide_instance_count[buffer_index]; i++)
     {
-        if(proc_blas.at(i) == daxa::BlasId{})
+        if (proc_blas.at(i) == daxa::BlasId{})
         {
             continue;
         }
@@ -2056,9 +2054,11 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
 
             instance_count = build_task.instance_count;
 
-            if(instance_count > 0) {
+            if (instance_count > 0)
+            {
                 task.blas_build_from_cpu.instance_indices = new u32[instance_count];
-                for(u32 i = 0; i < instance_count; i++) {
+                for (u32 i = 0; i < instance_count; i++)
+                {
                     task.blas_build_from_cpu.instance_indices[i] = -1;
                 }
             }
@@ -2151,8 +2151,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         {
             TASK::BLAS_UPDATE update_task = task.blas_update;
 
-
-            if(proc_blas.at(update_task.instance_index) == daxa::BlasId{}) {
+            if (proc_blas.at(update_task.instance_index) == daxa::BlasId{})
+            {
 #if WARN
                 std::cerr << " Could not find instance_index: " << update_task.instance_index << " in proc_blas" << std::endl;
 #endif // WARN
@@ -2188,8 +2188,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         {
             TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
             // free instance
-            if(!instance_free_list->deallocate(delete_task.instance_index))
-            { 
+            if (!instance_free_list->deallocate(delete_task.instance_index))
+            {
 #if WARN
                 std::cerr << " Could not deallocate instance from free list instance_index: " << delete_task.instance_index << std::endl;
 #endif // WARN
@@ -2202,8 +2202,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
 
             // Update remapping buffer for deleted instance
             update_instance_remapping_buffer(
-                task.blas_delete_from_cpu.first_primitive_index, 
-                task.blas_delete_from_cpu.deleted_primitive_count, 
+                task.blas_delete_from_cpu.first_primitive_index,
+                task.blas_delete_from_cpu.deleted_primitive_count,
                 static_cast<u32>(-1));
             // TODO: remap light buffer ?
             // keep blas id for deleting blas
@@ -2266,9 +2266,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     // Rebuild BLASes
     if (!rebuild_blas_index_list.empty())
     {
-        if(!delete_blas_index_list.empty())
+        if (!delete_blas_index_list.empty())
         {
-            for(auto instance_index : delete_blas_index_list)
+            for (auto instance_index : delete_blas_index_list)
             {
                 // free instance
                 rebuild_blas_index_list.erase(std::remove(rebuild_blas_index_list.begin(), rebuild_blas_index_list.end(), instance_index), rebuild_blas_index_list.end());
@@ -2286,9 +2286,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         // TODO: find a better way to get unique indices
         auto ip = std::unique(update_blas_index_list.begin(), update_blas_index_list.begin() + update_blas_index_list.size());
         update_blas_index_list.resize(std::distance(update_blas_index_list.begin(), ip));
-        if(!delete_blas_index_list.empty())
+        if (!delete_blas_index_list.empty())
         {
-            for(auto instance_index : delete_blas_index_list)
+            for (auto instance_index : delete_blas_index_list)
             {
                 // free instance
                 update_blas_index_list.erase(std::remove(update_blas_index_list.begin(), update_blas_index_list.end(), instance_index), update_blas_index_list.end());
@@ -2348,18 +2348,20 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
 
             instance_count = build_task.instance_count;
 
-            if(!task.blas_build_from_cpu.instance_indices) {
+            if (!task.blas_build_from_cpu.instance_indices)
+            {
 #if FATAL
                 std::cerr << "blas_build_from_cpu.instance_indices is null" << std::endl;
 #endif // FATAL
                 std::abort();
                 break;
             }
-                
-            for(u32 i = 0; i < instance_count; i++)
+
+            for (u32 i = 0; i < instance_count; i++)
             {
                 current_instance_index = task.blas_build_from_cpu.instance_indices[i];
-                if(current_instance_index == static_cast<u32>(-1)) {
+                if (current_instance_index == static_cast<u32>(-1))
+                {
 #if WARN
                     std::cerr << "current_instance_index == -1" << std::endl;
 #endif // WARN
@@ -2374,7 +2376,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
                 ++current_instance_count[next_index];
             }
 
-            if(task.blas_build_from_cpu.instance_indices) {
+            if (task.blas_build_from_cpu.instance_indices)
+            {
                 delete[] task.blas_build_from_cpu.instance_indices;
             }
         }
@@ -2523,7 +2526,7 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
             done_task_stack.pop();
         }
     }
-    
+
     // update max wide instance count
     max_wide_instance_count[next_index] = std::max(max_wide_instance_count[next_index], current_instance_count[next_index]);
 
@@ -2689,8 +2692,8 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
 
         std::cout << "Before execute" << std::endl;
 
-        // brush_task_graph.execute({});
-        
+        brush_task_graph.execute({});
+
         std::cout << "After execute" << std::endl;
 #if TRACE == 1
         std::cout << brush_task_graph.get_debug_string() << std::endl;
