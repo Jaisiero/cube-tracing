@@ -1,9 +1,8 @@
 #pragma once
 
-#include <iostream>
+// #include <iostream>
 
-#include <daxa/daxa.hpp>
-#include <daxa/utils/task_graph.hpp>
+// #include <daxa/utils/task_graph.hpp>
 #include <window.hpp>
 #include <shared.hpp>
 
@@ -27,10 +26,11 @@
 #define TRACE 0
 #endif
 
-
 const uint32_t DOUBLE_BUFFERING = 2;
 
-#define CL_NAMESPACE_BEGIN namespace cubeland {
+#define CL_NAMESPACE_BEGIN \
+    namespace cubeland     \
+    {
 #define CL_NAMESPACE_END }
 
 // const daxa_f32 AXIS_DISPLACEMENT = VOXEL_EXTENT * VOXEL_COUNT_BY_AXIS; //(2^4)
@@ -49,7 +49,6 @@ const uint32_t DOUBLE_BUFFERING = 2;
 // const daxa_u32 MATERIAL_COUNT = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT + CONSTANT_MEDIUM_MATERIAL_COUNT;
 // const daxa_u32 MATERIAL_COUNT_UP_TO_DIALECTRIC = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT;
 // const daxa_u32 MATERIAL_COUNT_UP_TO_EMISSIVE = LAMBERTIAN_MATERIAL_COUNT + METAL_MATERIAL_COUNT + DIALECTRIC_MATERIAL_COUNT + EMISSIVE_MATERIAL_COUNT;
-
 
 CL_NAMESPACE_BEGIN
 
@@ -77,19 +76,18 @@ inline namespace types
     using DeviceAddress = u64;
 } // namespace types
 
-
-struct  CubelandGPUResource
+struct CubelandGPUResource
 {
     u64 index = 0xFFFFFFFFFFFFFFFF;
 
     auto is_valid() const -> bool { return index != 0xFFFFFFFFFFFFFFFF; }
     auto is_invalid() const -> bool { return index == 0xFFFFFFFFFFFFFFFF; }
 
-    constexpr auto operator<=>(CubelandGPUResource const & other) const
+    constexpr auto operator<=>(CubelandGPUResource const &other) const
     {
         return std::bit_cast<u64>(*this) <=> std::bit_cast<u64>(other);
     }
-    
+
     constexpr bool operator==(CubelandGPUResource const &other) const = default;
     constexpr bool operator!=(CubelandGPUResource const &other) const = default;
     constexpr bool operator<(CubelandGPUResource const &other) const = default;
@@ -100,7 +98,6 @@ struct  CubelandGPUResource
 
 struct VoxelBuffer : public CubelandGPUResource
 {
-    
 };
 
 CL_NAMESPACE_END
@@ -120,7 +117,6 @@ CL_NAMESPACE_END
 //     Y_TOP_BOTTOM = 4,
 //     Z_TOP_BOTTOM = 5
 // };
-
 
 // struct GvoxModelDataSerialize {
 //     AXIS_DIRECTION axis_direction;
