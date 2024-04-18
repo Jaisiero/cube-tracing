@@ -117,3 +117,10 @@ constexpr daxa_f32mat4x4 daxa_f32mat4x4_mult(daxa_f32mat4x4 const &mat, daxa_f32
           mat.x.w * mat2.w.x + mat.y.w * mat2.w.y + mat.z.w * mat2.w.z + mat.w.w * mat2.w.w,
       }};
 }
+
+
+template <typename T>
+auto constexpr get_aligned(T operand, T granularity) -> T
+{
+    return ((operand + (granularity - 1)) & ~(granularity - 1));
+};

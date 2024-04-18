@@ -215,6 +215,13 @@ struct BRUSH_COUNTER
   daxa_u32 primitive_count;
 };
 
+struct BRUSH_TEST_PRIMITIVE 
+{
+  daxa_u32 primitive_index;
+  daxa_u32 primitive_replacement_index;
+};
+DAXA_DECL_BUFFER_PTR(BRUSH_TEST_PRIMITIVE)
+
 struct DISPATCH_BUFFER
 {
   daxa_u32vec3 dispatch_size;
@@ -433,10 +440,10 @@ struct PushConstant
 DAXA_DECL_TASK_HEAD_BEGIN(PrimitiveChangesTaskHead)
 DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(Status), status_buffer)
 DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(WORLD), world_buffer)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(BRUSH_TEST_PRIMITIVE), test_brush_primitive_buffer)
 DAXA_DECL_TASK_HEAD_END
 
 struct changes_push_constant
 {
-  daxa_u32vec3 size;
   DAXA_TH_BLOB(PrimitiveChangesTaskHead, head)
 };

@@ -18,6 +18,9 @@ CL_NAMESPACE_BEGIN
 struct ACCEL_STRUCT_MNGR
 {
 public:
+
+    constexpr static u32 PRIMITIVE_ALIGNMENT = 32;
+
     enum class AS_MANAGER_STATUS
     {
         IDLE = 0,
@@ -103,11 +106,14 @@ public:
         void callback(daxa::TaskInterface ti)
         {
             ti.recorder.set_pipeline(*pipeline);
-            ti.recorder.push_constant(changes_push_constant{.size = size});
+            // ti.recorder.push_constant(changes_push_constant{.size = size});
+            // ti.recorder.push_constant_vptr({
+            //     ti.attachment_shader_blob.data(), 
+            //     ti.attachment_shader_blob.size(),
+            //     sizeof(daxa_u32vec3)});
             ti.recorder.push_constant_vptr({
                 ti.attachment_shader_blob.data(), 
-                ti.attachment_shader_blob.size(),
-                sizeof(daxa_u32vec3)});
+                ti.attachment_shader_blob.size()});
             ti.recorder.dispatch({.x = size.x,
                     .y = size.y, 
                     .z = size.z});
@@ -119,7 +125,8 @@ public:
         std::shared_ptr<daxa::ComputePipeline> record_compute_pipeline,
         daxa_u32vec3 dispatch_size,
         daxa::BufferId status_buffer,
-        daxa::BufferId world_buffer) -> daxa::TaskGraph
+        daxa::BufferId world_buffer,
+        daxa::BufferId test_brush_primitive_buffer) -> daxa::TaskGraph
     {
         using namespace PrimitiveChangesTaskHead;
         auto task_graph = daxa::TaskGraph({
@@ -130,7 +137,7 @@ public:
 
         auto task_status_buffer = daxa::TaskBuffer({
             .initial_buffers = {
-                .buffers = {&status_buffer, 1},
+                .buffers = std::array{status_buffer},
                 .latest_access = daxa::AccessConsts::HOST_WRITE,
             },
             .name = "status_buffer", // This name MUST be identical to the name used in the shader.
@@ -138,19 +145,29 @@ public:
 
         auto task_world_buffer = daxa::TaskBuffer({
             .initial_buffers = {
-                .buffers = {&world_buffer, 1},
+                .buffers = std::array{world_buffer},
                 .latest_access = daxa::AccessConsts::HOST_WRITE,
             },
             .name = "world_buffer", // This name MUST be identical to the name used in the shader.
         });
 
+        auto task_test_brush_primitive_buffer = daxa::TaskBuffer({
+            .initial_buffers = {
+                .buffers = std::array{test_brush_primitive_buffer},
+                .latest_access = daxa::AccessConsts::COMPUTE_SHADER_READ_WRITE,
+            },
+            .name = "test_brush_primitive_buffer", // This name MUST be identical to the name used in the shader.
+        });
+
         task_graph.use_persistent_buffer(task_status_buffer);
         task_graph.use_persistent_buffer(task_world_buffer);
+        task_graph.use_persistent_buffer(task_test_brush_primitive_buffer);
 
         task_graph.add_task(WritePrimitiveChanges{
             .views = std::array{
                 daxa::attachment_view(AT.status_buffer, task_status_buffer),
                 daxa::attachment_view(AT.world_buffer, task_world_buffer),
+                daxa::attachment_view(AT.test_brush_primitive_buffer, task_test_brush_primitive_buffer),
             },
             .pipeline = record_compute_pipeline,
             .size = dispatch_size,
@@ -510,7 +527,7 @@ private:
     daxa::BufferId proc_blas_buffer = {};
     std::unique_ptr<gpu_free_list<daxa::BlasId, gpu_allocator<daxa::BlasId>>> blas_free_list = nullptr;
     u64 proc_blas_buffer_offset = 0;
-    const u32 ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
+    static constexpr u64 ACCELERATION_STRUCTURE_BUILD_OFFSET_ALIGMENT = 256;
     std::vector<daxa::BlasBuildInfo> blas_build_infos = {};
     std::vector<std::vector<daxa::BlasAabbGeometryInfo>> aabb_geometries = {};
     
@@ -584,6 +601,8 @@ private:
     daxa::BufferId brush_counter_buffer = {};
     daxa::BufferId brush_instance_bitmask_buffer = {};
     daxa::BufferId brush_primitive_bitmask_buffer = {};
+    // TODO: TEST
+    daxa::BufferId test_brush_primitive_buffer = {};
 
     BRUSH_COUNTER* brush_counters = nullptr;
     

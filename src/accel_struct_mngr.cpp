@@ -209,6 +209,12 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
             .name = "brush primitive bitmask buffer",
         });
 
+        // TODO: TEST
+        test_brush_primitive_buffer = device.create_buffer({
+            .size = sizeof(BRUSH_TEST_PRIMITIVE),
+            .name = "test brush primitive buffer",
+        });
+
         brush_counters = device.get_host_address_as<BRUSH_COUNTER>(brush_counter_buffer).value();
 
         change_info = primitive_change_info;
@@ -217,7 +223,8 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
             change_info.primitive_changes_compute_pipeline,
             daxa_u32vec3{.x = 1, .y = 1, .z = 1},
             change_info.status_buffer,
-            change_info.world_buffer);
+            change_info.world_buffer,
+            test_brush_primitive_buffer);
 
         initialized = true;
 
@@ -283,6 +290,10 @@ bool ACCEL_STRUCT_MNGR::destroy()
 
         if (brush_primitive_bitmask_buffer != daxa::BufferId{})
             device.destroy_buffer(brush_primitive_bitmask_buffer);
+
+        // TODO: TEST
+        if(test_brush_primitive_buffer != daxa::BufferId{})
+            device.destroy_buffer(test_brush_primitive_buffer);
 
         initialized = false;
 
@@ -1682,12 +1693,7 @@ bool ACCEL_STRUCT_MNGR::update_blases(u32 buffer_index, std::vector<u32> &instan
 
         daxa::AccelerationStructureBuildSizesInfo proc_build_size_info = device.get_blas_build_sizes(blas_build_infos.at(blas_build_infos.size() - 1));
 
-        auto get_aligned = [&](u64 operand, u64 granularity) -> u64
-        {
-            return ((operand + (granularity - 1)) & ~(granularity - 1));
-        };
-
-        u32 scratch_alignment_size = get_aligned(proc_build_size_info.update_scratch_size, acceleration_structure_scratch_offset_alignment);
+        u32 scratch_alignment_size = get_aligned(proc_build_size_info.update_scratch_size, static_cast<u64>(acceleration_structure_scratch_offset_alignment));
 
         if (scratch_alignment_size == 0)
         {
@@ -2078,7 +2084,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
 
                 task.blas_build_from_cpu.instance_indices[i] = new_instance_id;
 
-                primitive_free_list->allocate(temp_instances[queue_instance_count].primitive_count,
+                // NOTE: allocate aligned to 32 elements
+                primitive_free_list->allocate(get_aligned(temp_instances[queue_instance_count].primitive_count, PRIMITIVE_ALIGNMENT), // size
                                               primitive_buffer_offset, new_instance_id);
                 // Update primitive buffers
                 upload_aabb_device_buffer(next_index,
@@ -2123,14 +2130,15 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
 #endif // TRACE
             }
-            // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
-            delete_aabb_device_buffer(next_index,
-                                      rebuild_task.instance_index,
-                                      rebuild_task.del_primitive_index,
-                                      primitive_to_exchange,
-                                      light_to_delete,
-                                      light_to_exchange,
-                                      light_index_from_exchanged_primitive);
+            // // delete primitive from buffer by copying the last primitive to the deleted primitive (aabb & primitive buffer)
+            // delete_aabb_device_buffer(next_index,
+            //                           rebuild_task.instance_index,
+            //                           rebuild_task.del_primitive_index,
+            //                           primitive_to_exchange,
+            //                           light_to_delete,
+            //                           light_to_exchange,
+            //                           light_index_from_exchanged_primitive);
+
             // Update remapping buffer
             update_remapping_buffer(rebuild_task.instance_index, rebuild_task.del_primitive_index, primitive_to_exchange);
             // update light remapping buffer
@@ -2687,17 +2695,17 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
         std::cout << "  Modifications instances: " << brush_counters->instance_count << " primitives: " << brush_counters->primitive_count << std::endl;
 #endif // TRACE
 
-        // Bring bitmask to host
-        process_voxel_modifications();
-
         std::cout << "Before execute" << std::endl;
 
         brush_task_graph.execute({});
-
-        std::cout << "After execute" << std::endl;
+        device.wait_idle();
 #if TRACE == 1
         std::cout << brush_task_graph.get_debug_string() << std::endl;
 #endif // TRACE
+        std::cout << "After execute" << std::endl;
+
+        // Bring bitmask to host
+        process_voxel_modifications();
 
         // zero out brush counters
         brush_counters->instance_count = 0;
