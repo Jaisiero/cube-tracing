@@ -78,6 +78,10 @@
 #define RIS_CUBE_LIGHT_BIT 1U << 3
 #define RIS_BRDF_BIT 1U << 4
 
+
+
+#define BRUSH_COMPUTE_X 64
+
 struct AABB
 {
   daxa_f32vec3 minimum;

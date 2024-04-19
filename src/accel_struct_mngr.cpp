@@ -209,6 +209,18 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
             .name = "brush primitive bitmask buffer",
         });
 
+        brush_indirect_buffer = device.create_buffer({
+            .size = sizeof(u32) * 3,
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+            .name = "indirect buffer",
+        });
+
+        auto *indirect_buffer_ptr = device.get_host_address_as<u32>(brush_indirect_buffer).value();
+
+        indirect_buffer_ptr[0] = 1;
+        indirect_buffer_ptr[1] = 1;
+        indirect_buffer_ptr[2] = 1;
+
         // TODO: TEST
         test_brush_primitive_buffer = device.create_buffer({
             .size = sizeof(BRUSH_TEST_PRIMITIVE),
@@ -221,7 +233,8 @@ bool ACCEL_STRUCT_MNGR::create(u32 max_instance_count, u32 max_primitive_count, 
 
         brush_task_graph = record_primitive_changes_task_graph(
             change_info.primitive_changes_compute_pipeline,
-            daxa_u32vec3{.x = 1, .y = 1, .z = 1},
+            brush_indirect_buffer,
+            0,
             change_info.status_buffer,
             change_info.world_buffer,
             test_brush_primitive_buffer);
@@ -290,6 +303,9 @@ bool ACCEL_STRUCT_MNGR::destroy()
 
         if (brush_primitive_bitmask_buffer != daxa::BufferId{})
             device.destroy_buffer(brush_primitive_bitmask_buffer);
+
+        if(brush_indirect_buffer != daxa::BufferId{})
+            device.destroy_buffer(brush_indirect_buffer);
 
         // TODO: TEST
         if(test_brush_primitive_buffer != daxa::BufferId{})
@@ -2780,6 +2796,12 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
     #endif // TRACE
 
             std::cout << "Before execute" << std::endl;
+
+            
+            auto *indirect_buffer_ptr = device.get_host_address_as<u32>(brush_indirect_buffer).value();
+
+            indirect_buffer_ptr[0] = (brush_counters->primitive_count + BRUSH_COMPUTE_X - 1) / BRUSH_COMPUTE_X;
+
             brush_task_graph.execute({});
     #if TRACE == 1
             std::cout << brush_task_graph.get_debug_string() << std::endl;

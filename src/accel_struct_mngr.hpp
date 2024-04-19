@@ -110,28 +110,23 @@ public:
     {
         AttachmentViews views = {};
         std::shared_ptr<daxa::ComputePipeline> pipeline = {};
-        daxa_u32vec3 size = {0 ,0, 0};
+        BufferId indirect_buffer = {};
+        usize offset = 0;
         void callback(daxa::TaskInterface ti)
         {
             ti.recorder.set_pipeline(*pipeline);
-            // ti.recorder.push_constant(changes_push_constant{.size = size});
-            // ti.recorder.push_constant_vptr({
-            //     ti.attachment_shader_blob.data(), 
-            //     ti.attachment_shader_blob.size(),
-            //     sizeof(daxa_u32vec3)});
             ti.recorder.push_constant_vptr({
                 ti.attachment_shader_blob.data(), 
                 ti.attachment_shader_blob.size()});
-            ti.recorder.dispatch({.x = size.x,
-                    .y = size.y, 
-                    .z = size.z});
+            ti.recorder.dispatch_indirect({.indirect_buffer = indirect_buffer, .offset = offset});
         }
     };
     
 
     auto record_primitive_changes_task_graph(
         std::shared_ptr<daxa::ComputePipeline> record_compute_pipeline,
-        daxa_u32vec3 dispatch_size,
+        daxa::BufferId indirect_buffer,
+        usize offset,
         daxa::BufferId status_buffer,
         daxa::BufferId world_buffer,
         daxa::BufferId test_brush_primitive_buffer) -> daxa::TaskGraph
@@ -178,7 +173,8 @@ public:
                 daxa::attachment_view(AT.test_brush_primitive_buffer, task_test_brush_primitive_buffer),
             },
             .pipeline = record_compute_pipeline,
-            .size = dispatch_size,
+            .indirect_buffer = indirect_buffer,
+            .offset = offset,
         });
         task_graph.submit({});
         task_graph.complete({});
@@ -612,6 +608,7 @@ private:
     daxa::BufferId brush_counter_buffer = {};
     daxa::BufferId brush_instance_bitmask_buffer = {};
     daxa::BufferId brush_primitive_bitmask_buffer = {};
+    daxa::BufferId brush_indirect_buffer = {};
     // TODO: TEST
     daxa::BufferId test_brush_primitive_buffer = {};
 
