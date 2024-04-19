@@ -17,11 +17,38 @@ uint get_primitive_index_from_ordinal_in_bitmask(
     uint deleted_primitive_index = 0;
     for (uint i = first_primitive_index; i < (first_primitive_index + primitive_count); i++)
     {
-        if (primitive_bitmask[i >> 5] & (1 << (i & 31)))
+        if ((primitive_bitmask[i >> 5] & (1 << (i & 31))) != 0)
         {
             if (ordinal_number == deleted_primitive_count)
             {
                 deleted_primitive_index = current_primitive_index;
+                break;
+            }
+            ++deleted_primitive_count;
+        }
+        ++current_primitive_index;
+    }
+    return deleted_primitive_index;
+}
+
+// primitive index of the ordinal deleted in the current instance
+uint get_primitive_index_from_ordinal_out_bitmask(
+    // Ptr<daxa_u32> primitive_bitmask,
+    uint ordinal_number, uint first_primitive_index, uint primitive_count)
+{
+    // Get the current primitive bitmask
+    Ptr<daxa_u32> primitive_bitmask = Ptr<daxa_u32>(p.head.status_buffer.primitive_bitmask_address);
+
+    uint deleted_primitive_count = 0;
+    uint current_primitive_index = 0;
+    uint deleted_primitive_index = 0;
+    for (uint p = first_primitive_index; p < (first_primitive_index + primitive_count); p++)
+    {
+        if ((primitive_bitmask[p >> 5] & (1 << (p & 31))) == 0)
+        {
+            if (ordinal_number == deleted_primitive_count)
+            {
+                deleted_primitive_index = p;
                 break;
             }
             ++deleted_primitive_count;
@@ -94,7 +121,7 @@ uint get_primitive_index_from_ordinal_in_bitmask(
         for (uint j = 0; j < 32 && !is_instance; j++)
         {
             // If instance has primitive deleted
-            if (instance_bitmask[i] & (1 << j))
+            if ((instance_bitmask[i] & (1 << j)) != 0)
             {
                 // Get the instance
                 t_instance_prev = Ptr<INSTANCE>(p.head.world_buffer->instance_address_prev)[i * 32 + j];
@@ -143,12 +170,12 @@ uint get_primitive_index_from_ordinal_in_bitmask(
         // Index of the last primitive deleted
         uint index_from_to_delete = (primitive_count - total_primitive_count_deleted_by_instance);
 
-        // Ptr<INSTANCE> t_instance = &(Ptr<INSTANCE>(p.head.world_buffer.instance_address)[instance_index]);
+        Ptr<INSTANCE> t_instance = &(Ptr<INSTANCE>(p.head.world_buffer.instance_address)[instance_index]);
 
-        // TODO: Implement atomic decrease of t_instance->primitive_count
+        // Implement atomic decrease of t_instance->primitive_count
         // Atomic decrease of t_instance->primitive_count
-        // uint old_primitive_count;
-        // InterlockedAdd(t_instance->primitive_count, -1, old_primitive_count);
+        uint old_primitive_count;
+        InterlockedAdd(t_instance->primitive_count, -1, old_primitive_count);
 
         uint primitive_index = get_primitive_index_from_ordinal_in_bitmask(
             // primitive_bitmask,
@@ -159,13 +186,24 @@ uint get_primitive_index_from_ordinal_in_bitmask(
 
             // find the index primitive remplacement in the instance for the ordinal primitive
             // NOTE: the replacement region is the last primitive of the instance minus the deleted primitive count backwards (primitive count - deleted primitive count) that's where the replacement region starts.
-            uint primitive_index_replacement = get_primitive_index_from_ordinal_in_bitmask(
+            uint primitive_replacement_index = get_primitive_index_from_ordinal_out_bitmask(
                 // primitive_bitmask,
-                deleted_ordinal_index, index_from_to_delete, primitive_count);
+                deleted_ordinal_index, index_from_to_delete, total_primitive_count_deleted_by_instance);
 
             // Swap the primitive and AABB at the given indices
-            Ptr<PRIMITIVE>(p.head.world_buffer->primitive_address)[first_prim_index + primitive_index] = Ptr<PRIMITIVE>(p.head.world_buffer->primitive_address)[first_prim_index + primitive_index_replacement];
-            Ptr<AABB>(p.head.world_buffer->aabb_address)[first_prim_index + primitive_index] = Ptr<AABB>(p.head.world_buffer->aabb_address)[first_prim_index + primitive_index_replacement];
+            Ptr<PRIMITIVE>(p.head.world_buffer->primitive_address)[first_prim_index + primitive_index] = Ptr<PRIMITIVE>(p.head.world_buffer->primitive_address)[first_prim_index + primitive_replacement_index];
+            Ptr<AABB>(p.head.world_buffer->aabb_address)[first_prim_index + primitive_index] = Ptr<AABB>(p.head.world_buffer->aabb_address)[first_prim_index + primitive_replacement_index];
+
+            // TODO: for debbuging
+            // Fill test primitive with the new primitive
+            p.head.test_brush_primitive_buffer.primitive_index = primitive_index;
+            p.head.test_brush_primitive_buffer.primitive_replacement_index = primitive_replacement_index;
+
+            // apply remapping to the replacement index
+            Ptr<daxa_i32>(p.head.world_buffer->remapped_primitive_address)[first_prim_index + primitive_replacement_index] =  primitive_index;
         }
+
+        // apply remapping to the primitive index
+        Ptr<daxa_i32>(p.head.world_buffer->remapped_primitive_address)[first_prim_index + primitive_index] =  -1;
     }
 }

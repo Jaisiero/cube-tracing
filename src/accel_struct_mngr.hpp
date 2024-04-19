@@ -45,6 +45,7 @@ public:
             DELETE_PRIMITIVE_BLAS_FROM_CPU,
             DELETE_BLAS_FROM_CPU,
             UPDATE_BLAS_FROM_CPU,
+            DELETE_PRIMITIVE_BLAS_FROM_GPU,
             UNDO_OP_CPU,
         };
 
@@ -65,6 +66,12 @@ public:
             u32 del_light_index;
             u32 remap_light_index;
             u32 remap_primitive_light_index;
+        };
+
+        struct BLAS_PRIMITIVE_DELETE_FROM_GPU
+        {
+            u32 instance_index;
+            u32 deleted_primitive_count;
         };
 
         struct BLAS_BUILD_FROM_CPU
@@ -92,6 +99,7 @@ public:
         {
             BLAS_BUILD_FROM_CPU blas_build_from_cpu;
             BLAS_PRIMITIVE_DELETE_FROM_CPU blas_delete_primitive_from_cpu;
+            BLAS_PRIMITIVE_DELETE_FROM_GPU blas_delete_primitive_from_gpu;
             BLAS_DELETE_FROM_CPU blas_delete_from_cpu;
             BLAS_UPDATE blas_update;
             UNDO_OP_CPU undo_op_cpu;
@@ -455,6 +463,8 @@ private:
                                     u32 light_exchanged);
     bool restore_remapping_buffer(u32 buffer_index, u32 instance_index, u32 instance_primitive_to_recover, u32 instance_primitive_exchanged);
     bool restore_cube_light_remapping_buffer(u32 buffer_index, u32 light_to_recover, u32 light_exchanged);
+
+    void restore_bitmask_buffers(const daxa::BufferId &instance_bitmask_staging_buffer, const daxa::BufferId &primitive_bitmask_staging_buffer);
 
 
     // undo switching rebuilding BLAS
