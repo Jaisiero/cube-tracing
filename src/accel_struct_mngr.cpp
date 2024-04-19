@@ -1119,6 +1119,23 @@ bool ACCEL_STRUCT_MNGR::copy_deleted_aabb_device_buffer(u32 buffer_index, u32 in
     return true;
 }
 
+
+bool ACCEL_STRUCT_MNGR::copy_instance_aabb_device_buffer(u32 buffer_index, u32 instance_index)
+{
+    u32 first_primitive_index = instances[instance_index].first_primitive_index;
+    u32 primitive_count = instances[instance_index].primitive_count;
+
+    u32 previous_buffer_index = (buffer_index - 1) % DOUBLE_BUFFERING;
+
+    // Copy AABB from previous buffer to current buffer
+    copy_buffer(aabb_buffer[previous_buffer_index], aabb_buffer[buffer_index], first_primitive_index * sizeof(AABB), first_primitive_index * sizeof(AABB), primitive_count * sizeof(AABB));
+    // Copy primitive from previous buffer to current buffer
+    copy_buffer(primitive_buffer[previous_buffer_index], primitive_buffer[buffer_index], first_primitive_index * sizeof(PRIMITIVE), first_primitive_index * sizeof(PRIMITIVE), primitive_count * sizeof(PRIMITIVE), true);
+
+    return true;
+}
+
+
 bool ACCEL_STRUCT_MNGR::delete_light_device_buffer(u32 buffer_index,
                                                    u32 light_to_delete, u32 light_to_exchange,
                                                    u32 primitive_deleted, u32 light_index_from_exchanged_primitive)
@@ -1271,14 +1288,6 @@ bool ACCEL_STRUCT_MNGR::restore_light_device_buffer(u32 buffer_index,
 
 bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange)
 {
-    if (!device.is_valid() || !initialized)
-    {
-#if WARN
-        std::cerr << "device.is_valid()" << std::endl;
-#endif // WARN
-        return false;
-    }
-
     u32 first_primitive_index = instances[instance_index].first_primitive_index;
 
     // Copy last primitive to deleted primitive
@@ -1306,6 +1315,30 @@ bool ACCEL_STRUCT_MNGR::clear_remapping_buffer(u32 instance_index, u32 primitive
         u32 last_primitive_index = first_primitive_index + primitive_to_exchange;
         copy_buffer(remapped_primitive_staging_buffer, remapping_primitive_buffer, sizeof(u32), last_primitive_index * sizeof(u32), sizeof(u32));
     }
+
+    return true;
+}
+
+bool ACCEL_STRUCT_MNGR::clear_instance_remapping_buffer(u32 instance_index) {
+    u32 first_primitive_index = instances[instance_index].first_primitive_index;
+    u32 primitive_count = instances[instance_index].primitive_count;
+
+    size_t remapped_primitive_buffer_size = sizeof(u32) * primitive_count;
+
+    auto remapped_instance_primitive_staging_buffer = device.create_buffer({
+        .size = remapped_primitive_buffer_size,
+        .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+        .name = ("remapped_instance_primitive_staging_buffer"),
+    });
+    defer { device.destroy_buffer(remapped_instance_primitive_staging_buffer); };
+
+    auto *remapped_primitive_buffer_ptr = device.get_host_address_as<u32>(remapped_instance_primitive_staging_buffer).value();
+
+    // TODO: is memset needed?
+    std::memset(remapped_primitive_buffer_ptr, 0, remapped_primitive_buffer_size);
+
+    // clear remapping buffer for the instance
+    copy_buffer(remapped_instance_primitive_staging_buffer, remapping_primitive_buffer, 0, first_primitive_index * sizeof(u32), primitive_count * sizeof(u32));
 
     return true;
 }
@@ -2157,12 +2190,12 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         break;
         case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_GPU:
         {
-            TASK::BLAS_PRIMITIVE_DELETE_FROM_GPU rebuild_task = task.blas_delete_primitive_from_gpu;
+            TASK::BLAS_DEL_PRIM_FROM_GPU rebuild_task = task.blas_del_prim_gpu;
             // TODO: this will need a mutex if manager is parallelized
             {
                 // Update instance primitive count
-                instances[rebuild_task.instance_index].primitive_count -= rebuild_task.deleted_primitive_count;
-                current_primitive_count[next_index] -= rebuild_task.deleted_primitive_count;
+                instances[rebuild_task.instance_index].primitive_count -= rebuild_task.del_prim_count;
+                current_primitive_count[next_index] -= rebuild_task.del_prim_count;
 #if TRACE == 1
                 std::cout << "DELETE_PRIMITIVE_BLAS_FROM_GPU:" << std::endl;
                 std::cout << "  >Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
@@ -2424,14 +2457,16 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
         break;
         case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_GPU:
         {
-            TASK::BLAS_PRIMITIVE_DELETE_FROM_GPU rebuild_task = task.blas_delete_primitive_from_gpu;
-            // TODO: Copy BLAS primitives from previous frame buffer?
-            // TODO: Update lights
+            TASK::BLAS_DEL_PRIM_FROM_GPU rebuild_task = task.blas_del_prim_gpu;
             // TODO: this will need a mutex if manager is parallelized
             {
                 // Update instance primitive count
-                current_primitive_count[next_index] -= rebuild_task.deleted_primitive_count;
+                current_primitive_count[next_index] -= rebuild_task.del_prim_count;
             }
+            // Copy BLAS primitives from previous frame buffer
+            copy_instance_aabb_device_buffer(next_index, rebuild_task.instance_index);
+            // TODO: synchronize after all copies (look inside "copy_instance_aabb_device_buffer")
+            // TODO: Update lights
         }
         break;
         case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
@@ -2524,9 +2559,11 @@ void ACCEL_STRUCT_MNGR::process_settling_task_queue()
         break;
         case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_GPU:
         {
-            TASK::BLAS_PRIMITIVE_DELETE_FROM_GPU rebuild_task = task.blas_delete_primitive_from_gpu;
+            TASK::BLAS_DEL_PRIM_FROM_GPU rebuild_task = task.blas_del_prim_gpu;
             // Restore remapping buffer
-            // TODO: Clear remapping buffer
+            // Clear instance remapping buffer
+            clear_instance_remapping_buffer(rebuild_task.instance_index);
+            
             // TODO: clear light remapping buffer
             // NOTE: build_blas is already called for the previous index
         }
@@ -2686,46 +2723,34 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
 #endif // TRACE
                     u32 first_primitive_mask_index = (instance.first_primitive_index) >> 5;
                     u32 max_instance_bitmask_size = (instance.first_primitive_index + instance.primitive_count) >> 5;
-                    u32 first_l = 0;
+                    u32 changes_for_instance = 0;
                     for (u32 k = first_primitive_mask_index; k <= max_instance_bitmask_size; k++)
                     {
-                        u32 l = 0;
-                        u32 last_l = 32;
-                        if (k == first_primitive_mask_index)
-                            first_l = l = (instance.first_primitive_index) & 31;
-                        else if (k == max_instance_bitmask_size)
-                        {
-                            last_l = (instance.first_primitive_index + instance.primitive_count) & 31;
-                        }
                         if (voxel_modifications_buffer_ptr[k] != 0U)
                         {
-                            for (; l < last_l; l++)
-                            {
-                                if (voxel_modifications_buffer_ptr[k] & (1 << l))
-                                {
-                                    changes_so_far++;
-                                    u32 instance_primitive = (32 - first_l) + ((k - first_primitive_mask_index - 1) * 32) + l;
-                                    // Process primitive
+                            u32 changes_count = __builtin_popcount(voxel_modifications_buffer_ptr[k]);
+                            changes_for_instance += changes_count;
+                            changes_so_far += changes_count;
 #if TRACE == 1
-                                    std::cout << "Instance: " << instance_index << " Primitive: " << instance_primitive << std::endl;
+                            std::cout << "Instance: " << instance_index << " Primitive: " << instance_primitive << std::endl;
 #endif // TRACE
-                                    {
-
-                                        auto task_queue = TASK{
-                                            .type = TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU,
-                                            .blas_delete_primitive_from_cpu = {.instance_index = instance_index, .del_primitive_index = instance_primitive},
-                                        };
-                                        task_queue_add(task_queue);
-                                    }
-
-                                    // Check if all changes were processed
-                                    if (changes_so_far >= brush_counters->primitive_count)
-                                    {
-                                        goto restore_buffers;
-                                    }
-                                }
-                            }
                         }
+                    }
+
+enqueue_delete:                    
+                    {
+
+                        auto task_queue = TASK{
+                            .type = TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_GPU,
+                            .blas_del_prim_gpu = {.instance_index = instance_index, .del_prim_count = changes_for_instance},
+                        };
+                        task_queue_add(task_queue);
+                    }
+
+                    // Check if all changes were processed
+                    if (changes_so_far >= brush_counters->primitive_count)
+                    {
+                        goto restore_buffers;
                     }
                 }
             }
@@ -2746,25 +2771,27 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
         return;
     }
 
-    if (brush_counters->instance_count > 0)
+    if (is_idle())
     {
-#if TRACE == 1
-        std::cout << "  Modifications instances: " << brush_counters->instance_count << " primitives: " << brush_counters->primitive_count << std::endl;
-#endif // TRACE
+        if (brush_counters->instance_count > 0)
+        {
+    #if TRACE == 1
+            std::cout << "  Modifications instances: " << brush_counters->instance_count << " primitives: " << brush_counters->primitive_count << std::endl;
+    #endif // TRACE
 
-//         std::cout << "Before execute" << std::endl;
-//         brush_task_graph.execute({});
-//         device.wait_idle();
-// #if TRACE == 1
-//         std::cout << brush_task_graph.get_debug_string() << std::endl;
-// #endif // TRACE
-//         std::cout << "After execute" << std::endl;
+            std::cout << "Before execute" << std::endl;
+            brush_task_graph.execute({});
+    #if TRACE == 1
+            std::cout << brush_task_graph.get_debug_string() << std::endl;
+    #endif // TRACE
+            std::cout << "After execute" << std::endl;
 
-        // Bring bitmask to host
-        process_voxel_modifications();
+            // Bring bitmask to host
+            process_voxel_modifications();
 
-        // zero out brush counters
-        brush_counters->instance_count = 0;
-        brush_counters->primitive_count = 0;
+            // zero out brush counters
+            brush_counters->instance_count = 0;
+            brush_counters->primitive_count = 0;
+        }
     }
 }

@@ -68,10 +68,10 @@ public:
             u32 remap_primitive_light_index;
         };
 
-        struct BLAS_PRIMITIVE_DELETE_FROM_GPU
+        struct BLAS_DEL_PRIM_FROM_GPU
         {
             u32 instance_index;
-            u32 deleted_primitive_count;
+            u32 del_prim_count;
         };
 
         struct BLAS_BUILD_FROM_CPU
@@ -99,7 +99,7 @@ public:
         {
             BLAS_BUILD_FROM_CPU blas_build_from_cpu;
             BLAS_PRIMITIVE_DELETE_FROM_CPU blas_delete_primitive_from_cpu;
-            BLAS_PRIMITIVE_DELETE_FROM_GPU blas_delete_primitive_from_gpu;
+            BLAS_DEL_PRIM_FROM_GPU blas_del_prim_gpu;
             BLAS_DELETE_FROM_CPU blas_delete_from_cpu;
             BLAS_UPDATE blas_update;
             UNDO_OP_CPU undo_op_cpu;
@@ -494,6 +494,8 @@ private:
     // Switching operations
     bool upload_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, u32 host_buffer_offset_count, u32 buffer_offset_count);
     bool copy_aabb_device_buffer(u32 buffer_index, u32 aabb_host_count, u32 buffer_offset_count);
+    bool copy_deleted_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 instance_delete_primitive);
+    bool copy_instance_aabb_device_buffer(u32 buffer_index, u32 instance_index);
 
     // Settling operations
     bool delete_light_device_buffer(u32 buffer_index,
@@ -504,9 +506,8 @@ private:
     
     bool delete_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 primitive_index, 
         u32 primitive_to_exchange, u32& light_to_delete, u32& light_to_exchange, u32& light_of_the_exchanged_primitive);
-
-    bool copy_deleted_aabb_device_buffer(u32 buffer_index, u32 instance_index, u32 instance_delete_primitive);
     bool clear_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange);
+    bool clear_instance_remapping_buffer(u32 instance_index);
 
     bool build_blases(u32 buffer_index, std::vector<u32>& instance_list);
     bool rebuild_blases(u32 buffer_index, std::vector<u32>& instance_list);

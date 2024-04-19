@@ -6,11 +6,9 @@
 
 // primitive index of the ordinal deleted in the current instance
 uint get_primitive_index_from_ordinal_in_bitmask(
-    // Ptr<daxa_u32> primitive_bitmask,
+    Ptr<daxa_u32> primitive_bitmask,
     uint ordinal_number, uint first_primitive_index, uint primitive_count)
 {
-    // Get the current primitive bitmask
-    Ptr<daxa_u32> primitive_bitmask = Ptr<daxa_u32>(p.head.status_buffer.primitive_bitmask_address);
 
     uint deleted_primitive_count = 0;
     uint current_primitive_index = 0;
@@ -33,12 +31,9 @@ uint get_primitive_index_from_ordinal_in_bitmask(
 
 // primitive index of the ordinal deleted in the current instance
 uint get_primitive_index_from_ordinal_out_bitmask(
-    // Ptr<daxa_u32> primitive_bitmask,
+    Ptr<daxa_u32> primitive_bitmask,
     uint ordinal_number, uint first_primitive_index, uint primitive_count)
 {
-    // Get the current primitive bitmask
-    Ptr<daxa_u32> primitive_bitmask = Ptr<daxa_u32>(p.head.status_buffer.primitive_bitmask_address);
-
     uint deleted_primitive_count = 0;
     uint current_primitive_index = 0;
     uint deleted_primitive_index = 0;
@@ -178,7 +173,7 @@ uint get_primitive_index_from_ordinal_out_bitmask(
         InterlockedAdd(t_instance->primitive_count, -1, old_primitive_count);
 
         uint primitive_index = get_primitive_index_from_ordinal_in_bitmask(
-            // primitive_bitmask,
+            primitive_bitmask,
             deleted_ordinal_index, first_prim_index, primitive_count);
 
         if (primitive_index < index_from_to_delete)
@@ -187,7 +182,7 @@ uint get_primitive_index_from_ordinal_out_bitmask(
             // find the index primitive remplacement in the instance for the ordinal primitive
             // NOTE: the replacement region is the last primitive of the instance minus the deleted primitive count backwards (primitive count - deleted primitive count) that's where the replacement region starts.
             uint primitive_replacement_index = get_primitive_index_from_ordinal_out_bitmask(
-                // primitive_bitmask,
+                primitive_bitmask,
                 deleted_ordinal_index, index_from_to_delete, total_primitive_count_deleted_by_instance);
 
             // Swap the primitive and AABB at the given indices
