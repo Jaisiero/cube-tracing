@@ -2052,11 +2052,59 @@ void ACCEL_STRUCT_MNGR::process_undo_settling_task_queue(u32 next_index, TASK &t
     }
 }
 
-//////////////////////////////// SETTLING - UNDO  ENDS//////////////////////////////////////
+////////////////////////// SETTLING - UNDO ENDS/////////////////////////////
 
-//////////////////////////////// PROCESSING //////////////////////////////////////
+///////////////////////////// PROCESSING ///////////////////////////////////
 
 using TASK = cubeland::ACCEL_STRUCT_MNGR::TASK;
+
+
+bool ACCEL_STRUCT_MNGR::delete_blas_process(TASK& task, u32 next_index, std::vector<u32>& delete_blas_index_list) {
+    TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
+    // free instance
+    if (!instance_free_list->deallocate(delete_task.instance_index))
+    {
+#if WARN
+        std::cerr << " Could not deallocate instance from free list instance_index: " << delete_task.instance_index << std::endl;
+#endif // WARN
+        return false;
+    }
+    primitive_free_list->deallocate(VoxelBuffer({.index = delete_task.instance_index}));
+
+    task.blas_delete_from_cpu.first_primitive_index = instances[delete_task.instance_index].first_primitive_index;
+    task.blas_delete_from_cpu.deleted_primitive_count = instances[delete_task.instance_index].primitive_count;
+
+    // Update remapping buffer for deleted instance
+    update_instance_remapping_buffer(
+        task.blas_delete_from_cpu.first_primitive_index,
+        task.blas_delete_from_cpu.deleted_primitive_count,
+        static_cast<u32>(-1));
+    // TODO: remap light buffer ?
+    // keep blas id for deleting blas
+    temp_proc_blas.push_back(proc_blas.at(delete_task.instance_index));
+    // set proc blas to zero
+    proc_blas.at(delete_task.instance_index) = daxa::BlasId{};
+    // TODO: this will need a mutex if manager is parallelized
+    {
+        // Update instance count
+        current_instance_count[next_index]--;
+        current_primitive_count[next_index] -= instances[delete_task.instance_index].primitive_count;
+    }
+#if INFO == 1
+    std::cout << "DELETE_BLAS_FROM_CPU:" << std::endl;
+    std::cout << "  >Instance count: " << current_instance_count[next_index] << std::endl;
+    std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
+
+    std::cout << "  Deleted Instance id: " << delete_task.instance_index << std::endl;
+    std::cout << "      Instance first primitive index: " << task.blas_delete_from_cpu.first_primitive_index << std::endl;
+    std::cout << "      Instance primitive count: " << task.blas_delete_from_cpu.deleted_primitive_count << std::endl;
+#endif // INFO
+    instances[delete_task.instance_index].primitive_count = 0;
+    instances[delete_task.instance_index].first_primitive_index = -1;
+    delete_blas_index_list.push_back(delete_task.instance_index);
+
+    return true;
+}
 
 void ACCEL_STRUCT_MNGR::process_task_queue()
 {
@@ -2207,19 +2255,30 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_GPU:
         {
             TASK::BLAS_DEL_PRIM_FROM_GPU rebuild_task = task.blas_del_prim_gpu;
-            // TODO: this will need a mutex if manager is parallelized
+            // NOTE: check if instance has enough primitives to delete
+            if(instances[rebuild_task.instance_index].primitive_count <= rebuild_task.del_prim_count)
             {
-                // Update instance primitive count
-                instances[rebuild_task.instance_index].primitive_count -= rebuild_task.del_prim_count;
-                current_primitive_count[next_index] -= rebuild_task.del_prim_count;
-#if TRACE == 1
-                std::cout << "DELETE_PRIMITIVE_BLAS_FROM_GPU:" << std::endl;
-                std::cout << "  >Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
-                std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
-#endif // TRACE
+                // delete instance
+                task.type = TASK::TYPE::DELETE_BLAS_FROM_CPU;
+                task.blas_delete_from_cpu = TASK::BLAS_DELETE_FROM_CPU{.instance_index = rebuild_task.instance_index};
+                delete_blas_process(task, next_index, delete_blas_index_list);
             }
-            // keep blas id for rebuilding blas
-            rebuild_blas_index_list.push_back(rebuild_task.instance_index);
+            else
+            {
+                // TODO: this will need a mutex if manager is parallelized
+                {
+                    // Update instance primitive count
+                    instances[rebuild_task.instance_index].primitive_count -= rebuild_task.del_prim_count;
+                    current_primitive_count[next_index] -= rebuild_task.del_prim_count;
+#if TRACE == 1
+                    std::cout << "DELETE_PRIMITIVE_BLAS_FROM_GPU:" << std::endl;
+                    std::cout << "  >Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
+                    std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
+#endif // TRACE
+                }
+                // keep blas id for rebuilding blas
+                rebuild_blas_index_list.push_back(rebuild_task.instance_index);
+            }
         }
         break; 
         case TASK::TYPE::UPDATE_BLAS_FROM_CPU:
@@ -2261,48 +2320,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         break;
         case TASK::TYPE::DELETE_BLAS_FROM_CPU:
         {
-            TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
-            // free instance
-            if (!instance_free_list->deallocate(delete_task.instance_index))
-            {
-#if WARN
-                std::cerr << " Could not deallocate instance from free list instance_index: " << delete_task.instance_index << std::endl;
-#endif // WARN
-                continue;
-            }
-            primitive_free_list->deallocate(VoxelBuffer({.index = delete_task.instance_index}));
-
-            task.blas_delete_from_cpu.first_primitive_index = instances[delete_task.instance_index].first_primitive_index;
-            task.blas_delete_from_cpu.deleted_primitive_count = instances[delete_task.instance_index].primitive_count;
-
-            // Update remapping buffer for deleted instance
-            update_instance_remapping_buffer(
-                task.blas_delete_from_cpu.first_primitive_index,
-                task.blas_delete_from_cpu.deleted_primitive_count,
-                static_cast<u32>(-1));
-            // TODO: remap light buffer ?
-            // keep blas id for deleting blas
-            temp_proc_blas.push_back(proc_blas.at(delete_task.instance_index));
-            // set proc blas to zero
-            proc_blas.at(delete_task.instance_index) = daxa::BlasId{};
-            // TODO: this will need a mutex if manager is parallelized
-            {
-                // Update instance count
-                current_instance_count[next_index]--;
-                current_primitive_count[next_index] -= instances[delete_task.instance_index].primitive_count;
-            }
-#if INFO == 1
-            std::cout << "DELETE_BLAS_FROM_CPU:" << std::endl;
-            std::cout << "  >Instance count: " << current_instance_count[next_index] << std::endl;
-            std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
-
-            std::cout << "  Deleted Instance id: " << delete_task.instance_index << std::endl;
-            std::cout << "      Instance first primitive index: " << task.blas_delete_from_cpu.first_primitive_index << std::endl;
-            std::cout << "      Instance primitive count: " << task.blas_delete_from_cpu.deleted_primitive_count << std::endl;
-#endif // INFO
-            instances[delete_task.instance_index].primitive_count = 0;
-            instances[delete_task.instance_index].first_primitive_index = -1;
-            delete_blas_index_list.push_back(delete_task.instance_index);
+            delete_blas_process(task, next_index, delete_blas_index_list);
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -2330,8 +2348,21 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     // update max wide instance count
     max_wide_instance_count[next_index] = std::max(max_wide_instance_count[next_index], current_instance_count[next_index]);
 
+    if (delete_blas_index_list.empty() && blas_index_list.empty() && rebuild_blas_index_list.empty() && update_blas_index_list.empty())
+    {
+        // Set switching to false
+        status = AS_MANAGER_STATUS::IDLE;
+        return;
+    }
+
     // update instances
     upload_all_instances(next_index, false);
+
+    if(!delete_blas_index_list.empty()) {
+        // TODO: find a better way to get unique indices
+        auto ip = std::unique(delete_blas_index_list.begin(), delete_blas_index_list.begin() + delete_blas_index_list.size());
+        delete_blas_index_list.resize(std::distance(delete_blas_index_list.begin(), ip));
+    }
 
     // TODO: issue builds, rebuilds & updates together?
     // Build BLASes
@@ -2341,6 +2372,9 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
     // Rebuild BLASes
     if (!rebuild_blas_index_list.empty())
     {
+        // TODO: find a better way to get unique indices
+        auto ip = std::unique(rebuild_blas_index_list.begin(), rebuild_blas_index_list.begin() + rebuild_blas_index_list.size());
+        rebuild_blas_index_list.resize(std::distance(rebuild_blas_index_list.begin(), ip));
         if (!delete_blas_index_list.empty())
         {
             for (auto instance_index : delete_blas_index_list)
@@ -2734,9 +2768,9 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
                     u32 instance_index = i * 32 + j;
                     // Process instance
                     INSTANCE instance = instances[instance_index];
-#if TRACE == 1
+// #if TRACE == 1
                     std::cout << "Instance: " << instance_index << " Primitive count: " << instance.primitive_count << " First primitive index: " << instance.first_primitive_index << std::endl;
-#endif // TRACE
+// #endif // TRACE
                     u32 first_primitive_mask_index = (instance.first_primitive_index) >> 5;
                     u32 max_instance_bitmask_size = (instance.first_primitive_index + instance.primitive_count) >> 5;
                     u32 changes_for_instance = 0;
@@ -2747,15 +2781,15 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
                             u32 changes_count = __builtin_popcount(voxel_modifications_buffer_ptr[k]);
                             changes_for_instance += changes_count;
                             changes_so_far += changes_count;
-#if TRACE == 1
-                            std::cout << "Instance: " << instance_index << " Primitive: " << instance_primitive << std::endl;
-#endif // TRACE
                         }
                     }
 
-enqueue_delete:                    
+                enqueue_delete:
+                    if (changes_for_instance > 0)
                     {
-
+// #if DEBUG == 1
+                            std::cout << "Instance: " << instance_index << " changes_count: " << changes_for_instance << std::endl;
+// #endif // DEBUG
                         auto task_queue = TASK{
                             .type = TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_GPU,
                             .blas_del_prim_gpu = {.instance_index = instance_index, .del_prim_count = changes_for_instance},
@@ -2791,9 +2825,9 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
     {
         if (brush_counters->instance_count > 0)
         {
-    #if TRACE == 1
+    // #if TRACE == 1
             std::cout << "  Modifications instances: " << brush_counters->instance_count << " primitives: " << brush_counters->primitive_count << std::endl;
-    #endif // TRACE
+    // #endif // TRACE
 
             std::cout << "Before execute" << std::endl;
 

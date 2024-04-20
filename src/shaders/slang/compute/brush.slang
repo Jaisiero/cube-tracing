@@ -178,7 +178,6 @@ uint get_primitive_index_from_ordinal_out_bitmask(
 
         if (primitive_index < index_from_to_delete)
         {
-
             // find the index primitive remplacement in the instance for the ordinal primitive
             // NOTE: the replacement region is the last primitive of the instance minus the deleted primitive count backwards (primitive count - deleted primitive count) that's where the replacement region starts.
             uint primitive_replacement_index = get_primitive_index_from_ordinal_out_bitmask(
@@ -191,12 +190,14 @@ uint get_primitive_index_from_ordinal_out_bitmask(
 
             // TODO: for debbuging
             // Fill test primitive with the new primitive
-            p.head.test_brush_primitive_buffer.primitive_index = primitive_index;
             p.head.test_brush_primitive_buffer.primitive_replacement_index = primitive_replacement_index;
 
             // apply remapping to the replacement index
             Ptr<daxa_i32>(p.head.world_buffer->remapped_primitive_address)[first_prim_index + primitive_replacement_index] =  primitive_index;
         }
+        // TODO: for debbuging
+        // Fill test primitive with the new primitive
+        p.head.test_brush_primitive_buffer.primitive_index = primitive_index;
 
         // apply remapping to the primitive index
         Ptr<daxa_i32>(p.head.world_buffer->remapped_primitive_address)[first_prim_index + primitive_index] =  -1;

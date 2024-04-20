@@ -14,14 +14,17 @@
 
 #include "shaders/shared.inl"
 
-#define DEBUG_MODE 0
+#define DEBUG_MODE 2
 
 #define FATAL 1
 #define WARN 1
 #define INFO 1
-#if DEBUG_MODE
+#if DEBUG_MODE == 2
 #define DEBUG 1
 #define TRACE 1
+#elif DEBUG_MODE == 1
+#define DEBUG 1
+#define TRACE 0
 #else
 #define DEBUG 0
 #define TRACE 0

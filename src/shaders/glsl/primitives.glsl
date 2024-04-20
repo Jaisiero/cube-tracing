@@ -94,7 +94,7 @@ daxa_u32 increment_brush_counter_primitive_count() {
   return atomicAdd(p.brush_counter.primitive_count.x, 1);
 }
 
-void delete_primtivite_from_instance(OBJECT_INFO instance_hit) {
+void delete_primitive_from_instance(OBJECT_INFO instance_hit) {
   PRIMITIVE_BITMASK_BUFFER primitive_bitmask_buffer = PRIMITIVE_BITMASK_BUFFER(
       deref(p.status_buffer).primitive_bitmask_address);
   INSTANCE_BITMASK_BUFFER instance_bitmask_buffer =

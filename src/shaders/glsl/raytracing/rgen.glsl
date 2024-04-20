@@ -505,10 +505,27 @@ void main() {
 
     set_di_from_previous_frame(screen_pos, di_info);
 
+    const daxa_u32 window_size = 20;
+
     if ((active_features & PERFECT_PIXEL_BIT) != 0U) {
       daxa_u32vec2 pixel = deref(p.status_buffer).pixel;
-      if (index.x == pixel.x && index.y == pixel.y) {
-        delete_primtivite_from_instance(di_info.instance_hit);
+
+      daxa_u32 pixel_screen_pos = pixel.y * rt_size.x + pixel.x;
+      
+      DIRECT_ILLUMINATION_INFO di_info_pixel = get_di_from_current_frame(pixel_screen_pos);
+      
+      daxa_u32 instance_id = di_info.instance_hit.instance_id;
+
+      daxa_u32 instance_pixel_id = di_info_pixel.instance_hit.instance_id;
+
+      // Only affects same instance id as the pixel
+      if(instance_id == instance_pixel_id) {
+        // TODO: this is a test for many voxels brush range between exact pixel and -x and x and -y and y
+        if (index.x >= pixel.x - window_size && index.x <= pixel.x +    window_size &&
+            index.y >= pixel.y - window_size && index.y <= pixel.y + window_size)
+        {
+          delete_primitive_from_instance(di_info.instance_hit);
+        }
       }
     }
   }

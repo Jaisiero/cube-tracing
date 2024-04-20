@@ -471,12 +471,15 @@ private:
 
     // Checking modification operations
     void process_voxel_modifications();
-    
+
+    bool delete_blas_process(TASK& task, u32 next_index, std::vector<u32>& delete_blas_index_list);
 
     // Deleting operations
     void copy_buffer(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
         size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
+
     bool upload_all_instances(u32 buffer_index, bool synchronize = false);
+
     bool upload_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 host_buffer_offset_count, u32 buffer_offset_count);
     bool copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 buffer_offset_count);
     bool update_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange);
