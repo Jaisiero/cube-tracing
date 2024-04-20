@@ -505,7 +505,7 @@ void main() {
 
     set_di_from_previous_frame(screen_pos, di_info);
 
-    const daxa_u32 window_size = 20;
+    const daxa_u32 window_size = 50;
 
     if ((active_features & PERFECT_PIXEL_BIT) != 0U) {
       daxa_u32vec2 pixel = deref(p.status_buffer).pixel;

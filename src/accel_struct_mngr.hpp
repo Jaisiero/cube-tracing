@@ -215,7 +215,7 @@ public:
     }
 
     daxa::TlasId get_previous_tlas() { 
-        u32 prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
         return is_switching() ? tlas[prev_index] : tlas[current_index];
     }
 
@@ -224,7 +224,7 @@ public:
     }
 
     daxa::BufferId get_previous_instance_buffer() { 
-        u32 prev_index = current_index - 1 % DOUBLE_BUFFERING;
+        u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
         return is_switching() ? instance_buffer[prev_index] : instance_buffer[current_index];
     }
 
