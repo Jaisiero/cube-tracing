@@ -2773,9 +2773,9 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
                     u32 instance_index = i * 32 + j;
                     // Process instance
                     INSTANCE instance = instances[instance_index];
-// #if TRACE == 1
+#if TRACE == 1
                     std::cout << "Instance: " << instance_index << " Primitive count: " << instance.primitive_count << " First primitive index: " << instance.first_primitive_index << std::endl;
-// #endif // TRACE
+#endif // TRACE
                     u32 first_primitive_mask_index = (instance.first_primitive_index) >> 5;
                     u32 max_instance_bitmask_size = (instance.first_primitive_index + instance.primitive_count) >> 5;
                     u32 changes_for_instance = 0;
@@ -2792,9 +2792,9 @@ void ACCEL_STRUCT_MNGR::process_voxel_modifications()
                 enqueue_delete:
                     if (changes_for_instance > 0)
                     {
-// #if DEBUG == 1
+#if DEBUG == 1
                             std::cout << "Instance: " << instance_index << " changes_count: " << changes_for_instance << std::endl;
-// #endif // DEBUG
+#endif // DEBUG
                         auto task_queue = TASK{
                             .type = TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_GPU,
                             .blas_del_prim_gpu = {.instance_index = instance_index, .del_prim_count = changes_for_instance},
@@ -2830,9 +2830,9 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
     {
         if (brush_counters->instance_count > 0)
         {
-    // #if TRACE == 1
+    #if TRACE == 1
             std::cout << "  Modifications instances: " << brush_counters->instance_count << " primitives: " << brush_counters->primitive_count << std::endl;
-    // #endif // TRACE
+    #endif // TRACE
 
             std::cout << "Before execute" << std::endl;
 
