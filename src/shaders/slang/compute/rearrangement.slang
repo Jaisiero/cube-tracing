@@ -54,7 +54,7 @@ uint get_primitive_index_from_ordinal_out_bitmask(
 }
 
 [shader("compute")]
-    [numthreads(BRUSH_COMPUTE_X, 1, 1)] void
+    [numthreads(REARRANGEMENT_COMPUTE_X, 1, 1)] void
     entry_brush(uint3 pixel_i : SV_DispatchThreadID)
 {
     // Access instance & primitive counters

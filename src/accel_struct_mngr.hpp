@@ -447,26 +447,33 @@ public:
 private:
 
     
-    void add_blas_info(u32 index, u32 primitive_count) 
+    u32 add_global_blas_info(u32 index, u32 primitive_count) 
     {
-        current_primitive_count[index] += primitive_count;
+        return current_primitive_count[index] += primitive_count;
     }
 
-    void add_blas(u32 index, u32 primitive_count) 
+    u32 add_global_blas(u32 index, u32 primitive_count) 
     {
-        ++current_instance_count[index];
-        add_blas_info(index, primitive_count);
+        add_global_blas_info(index, primitive_count);
+        return ++current_instance_count[index];
     }
 
-    void delete_blas_info(u32 index, u32 primitive_count) 
+    u32 delete_global_blas_info(u32 index, u32 primitive_count) 
     {
-        current_primitive_count[index] -= primitive_count;
+        return current_primitive_count[index] -= primitive_count;
+    }
+
+    u32 delete_blas_info(u32 index, u32 instance_index, u32 primitive_count) 
+    {
+        // Update instance primitive count
+        delete_global_blas_info(index, primitive_count);
+        return instances[instance_index].primitive_count -= primitive_count;
     }
     
-    void delete_blas(u32 index, u32 primitive_count) 
+    u32 delete_global_blas(u32 index, u32 primitive_count) 
     {
-        --current_instance_count[index];
-        delete_blas_info(index, primitive_count);
+        delete_global_blas_info(index, primitive_count);
+        return --current_instance_count[index];
     }
 
 

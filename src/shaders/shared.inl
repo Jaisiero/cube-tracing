@@ -80,7 +80,9 @@
 
 
 
-#define BRUSH_COMPUTE_X 64
+#define REARRANGEMENT_COMPUTE_X 64
+#define BRUSH_COMPUTE_X 8
+#define BRUSH_COMPUTE_Y 8
 
 struct AABB
 {
