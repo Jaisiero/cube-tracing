@@ -966,7 +966,7 @@ void cubeland_app()
           pipeline_manager.add_compute_pipeline(
                               daxa::ComputePipelineCompileInfo{
                                   .shader_info = daxa::ShaderCompileInfo{
-                                      .source = daxa::ShaderFile{"brush.slang"},
+                                      .source = daxa::ShaderFile{"rearrangement.slang"},
                                       .compile_options = brush_comp_pipeline_info,
                                   },
                                   .push_constant_size = sizeof(changes_push_constant),

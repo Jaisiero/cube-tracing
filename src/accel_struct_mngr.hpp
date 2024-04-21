@@ -445,6 +445,31 @@ public:
     std::mutex synchronize_mutex = {};
     std::condition_variable synchronize_cv = {};
 private:
+
+    
+    void add_blas_info(u32 index, u32 primitive_count) 
+    {
+        current_primitive_count[index] += primitive_count;
+    }
+
+    void add_blas(u32 index, u32 primitive_count) 
+    {
+        ++current_instance_count[index];
+        add_blas_info(index, primitive_count);
+    }
+
+    void delete_blas_info(u32 index, u32 primitive_count) 
+    {
+        current_primitive_count[index] -= primitive_count;
+    }
+    
+    void delete_blas(u32 index, u32 primitive_count) 
+    {
+        --current_instance_count[index];
+        delete_blas_info(index, primitive_count);
+    }
+
+
     // Undo operations
     void process_undo_task_queue(u32 next_index, TASK& task);
     void process_undo_switching_task_queue(u32 next_index, TASK& task);

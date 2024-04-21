@@ -14,7 +14,7 @@
 
 #include "shaders/shared.inl"
 
-#define DEBUG_MODE 2
+#define DEBUG_MODE 0
 
 #define FATAL 1
 #define WARN 1

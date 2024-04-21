@@ -2086,9 +2086,8 @@ bool ACCEL_STRUCT_MNGR::delete_blas_process(TASK& task, u32 next_index, std::vec
     proc_blas.at(delete_task.instance_index) = daxa::BlasId{};
     // TODO: this will need a mutex if manager is parallelized
     {
-        // Update instance count
-        current_instance_count[next_index]--;
-        current_primitive_count[next_index] -= instances[delete_task.instance_index].primitive_count;
+        // Update instance info
+        delete_blas(next_index, instances[delete_task.instance_index].primitive_count);
     }
 #if INFO == 1
     std::cout << "DELETE_BLAS_FROM_CPU:" << std::endl;
@@ -2189,16 +2188,14 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                                           temp_instances[queue_instance_count].primitive_count,
                                           temp_instances[queue_instance_count].first_primitive_index,
                                           primitive_buffer_offset);
-                // Update primitive count
-                current_primitive_count[next_index] += temp_instances[queue_instance_count].primitive_count;
                 // Update instance
                 instances[new_instance_id].transform = build_task.transform;
                 instances[new_instance_id].first_primitive_index = primitive_buffer_offset;
                 instances[new_instance_id].primitive_count = temp_instances[queue_instance_count].primitive_count;
                 // Keep blas id for building blas
                 blas_index_list.push_back(new_instance_id);
-                // Global instance count
-                ++current_instance_count[next_index];
+                // Update instance info
+                add_blas(next_index, temp_instances[queue_instance_count].primitive_count);
 
 #if INFO == 1
                 std::cout << "  Created Instance id: " << new_instance_id << std::endl;
@@ -2221,7 +2218,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
             {
                 // Update instance primitive count
                 primitive_to_exchange = --instances[rebuild_task.instance_index].primitive_count;
-                --current_primitive_count[next_index];
+                delete_blas_info(next_index, 1);
 #if TRACE == 1
                 std::cout << "  >Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
                 std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
@@ -2261,7 +2258,12 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 // delete instance
                 task.type = TASK::TYPE::DELETE_BLAS_FROM_CPU;
                 task.blas_delete_from_cpu = TASK::BLAS_DELETE_FROM_CPU{.instance_index = rebuild_task.instance_index};
-                delete_blas_process(task, next_index, delete_blas_index_list);
+                if(!delete_blas_process(task, next_index, delete_blas_index_list)) {
+#if WARN
+                std::cerr << " Could not delete blas from cpu" << std::endl;
+#endif // WARN
+                    continue;
+                }
             }
             else
             {
@@ -2269,7 +2271,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 {
                     // Update instance primitive count
                     instances[rebuild_task.instance_index].primitive_count -= rebuild_task.del_prim_count;
-                    current_primitive_count[next_index] -= rebuild_task.del_prim_count;
+                    delete_blas_info(next_index, rebuild_task.del_prim_count);
 #if TRACE == 1
                     std::cout << "DELETE_PRIMITIVE_BLAS_FROM_GPU:" << std::endl;
                     std::cout << "  >Instance primitive count: " << instances[rebuild_task.instance_index].primitive_count << std::endl;
@@ -2320,7 +2322,12 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
         break;
         case TASK::TYPE::DELETE_BLAS_FROM_CPU:
         {
-            delete_blas_process(task, next_index, delete_blas_index_list);
+            if(!delete_blas_process(task, next_index, delete_blas_index_list)) {
+#if WARN
+                std::cerr << " Could not delete blas from cpu" << std::endl;
+#endif // WARN
+                continue;
+            }
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
@@ -2479,10 +2486,9 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
 
                 // copy primitive info from previous frame buffer
                 copy_aabb_device_buffer(next_index, instances[current_instance_index].primitive_count, instances[current_instance_index].first_primitive_index);
-                // Update primitive count
-                current_primitive_count[next_index] += instances[current_instance_index].primitive_count;
-                // Global instance count
-                ++current_instance_count[next_index];
+                // Update primitive info
+                add_blas(next_index, instances[current_instance_index].primitive_count);
+                
             }
 
             if (task.blas_build_from_cpu.instance_indices)
@@ -2494,7 +2500,7 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
         case TASK::TYPE::DELETE_PRIMITIVE_BLAS_FROM_CPU:
         {
             TASK::BLAS_PRIMITIVE_DELETE_FROM_CPU rebuild_task = task.blas_delete_primitive_from_cpu;
-            --current_primitive_count[next_index];
+            delete_blas_info(next_index, 1);
             if (rebuild_task.del_primitive_index != rebuild_task.remap_primitive_index)
             {
                 // Copy deleted primitive to the double buffer
@@ -2511,7 +2517,7 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
             // TODO: this will need a mutex if manager is parallelized
             {
                 // Update instance primitive count
-                current_primitive_count[next_index] -= rebuild_task.del_prim_count;
+                delete_blas_info(next_index, rebuild_task.del_prim_count);
             }
             // Copy BLAS primitives from previous frame buffer
             copy_instance_aabb_device_buffer(next_index, rebuild_task.instance_index);
@@ -2539,9 +2545,8 @@ void ACCEL_STRUCT_MNGR::process_switching_task_queue()
             TASK::BLAS_DELETE_FROM_CPU delete_task = task.blas_delete_from_cpu;
             // TODO: delete emissive light buffer
             // delete_light_device_buffer(next_index, delete_task.instance_index);
-            // Update instance count
-            --current_instance_count[next_index];
-            current_primitive_count[next_index] -= task.blas_delete_from_cpu.deleted_primitive_count;
+            // Update instance info
+            delete_blas(next_index, task.blas_delete_from_cpu.deleted_primitive_count);
         }
         break;
         case TASK::TYPE::UNDO_OP_CPU:
