@@ -236,6 +236,7 @@ DAXA_DECL_BUFFER_PTR(DISPATCH_BUFFER)
 
 struct Status
 {
+  daxa_u32vec2 resolution;
   daxa_u32 frame_number;
   daxa_u64 num_accumulated_frames;
   daxa_u32vec2 pixel;
@@ -452,4 +453,15 @@ DAXA_DECL_TASK_HEAD_END
 struct changes_push_constant
 {
   DAXA_TH_BLOB(PrimitiveChangesTaskHead, head)
+};
+
+DAXA_DECL_TASK_HEAD_BEGIN(BrushTaskHead)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(Status), status_buffer)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(WORLD), world_buffer)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(RESTIR), restir_buffer)
+DAXA_DECL_TASK_HEAD_END
+
+struct brush_push_constant
+{
+  DAXA_TH_BLOB(BrushTaskHead, head)
 };

@@ -9,6 +9,7 @@
 
 #include <map_loader.hpp>
 #include <accel_struct_mngr.hpp>
+#include <brushes/brush_mngr.hpp>
 
 #include "rng.h"
 #include "camera.h"
@@ -17,6 +18,7 @@
 using namespace std::chrono_literals;
 using Clock = std::chrono::high_resolution_clock;
 using TASK = cubeland::ACCEL_STRUCT_MNGR::TASK;
+using BRUSH_MNGR = cubeland::BRUSH_MNGR;
 
 CL_NAMESPACE_BEGIN
 void cubeland_app()
@@ -63,7 +65,7 @@ void cubeland_app()
     std::shared_ptr<daxa::RayTracingPipeline> primary_hit_rt_pipeline = {};
     std::shared_ptr<daxa::RayTracingPipeline> shading_rt_pipeline = {};
     std::shared_ptr<daxa::ComputePipeline> taa_comp_pipeline = {};
-    std::shared_ptr<daxa::ComputePipeline> brush_comp_pipeline = {};
+    std::shared_ptr<daxa::ComputePipeline> rearregement_comp_pipeline = {};
 
     // BUFFERS
     daxa::BufferId light_config_buffer = {};
@@ -132,6 +134,7 @@ void cubeland_app()
 
     MapLoader map_loader = {};
     std::unique_ptr<ACCEL_STRUCT_MNGR> as_manager = {};
+    std::unique_ptr<BRUSH_MNGR> brush_manager = {};
 
     // TODO: test
     daxa_b32 deer_loaded = false;
@@ -959,20 +962,22 @@ void cubeland_app()
                               })
               .value();
 
-      auto brush_comp_pipeline_info = slang_shader_compile_options;
-      brush_comp_pipeline_info.entry_point = "entry_brush";
+      auto rearregement_comp_pipeline_info = slang_shader_compile_options;
+      rearregement_comp_pipeline_info.entry_point = "entry_rearragement";
 
-      brush_comp_pipeline =
+      rearregement_comp_pipeline =
           pipeline_manager.add_compute_pipeline(
                               daxa::ComputePipelineCompileInfo{
                                   .shader_info = daxa::ShaderCompileInfo{
                                       .source = daxa::ShaderFile{"rearrangement.slang"},
-                                      .compile_options = brush_comp_pipeline_info,
+                                      .compile_options = rearregement_comp_pipeline_info,
                                   },
                                   .push_constant_size = sizeof(changes_push_constant),
-                                  .name = "brush shader",
+                                  .name = "rearregement shader",
                               })
               .value();
+
+      brush_manager = std::make_unique<BRUSH_MNGR>(device, pipeline_manager, slang_shader_compile_options, BRUSH_MNGR::BrushBufferInfo{status_buffer, world_buffer, restir_buffer});
     }
 
     void upload_restir()
@@ -1279,7 +1284,7 @@ void cubeland_app()
       load_pipelines();
 
       as_manager = std::make_unique<ACCEL_STRUCT_MNGR>(device);
-      as_manager->create(MAX_INSTANCES, MAX_PRIMITIVES, MAX_CUBE_LIGHTS, &light_config->cube_light_count, {brush_comp_pipeline, status_buffer, world_buffer});
+      as_manager->create(MAX_INSTANCES, MAX_PRIMITIVES, MAX_CUBE_LIGHTS, &light_config->cube_light_count, {rearregement_comp_pipeline, status_buffer, world_buffer});
 
       status.time = 1.0;
       status.is_afternoon = true;
@@ -1414,6 +1419,8 @@ void cubeland_app()
         as_manager->update_scene();
         upload_world();
         draw();
+        if(status.is_active & PERFECT_PIXEL_BIT)
+          brush_manager->execute_brush(status.resolution, true);
         download_gpu_info();
       }
       else
@@ -1514,6 +1521,8 @@ void cubeland_app()
             .image_id = previous_frame,
         });
       }
+
+      status.resolution = {width, height};
 
       auto status_staging_buffer = device.create_buffer({
           .size = status_buffer_size,

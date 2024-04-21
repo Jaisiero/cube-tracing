@@ -55,7 +55,7 @@ uint get_primitive_index_from_ordinal_out_bitmask(
 
 [shader("compute")]
     [numthreads(REARRANGEMENT_COMPUTE_X, 1, 1)] void
-    entry_brush(uint3 pixel_i : SV_DispatchThreadID)
+    entry_rearragement(uint3 pixel_i : SV_DispatchThreadID)
 {
     // Access instance & primitive counters
     Ptr<BRUSH_COUNTER> brush_counter = Ptr<BRUSH_COUNTER>(p.head.status_buffer->brush_counter_address);

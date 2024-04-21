@@ -2831,9 +2831,6 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
     #if TRACE == 1
             std::cout << "  Modifications instances: " << brush_counters->instance_count << " primitives: " << brush_counters->primitive_count << std::endl;
     #endif // TRACE
-
-            std::cout << "Before execute" << std::endl;
-
             
             auto *indirect_buffer_ptr = device.get_host_address_as<u32>(brush_indirect_buffer).value();
 
@@ -2843,7 +2840,6 @@ void ACCEL_STRUCT_MNGR::check_voxel_modifications()
     #if TRACE == 1
             std::cout << brush_task_graph.get_debug_string() << std::endl;
     #endif // TRACE
-            std::cout << "After execute" << std::endl;
 
             // Bring bitmask to host
             process_voxel_modifications();
