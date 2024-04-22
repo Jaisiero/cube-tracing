@@ -36,19 +36,25 @@ void set_temporal_path_reservoir_by_index(daxa_u32 reservoir_index,
 
 RECONNECTION_DATA get_reconnection_data_from_current_frame(daxa_u32 pixel_index,
                                                            daxa_u32 slot) {
-  PIXEL_RECONNECTION_DATA_BUFFER reconnection_data_buffer =
-      PIXEL_RECONNECTION_DATA_BUFFER(
-          deref(p.restir_buffer).pixel_reconnection_data_address);
-  return reconnection_data_buffer.reconnections[pixel_index].data[slot];
+  // PIXEL_RECONNECTION_DATA_BUFFER reconnection_data_buffer =
+  //     PIXEL_RECONNECTION_DATA_BUFFER(
+  //         deref(p.restir_buffer).pixel_reconnection_data_address);
+  // return reconnection_data_buffer.reconnections[pixel_index].data[slot];
+
+  // TODO: Implement
+  return RECONNECTION_DATA(OBJECT_HIT(OBJECT_INFO(MAX_INSTANCES, MAX_PRIMITIVES), daxa_f32vec3(0.f)),
+                           daxa_f32vec3(0.f), daxa_f32vec3(0.f));
 }
 
 void set_reconnection_data_from_current_frame(
     daxa_u32 pixel_index, daxa_u32 slot, RECONNECTION_DATA reconnection_info) {
-  PIXEL_RECONNECTION_DATA_BUFFER reconnection_data_buffer =
-      PIXEL_RECONNECTION_DATA_BUFFER(
-          deref(p.restir_buffer).pixel_reconnection_data_address);
-  reconnection_data_buffer.reconnections[pixel_index].data[slot] =
-      reconnection_info;
+  // PIXEL_RECONNECTION_DATA_BUFFER reconnection_data_buffer =
+  //     PIXEL_RECONNECTION_DATA_BUFFER(
+  //         deref(p.restir_buffer).pixel_reconnection_data_address);
+  // reconnection_data_buffer.reconnections[pixel_index].data[slot] =
+  //     reconnection_info;
+  
+  // TODO: Implement
 }
 
 // maximum length: 15

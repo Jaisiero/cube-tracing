@@ -109,8 +109,8 @@ void cubeland_app()
     daxa::BufferId direct_illum_buffer = {};
     size_t max_direct_illum_buffer_size = sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS;
 
-    daxa::BufferId pixel_reconnection_data_buffer = {};
-    size_t max_pixel_reconnection_data_buffer_size = sizeof(PIXEL_RECONNECTION_DATA) * MAX_RESERVOIRS;
+    // daxa::BufferId pixel_reconnection_data_buffer = {};
+    // size_t max_pixel_reconnection_data_buffer_size = sizeof(PIXEL_RECONNECTION_DATA) * MAX_RESERVOIRS;
 
     daxa::BufferId output_path_reservoir_buffer = {};
     daxa::BufferId temporal_path_reservoir_buffer = {};
@@ -164,7 +164,7 @@ void cubeland_app()
         device.destroy_buffer(velocity_buffer);
         device.destroy_buffer(previous_direct_illum_buffer);
         device.destroy_buffer(direct_illum_buffer);
-        device.destroy_buffer(pixel_reconnection_data_buffer);
+        // device.destroy_buffer(pixel_reconnection_data_buffer);
         device.destroy_buffer(output_path_reservoir_buffer);
         device.destroy_buffer(temporal_path_reservoir_buffer);
         device.destroy_buffer(indirect_color_buffer);
@@ -254,7 +254,7 @@ void cubeland_app()
 
       const daxa_u32 direct_illum_buffer_size = static_cast<u32>(sizeof(DIRECT_ILLUMINATION_INFO) * MAX_RESERVOIRS);
 
-      const daxa_u32 pixel_reconnection_data_buffer_size = static_cast<u32>(sizeof(PIXEL_RECONNECTION_DATA) * MAX_RESERVOIRS);
+      // const daxa_u32 pixel_reconnection_data_buffer_size = static_cast<u32>(sizeof(PIXEL_RECONNECTION_DATA) * MAX_RESERVOIRS);
 
       const daxa_u32 path_reservoir_buffer_size = static_cast<u32>(sizeof(PATH_RESERVOIR) * MAX_RESERVOIRS);
 
@@ -293,11 +293,11 @@ void cubeland_app()
             .size = direct_illum_buffer_size,
         });
 
-        recorder.copy_buffer_to_buffer({
-            .src_buffer = reservoir_staging_buffer,
-            .dst_buffer = pixel_reconnection_data_buffer,
-            .size = pixel_reconnection_data_buffer_size,
-        });
+        // recorder.copy_buffer_to_buffer({
+        //     .src_buffer = reservoir_staging_buffer,
+        //     .dst_buffer = pixel_reconnection_data_buffer,
+        //     .size = pixel_reconnection_data_buffer_size,
+        // });
 
         recorder.copy_buffer_to_buffer({
             .src_buffer = reservoir_staging_buffer,
@@ -992,7 +992,7 @@ void cubeland_app()
       restir.previous_di_address = device.get_device_address(previous_direct_illum_buffer).value();
       restir.di_address = device.get_device_address(direct_illum_buffer).value();
       restir.velocity_address = device.get_device_address(velocity_buffer).value();
-      restir.pixel_reconnection_data_address = device.get_device_address(pixel_reconnection_data_buffer).value();
+      // restir.pixel_reconnection_data_address = device.get_device_address(pixel_reconnection_data_buffer).value();
       restir.output_path_reservoir_address = device.get_device_address(output_path_reservoir_buffer).value();
       restir.temporal_path_reservoir_address = device.get_device_address(temporal_path_reservoir_buffer).value();
       restir.indirect_color_address = device.get_device_address(indirect_color_buffer).value();
@@ -1254,10 +1254,10 @@ void cubeland_app()
           .name = ("direct_illum_buffer"),
       });
 
-      pixel_reconnection_data_buffer = device.create_buffer(daxa::BufferInfo{
-          .size = max_pixel_reconnection_data_buffer_size,
-          .name = ("pixel_reconnection_data_buffer"),
-      });
+      // pixel_reconnection_data_buffer = device.create_buffer(daxa::BufferInfo{
+      //     .size = max_pixel_reconnection_data_buffer_size,
+      //     .name = ("pixel_reconnection_data_buffer"),
+      // });
 
       output_path_reservoir_buffer = device.create_buffer(daxa::BufferInfo{
           .size = max_output_path_reservoir_buffer_size,

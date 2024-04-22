@@ -348,7 +348,7 @@ struct RESTIR
   daxa_u64 previous_di_address;
   daxa_u64 di_address;
   daxa_u64 velocity_address;
-  daxa_u64 pixel_reconnection_data_address;
+  // daxa_u64 pixel_reconnection_data_address;
   daxa_u64 output_path_reservoir_address;
   daxa_u64 temporal_path_reservoir_address;
   daxa_u64 indirect_color_address;
