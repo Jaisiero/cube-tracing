@@ -50,7 +50,7 @@ public:
                 .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
                 .name = "brush indirect buffer",
             });
-            
+
             auto *indirect_buffer_ptr = device.get_host_address_as<u32>(squared_brush_indirect_buffer).value();
 
             indirect_buffer_ptr[0] = 1;
@@ -109,6 +109,21 @@ public:
         auto brush_comp_pipeline_info = slang_shader_compile_options;
         brush_comp_pipeline_info.entry_point = "entry_brush";
 
+        _brush_config_buffer = device.create_buffer({
+            .size = sizeof(BRUSH_CONFIG),
+            .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
+            .name = "brush config buffer",
+        });
+
+        _brush_config_ptr = device.get_host_address_as<BRUSH_CONFIG>(_brush_config_buffer).value();
+
+        _brush_config_ptr->brush_type = BRUSH_TYPE_SQUARE;
+        _brush_config_ptr->brush_size.x = VOXEL_EXTENT * 5.0f;
+        _brush_config_ptr->brush_size.y = 0.0f;
+        _brush_config_ptr->brush_size.z = 0.0f;
+
+        _brush_config_ptr->brush_pixel_size = daxa_u32vec3{50, 0, 0};
+
         squared_brush_comp =
             pipeline_manager.add_compute_pipeline(
                                 daxa::ComputePipelineCompileInfo{
@@ -122,7 +137,7 @@ public:
                 .value();
 
         squared_brush_task_graph = record_squared_brush_task_graph(
-            squared_brush_indirect_buffer,
+            _squared_brush_indirect_buffer,
             brush_buffer_info.status_buffer,
             brush_buffer_info.world_buffer,
             brush_buffer_info.restir_buffer);
@@ -134,32 +149,45 @@ public:
 
     ~BRUSH_MNGR()
     {
-        if(squared_brush_indirect_buffer != daxa::BufferId{})
-            device.destroy_buffer(squared_brush_indirect_buffer);
+        if(_squared_brush_indirect_buffer != daxa::BufferId{})
+            device.destroy_buffer(_squared_brush_indirect_buffer);
+
+        if(_brush_config_buffer != daxa::BufferId{})
+            device.destroy_buffer(_brush_config_buffer);
     }
 
     bool execute_brush(daxa_u32vec2 res, bool sync = false)
     {
-        auto *indirect_buffer_ptr = device.get_host_address_as<u32>(squared_brush_indirect_buffer).value();
+        auto *indirect_buffer_ptr = device.get_host_address_as<u32>(_squared_brush_indirect_buffer).value();
 
         indirect_buffer_ptr[0] = (res.x + BRUSH_COMPUTE_X - 1) / BRUSH_COMPUTE_X;
         indirect_buffer_ptr[1] = (res.y + BRUSH_COMPUTE_Y - 1) / BRUSH_COMPUTE_Y;
 
-        // TODO: add more brushes here
-        squared_brush_task_graph.execute({});
+        if (_brush_config_ptr->brush_type == BRUSH_TYPE_SQUARE)
+        {
+            // TODO: add more brushes here
+            squared_brush_task_graph.execute({});
 #if TRACE == 1
-        std::cout << brush_task_graph.get_debug_string() << std::endl;
+            std::cout << brush_task_graph.get_debug_string() << std::endl;
 #endif // TRACE
+        }
         if (sync)
             device.wait_idle();
 
         return true;
     }
+
+    daxa::BufferId get_brush_config_buffer() const
+    {
+        return _brush_config_buffer;
+    }
     
 
 private:
     // brush buffer
-    daxa::BufferId squared_brush_indirect_buffer = {};
+    BRUSH_CONFIG* _brush_config_ptr = nullptr;
+    daxa::BufferId _squared_brush_indirect_buffer = {};
+    daxa::BufferId _brush_config_buffer = {};
     std::shared_ptr<daxa::ComputePipeline> squared_brush_comp = {};
     BrushBufferInfo _brush_buffer_info = {};
 

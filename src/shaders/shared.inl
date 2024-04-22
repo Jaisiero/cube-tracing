@@ -78,11 +78,13 @@
 #define RIS_CUBE_LIGHT_BIT 1U << 3
 #define RIS_BRDF_BIT 1U << 4
 
-
-
 #define REARRANGEMENT_COMPUTE_X 64
 #define BRUSH_COMPUTE_X 8
 #define BRUSH_COMPUTE_Y 8
+
+#define MAX_BRUSH_SIZE 500
+
+#define BRUSH_TYPE_SQUARE 0
 
 struct AABB
 {
@@ -215,6 +217,13 @@ struct LIGHT_CONFIG
   daxa_u32 light_count;
 };
 
+struct BRUSH_CONFIG
+{
+  daxa_u32 brush_type;
+  daxa_f32vec3 brush_size;
+  daxa_u32vec3 brush_pixel_size;
+};
+
 struct BRUSH_COUNTER
 {
   daxa_u32 instance_count;
@@ -246,6 +255,7 @@ struct Status
   daxa_f32 time;
   daxa_b32 is_afternoon;
   daxa_u32 max_depth;
+  daxa_u64 brush_config_address;
   daxa_u64 brush_counter_address;
   daxa_u64 instance_bitmask_address;
   daxa_u64 primitive_bitmask_address;

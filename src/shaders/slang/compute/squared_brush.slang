@@ -88,8 +88,10 @@ void delete_primitive_from_instance(OBJECT_INFO instance_hit)
   // Get feature flags
   uint active_features = status->is_active;
 
+  Ptr<BRUSH_CONFIG> brush_config = Ptr<BRUSH_CONFIG>(status->brush_config_address);
+
   // TODO: separate this into a different pass
-  const uint window_size = 500;
+  const uint window_size = reinterpret<uint>(brush_config->brush_pixel_size.x);
 
   uint2 pixel = status->pixel;
 

@@ -1302,6 +1302,7 @@ void cubeland_app()
         abort();
       }
 
+      status.brush_config_address = device.get_device_address(brush_manager->get_brush_config_buffer()).value();
       status.brush_counter_address = device.get_device_address(as_manager->get_brush_counter_buffer()).value();
       status.instance_bitmask_address = device.get_device_address(as_manager->get_brush_instance_bitmask_buffer()).value();
       status.primitive_bitmask_address = device.get_device_address(as_manager->get_brush_primitive_bitmask_buffer()).value();
