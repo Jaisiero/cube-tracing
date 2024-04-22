@@ -1506,7 +1506,7 @@ void cubeland_app()
         status.is_active += RIS_BRDF_BIT;
       }
 
-      if (as_manager->is_switching())
+      if (as_manager->is_settling())
       {
         status.is_active += REMAP_BIT;
       }

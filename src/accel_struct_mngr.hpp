@@ -216,7 +216,7 @@ public:
 
     daxa::TlasId get_previous_tlas() { 
         u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
-        return is_switching() ? tlas[prev_index] : tlas[current_index];
+        return is_settling() ? tlas[prev_index] : tlas[current_index];
     }
 
     daxa::BufferId get_current_instance_buffer() { 
@@ -225,7 +225,7 @@ public:
 
     daxa::BufferId get_previous_instance_buffer() { 
         u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
-        return is_switching() ? instance_buffer[prev_index] : instance_buffer[current_index];
+        return is_settling() ? instance_buffer[prev_index] : instance_buffer[current_index];
     }
 
     daxa::BufferId get_current_aabb_buffer() { 
@@ -233,9 +233,8 @@ public:
     }
     
     daxa::BufferId get_previous_aabb_buffer() { 
-        // u32 prev_index = current_index - 1 % DOUBLE_BUFFERING;
-        // return switching ? aabb_buffer[prev_index] : aabb_buffer[current_index];
-        return aabb_buffer[current_index];
+        u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
+        return is_settling() ? aabb_buffer[prev_index] : aabb_buffer[current_index];
     }
 
     daxa::BufferId get_current_primitive_buffer() { 
@@ -243,13 +242,12 @@ public:
     }
     
     daxa::BufferId get_previous_primitive_buffer() { 
-        // u32 prev_index = current_index - 1 % DOUBLE_BUFFERING;
-        // return switching ? primitive_buffer[prev_index] : primitive_buffer[current_index];
-        return primitive_buffer[current_index];
+        u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
+        return is_settling() ? primitive_buffer[prev_index] : primitive_buffer[current_index];
     }
 
     bool is_remapping_primitive_active() { 
-        return is_switching();
+        return is_settling();
     }
 
     daxa::BufferId get_remapping_primitive_buffer() { 
