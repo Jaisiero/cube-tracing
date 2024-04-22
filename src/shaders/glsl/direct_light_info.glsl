@@ -15,6 +15,11 @@ void set_di_from_previous_frame(daxa_u32 di_index, DIRECT_ILLUMINATION_INFO di_i
     prev_di_buffer.di_info[di_index] = di_info;
 }
 
+void reset_di_from_previous_frame_distance(daxa_u32 di_index) {
+    PREV_DI_BUFFER prev_di_buffer = PREV_DI_BUFFER(deref(p.restir_buffer).previous_di_address);
+    prev_di_buffer.di_info[di_index].distance = 0.0;
+}
+
 DIRECT_ILLUMINATION_INFO get_di_from_current_frame(daxa_u32 di_index) {
     DI_BUFFER di_buffer = DI_BUFFER(deref(p.restir_buffer).di_address);
     return di_buffer.di_info[di_index];

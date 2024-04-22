@@ -6,7 +6,7 @@
 
 uint increment_brush_counter_instance_count(Ptr<BRUSH_COUNTER> brush_counter)
 {
-  uint old_instance_count;  
+  uint old_instance_count;
   InterlockedAdd(brush_counter->instance_count, 1, old_instance_count);
   return old_instance_count;
 }
@@ -53,7 +53,7 @@ void delete_primitive_from_instance(OBJECT_INFO instance_hit)
   // atomic or operation to set the bit to 1
   uint result_instance = -1;
   InterlockedOr(instance_bitmask[instance_index >> 5],
-           1 << (instance_index & 31), result_instance);
+                1 << (instance_index & 31), result_instance);
 
   // atomic or operation to set the bit to 1
   uint result_primitive = -1;
@@ -94,30 +94,31 @@ void delete_primitive_from_instance(OBJECT_INFO instance_hit)
   const uint window_size = reinterpret<uint>(brush_config->brush_pixel_size.x);
 
   uint2 pixel = status->pixel;
+  
+  uint pixel_screen_pos = pixel.y * res_x + pixel.x;
 
-  uint2 window_min = max(uint2(pixel.x - window_size, pixel.y - window_size), uint2(0, 0));
-  uint2 window_max = min(uint2(pixel.x + window_size, pixel.y + window_size), uint2(res_x ? res_x-1 : 0, res_y ? res_y-1 : 0));
+  DIRECT_ILLUMINATION_INFO di_info_pixel =
+      Ptr<DIRECT_ILLUMINATION_INFO>(p.head.restir_buffer->previous_di_address)[pixel_screen_pos];
 
-  // TODO: this is a test for many voxels brush range between exact pixel and -x and x and -y and y
-  if (pixel_i.x >= window_min.x && pixel_i.x <= window_max.x &&
-      pixel_i.y >= window_min.y && pixel_i.y <= window_max.y)
+  bool is_hit = di_info_pixel.distance > 0.0;
+  if (is_hit)
   {
-    if ((active_features & PERFECT_PIXEL_BIT) != 0U)
+
+    uint2 window_min = max(uint2(pixel.x - window_size, pixel.y - window_size), uint2(0, 0));
+    uint2 window_max = min(uint2(pixel.x + window_size, pixel.y + window_size), uint2(res_x ? res_x - 1 : 0, res_y ? res_y - 1 : 0));
+
+    // TODO: this is a test for many voxels brush range between exact pixel and -x and x and -y and y
+    if (pixel_i.x >= window_min.x && pixel_i.x <= window_max.x &&
+        pixel_i.y >= window_min.y && pixel_i.y <= window_max.y)
     {
       // screen_pos is the index of the pixel in the screen
       uint screen_pos = pixel_i.y * res_x + pixel_i.x;
       // Get hit info
       DIRECT_ILLUMINATION_INFO di_info = Ptr<DIRECT_ILLUMINATION_INFO>(p.head.restir_buffer->previous_di_address)[screen_pos];
 
-      bool is_hit = di_info.distance > 0.0;
-
+      is_hit = di_info.distance > 0.0;
       if (is_hit)
       {
-        uint pixel_screen_pos = pixel.y * res_x + pixel.x;
-
-        DIRECT_ILLUMINATION_INFO di_info_pixel =
-            Ptr<DIRECT_ILLUMINATION_INFO>(p.head.restir_buffer->previous_di_address)[pixel_screen_pos];
-
         uint instance_id = di_info.instance_hit.instance_id;
 
         uint instance_pixel_id = di_info_pixel.instance_hit.instance_id;
