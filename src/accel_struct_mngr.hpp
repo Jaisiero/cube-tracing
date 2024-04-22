@@ -209,13 +209,16 @@ public:
     void set_synchronizing(bool value) { synchronizing = value; }
     void set_wake_up(bool value) { wake_up = value; }
 
+    u32 get_previous_index() {
+        return current_index == 0 ? DOUBLE_BUFFERING - 1 : current_index - 1;
+    }
 
     daxa::TlasId get_current_tlas() { 
         return tlas[current_index]; 
     }
 
     daxa::TlasId get_previous_tlas() { 
-        u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
+        u32 prev_index = get_previous_index();
         return is_settling() ? tlas[prev_index] : tlas[current_index];
     }
 
@@ -224,7 +227,7 @@ public:
     }
 
     daxa::BufferId get_previous_instance_buffer() { 
-        u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
+        u32 prev_index = get_previous_index();
         return is_settling() ? instance_buffer[prev_index] : instance_buffer[current_index];
     }
 
@@ -233,7 +236,7 @@ public:
     }
     
     daxa::BufferId get_previous_aabb_buffer() { 
-        u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
+        u32 prev_index = get_previous_index();
         return is_settling() ? aabb_buffer[prev_index] : aabb_buffer[current_index];
     }
 
@@ -242,7 +245,7 @@ public:
     }
     
     daxa::BufferId get_previous_primitive_buffer() { 
-        u32 prev_index = static_cast<u32>(current_index - 1) % DOUBLE_BUFFERING;
+        u32 prev_index = get_previous_index();
         return is_settling() ? primitive_buffer[prev_index] : primitive_buffer[current_index];
     }
 
@@ -506,9 +509,9 @@ private:
 
     // Deleting operations
     void copy_buffer(daxa::BufferId src_primitive_buffer, daxa::BufferId dst_primitive_buffer, 
-        size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool synchronize = false);
+        size_t src_primitive_buffer_offset, size_t dst_primitive_buffer_offset, size_t primitive_copy_size, bool sync = true);
 
-    bool upload_all_instances(u32 buffer_index, bool synchronize = false);
+    bool upload_all_instances(u32 buffer_index, bool sync = true);
 
     bool upload_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 host_buffer_offset_count, u32 buffer_offset_count);
     bool copy_primitive_device_buffer(u32 buffer_index, u32 primitive_count, u32 buffer_offset_count);
@@ -538,10 +541,10 @@ private:
     bool clear_remapping_buffer(u32 instance_index, u32 primitive_index, u32 primitive_to_exchange);
     bool clear_instance_remapping_buffer(u32 instance_index);
 
-    bool build_blases(u32 buffer_index, std::vector<u32>& instance_list);
-    bool rebuild_blases(u32 buffer_index, std::vector<u32>& instance_list);
-    bool update_blases(u32 buffer_index, std::vector<u32>& instance_list);
-    bool build_tlas(u32 buffer_index, bool synchronize);
+    bool build_blases(u32 buffer_index, std::vector<u32>& instance_list, bool sync = true);
+    bool rebuild_blases(u32 buffer_index, std::vector<u32>& instance_list, bool sync = true);
+    bool update_blases(u32 buffer_index, std::vector<u32>& instance_list, bool sync = true);
+    bool build_tlas(u32 buffer_index, bool sync = true);
 
 
     daxa::Device& device;
@@ -559,7 +562,8 @@ private:
 
 
     // Acceleration structures
-    daxa::TlasId tlas[DOUBLE_BUFFERING] = {}, temp_tlas = {};
+    daxa::TlasId tlas[DOUBLE_BUFFERING] = {};
+    std::vector<daxa::TlasId> temp_proc_tlas = {};
     std::vector<daxa::BlasId> proc_blas = {}, temp_proc_blas = {};
     daxa::BufferId proc_blas_scratch_buffer = {};
     u64 proc_blas_scratch_buffer_offset = 0;

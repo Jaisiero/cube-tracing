@@ -42,7 +42,7 @@ daxa_u32 get_current_primitive_index_from_instance_and_primitive_id(
       get_geometry_first_primitive_index_from_instance_id(
           instance_hit.instance_id);
   // Get actual primitive index from offset and primitive id
-  return primitive_index + instance_hit.primitive_id;
+  return (primitive_index != -1) ? primitive_index + instance_hit.primitive_id : primitive_index;
 }
 
 daxa_u32 get_previous_primitive_index_from_instance_and_primitive_id(
@@ -52,7 +52,7 @@ daxa_u32 get_previous_primitive_index_from_instance_and_primitive_id(
       get_geometry_previous_first_primitive_index_from_instance_id(
           instance_hit.instance_id);
   // Get actual primitive index from offset and primitive id
-  return primitive_index + instance_hit.primitive_id;
+  return (primitive_index != -1) ? primitive_index + instance_hit.primitive_id : primitive_index;
 }
 
 INSTANCE get_instance_from_instance_id(daxa_u32 instance_id) {
@@ -132,7 +132,7 @@ daxa_u32 get_remapped_primitive_index(daxa_u32 primitive_index) {
 
 daxa_u32 get_remapped_primitive_index_by_object_hit(OBJECT_INFO instance_hit) {
   daxa_u32 primitive_index =
-      get_current_primitive_index_from_instance_and_primitive_id(instance_hit);
+      get_previous_primitive_index_from_instance_and_primitive_id(instance_hit);
   return get_remapped_primitive_index(primitive_index);
 }
 
