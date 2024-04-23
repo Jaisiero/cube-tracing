@@ -16,7 +16,8 @@
 // #define MAX_MATERIALS 10000U
 
 #define MAX_INSTANCES 983040U
-#define MAX_PRIMITIVES 134217728U
+// #define MAX_PRIMITIVES 134217728U
+#define MAX_PRIMITIVES 28256362U
 #define MAX_MATERIALS 10000U
 #define MAX_POINT_LIGHTS 1U
 #define MAX_ENV_LIGHTS 1U
@@ -290,6 +291,10 @@ struct PRIMITIVE
 {
   daxa_u32 material_index;
   daxa_u32 light_index;
+  // daxa_f32vec3 velocity;
+  // daxa_f32mat4x4 F;
+  // daxa_f32mat4x4 C;
+  // daxa_f32 Jp;
 };
 
 #define MATERIAL_TYPE_LAMBERTIAN 0
@@ -306,7 +311,6 @@ struct MATERIAL
 {
   daxa_u32 type; // lowest 8 bits -> 0: lambertian, 1: metal, 2: dielectric (glass), 3: constant medium (fog)
                  // uppest bit -> texture on/off
-  daxa_f32vec3 ambient;
   daxa_f32vec3 diffuse;
   daxa_f32vec3 specular;
   daxa_f32vec3 transmittance;
@@ -318,6 +322,11 @@ struct MATERIAL
   daxa_i32 illum;    // illumination model (see http://www.fileformat.info/format/material/)
                      // daxa_ImageViewId   texture_id;
                      // daxa_SamplerId   sampler_id;
+  // // MLS - MPM parameters
+  // daxa_f32 hardening;
+  // daxa_f32 E;
+  // daxa_f32 mu_0;
+  // daxa_f32 lambda_0;
 };
 
 struct INTERSECT

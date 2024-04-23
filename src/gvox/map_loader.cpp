@@ -208,7 +208,6 @@ void receive_region(GvoxBlitContext *blit_ctx, GvoxAdapterContext *ctx, GvoxRegi
                             palette_data.push_back({id, 1, mat_index});
                             user_state.params.materials[mat_index] = MATERIAL{
                                 .type = MATERIAL_TYPE_LAMBERTIAN,
-                                .ambient = {0.0f, 0.0f, 0.0f},
                                 .diffuse = {r / 255.0f, g / 255.0f, b / 255.0f},
                                 .specular = {0.f, 0.f, 0.f},
                                 .transmittance = {0.0f, 0.0f, 0.0f},

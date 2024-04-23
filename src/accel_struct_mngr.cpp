@@ -2106,7 +2106,7 @@ bool ACCEL_STRUCT_MNGR::delete_blas_process(TASK& task, u32 next_index, std::vec
     std::cout << "      Instance primitive count: " << task.blas_delete_from_cpu.deleted_primitive_count << std::endl;
 #endif // INFO
     instances[delete_task.instance_index].primitive_count = 0;
-    instances[delete_task.instance_index].first_primitive_index = -1;
+    // instances[delete_task.instance_index].first_primitive_index = -1;
     delete_blas_index_list.push_back(delete_task.instance_index);
 
     return true;
@@ -2172,6 +2172,7 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 }
             }
 
+            std::cout << "BLAS_BUILD_FROM_CPU:" << std::endl;
             for (u32 i = 0; i < instance_count; i++)
             {
 
@@ -2212,9 +2213,8 @@ void ACCEL_STRUCT_MNGR::process_task_queue()
                 ++queue_instance_count;
             }
 #if INFO == 1
-            std::cout << "BLAS_BUILD_FROM_CPU:" << std::endl;
-            std::cout << "  >Instance count: " << current_instance_count[next_index] << std::endl;
-            std::cout << "  >Primitive count: " << current_primitive_count[next_index] << std::endl;
+            std::cout << "  >Global Instance count: " << current_instance_count[next_index] << std::endl;
+            std::cout << "  >Global Primitive count: " << current_primitive_count[next_index] << std::endl;
 #endif // INFO
         }
         break;

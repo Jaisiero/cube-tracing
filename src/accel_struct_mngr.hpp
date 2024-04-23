@@ -348,9 +348,9 @@ public:
                     items_to_process = task_queue.size();
                     // if there are no items to process, return false
                     if(items_to_process == 0) return false;
-#if DEBUG == 1                    
+#if TRACE == 1                    
                     std::cout << "Updating scene" << std::endl;
-#endif // DEBUG                    
+#endif // TRACE                    
                     // Switch to next index
                     current_index = (current_index + 1) % DOUBLE_BUFFERING;
                     // if(synchronize) {
@@ -376,9 +376,9 @@ public:
             case AS_MANAGER_STATUS::SWITCHING:
             {
                 
-#if DEBUG == 1                    
+#if TRACE == 1                    
                 std::cout << "Switching scene" << std::endl;
-#endif //DEBUG                
+#endif //TRACE                
 
                 {
                     // Get the mutex
@@ -403,9 +403,9 @@ public:
             } 
             break;
             case AS_MANAGER_STATUS::SETTLING: {
-#if DEBUG == 1                    
+#if TRACE == 1                    
                 std::cout << "Settling scene" << std::endl;
-#endif //DEBUG                
+#endif //TRACE                
                 {
                     // Get the mutex
                     std::unique_lock lock(task_queue_mutex);
