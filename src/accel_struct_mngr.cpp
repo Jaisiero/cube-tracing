@@ -260,6 +260,14 @@ bool ACCEL_STRUCT_MNGR::destroy()
             if (blas != daxa::BlasId{})
                 device.destroy_blas(blas);
 
+        for(auto &proc_blas : temp_proc_blas)
+            if(proc_blas != daxa::BlasId{})
+                device.destroy_blas(proc_blas);
+
+        for(auto &proc_tlas : temp_proc_tlas)
+            if(proc_tlas != daxa::BlasId{})
+                device.destroy_tlas(proc_tlas);
+
         if (proc_blas_scratch_buffer != daxa::BufferId{})
             device.destroy_buffer(proc_blas_scratch_buffer);
         if (proc_blas_buffer != daxa::BufferId{})

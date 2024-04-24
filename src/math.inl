@@ -2,6 +2,15 @@
 
 #include "defines.h"
 
+constexpr daxa_f32mat3x3 glm_mat3_to_daxa_f32mat3x3(glm::mat3 const &mat)
+{
+  return daxa_f32mat3x3{
+      {mat[0][0], mat[0][1], mat[0][2]},
+      {mat[1][0], mat[1][1], mat[1][2]},
+      {mat[2][0], mat[2][1], mat[2][2]},
+  };
+}
+
 constexpr daxa_f32mat4x4 glm_mat4_to_daxa_f32mat4x4(glm::mat4 const &mat)
 {
   return daxa_f32mat4x4{

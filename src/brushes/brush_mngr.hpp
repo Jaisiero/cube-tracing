@@ -156,7 +156,7 @@ public:
             device.destroy_buffer(_brush_config_buffer);
     }
 
-    bool execute_brush(daxa_u32vec2 res, bool sync = false)
+    bool execute_brush(daxa_u32vec2 res, bool sync = true)
     {
         auto *indirect_buffer_ptr = device.get_host_address_as<u32>(_squared_brush_indirect_buffer).value();
 

@@ -213,6 +213,10 @@ public:
         return current_index == 0 ? DOUBLE_BUFFERING - 1 : current_index - 1;
     }
 
+    u32 get_current_primitive_count() { 
+        return current_primitive_count[current_index]; 
+    }
+
     daxa::TlasId get_current_tlas() { 
         return tlas[current_index]; 
     }

@@ -9,15 +9,17 @@
 #include <daxa/daxa.inl>
 #include <daxa/utils/task_graph.inl>
 
-// #define MAX_LEVELS 2
+#define MPM_ON 1
 
 // #define MAX_INSTANCES 4194304U // Theoretically 31'580'641 (4'294'967'296 / 136 [instance size])
 // #define MAX_PRIMITIVES 134 217 728U // Theoretically 178'956'970 (4'294'967'296 / 24 [AABB size])
-// #define MAX_MATERIALS 10000U
 
 #define MAX_INSTANCES 983040U
-// #define MAX_PRIMITIVES 134217728U
+#if MPM_ON == 1
 #define MAX_PRIMITIVES 28256362U
+#else 
+#define MAX_PRIMITIVES 134217728U
+#endif // MPM_ON
 #define MAX_MATERIALS 10000U
 #define MAX_POINT_LIGHTS 1U
 #define MAX_ENV_LIGHTS 1U
@@ -80,8 +82,18 @@
 #define RIS_BRDF_BIT 1U << 4
 
 #define REARRANGEMENT_COMPUTE_X 64
+
 #define BRUSH_COMPUTE_X 8
 #define BRUSH_COMPUTE_Y 8
+
+#if MPM_ON == 1
+#define MPM_P2G_COMPUTE_X 64
+#define MPM_GRID_COMPUTE_X 4 
+#define MPM_GRID_COMPUTE_Y 4
+#define MPM_GRID_COMPUTE_Z 4
+
+#define GRID_DIM 256
+#endif // MPM_ON
 
 #define MAX_BRUSH_SIZE 500
 
@@ -270,6 +282,23 @@ struct INSTANCE
   daxa_u32 primitive_count;
 };
 
+#if MPM_ON == 1
+struct MPM_CONFIG {
+  daxa_u32 p_count;
+  daxa_u32vec3 grid_dim;
+  daxa_f32 dt;
+  daxa_f32 dx;
+  daxa_f32 inv_dx;
+  daxa_f32 gravity;
+};
+
+struct MPM_CELL {
+  daxa_f32vec4 info;
+  daxa_i32vec3 base_coord;
+  daxa_u32vec3 array_grid;
+};
+#endif // MPM_ON
+
 struct WORLD
 {
   daxa_u64 instance_address;
@@ -284,6 +313,10 @@ struct WORLD
   daxa_u64 point_light_address;
   daxa_u64 cube_light_address;
   daxa_u64 env_light_address;
+#if MPM_ON == 1
+  daxa_u64 mpm_config_address;
+  daxa_u64 mpm_grid_address;
+#endif // MPM_ON
 };
 DAXA_DECL_BUFFER_PTR(WORLD)
 
@@ -291,10 +324,12 @@ struct PRIMITIVE
 {
   daxa_u32 material_index;
   daxa_u32 light_index;
-  // daxa_f32vec3 velocity;
-  // daxa_f32mat4x4 F;
-  // daxa_f32mat4x4 C;
-  // daxa_f32 Jp;
+#if MPM_ON == 1
+  daxa_f32vec3 velocity;
+  daxa_f32mat3x3 F;
+  daxa_f32mat3x3 C;
+  daxa_f32 Jp;
+#endif // MPM_ON
 };
 
 #define MATERIAL_TYPE_LAMBERTIAN 0
@@ -322,11 +357,15 @@ struct MATERIAL
   daxa_i32 illum;    // illumination model (see http://www.fileformat.info/format/material/)
                      // daxa_ImageViewId   texture_id;
                      // daxa_SamplerId   sampler_id;
-  // // MLS - MPM parameters
-  // daxa_f32 hardening;
-  // daxa_f32 E;
-  // daxa_f32 mu_0;
-  // daxa_f32 lambda_0;
+#if MPM_ON == 1
+  daxa_f32 hardening;
+  daxa_f32 E;
+  daxa_f32 nu;
+  daxa_f32 mu_0;
+  daxa_f32 lambda_0;
+  daxa_f32 volume;
+  daxa_f32 mass;
+#endif // MPM_ON
 };
 
 struct INTERSECT
@@ -483,4 +522,15 @@ DAXA_DECL_TASK_HEAD_END
 struct brush_push_constant
 {
   DAXA_TH_BLOB(BrushTaskHead, head)
+};
+
+
+DAXA_DECL_TASK_HEAD_BEGIN(MPMTaskHead)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(Status), status_buffer)
+DAXA_TH_BUFFER_PTR(COMPUTE_SHADER_READ, daxa_BufferPtr(WORLD), world_buffer)
+DAXA_DECL_TASK_HEAD_END
+
+struct mpm_push_constant
+{
+  DAXA_TH_BLOB(MPMTaskHead, head)
 };

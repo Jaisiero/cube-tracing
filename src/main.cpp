@@ -10,6 +10,7 @@
 #include <map_loader.hpp>
 #include <accel_struct_mngr.hpp>
 #include <brushes/brush_mngr.hpp>
+#include <mpm/mpm.hpp>
 
 #include "rng.h"
 #include "camera.h"
@@ -19,6 +20,9 @@ using namespace std::chrono_literals;
 using Clock = std::chrono::high_resolution_clock;
 using TASK = cubeland::ACCEL_STRUCT_MNGR::TASK;
 using BRUSH_MNGR = cubeland::BRUSH_MNGR;
+#if MPM_ON == 1
+using MPM_MNGR = cubeland::MPM_MNGR;
+#endif // MPM_ON
 
 CL_NAMESPACE_BEGIN
 void cubeland_app()
@@ -36,6 +40,7 @@ void cubeland_app()
     const char *SWORD_NAME = "chr_sword.vox";
     const float day_duration = 60.0f; // Day duration in seconds
 
+    daxa_f32 dt = 0.0f;
     Clock::time_point start_time = std::chrono::steady_clock::now(), previous_time = start_time;
     Status status = {};
     camera camera = {};
@@ -135,6 +140,9 @@ void cubeland_app()
     MapLoader map_loader = {};
     std::unique_ptr<ACCEL_STRUCT_MNGR> as_manager = {};
     std::unique_ptr<BRUSH_MNGR> brush_manager = {};
+#if MPM_ON == 1
+    std::unique_ptr<MPM_MNGR> mpm_manager = {};
+#endif // MPM_ON
 
     // TODO: test
     daxa_b32 deer_loaded = false;
@@ -447,7 +455,8 @@ void cubeland_app()
     {
       if (activate_day_night_cycle)
       {
-        update_time();
+        // Increment or decrement time
+        add_time(dt);
         if (activate_sun_light && point_lights)
         {
           update_sun_light();
@@ -486,12 +495,9 @@ void cubeland_app()
 
       start_time = std::chrono::steady_clock::now();
 
-      auto time = std::chrono::duration<float>(start_time - previous_time).count();
+      dt = std::chrono::duration<float>(start_time - previous_time).count();
 
-      time = std::fmod(time / day_duration, 1.0f);
-
-      // Increment or decrement time
-      add_time(time);
+      dt = std::fmod(dt / day_duration, 1.0f);
     }
 
     void update_sun_light()
@@ -574,6 +580,10 @@ void cubeland_app()
       world.point_light_address = device.get_device_address(point_light_buffer).value();
       world.cube_light_address = device.get_device_address(as_manager->get_cube_light_buffer()).value();
       world.env_light_address = device.get_device_address(env_light_buffer).value();
+#if MPM_ON == 1
+      world.mpm_config_address = device.get_device_address(mpm_manager->get_MPM_config_buffer()).value();
+      world.mpm_grid_address = device.get_device_address(mpm_manager->get_MPM_grid_buffer()).value();
+#endif // MPM_ON
 
       // copy world to buffer
 
@@ -978,6 +988,10 @@ void cubeland_app()
               .value();
 
       brush_manager = std::make_unique<BRUSH_MNGR>(device, pipeline_manager, slang_shader_compile_options, BRUSH_MNGR::BrushBufferInfo{status_buffer, world_buffer, restir_buffer});
+
+#if MPM_ON == 1
+      mpm_manager = std::make_unique<MPM_MNGR>(device, pipeline_manager, slang_shader_compile_options, MPM_MNGR::MPMBufferInfo{status_buffer, world_buffer});
+#endif // MPM_ON
     }
 
     void upload_restir()
@@ -1412,16 +1426,20 @@ void cubeland_app()
 
       if (!minimized)
       {
+        update_time();
 #if POINT_LIGHT_ON == 1
         update_time_and_sun_light();
 #endif // DYNAMIC_SUN_LIGHT == 1
-        update_model_animation();
+        // update_model_animation();
         // Update the scene if needed
         as_manager->update_scene();
         upload_world();
         draw();
         if(status.is_active & PERFECT_PIXEL_BIT)
-          brush_manager->execute_brush(status.resolution, true);
+          brush_manager->execute_brush(status.resolution);
+#if MPM_ON == 1
+        mpm_manager->execute_mpm(as_manager->get_current_primitive_count(), dt);
+#endif // MPM_ON        
         download_gpu_info();
       }
       else
