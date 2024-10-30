@@ -2,8 +2,6 @@ This is a work in progress real-time path tracer of procedural geometries (cubes
 
 [Watch Youtube video](https://www.youtube.com/watch?v=pCUv0jf9fZ)
 
-Expanding material capabilities such glass, metal and participating media materials:
+![MagicaVoxel map](https://github.com/user-attachments/assets/129e055f-fb51-4088-bdc2-0770902daab7)
 
-![Cube refraction](https://github.com/Jaisiero/cube-tracing/assets/6051981/ce8b546f-c08e-457a-8e19-17fc575c151c)
-![Metal material](https://github.com/Jaisiero/cube-tracing/assets/6051981/9ee29490-fd15-4206-88cb-1f1849eac50f)
-![Cube Clouds](https://github.com/Jaisiero/cube-tracing/assets/6051981/5ab01724-60ac-485a-bc7e-30c1997c6fd8)
+![Emissive voxels](https://github.com/user-attachments/assets/031eca0b-b9cd-49ae-9855-ec1cc83ad8d2)
